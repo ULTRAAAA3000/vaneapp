@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en" class="bg-[#050505]">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vane — Unfairly fast social scheduling for minimalists</title>
+  <meta name="description" content="Flat $12/mo. Unlimited channels, unlimited teammates. Telegram, X, LinkedIn and webhooks, scheduled at the edge with zero delay." />
+  <meta name="theme-color" content="#050505" />
+  <meta property="og:title" content="Vane — Unfairly fast social scheduling for minimalists" />
+  <meta property="og:description" content="One flat price. No per-channel fees. Edge-speed scheduling for Telegram, X, LinkedIn and webhooks." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://vaneapp.dev" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23050505'/%3E%3Cpath d='M8 9l8 15 8-15' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Geist', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+            pixel: ['Silkscreen', 'cursive'],
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      background: #050505;
+      color: #fff;
+    }
+
+    .btn-grad { background: linear-gradient(to bottom, #2b2b2b, #101010); }
+    .btn-light { background: linear-gradient(to bottom, #ffffff, #dcdcdc); color: #0a0a0a; }
+
+    /* ── Background glow ── */
+    .glow-wrap { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+    .glow {
+      position: absolute; border-radius: 9999px; filter: blur(90px); opacity: .55;
+      will-change: transform;
+    }
+    .glow-a { width: 46rem; height: 46rem; top: -16rem; left: -10rem;
+      background: radial-gradient(circle at 30% 30%, #4f46e5 0%, rgba(79,70,229,0) 65%);
+      animation: drift-a 18s ease-in-out infinite alternate; }
+    .glow-b { width: 40rem; height: 40rem; top: 8rem; right: -12rem;
+      background: radial-gradient(circle at 60% 40%, #0ea5e9 0%, rgba(14,165,233,0) 65%);
+      opacity: .4; animation: drift-b 22s ease-in-out infinite alternate; }
+    .glow-c { width: 34rem; height: 34rem; bottom: -14rem; left: 30%;
+      background: radial-gradient(circle, #a855f7 0%, rgba(168,85,247,0) 65%);
+      opacity: .3; animation: drift-a 26s ease-in-out infinite alternate-reverse; }
+    @keyframes drift-a { to { transform: translate3d(6rem, 4rem, 0) scale(1.1); } }
+    @keyframes drift-b { to { transform: translate3d(-5rem, 6rem, 0) scale(.92); } }
+
+    .grid-bg {
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
+      background-size: 56px 56px;
+      -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, #000 20%, transparent 75%);
+              mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, #000 20%, transparent 75%);
+    }
+    .vignette {
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at 50% 120%, rgba(5,5,5,.9) 0%, rgba(5,5,5,0) 60%);
+    }
+
+    /* ── Glass ── */
+    .glass { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08);
+      -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+
+    /* ── Form states ── */
+    .spinner {
+      width: 1rem; height: 1rem; border-radius: 9999px;
+      border: 2px solid rgba(255,255,255,.3); border-top-color: #fff;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .shake { animation: shake .35s ease-in-out; }
+    @keyframes shake {
+      20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); }
+    }
+    .pop { animation: pop .45s cubic-bezier(.16,1,.3,1); }
+    @keyframes pop { from { opacity: 0; transform: translateY(8px) scale(.97); } to { opacity: 1; transform: none; } }
+
+    /* Reveal on scroll */
+    .reveal { opacity: 0; transform: translateY(18px); transition: opacity .7s ease, transform .7s cubic-bezier(.16,1,.3,1); }
+    .reveal.in { opacity: 1; transform: none; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .glow, .spinner { animation: none; }
+      .reveal { opacity: 1; transform: none; transition: none; }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- ═════════════════════════ HERO ═════════════════════════ -->
+  <section class="relative h-screen min-h-[640px] w-full overflow-hidden">
+    <div class="glow-wrap" aria-hidden="true">
+      <div class="glow glow-a"></div>
+      <div class="glow glow-b"></div>
+      <div class="glow glow-c"></div>
+      <div class="grid-bg"></div>
+      <div class="vignette"></div>
+    </div>
+
+    <div class="relative z-10 flex h-full flex-col">
+      <!-- NAV -->
+      <nav class="flex items-center justify-between px-5 py-5 sm:px-8 sm:py-6 lg:px-12">
+        <a href="#" class="flex items-center gap-2 text-white" aria-label="Vane home">
+          <svg width="24" height="24" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <path d="M6 7l10 19L26 7" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M16 26V14" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" opacity=".45"/>
+          </svg>
+          <span class="text-lg font-semibold tracking-tight">vane</span>
+        </a>
+
+        <!-- Desktop -->
+        <div class="hidden items-stretch gap-3 md:flex">
+          <div class="glass flex items-center gap-1 rounded-full p-1.5">
+            <a href="#features" class="rounded-full px-4 py-1.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">Features</a>
+            <a href="#channels" class="rounded-full px-4 py-1.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">Channels</a>
+            <a href="#pricing" class="rounded-full px-4 py-1.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">Pricing</a>
+            <a href="#faq" class="rounded-full px-4 py-1.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">FAQ</a>
+          </div>
+          <a href="#waitlist" class="btn-grad flex items-center self-stretch rounded-full border border-white/10 px-5 text-sm font-medium text-white transition-opacity hover:opacity-90">Join waitlist</a>
+        </div>
+
+        <!-- Mobile toggle -->
+        <button id="menuBtn" type="button" aria-label="Toggle menu" aria-expanded="false"
+          class="glass relative z-50 flex h-10 w-10 items-center justify-center rounded-full text-white md:hidden">
+          <svg id="iconMenu" class="absolute h-5 w-5 transition-all duration-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+          <svg id="iconClose" class="absolute h-5 w-5 -rotate-90 scale-0 opacity-0 transition-all duration-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </nav>
+
+      <!-- Mobile overlay + drawer -->
+      <div id="overlay" class="pointer-events-none fixed inset-0 z-40 bg-black/80 opacity-0 backdrop-blur-md transition-opacity duration-300 md:hidden"></div>
+      <aside id="drawer" class="fixed right-0 top-0 z-40 flex h-full w-72 translate-x-full flex-col bg-black/90 backdrop-blur-xl transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] md:hidden" aria-hidden="true">
+        <div class="flex flex-col gap-2 px-6 pt-24">
+          <a href="#features" class="m-link rounded-xl px-4 py-3.5 text-base font-medium text-white/80 hover:bg-white/10 hover:text-white">Features</a>
+          <a href="#channels" class="m-link rounded-xl px-4 py-3.5 text-base font-medium text-white/80 hover:bg-white/10 hover:text-white">Channels</a>
+          <a href="#pricing" class="m-link rounded-xl px-4 py-3.5 text-base font-medium text-white/80 hover:bg-white/10 hover:text-white">Pricing</a>
+          <a href="#faq" class="m-link rounded-xl px-4 py-3.5 text-base font-medium text-white/80 hover:bg-white/10 hover:text-white">FAQ</a>
+        </div>
+        <div class="mt-auto px-6 pb-10">
+          <a id="drawerCta" href="#waitlist" class="btn-grad block w-full rounded-full border border-white/10 py-3 text-center text-sm font-medium text-white transition-opacity hover:opacity-90">Join waitlist</a>
+        </div>
+      </aside>
+
+      <!-- MAIN (bottom anchored) -->
+      <main id="waitlist" class="mt-auto flex flex-col gap-6 px-5 pb-8 sm:gap-8 sm:px-8 sm:pb-12 lg:flex-row lg:items-end lg:justify-between lg:px-12 lg:pb-16">
+        <div>
+          <span class="glass mb-5 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium text-white/70">
+            <span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400"></span></span>
+            Early access · waitlist open
+          </span>
+          <h1 class="max-w-xl text-3xl font-semibold leading-[1.1] tracking-tight sm:text-4xl lg:text-[3.5rem]">
+            Vane — Unfairly fast social scheduling for minimalists.
+          </h1>
+          <p class="mt-4 max-w-md text-sm leading-relaxed text-white/60 sm:text-base">
+            One flat price. Every channel. Every teammate. Posts leave the edge on the exact minute you chose.
+          </p>
+
+          <!-- Waitlist form -->
+          <div class="mt-6 sm:mt-8">
+            <form id="wlForm" novalidate class="flex flex-col gap-3 sm:inline-flex sm:flex-row sm:items-center sm:gap-0 sm:rounded-full sm:bg-white sm:p-1.5">
+              <label for="email" class="sr-only">Email</label>
+              <input id="email" name="email" type="email" inputmode="email" autocomplete="email" required
+                placeholder="Type your email"
+                class="rounded-full bg-white px-5 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none sm:w-64 sm:rounded-none sm:bg-transparent sm:px-4 sm:py-2" />
+              <!-- honeypot -->
+              <input type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" class="absolute -left-[9999px] h-0 w-0 opacity-0" />
+              <button id="wlBtn" type="submit"
+                class="btn-grad flex min-w-[8.5rem] items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70 sm:py-2.5">
+                <span id="wlSpin" class="spinner hidden"></span>
+                <span id="wlLabel">Get early access</span>
+              </button>
+            </form>
+
+            <div id="wlMsg" role="status" aria-live="polite" class="mt-3 min-h-[1.5rem] text-sm"></div>
+          </div>
+        </div>
+
+        <!-- Right cards -->
+        <div class="flex w-full flex-col gap-4 sm:flex-row lg:w-auto lg:gap-5">
+          <div class="glass flex flex-col justify-between rounded-2xl p-5 sm:w-64 sm:p-6">
+            <div>
+              <div class="font-pixel text-3xl font-normal tracking-tight sm:text-4xl">$12</div>
+              <div class="mt-1 text-xs uppercase tracking-widest text-white/40">per month, flat</div>
+            </div>
+            <p class="mt-3 text-sm leading-relaxed text-white/70 sm:mt-4">
+              Unlimited channels. Unlimited teammates. No “add-on” invoices at the end of the month.
+            </p>
+          </div>
+
+          <div class="glass rounded-2xl p-5 sm:w-64 sm:p-6">
+            <div class="mb-3 flex items-center justify-between sm:mb-4">
+              <span class="text-xs font-semibold uppercase tracking-widest text-white/50">Next up</span>
+              <span class="flex items-center gap-1.5 text-xs text-emerald-400"><span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>Queued</span>
+            </div>
+            <ul class="space-y-2.5 text-sm">
+              <li class="flex items-center justify-between"><span class="text-white/80">Telegram</span><span class="font-mono text-xs text-white/50">09:00:00</span></li>
+              <li class="flex items-center justify-between"><span class="text-white/80">X</span><span class="font-mono text-xs text-white/50">09:00:00</span></li>
+              <li class="flex items-center justify-between"><span class="text-white/80">LinkedIn</span><span class="font-mono text-xs text-white/50">09:05:00</span></li>
+              <li class="flex items-center justify-between"><span class="text-white/80">Webhook</span><span class="font-mono text-xs text-white/50">09:05:00</span></li>
+            </ul>
+          </div>
+        </div>
+      </main>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════ FEATURES ═════════════════════════ -->
+  <section id="features" class="relative border-t border-white/5 px-5 py-20 sm:px-8 sm:py-28 lg:px-12">
+    <div class="mx-auto max-w-6xl">
+      <div class="reveal max-w-2xl">
+        <p class="text-xs font-medium uppercase tracking-widest text-white/40">Why Vane</p>
+        <h2 class="mt-3 text-2xl font-semibold tracking-tight sm:text-4xl">Fewer knobs. Faster posts. A price that never moves.</h2>
+      </div>
+
+      <div class="mt-12 grid gap-4 md:grid-cols-3 md:gap-5">
+        <article class="reveal glass group rounded-2xl p-6 transition-colors hover:bg-white/[0.09]">
+          <div class="mb-5 flex h-10 w-10 items-center justify-center rounded-xl bg-white/10">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8" transform="rotate(45 12 12)"/></svg>
+          </div>
+          <h3 class="text-lg font-semibold">No per-channel fee</h3>
+          <p class="mt-2 text-sm leading-relaxed text-white/60">Connect every account you own and invite the whole team. It is still $12 a month. We do not meter seats or profiles.</p>
+        </article>
+
+        <article class="reveal glass group rounded-2xl p-6 transition-colors hover:bg-white/[0.09]" style="transition-delay:.08s">
+          <div class="mb-5 flex h-10 w-10 items-center justify-center rounded-xl bg-white/10">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>
+          </div>
+          <h3 class="text-lg font-semibold">Edge-speed, 0&nbsp;ms delay</h3>
+          <p class="mt-2 text-sm leading-relaxed text-white/60">A scheduler runs on Cloudflare’s edge every minute, so your post goes out on the minute you picked. No queue lag.</p>
+        </article>
+
+        <article class="reveal glass group rounded-2xl p-6 transition-colors hover:bg-white/[0.09]" style="transition-delay:.16s">
+          <div class="mb-5 flex h-10 w-10 items-center justify-center rounded-xl bg-white/10">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 4L3 11l6 2 2 6 3-5 5 3z"/></svg>
+          </div>
+          <h3 class="text-lg font-semibold">Telegram &amp; X native</h3>
+          <p class="mt-2 text-sm leading-relaxed text-white/60">First-class support for the channels indie builders live on, plus LinkedIn and webhooks for everything else.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════ CHANNELS ═════════════════════════ -->
+  <section id="channels" class="px-5 pb-20 sm:px-8 sm:pb-28 lg:px-12">
+    <div class="mx-auto max-w-6xl">
+      <div class="reveal glass flex flex-col items-start justify-between gap-6 rounded-3xl p-6 sm:p-10 lg:flex-row lg:items-center">
+        <div class="max-w-md">
+          <h2 class="text-xl font-semibold tracking-tight sm:text-2xl">Four channels at launch</h2>
+          <p class="mt-2 text-sm leading-relaxed text-white/60">Write once, pick destinations, set a time. Vane handles the rest and keeps a log of every delivery.</p>
+        </div>
+        <div class="flex flex-wrap gap-2.5">
+          <span class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80">Telegram</span>
+          <span class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80">X (Twitter)</span>
+          <span class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80">LinkedIn</span>
+          <span class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80">Webhooks</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════ PRICING ═════════════════════════ -->
+  <section id="pricing" class="px-5 pb-20 sm:px-8 sm:pb-28 lg:px-12">
+    <div class="mx-auto max-w-md text-center">
+      <div class="reveal glass rounded-3xl p-8 sm:p-10">
+        <p class="text-xs font-medium uppercase tracking-widest text-white/40">Everything included</p>
+        <div class="mt-4 flex items-end justify-center gap-1">
+          <span class="font-pixel text-6xl leading-none tracking-tight">$12</span>
+          <span class="pb-1 text-sm text-white/50">/ month</span>
+        </div>
+        <ul class="mt-6 space-y-2 text-left text-sm text-white/70">
+          <li class="flex gap-2"><span class="text-emerald-400">✓</span> Unlimited connected channels</li>
+          <li class="flex gap-2"><span class="text-emerald-400">✓</span> Unlimited team members</li>
+          <li class="flex gap-2"><span class="text-emerald-400">✓</span> Media uploads and scheduled queue</li>
+          <li class="flex gap-2"><span class="text-emerald-400">✓</span> Delivery logs and retries</li>
+        </ul>
+        <a href="#waitlist" class="btn-light mt-8 block rounded-full py-3 text-sm font-semibold transition-opacity hover:opacity-90">Join the waitlist</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════ FAQ ═════════════════════════ -->
+  <section id="faq" class="px-5 pb-24 sm:px-8 sm:pb-32 lg:px-12">
+    <div class="mx-auto max-w-2xl">
+      <h2 class="reveal text-center text-2xl font-semibold tracking-tight sm:text-3xl">Questions</h2>
+      <div class="mt-8 space-y-3">
+        <details class="reveal glass group rounded-2xl p-5 open:bg-white/[0.09]">
+          <summary class="flex cursor-pointer list-none items-center justify-between text-sm font-medium sm:text-base">
+            Is the price really flat?
+            <span class="text-white/40 transition-transform group-open:rotate-45">+</span>
+          </summary>
+          <p class="mt-3 text-sm leading-relaxed text-white/60">Yes. $12 a month covers all channels and all teammates. No add-ons, no seat counting.</p>
+        </details>
+        <details class="reveal glass group rounded-2xl p-5 open:bg-white/[0.09]">
+          <summary class="flex cursor-pointer list-none items-center justify-between text-sm font-medium sm:text-base">
+            When does Vane launch?
+            <span class="text-white/40 transition-transform group-open:rotate-45">+</span>
+          </summary>
+          <p class="mt-3 text-sm leading-relaxed text-white/60">We are onboarding the waitlist in batches. Join and we will email you when your spot opens.</p>
+        </details>
+        <details class="reveal glass group rounded-2xl p-5 open:bg-white/[0.09]">
+          <summary class="flex cursor-pointer list-none items-center justify-between text-sm font-medium sm:text-base">
+            What do you do with my email?
+            <span class="text-white/40 transition-transform group-open:rotate-45">+</span>
+          </summary>
+          <p class="mt-3 text-sm leading-relaxed text-white/60">We use it only to tell you about Vane’s launch. No spam, no sharing.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <footer class="border-t border-white/5 px-5 py-8 text-center text-xs text-white/40 sm:px-8">
+    © <span id="year"></span> Vane · vaneapp.dev
+  </footer>
+
+  <script>
+    (function () {
+      // ───── footer year ─────
+      document.getElementById('year').textContent = new Date().getFullYear();
+
+      // ───── mobile menu ─────
+      var btn = document.getElementById('menuBtn');
+      var overlay = document.getElementById('overlay');
+      var drawer = document.getElementById('drawer');
+      var iconMenu = document.getElementById('iconMenu');
+      var iconClose = document.getElementById('iconClose');
+      var links = drawer.querySelectorAll('.m-link');
+      var cta = document.getElementById('drawerCta');
+      var open = false;
+
+      links.forEach(function (el) {
+        el.style.opacity = '0';
+        el.style.transform = 'translateX(24px)';
+        el.style.transition = 'opacity .4s ease, transform .4s ease, background-color .2s, color .2s';
+      });
+      cta.style.opacity = '0';
+      cta.style.transform = 'translateY(16px)';
+
+      function setMenu(state) {
+        open = state;
+        btn.setAttribute('aria-expanded', String(open));
+        drawer.setAttribute('aria-hidden', String(!open));
+        document.body.style.overflow = open ? 'hidden' : '';
+
+        overlay.classList.toggle('opacity-0', !open);
+        overlay.classList.toggle('opacity-100', open);
+        overlay.classList.toggle('pointer-events-none', !open);
+        drawer.classList.toggle('translate-x-full', !open);
+        drawer.classList.toggle('translate-x-0', open);
+
+        iconMenu.classList.toggle('rotate-90', open);
+        iconMenu.classList.toggle('scale-0', open);
+        iconMenu.classList.toggle('opacity-0', open);
+        iconClose.classList.toggle('-rotate-90', !open);
+        iconClose.classList.toggle('scale-0', !open);
+        iconClose.classList.toggle('opacity-0', !open);
+
+        links.forEach(function (el, i) {
+          el.style.transitionDelay = open ? ((i + 1) * 60) + 'ms' : '0ms';
+          el.style.opacity = open ? '1' : '0';
+          el.style.transform = open ? 'translateX(0)' : 'translateX(24px)';
+        });
+        cta.style.transition = 'opacity .4s ease ' + (open ? '300ms' : '0ms') + ', transform .4s ease ' + (open ? '300ms' : '0ms');
+        cta.style.opacity = open ? '1' : '0';
+        cta.style.transform = open ? 'translateY(0)' : 'translateY(16px)';
+      }
+
+      btn.addEventListener('click', function () { setMenu(!open); });
+      overlay.addEventListener('click', function () { setMenu(false); });
+      drawer.querySelectorAll('a').forEach(function (a) { a.addEventListener('click', function () { setMenu(false); }); });
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && open) setMenu(false); });
+      window.addEventListener('resize', function () { if (open && window.innerWidth >= 768) setMenu(false); });
+
+      // ───── reveal on scroll ─────
+      var items = document.querySelectorAll('.reveal');
+      if ('IntersectionObserver' in window) {
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (e) {
+            if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+          });
+        }, { threshold: 0.12 });
+        items.forEach(function (el) { io.observe(el); });
+      } else {
+        items.forEach(function (el) { el.classList.add('in'); });
+      }
+
+      // ───── waitlist form ─────
+      var form = document.getElementById('wlForm');
+      var input = document.getElementById('email');
+      var submit = document.getElementById('wlBtn');
+      var spin = document.getElementById('wlSpin');
+      var label = document.getElementById('wlLabel');
+      var msg = document.getElementById('wlMsg');
+      var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+      function setLoading(on) {
+        submit.disabled = on;
+        input.disabled = on;
+        spin.classList.toggle('hidden', !on);
+        label.textContent = on ? 'Joining…' : 'Get early access';
+      }
+
+      function show(kind, text) {
+        var color = kind === 'error' ? 'text-red-400' : 'text-emerald-400';
+        var icon = kind === 'error' ? '✕' : '✓';
+        msg.className = 'mt-3 min-h-[1.5rem] text-sm pop ' + color;
+        msg.textContent = icon + ' ' + text;
+      }
+
+      function fail(text) {
+        show('error', text);
+        form.classList.remove('shake');
+        void form.offsetWidth; // restart animation
+        form.classList.add('shake');
+      }
+
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        msg.textContent = '';
+        var email = input.value.trim();
+
+        if (!EMAIL_RE.test(email)) {
+          fail('Please enter a valid email address.');
+          input.focus();
+          return;
+        }
+
+        setLoading(true);
+        try {
+          var res = await fetch('/api/waitlist', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email, website: form.elements['website'].value })
+          });
+
+          var data = null;
+          try { data = await res.json(); } catch (_) {}
+
+          if (res.ok && data && data.ok) {
+            show('success', data.status === 'already_joined'
+              ? 'You are already on the list. We will be in touch.'
+              : 'You are in! We will email you when your spot opens.');
+            input.value = '';
+            label.textContent = 'You are on the list';
+            submit.disabled = true;
+            input.disabled = false;
+            spin.classList.add('hidden');
+            setTimeout(function () { submit.disabled = false; label.textContent = 'Get early access'; }, 4000);
+            return;
+          }
+          fail((data && data.error) || 'Something went wrong. Please try again.');
+        } catch (err) {
+          fail('Network error. Check your connection and try again.');
+        }
+        setLoading(false);
+      });
+    })();
+  </script>
+</body>
+</html>
