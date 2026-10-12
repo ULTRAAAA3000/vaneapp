@@ -1,0 +1,13 @@
+name = "vaneapp"
+compatibility_date = "2025-01-01"
+pages_build_output_dir = "./public"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "vane-db"
+database_id = "9e560592-ec8e-451d-97d3-c2d8082c527e"   # npx wrangler d1 create vane-db
+
+# Enable when you start stage 2 (media uploads):
+# [[r2_buckets]]
+# binding = "MEDIA"
+# bucket_name = "vane-media"
