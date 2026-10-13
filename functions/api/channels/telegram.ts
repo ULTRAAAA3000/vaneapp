@@ -1,0 +1,217 @@
+/**
+ * Telegram Bot API integration.
+ *
+ *   validateTelegramBot(botToken, chatId)  → can this bot see the chat AND post to it?
+ *   sendTelegramPost(botToken, chatId, content, mediaUrl?) → sendMessage / sendPhoto
+ *
+ * Security notes
+ *  - The bot token lives in the request URL (that's how the Bot API works), so this file never
+ *    logs URLs or raw fetch errors, and error messages returned to callers never contain the token.
+ *  - The token and chat id are format-checked BEFORE they are put into a URL.
+ *  - Every call has a hard timeout so a slow Telegram can't hang a request or the cron worker.
+ *
+ * This file is NOT a route: it only exports helpers (Pages ignores files without onRequest*).
+ */
+
+const TG_API = 'https://api.telegram.org';
+const TIMEOUT_MS = 8_000;
+
+export const TELEGRAM_TEXT_LIMIT = 4096;
+export const TELEGRAM_CAPTION_LIMIT = 1024;
+
+// ───────────────────────── input validation ─────────────────────────
+const BOT_TOKEN_RE = /^\d{6,12}:[A-Za-z0-9_-]{30,60}$/;
+
+export const isValidBotToken = (t: unknown): t is string => typeof t === 'string' && BOT_TOKEN_RE.test(t);
+
+/** Accepts "@channelname", "-1001234567890" or a number. Returns a clean string or null. */
+export function normalizeChatId(v: unknown): string | null {
+  if (typeof v === 'number' && Number.isSafeInteger(v)) return String(v);
+  if (typeof v !== 'string') return null;
+  const s = v.trim();
+  if (/^-?\d{1,20}$/.test(s)) return s;
+  if (/^@[A-Za-z][A-Za-z0-9_]{4,31}$/.test(s)) return s;
+  return null;
+}
+
+export function isValidMediaUrl(v: unknown): v is string {
+  if (typeof v !== 'string' || v.length > 2048) return false;
+  try {
+    const u = new URL(v);
+    return u.protocol === 'https:' && !u.username && !u.password;
+  } catch {
+    return false;
+  }
+}
+
+// ───────────────────────── low-level call ─────────────────────────
+type TgOk<T> = { ok: true; result: T };
+type TgErr = { ok: false; errorCode: number; description: string; retryAfter?: number; network?: boolean };
+
+async function tgCall<T>(botToken: string, method: string, params: Record<string, unknown>): Promise<TgOk<T> | TgErr> {
+  let res: Response;
+  try {
+    res = await fetch(`${TG_API}/bot${botToken}/${method}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+  } catch {
+    // Deliberately drop the error object: some runtimes include the URL (= the token) in it.
+    return { ok: false, errorCode: 0, description: 'Network error or timeout', network: true };
+  }
+
+  let data: { ok?: boolean; result?: T; error_code?: number; description?: string; parameters?: { retry_after?: number } } | null = null;
+  try {
+    data = await res.json();
+  } catch {
+    /* non-JSON error page */
+  }
+
+  if (data?.ok) return { ok: true, result: data.result as T };
+  return {
+    ok: false,
+    errorCode: data?.error_code ?? res.status,
+    description: String(data?.description ?? `HTTP ${res.status}`).slice(0, 200),
+    retryAfter: data?.parameters?.retry_after,
+  };
+}
+
+// ───────────────────────── validateTelegramBot ─────────────────────────
+export type TelegramValidation =
+  | {
+      ok: true;
+      /** Canonical numeric chat id: store THIS (an @username can change, the id can't). */
+      chatId: string;
+      chatType: string;
+      chatTitle: string | null;
+      botUsername: string | null;
+    }
+  | {
+      ok: false;
+      code: 'bad_input' | 'invalid_token' | 'chat_not_found' | 'no_permission' | 'rate_limited' | 'network';
+      error: string;
+    };
+
+interface TgChat { id: number; type: 'private' | 'group' | 'supergroup' | 'channel'; title?: string; username?: string; first_name?: string }
+interface TgMember { status: string; can_post_messages?: boolean; can_send_messages?: boolean; is_member?: boolean }
+
+export async function validateTelegramBot(botToken: string, chatId: string): Promise<TelegramValidation> {
+  if (!isValidBotToken(botToken)) {
+    return { ok: false, code: 'bad_input', error: 'Bot token format is invalid. Copy it from @BotFather.' };
+  }
+  const chat = normalizeChatId(chatId);
+  if (!chat) {
+    return { ok: false, code: 'bad_input', error: 'Chat ID must be @channelname or a numeric id like -1001234567890.' };
+  }
+
+  const map = (e: TgErr): TelegramValidation => {
+    if (e.network) return { ok: false, code: 'network', error: 'Could not reach Telegram. Try again in a moment.' };
+    if (e.errorCode === 429) return { ok: false, code: 'rate_limited', error: 'Telegram is rate limiting requests. Try again shortly.' };
+    if (e.errorCode === 401) return { ok: false, code: 'invalid_token', error: 'Telegram rejected this bot token.' };
+    if (e.errorCode === 403) return { ok: false, code: 'no_permission', error: 'The bot was removed from this chat or blocked.' };
+    if (e.errorCode === 400) return { ok: false, code: 'chat_not_found', error: 'Chat not found. Check the id and add the bot to the chat as an admin.' };
+    return { ok: false, code: 'network', error: 'Telegram returned an unexpected error. Try again later.' };
+  };
+
+  // 1) Can the bot see the chat at all?
+  const c = await tgCall<TgChat>(botToken, 'getChat', { chat_id: chat });
+  if (!c.ok) return map(c);
+  const info = c.result;
+  const base = {
+    ok: true as const,
+    chatId: String(info.id),
+    chatType: info.type,
+    chatTitle: info.title ?? info.username ?? info.first_name ?? null,
+  };
+
+  // 2) Who is the bot?
+  const me = await tgCall<{ id: number; username?: string }>(botToken, 'getMe', {});
+  if (!me.ok) return map(me);
+  const ok = { ...base, botUsername: me.result.username ?? null };
+
+  // Private chats have no member roles: getChat succeeding means the user has started the bot.
+  if (info.type === 'private') return ok;
+
+  // 3) Does the bot have the right to POST there?
+  const m = await tgCall<TgMember>(botToken, 'getChatMember', { chat_id: info.id, user_id: me.result.id });
+  if (!m.ok) return map(m);
+  const { status, can_post_messages, can_send_messages, is_member } = m.result;
+
+  if (info.type === 'channel') {
+    if (status === 'creator') return ok;
+    if (status === 'administrator' && can_post_messages === true) return ok;
+    return {
+      ok: false,
+      code: 'no_permission',
+      error: 'Make the bot an administrator of the channel with the "Post messages" permission.',
+    };
+  }
+
+  // group / supergroup
+  if (status === 'creator' || status === 'administrator' || status === 'member') return ok;
+  if (status === 'restricted' && is_member !== false && can_send_messages !== false) return ok;
+  return { ok: false, code: 'no_permission', error: 'The bot is not allowed to send messages in this group.' };
+}
+
+// ───────────────────────── sendTelegramPost ─────────────────────────
+export type TelegramSendResult =
+  | { ok: true; messageId: number }
+  | {
+      ok: false;
+      error: string;
+      /** true → worth retrying later (network, 429, 5xx). false → will fail the same way again. */
+      retryable: boolean;
+      retryAfter?: number;
+    };
+
+export async function sendTelegramPost(
+  botToken: string,
+  chatId: string,
+  content: string,
+  mediaUrl?: string,
+): Promise<TelegramSendResult> {
+  const permanent = (error: string): TelegramSendResult => ({ ok: false, error, retryable: false });
+
+  if (!isValidBotToken(botToken)) return permanent('Invalid bot token format');
+  const chat = normalizeChatId(chatId);
+  if (!chat) return permanent('Invalid chat id');
+
+  const hasMedia = mediaUrl !== undefined && mediaUrl !== null && mediaUrl !== '';
+  if (hasMedia && !isValidMediaUrl(mediaUrl)) return permanent('mediaUrl must be a public https URL');
+  if (!hasMedia && content.trim() === '') return permanent('Nothing to send: empty text and no media');
+
+  // Pre-check limits so we don't burn an API call (or retry forever) on a doomed request.
+  // Photo + long text would need two messages; a partial failure would then duplicate the photo
+  // on retry, so we refuse it outright instead.
+  if (hasMedia && content.length > TELEGRAM_CAPTION_LIMIT) {
+    return permanent(`With an image, Telegram allows at most ${TELEGRAM_CAPTION_LIMIT} characters of text`);
+  }
+  if (!hasMedia && content.length > TELEGRAM_TEXT_LIMIT) {
+    return permanent(`Telegram allows at most ${TELEGRAM_TEXT_LIMIT} characters per message`);
+  }
+
+  // No parse_mode on purpose: plain text can never fail with "can't parse entities".
+  const r = hasMedia
+    ? await tgCall<{ message_id: number }>(botToken, 'sendPhoto', {
+        chat_id: chat,
+        photo: mediaUrl,
+        ...(content ? { caption: content } : {}),
+      })
+    : await tgCall<{ message_id: number }>(botToken, 'sendMessage', { chat_id: chat, text: content });
+
+  if (r.ok) return { ok: true, messageId: r.result.message_id };
+
+  if (r.network) return { ok: false, error: r.description, retryable: true };
+  if (r.errorCode === 429) {
+    return { ok: false, error: 'Telegram rate limit hit', retryable: true, retryAfter: r.retryAfter };
+  }
+  if (r.errorCode >= 500) return { ok: false, error: 'Telegram server error', retryable: true };
+  if (r.errorCode === 401) return permanent('Telegram rejected the bot token');
+  if (r.errorCode === 403) return permanent('The bot was removed from the chat or lost its permissions');
+  if (hasMedia && r.errorCode === 400) {
+    return permanent('Telegram could not use the image URL (it must be a public direct link to a photo)');
+  }
+  return permanent(`Telegram refused the message: ${r.description}`);
+}

@@ -1,0 +1,91 @@
+/**
+ * Minimal bearer-token auth (HS256 JWT) built on Web Crypto.
+ *
+ * Every protected route starts with:
+ *     const auth = await requireUser(request, env);
+ *     if (!auth.ok) return auth.response;
+ *     // auth.userId is now trustworthy
+ *
+ * Tokens travel in the `Authorization: Bearer <jwt>` header (not cookies), so they are
+ * not sent automatically by the browser and CSRF does not apply.
+ * Registration / login (which will MINT these tokens) is a later stage; until then use
+ * scripts/dev-token.mjs.
+ */
+import type { Env } from '../../../types';
+import { fromB64Url, toB64Url } from './encoding';
+import { fail } from './http';
+
+const enc = new TextEncoder();
+const dec = new TextDecoder();
+const MIN_SECRET_LEN = 32;
+
+export interface JwtPayload {
+  sub: string;
+  iat: number;
+  exp: number;
+}
+
+const hmacKey = (secret: string, usage: 'sign' | 'verify') =>
+  crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, [usage]);
+
+export async function signJWT(payload: { sub: string; exp: number; iat?: number }, secret: string): Promise<string> {
+  const full: JwtPayload = { iat: Math.floor(Date.now() / 1000), ...payload };
+  const head = toB64Url(enc.encode(JSON.stringify({ alg: 'HS256', typ: 'JWT' })));
+  const body = toB64Url(enc.encode(JSON.stringify(full)));
+  const sig = await crypto.subtle.sign('HMAC', await hmacKey(secret, 'sign'), enc.encode(`${head}.${body}`));
+  return `${head}.${body}.${toB64Url(new Uint8Array(sig))}`;
+}
+
+/** Returns the payload, or null for ANY problem (bad format, bad signature, expired). */
+export async function verifyJWT(token: string, secret: string): Promise<JwtPayload | null> {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const [h, p, s] = parts;
+
+    const header = JSON.parse(dec.decode(fromB64Url(h)));
+    if (header?.alg !== 'HS256') return null; // never trust the token to pick the algorithm
+
+    // subtle.verify compares in constant time
+    const valid = await crypto.subtle.verify(
+      'HMAC',
+      await hmacKey(secret, 'verify'),
+      fromB64Url(s),
+      enc.encode(`${h}.${p}`),
+    );
+    if (!valid) return null;
+
+    const payload = JSON.parse(dec.decode(fromB64Url(p)));
+    if (typeof payload?.sub !== 'string' || !payload.sub) return null;
+    if (typeof payload.exp !== 'number' || payload.exp <= Math.floor(Date.now() / 1000)) return null;
+    return payload as JwtPayload;
+  } catch {
+    return null;
+  }
+}
+
+export type AuthResult = { ok: true; userId: string } | { ok: false; response: Response };
+
+export async function requireUser(request: Request, env: Env): Promise<AuthResult> {
+  const unauthorized = (msg = 'Authentication required') => ({
+    ok: false as const,
+    response: fail(401, msg, { 'WWW-Authenticate': 'Bearer' }),
+  });
+
+  if (!env.JWT_SECRET || env.JWT_SECRET.length < MIN_SECRET_LEN) {
+    console.error('JWT_SECRET is missing or shorter than 32 characters');
+    return { ok: false, response: fail(500, 'Server is not configured correctly') };
+  }
+
+  const m = /^Bearer\s+(\S+)$/i.exec(request.headers.get('authorization') ?? '');
+  if (!m) return unauthorized();
+
+  const payload = await verifyJWT(m[1], env.JWT_SECRET);
+  if (!payload) return unauthorized('Invalid or expired token');
+
+  // A valid signature for a user that no longer exists must not pass.
+  const user = await env.DB.prepare('SELECT id FROM users WHERE id = ?1').bind(payload.sub).first<{ id: string }>();
+  if (!user) return unauthorized('Invalid or expired token');
+
+  return { ok: true, userId: user.id };
+}

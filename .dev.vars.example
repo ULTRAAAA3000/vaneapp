@@ -1,0 +1,3 @@
+# Copy to .dev.vars (git-ignored) for `npm run dev`. Generate each value with:  openssl rand -base64 32
+ENCRYPTION_KEY=replace-with-32+-random-chars
+JWT_SECRET=replace-with-another-32+-random-chars
