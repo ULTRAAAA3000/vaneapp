@@ -12,8 +12,8 @@ export interface Env {
   MEDIA: R2Bucket;
 
   /** Secrets (wrangler secret put / Pages → Settings → Variables) */
-  ENCRYPTION_KEY?: string;      // for encrypting channels.credentials
-  JWT_SECRET?: string;
+  ENCRYPTION_KEY?: string;      // for encrypting channels.credentials (>= 32 random chars)
+  JWT_SECRET?: string;          // signs/verifies API bearer tokens (>= 32 chars)
   STRIPE_SECRET_KEY?: string;
 
   /** Plain vars */
@@ -70,7 +70,7 @@ export interface PostRow {
   user_id: string;
   channel_id: string;
   content: string;
-  /** JSON string: string[] of R2 keys */
+  /** JSON string: string[] of R2 object keys OR external https URLs (told apart by the "https://" prefix) */
   media_keys: string;
   scheduled_at: number;
   status: PostStatus;
@@ -112,3 +112,54 @@ export interface WaitlistRequest {
 export type WaitlistResponse =
   | { ok: true; status: 'joined' | 'already_joined' }
   | { ok: false; error: string };
+
+// ───────────────────────── Channels API ─────────────────────────
+/** What the API ever returns about a channel. Credentials are never included. */
+export interface ChannelPublic {
+  id: string;
+  platform: ChannelType;
+  name: string;
+  isActive: boolean;
+  createdAt: number;
+}
+
+export interface AddChannelRequest {
+  platform: ChannelType;
+  name: string;
+  /** telegram: { botToken, chatId }  (chatId: "@channel", "-100…" or a number) */
+  credentials: { botToken: string; chatId: string | number };
+}
+
+export type ApiError = { ok: false; error: string };
+
+export type ListChannelsResponse = { ok: true; channels: ChannelPublic[] } | ApiError;
+
+export type AddChannelResponse =
+  | {
+      ok: true;
+      channel: ChannelPublic;
+      telegram: { chatType: string; chatTitle: string | null; botUsername: string | null };
+    }
+  | ApiError;
+
+export type DeleteChannelResponse = { ok: true; deletedScheduledPosts: number } | ApiError;
+
+// ───────────────────────── Posts API ─────────────────────────
+export interface CreatePostRequest {
+  content: string;
+  /** public https URL of an image (optional) */
+  mediaUrl?: string | null;
+  channelIds: string[];
+  /** ISO-8601 with timezone ("2026-10-20T09:00:00Z") or unix seconds. Must be in the future. */
+  scheduledAt: string | number;
+}
+
+export type CreatePostResponse =
+  | {
+      ok: true;
+      groupId: string;
+      /** unix seconds */
+      scheduledAt: number;
+      posts: { id: string; channelId: string; status: 'scheduled' }[];
+    }
+  | ApiError;
