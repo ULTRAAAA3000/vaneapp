@@ -1,10 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="scroll-smooth">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Vane — Unfairly fast social scheduling for minimalists</title>
   <meta name="description" content="Flat $12/mo. Unlimited channels, unlimited teammates. Telegram, X, LinkedIn and webhooks, scheduled at the edge with zero delay." />
+  <meta name="theme-color" content="#070708" />
   <meta property="og:title" content="Vane — Unfairly fast social scheduling for minimalists" />
   <meta property="og:description" content="One flat price. No per-channel fees. Edge-speed scheduling for Telegram, X, LinkedIn and webhooks." />
   <meta property="og:type" content="website" />
@@ -17,30 +18,95 @@
   <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
-    html, body { margin: 0; height: 100%; }
     body {
+      margin: 0;
       font-family: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
+      background: #070708;
     }
+    .pixel { font-family: 'Silkscreen', cursive; font-weight: 400; }
     .btn-grad { background: linear-gradient(to bottom, #2B2B2B, #101010); }
+    .no-scrollbar { scrollbar-width: none; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    section[id] { scroll-margin-top: 24px; }
 
-    .spinner {
-      width: 1rem; height: 1rem; border-radius: 9999px;
-      border: 2px solid rgba(255,255,255,.3); border-top-color: #fff;
-      animation: spin .7s linear infinite;
+    /* ── glass on dark sections ── */
+    .glass-d {
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.08);
+      -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
     }
+
+    /* ── channel chips ── */
+    .chip {
+      display: inline-flex; align-items: center; gap: .5rem;
+      border-radius: 9999px; padding: .5rem .9rem;
+      font-size: .875rem; font-weight: 500;
+      color: rgba(255,255,255,.8); background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.1);
+      transition: background-color .2s, color .2s, transform .15s;
+    }
+    .chip:hover { background: rgba(255,255,255,.14); color: #fff; }
+    .chip:active { transform: scale(.97); }
+    .chip[aria-pressed="true"] { background: #fff; color: #010101; border-color: #fff; }
+
+    /* ── phone mockup ── */
+    .phone {
+      width: 290px; height: 590px; flex-shrink: 0;
+      border-radius: 50px; padding: 10px;
+      background: linear-gradient(145deg, #34343a, #0c0c0e 60%);
+      box-shadow:
+        inset 0 0 0 1px rgba(255,255,255,.14),
+        0 50px 120px -30px rgba(90,110,255,.35),
+        0 25px 50px -10px rgba(0,0,0,.7);
+    }
+    .phone-screen { position: relative; height: 100%; border-radius: 40px; overflow: hidden; background: #000; }
+    .island { position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+      width: 92px; height: 26px; border-radius: 20px; background: #000; z-index: 5; }
+    .statusbar { position: absolute; top: 0; left: 0; right: 0; height: 46px; z-index: 4;
+      display: flex; align-items: center; justify-content: space-between; padding: 6px 26px 0;
+      font-size: 12px; font-weight: 600; }
+
+    /* ── range slider ── */
+    input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 4px;
+      border-radius: 9999px; background: rgba(255,255,255,.18); outline: none; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px;
+      border-radius: 9999px; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.5); cursor: pointer; }
+    input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: 0;
+      border-radius: 9999px; background: #fff; cursor: pointer; }
+
+    /* ── faq ── */
+    details > summary { list-style: none; cursor: pointer; }
+    details > summary::-webkit-details-marker { display: none; }
+    details[open] .faq-plus { transform: rotate(45deg); }
+    details[open] { background: rgba(255,255,255,.08); }
+
+    /* ── motion ── */
+    .spinner { width: 1rem; height: 1rem; border-radius: 9999px;
+      border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; animation: spin .7s linear infinite; }
+    .spinner-dark { border-color: rgba(0,0,0,.2); border-top-color: #010101; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .shake { animation: shake .35s ease-in-out; }
     @keyframes shake { 20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); } }
     .pop { animation: pop .4s cubic-bezier(.16,1,.3,1); }
-    @keyframes pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    @keyframes pop { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+    .reveal { opacity: 0; transform: translateY(20px);
+      transition: opacity .8s ease, transform .8s cubic-bezier(.16,1,.3,1); }
+    .reveal.in { opacity: 1; transform: none; }
+    @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+    .float { animation: float 7s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) {
+      .reveal { opacity: 1; transform: none; transition: none; }
+      .float, .spinner { animation: none; }
+    }
   </style>
 </head>
 
-<body>
+<body class="text-white">
+
+  <!-- ═══════════════════════════ HERO ═══════════════════════════ -->
   <section class="relative h-screen w-full overflow-hidden bg-[#dfe3e8] lg:bg-[#0a0a0a]">
-    <!-- Background video: full-bleed, no overlay -->
     <video
       class="absolute inset-0 h-full w-full object-cover"
       src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260803_192301_9231ed6b-c55c-4a48-909c-4ebe11cf2e11.mp4"
@@ -58,21 +124,19 @@
           <span class="text-lg font-semibold text-[#010101] lg:text-white">vane</span>
         </a>
 
-        <!-- Desktop nav -->
         <div class="hidden items-stretch gap-3 md:flex">
           <div class="flex items-center gap-1 rounded-full bg-white/10 px-1.5 py-1.5 backdrop-blur-lg">
-            <a href="#" class="rounded-full px-4 py-1.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">Features</a>
-            <a href="#" class="rounded-full px-4 py-1.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">Channels</a>
-            <a href="#" class="flex items-center gap-1 rounded-full px-4 py-1.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">
+            <a href="#features" class="rounded-full px-4 py-1.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">Features</a>
+            <a href="#demo" class="rounded-full px-4 py-1.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">Channels</a>
+            <a href="#how" class="flex items-center gap-1 rounded-full px-4 py-1.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">
               Solutions
               <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
             </a>
-            <a href="#" class="rounded-full px-4 py-1.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">Pricing</a>
+            <a href="#pricing" class="rounded-full px-4 py-1.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">Pricing</a>
           </div>
-          <button type="button" data-focus-email class="btn-grad self-stretch rounded-full px-5 text-sm font-medium text-white transition-opacity hover:opacity-90">Get started</button>
+          <button type="button" data-focus-hero class="btn-grad self-stretch rounded-full px-5 text-sm font-medium text-white transition-opacity hover:opacity-90">Get started</button>
         </div>
 
-        <!-- Mobile hamburger -->
         <button id="menuBtn" type="button" aria-label="Toggle menu" aria-expanded="false"
           class="relative z-50 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 backdrop-blur-lg text-[#010101] lg:text-white md:hidden">
           <svg id="iconMenu" class="absolute h-5 w-5 transition-all duration-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
@@ -80,61 +144,55 @@
         </button>
       </nav>
 
-      <!-- Mobile overlay -->
       <div id="overlay" class="pointer-events-none fixed inset-0 z-40 bg-black/80 opacity-0 backdrop-blur-md transition-opacity duration-300 md:hidden"></div>
 
-      <!-- Mobile drawer -->
       <aside id="drawer" class="fixed right-0 top-0 z-40 flex h-full w-72 translate-x-full flex-col bg-black/90 backdrop-blur-xl transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] md:hidden" aria-hidden="true">
         <div class="flex flex-col gap-2 px-6 pt-24">
-          <a href="#" class="m-link rounded-xl px-4 py-3.5 text-base font-medium text-white/80 hover:bg-white/10 hover:text-white">Features</a>
-          <a href="#" class="m-link rounded-xl px-4 py-3.5 text-base font-medium text-white/80 hover:bg-white/10 hover:text-white">Channels</a>
-          <a href="#" class="m-link flex items-center justify-between rounded-xl px-4 py-3.5 text-base font-medium text-white/80 hover:bg-white/10 hover:text-white">
+          <a href="#features" class="m-link rounded-xl px-4 py-3.5 text-base font-medium text-white/80 hover:bg-white/10 hover:text-white">Features</a>
+          <a href="#demo" class="m-link rounded-xl px-4 py-3.5 text-base font-medium text-white/80 hover:bg-white/10 hover:text-white">Channels</a>
+          <a href="#how" class="m-link flex items-center justify-between rounded-xl px-4 py-3.5 text-base font-medium text-white/80 hover:bg-white/10 hover:text-white">
             Solutions
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
           </a>
-          <a href="#" class="m-link rounded-xl px-4 py-3.5 text-base font-medium text-white/80 hover:bg-white/10 hover:text-white">Pricing</a>
+          <a href="#pricing" class="m-link rounded-xl px-4 py-3.5 text-base font-medium text-white/80 hover:bg-white/10 hover:text-white">Pricing</a>
         </div>
         <div class="mt-auto px-6 pb-10">
-          <button id="drawerCta" type="button" data-focus-email class="btn-grad w-full rounded-full py-3 text-sm font-medium text-white transition-opacity hover:opacity-90">Get started</button>
+          <button id="drawerCta" type="button" data-focus-hero class="btn-grad w-full rounded-full py-3 text-sm font-medium text-white transition-opacity hover:opacity-90">Get started</button>
         </div>
       </aside>
 
-      <!-- MAIN (bottom anchored) -->
+      <!-- MAIN -->
       <main class="mt-auto flex flex-col gap-6 px-5 pb-8 sm:gap-8 sm:px-8 sm:pb-12 lg:flex-row lg:items-end lg:justify-between lg:px-12 lg:pb-16">
-        <!-- Left: headline + email CTA -->
         <div>
           <h1 class="max-w-xl text-3xl font-semibold leading-[1.1] tracking-tight text-[#010101] sm:text-4xl lg:text-[3.5rem] lg:text-white">
             Vane — Unfairly fast social scheduling for minimalists.
           </h1>
 
           <div class="mt-6 sm:mt-8">
-            <form id="wlForm" novalidate class="flex flex-col gap-3 sm:inline-flex sm:flex-row sm:items-center sm:gap-0 sm:rounded-full sm:bg-white sm:p-1.5">
-              <label for="email" class="sr-only">Email</label>
-              <input id="email" name="email" type="email" inputmode="email" autocomplete="email" required
+            <form class="wl-form flex flex-col gap-3 sm:inline-flex sm:flex-row sm:items-center sm:gap-0 sm:rounded-full sm:bg-white sm:p-1.5" novalidate data-tone="hero" id="heroForm">
+              <label for="heroEmail" class="sr-only">Email</label>
+              <input id="heroEmail" name="email" type="email" inputmode="email" autocomplete="email" required
                 placeholder="Type your email"
                 class="rounded-full bg-white px-5 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none sm:w-64 sm:rounded-none sm:bg-transparent sm:px-4 sm:py-2" />
               <input type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" class="absolute -left-[9999px] h-0 w-0 opacity-0" />
-              <button id="wlBtn" type="submit"
+              <button type="submit"
                 class="btn-grad flex items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70 sm:py-2.5">
-                <span id="wlSpin" class="spinner hidden"></span>
-                <span id="wlLabel">Get started</span>
+                <span class="wl-spin spinner hidden"></span>
+                <span class="wl-label">Get started</span>
               </button>
             </form>
-            <div id="wlMsg" role="status" aria-live="polite" class="mt-3 min-h-[1.5rem] text-sm"></div>
+            <div class="wl-msg mt-3 min-h-[1.5rem] text-sm" role="status" aria-live="polite"></div>
           </div>
         </div>
 
-        <!-- Right: two glass cards -->
         <div class="flex w-full flex-col gap-4 sm:flex-row lg:w-auto lg:gap-5">
-          <!-- Stats card -->
           <div class="flex flex-col justify-between rounded-2xl bg-white/10 p-5 backdrop-blur-lg sm:w-64 sm:p-6">
-            <div class="text-3xl font-normal tracking-tight text-[#010101] sm:text-4xl lg:text-white" style="font-family: 'Silkscreen', cursive;">$12</div>
+            <div class="pixel text-3xl tracking-tight text-[#010101] sm:text-4xl lg:text-white">$12</div>
             <p class="mt-3 text-sm leading-relaxed text-[#010101]/70 sm:mt-4 lg:text-white/70">
               Flat per month. Every channel and every teammate included.
             </p>
           </div>
 
-          <!-- Advantages card -->
           <div class="rounded-2xl bg-white/10 p-5 backdrop-blur-lg sm:w-64 sm:p-6">
             <div class="mb-3 flex items-center gap-2 sm:mb-4">
               <div class="flex h-6 w-6 items-center justify-center rounded bg-black text-xs font-bold text-white">V</div>
@@ -151,92 +209,460 @@
     </div>
   </section>
 
+  <!-- ═══════════════════════════ BELOW THE FOLD ═══════════════════════════ -->
+  <div class="relative overflow-hidden bg-[#070708]">
+    <!-- ambient glows -->
+    <div class="pointer-events-none absolute inset-0" aria-hidden="true">
+      <div class="absolute -left-40 top-24 h-[34rem] w-[34rem] rounded-full bg-indigo-600/20 blur-[120px]"></div>
+      <div class="absolute -right-40 top-[40rem] h-[34rem] w-[34rem] rounded-full bg-sky-500/15 blur-[120px]"></div>
+      <div class="absolute left-1/3 top-[95rem] h-[30rem] w-[30rem] rounded-full bg-violet-600/15 blur-[120px]"></div>
+    </div>
+
+    <!-- ───────────── DEMO ───────────── -->
+    <section id="demo" class="relative px-5 py-20 sm:px-8 sm:py-28 lg:px-12">
+      <div class="mx-auto max-w-6xl">
+        <div class="reveal mx-auto max-w-2xl text-center">
+          <span class="glass-d inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium text-white/70">
+            <span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400"></span></span>
+            Live demo
+          </span>
+          <h2 class="mt-5 text-3xl font-semibold leading-[1.1] tracking-tight sm:text-5xl">Write once. Preview everywhere.</h2>
+          <p class="mt-4 text-sm leading-relaxed text-white/60 sm:text-base">Type or paste a post, pick your channels and see exactly how it lands on each one before it ever goes out.</p>
+        </div>
+
+        <div class="mt-12 grid items-start gap-8 lg:mt-16 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-14">
+          <!-- composer -->
+          <div class="reveal glass-d rounded-3xl p-5 sm:p-7">
+            <label for="postText" class="text-xs font-medium uppercase tracking-widest text-white/40">Your post</label>
+            <textarea id="postText" rows="7" spellcheck="true"
+              placeholder="Write or paste your post…"
+              class="mt-3 w-full resize-none rounded-2xl border border-white/10 bg-black/30 p-4 text-[15px] leading-relaxed text-white placeholder-white/30 outline-none transition-colors focus:border-white/30"></textarea>
+
+            <div id="counts" class="mt-3 flex min-h-[1.75rem] flex-wrap gap-2 text-xs"></div>
+
+            <div class="mt-6">
+              <div class="text-xs font-medium uppercase tracking-widest text-white/40">Publish to</div>
+              <div id="chips" class="mt-3 flex flex-wrap gap-2.5"></div>
+            </div>
+
+            <div class="mt-6">
+              <div class="text-xs font-medium uppercase tracking-widest text-white/40">When</div>
+              <div id="when" class="mt-3 flex flex-wrap gap-2.5"></div>
+            </div>
+
+            <div class="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <button id="schedBtn" type="button"
+                class="flex items-center justify-center gap-2 rounded-full bg-white px-7 py-3 text-sm font-semibold text-[#010101] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40">
+                <span id="schedSpin" class="spinner spinner-dark hidden"></span>
+                <span id="schedLabel">Schedule post</span>
+              </button>
+              <span id="hint" class="text-xs text-white/45"></span>
+            </div>
+
+            <!-- simulated result -->
+            <div id="result" class="mt-6 hidden rounded-2xl border border-white/10 bg-black/30 p-4 font-mono text-[12.5px] leading-relaxed"></div>
+            <p class="mt-5 text-[11px] text-white/35">Simulated demo. Nothing is posted anywhere and your text never leaves this page.</p>
+          </div>
+
+          <!-- phone -->
+          <div class="reveal flex justify-center lg:sticky lg:top-8">
+            <div class="float">
+              <div class="phone">
+                <div class="phone-screen flex flex-col">
+                  <div class="island"></div>
+                  <div class="statusbar text-white">
+                    <span>9:41</span>
+                    <span class="flex items-center gap-1.5">
+                      <svg width="16" height="10" viewBox="0 0 16 10" fill="currentColor"><rect x="0" y="6" width="3" height="4" rx=".6"/><rect x="4.4" y="4" width="3" height="6" rx=".6"/><rect x="8.8" y="2" width="3" height="8" rx=".6"/><rect x="13.2" y="0" width="2.8" height="10" rx=".6"/></svg>
+                      <svg width="22" height="10" viewBox="0 0 22 10" fill="none"><rect x=".5" y=".5" width="18" height="9" rx="2.5" stroke="currentColor" opacity=".5"/><rect x="2" y="2" width="13" height="6" rx="1.3" fill="currentColor"/><rect x="19.6" y="3.2" width="1.6" height="3.6" rx=".8" fill="currentColor" opacity=".5"/></svg>
+                    </span>
+                  </div>
+                  <div id="tabs" class="flex min-h-[3.75rem] items-end gap-1.5 bg-black px-3 pb-2 pt-12"></div>
+                  <div id="pv" class="no-scrollbar flex-1 overflow-y-auto"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────────── FEATURES ───────────── -->
+    <section id="features" class="relative px-5 pb-20 sm:px-8 sm:pb-28 lg:px-12">
+      <div class="mx-auto max-w-6xl">
+        <div class="reveal max-w-2xl">
+          <p class="text-xs font-medium uppercase tracking-widest text-white/40">Why Vane</p>
+          <h2 class="mt-3 text-3xl font-semibold leading-[1.1] tracking-tight sm:text-5xl">Fewer knobs. Faster posts. A price that never moves.</h2>
+        </div>
+
+        <div class="mt-12 grid gap-4 md:grid-cols-6 md:gap-5">
+          <article class="reveal glass-d flex flex-col justify-between rounded-3xl p-6 sm:p-8 md:col-span-3">
+            <div class="pixel text-5xl tracking-tight sm:text-6xl">$0</div>
+            <div class="mt-8">
+              <h3 class="text-xl font-semibold">No per-channel fee</h3>
+              <p class="mt-2 text-sm leading-relaxed text-white/60">Connect every account you own. The price stays at $12 a month. We don’t meter profiles or add surprise line items.</p>
+            </div>
+          </article>
+
+          <article class="reveal glass-d flex flex-col justify-between rounded-3xl p-6 sm:p-8 md:col-span-3" style="transition-delay:.08s">
+            <div class="pixel text-5xl tracking-tight sm:text-6xl">0 ms</div>
+            <div class="mt-8">
+              <h3 class="text-xl font-semibold">Edge-speed scheduling</h3>
+              <p class="mt-2 text-sm leading-relaxed text-white/60">A scheduler on Cloudflare’s edge wakes up every minute and ships whatever is due. No queue lag, no cold servers to wait for.</p>
+            </div>
+          </article>
+
+          <article class="reveal glass-d rounded-3xl p-6 md:col-span-2">
+            <div class="mb-5 flex h-10 w-10 items-center justify-center rounded-xl bg-white/10">
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 3.5L2.8 10.7l5.9 2.2 2.3 6.6 3.1-4.2 4.6 3.4z"/><path d="M8.7 12.9l12-8.6"/></svg>
+            </div>
+            <h3 class="text-lg font-semibold">Telegram &amp; X native</h3>
+            <p class="mt-2 text-sm leading-relaxed text-white/60">First-class support for the channels indie builders live on.</p>
+          </article>
+
+          <article class="reveal glass-d rounded-3xl p-6 md:col-span-2" style="transition-delay:.06s">
+            <div class="mb-5 flex h-10 w-10 items-center justify-center rounded-xl bg-white/10">
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9l-4 3 4 3M16 9l4 3-4 3M13 6l-2 12"/></svg>
+            </div>
+            <h3 class="text-lg font-semibold">Webhooks for the rest</h3>
+            <p class="mt-2 text-sm leading-relaxed text-white/60">Send any post to your own endpoint and fan it out to Slack, Discord or a CMS.</p>
+          </article>
+
+          <article class="reveal glass-d rounded-3xl p-6 md:col-span-2" style="transition-delay:.12s">
+            <div class="mb-5 flex h-10 w-10 items-center justify-center rounded-xl bg-white/10">
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.9M16 3.1a4 4 0 010 7.8"/></svg>
+            </div>
+            <h3 class="text-lg font-semibold">Unlimited teammates</h3>
+            <p class="mt-2 text-sm leading-relaxed text-white/60">Invite the whole team. Seats are not a pricing lever here.</p>
+          </article>
+
+          <article class="reveal glass-d rounded-3xl p-6 md:col-span-3">
+            <div class="mb-5 flex h-10 w-10 items-center justify-center rounded-xl bg-white/10">
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+            </div>
+            <h3 class="text-lg font-semibold">Media on R2</h3>
+            <p class="mt-2 text-sm leading-relaxed text-white/60">Images and video live on Cloudflare R2, close to the scheduler that publishes them.</p>
+          </article>
+
+          <article class="reveal glass-d rounded-3xl p-6 md:col-span-3" style="transition-delay:.08s">
+            <div class="mb-5 flex h-10 w-10 items-center justify-center rounded-xl bg-white/10">
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+            </div>
+            <h3 class="text-lg font-semibold">Delivery logs you can trust</h3>
+            <p class="mt-2 text-sm leading-relaxed text-white/60">Every attempt is recorded, so when something fails you know which channel and why.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────────── HOW IT WORKS ───────────── -->
+    <section id="how" class="relative px-5 pb-20 sm:px-8 sm:pb-28 lg:px-12">
+      <div class="mx-auto max-w-6xl">
+        <div class="reveal mx-auto max-w-2xl text-center">
+          <p class="text-xs font-medium uppercase tracking-widest text-white/40">How it works</p>
+          <h2 class="mt-3 text-3xl font-semibold leading-[1.1] tracking-tight sm:text-5xl">Three steps. That’s the whole product.</h2>
+        </div>
+
+        <div class="mt-12 grid gap-4 md:grid-cols-3 md:gap-5">
+          <div class="reveal glass-d rounded-3xl p-6 sm:p-8">
+            <div class="pixel text-4xl text-white/90">01</div>
+            <h3 class="mt-6 text-lg font-semibold">Write</h3>
+            <p class="mt-2 text-sm leading-relaxed text-white/60">Type or paste your post and attach media. One draft, every channel.</p>
+          </div>
+          <div class="reveal glass-d rounded-3xl p-6 sm:p-8" style="transition-delay:.08s">
+            <div class="pixel text-4xl text-white/90">02</div>
+            <h3 class="mt-6 text-lg font-semibold">Pick channels</h3>
+            <p class="mt-2 text-sm leading-relaxed text-white/60">Telegram, X, LinkedIn or a webhook. Preview how it looks on each before you commit.</p>
+          </div>
+          <div class="reveal glass-d rounded-3xl p-6 sm:p-8" style="transition-delay:.16s">
+            <div class="pixel text-4xl text-white/90">03</div>
+            <h3 class="mt-6 text-lg font-semibold">Schedule</h3>
+            <p class="mt-2 text-sm leading-relaxed text-white/60">Pick a time. The edge scheduler publishes it on the minute and logs the result.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────────── PRICING ───────────── -->
+    <section id="pricing" class="relative px-5 pb-20 sm:px-8 sm:pb-28 lg:px-12">
+      <div class="mx-auto max-w-6xl">
+        <div class="reveal max-w-2xl">
+          <p class="text-xs font-medium uppercase tracking-widest text-white/40">Pricing</p>
+          <h2 class="mt-3 text-3xl font-semibold leading-[1.1] tracking-tight sm:text-5xl">One price. Do the math yourself.</h2>
+        </div>
+
+        <div class="mt-12 grid gap-5 lg:grid-cols-2">
+          <!-- plan -->
+          <div class="reveal glass-d flex flex-col rounded-3xl p-6 sm:p-8">
+            <p class="text-xs font-medium uppercase tracking-widest text-white/40">Everything included</p>
+            <div class="mt-4 flex items-end gap-2">
+              <span class="pixel text-6xl leading-none tracking-tight sm:text-7xl">$12</span>
+              <span class="pb-1.5 text-sm text-white/50">/ month</span>
+            </div>
+            <ul class="mt-8 space-y-3 text-sm text-white/75">
+              <li class="flex gap-3"><span class="text-emerald-400">✓</span> Unlimited connected channels</li>
+              <li class="flex gap-3"><span class="text-emerald-400">✓</span> Unlimited team members</li>
+              <li class="flex gap-3"><span class="text-emerald-400">✓</span> Telegram, X, LinkedIn and webhooks</li>
+              <li class="flex gap-3"><span class="text-emerald-400">✓</span> Media uploads and a scheduled queue</li>
+              <li class="flex gap-3"><span class="text-emerald-400">✓</span> Delivery logs with failure details</li>
+            </ul>
+            <div class="mt-auto pt-8"><button type="button" data-goto-join class="rounded-full bg-white px-6 py-3 text-sm font-semibold text-[#010101] transition-opacity hover:opacity-90">Join the waitlist</button></div>
+          </div>
+
+          <!-- calculator -->
+          <div class="reveal glass-d rounded-3xl p-6 sm:p-8" style="transition-delay:.08s">
+            <p class="text-xs font-medium uppercase tracking-widest text-white/40">Savings calculator</p>
+            <p class="mt-2 text-sm leading-relaxed text-white/55">Enter what a per-channel tool charges you and how many channels you run. The figure below is illustrative; use your own numbers.</p>
+
+            <div class="mt-6">
+              <div class="flex items-center justify-between text-sm">
+                <label for="chRange" class="text-white/70">Channels</label>
+                <span id="chOut" class="pixel text-xl">5</span>
+              </div>
+              <input id="chRange" type="range" min="1" max="20" value="5" class="mt-3" />
+            </div>
+
+            <div class="mt-6">
+              <label for="ppc" class="text-sm text-white/70">Price per channel elsewhere ($/mo)</label>
+              <input id="ppc" type="number" min="0" step="1" value="6" inputmode="decimal"
+                class="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-2.5 text-sm text-white outline-none transition-colors focus:border-white/30" />
+            </div>
+
+            <div class="mt-7 grid grid-cols-2 gap-3">
+              <div class="rounded-2xl bg-black/30 p-4 ring-1 ring-white/5">
+                <div class="text-xs text-white/45">Per-channel pricing</div>
+                <div id="othersCost" class="pixel mt-1 text-2xl">$30</div>
+              </div>
+              <div class="rounded-2xl bg-black/30 p-4 ring-1 ring-white/5">
+                <div class="text-xs text-white/45">Vane</div>
+                <div class="pixel mt-1 text-2xl">$12</div>
+              </div>
+            </div>
+            <div id="saveBox" class="mt-3 rounded-2xl bg-emerald-400/10 p-4 text-sm text-emerald-300 ring-1 ring-emerald-400/20"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────────── FAQ ───────────── -->
+    <section id="faq" class="relative px-5 pb-20 sm:px-8 sm:pb-28 lg:px-12">
+      <div class="mx-auto max-w-3xl">
+        <div class="reveal text-center">
+          <p class="text-xs font-medium uppercase tracking-widest text-white/40">FAQ</p>
+          <h2 class="mt-3 text-3xl font-semibold leading-[1.1] tracking-tight sm:text-5xl">Questions, answered.</h2>
+        </div>
+
+        <div class="mt-10 space-y-3">
+          <details name="faq" class="reveal glass-d rounded-2xl p-5 transition-colors sm:p-6">
+            <summary class="flex items-center justify-between gap-4 text-[15px] font-medium sm:text-base">
+              Is the $12 price really flat?
+              <span class="faq-plus text-xl text-white/40 transition-transform duration-300">+</span>
+            </summary>
+            <p class="mt-3 text-sm leading-relaxed text-white/60">Yes. $12 a month covers all connected channels and all teammates. There are no per-channel or per-seat add-ons.</p>
+          </details>
+
+          <details name="faq" class="reveal glass-d rounded-2xl p-5 transition-colors sm:p-6">
+            <summary class="flex items-center justify-between gap-4 text-[15px] font-medium sm:text-base">
+              Which channels are supported?
+              <span class="faq-plus text-xl text-white/40 transition-transform duration-300">+</span>
+            </summary>
+            <p class="mt-3 text-sm leading-relaxed text-white/60">Telegram, X (Twitter), LinkedIn and webhooks at launch. Webhooks let you push a post to any other tool you run.</p>
+          </details>
+
+          <details name="faq" class="reveal glass-d rounded-2xl p-5 transition-colors sm:p-6">
+            <summary class="flex items-center justify-between gap-4 text-[15px] font-medium sm:text-base">
+              How accurate is the scheduling?
+              <span class="faq-plus text-xl text-white/40 transition-transform duration-300">+</span>
+            </summary>
+            <p class="mt-3 text-sm leading-relaxed text-white/60">Posts are scheduled to the minute. A scheduler on Cloudflare’s edge checks for due posts every minute and sends them straight away, so there is no extra queue delay on our side. Each platform’s own API response time still applies.</p>
+          </details>
+
+          <details name="faq" class="reveal glass-d rounded-2xl p-5 transition-colors sm:p-6">
+            <summary class="flex items-center justify-between gap-4 text-[15px] font-medium sm:text-base">
+              When does Vane launch?
+              <span class="faq-plus text-xl text-white/40 transition-transform duration-300">+</span>
+            </summary>
+            <p class="mt-3 text-sm leading-relaxed text-white/60">We are onboarding people from the waitlist first. Join with your email and we will write to you when your spot opens.</p>
+          </details>
+
+          <details name="faq" class="reveal glass-d rounded-2xl p-5 transition-colors sm:p-6">
+            <summary class="flex items-center justify-between gap-4 text-[15px] font-medium sm:text-base">
+              What happens to my email?
+              <span class="faq-plus text-xl text-white/40 transition-transform duration-300">+</span>
+            </summary>
+            <p class="mt-3 text-sm leading-relaxed text-white/60">It is stored in our database and used only to tell you about Vane’s launch. We don’t sell or share it.</p>
+          </details>
+
+          <details name="faq" class="reveal glass-d rounded-2xl p-5 transition-colors sm:p-6">
+            <summary class="flex items-center justify-between gap-4 text-[15px] font-medium sm:text-base">
+              Is the demo above real?
+              <span class="faq-plus text-xl text-white/40 transition-transform duration-300">+</span>
+            </summary>
+            <p class="mt-3 text-sm leading-relaxed text-white/60">It is a simulation that runs in your browser to show how previews work. It does not post anywhere, and your text is not sent to a server.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────────── FINAL CTA ───────────── -->
+    <section id="join" class="relative px-5 pb-20 sm:px-8 sm:pb-28 lg:px-12">
+      <div class="reveal glass-d relative mx-auto max-w-5xl overflow-hidden rounded-[2rem] px-6 py-14 text-center sm:px-12 sm:py-20">
+        <div class="pointer-events-none absolute -top-24 left-1/2 h-64 w-[36rem] -translate-x-1/2 rounded-full bg-indigo-500/25 blur-[90px]" aria-hidden="true"></div>
+        <h2 class="relative text-3xl font-semibold leading-[1.1] tracking-tight sm:text-5xl">Stop paying per channel.</h2>
+        <p class="relative mx-auto mt-4 max-w-md text-sm leading-relaxed text-white/60 sm:text-base">Join the waitlist and get early access to unfairly fast scheduling for a flat $12.</p>
+
+        <div class="relative mt-8">
+          <form class="wl-form mx-auto flex max-w-md flex-col gap-3 sm:inline-flex sm:max-w-none sm:flex-row sm:items-center sm:gap-0 sm:rounded-full sm:bg-white sm:p-1.5" novalidate data-tone="dark" id="joinForm">
+            <label for="joinEmail" class="sr-only">Email</label>
+            <input id="joinEmail" name="email" type="email" inputmode="email" autocomplete="email" required
+              placeholder="Type your email"
+              class="rounded-full bg-white px-5 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none sm:w-64 sm:rounded-none sm:bg-transparent sm:px-4 sm:py-2" />
+            <input type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" class="absolute -left-[9999px] h-0 w-0 opacity-0" />
+            <button type="submit"
+              class="btn-grad flex items-center justify-center gap-2 rounded-full border border-white/10 px-6 py-3 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70 sm:py-2.5">
+              <span class="wl-spin spinner hidden"></span>
+              <span class="wl-label">Get started</span>
+            </button>
+          </form>
+          <div class="wl-msg mt-3 min-h-[1.5rem] text-sm" role="status" aria-live="polite"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────────── FOOTER ───────────── -->
+    <footer class="relative border-t border-white/5 px-5 py-10 sm:px-8 lg:px-12">
+      <div class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-6 sm:flex-row">
+        <a href="#" class="flex items-center gap-2" aria-label="Vane home">
+          <svg width="22" height="22" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <path d="M6 7l10 19L26 7" stroke="white" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M16 26V14" stroke="white" stroke-width="3.6" stroke-linecap="round" opacity=".45"/>
+          </svg>
+          <span class="text-base font-semibold">vane</span>
+        </a>
+        <nav class="flex gap-6 text-sm text-white/50">
+          <a href="#features" class="transition-colors hover:text-white">Features</a>
+          <a href="#pricing" class="transition-colors hover:text-white">Pricing</a>
+          <a href="#faq" class="transition-colors hover:text-white">FAQ</a>
+        </nav>
+        <p class="text-xs text-white/35">© <span id="year"></span> Vane · vaneapp.dev</p>
+      </div>
+    </footer>
+  </div>
+
   <script>
-    (function () {
-      var emailInput = document.getElementById('email');
+  (function () {
+    'use strict';
+    var $ = function (s, r) { return (r || document).querySelector(s); };
+    var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+    var esc = function (s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
 
-      // "Get started" buttons focus the email field
-      document.querySelectorAll('[data-focus-email]').forEach(function (b) {
-        b.addEventListener('click', function () { emailInput.focus(); });
+    $('#year').textContent = new Date().getFullYear();
+
+    // ───────────────── scroll helpers ─────────────────
+    $$('[data-focus-hero]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setTimeout(function () { $('#heroEmail').focus({ preventScroll: true }); }, 350);
       });
-
-      // ───── Mobile menu ─────
-      var btn = document.getElementById('menuBtn');
-      var overlay = document.getElementById('overlay');
-      var drawer = document.getElementById('drawer');
-      var iconMenu = document.getElementById('iconMenu');
-      var iconClose = document.getElementById('iconClose');
-      var links = drawer.querySelectorAll('.m-link');
-      var cta = document.getElementById('drawerCta');
-      var open = false;
-
-      links.forEach(function (el) {
-        el.style.opacity = '0';
-        el.style.transform = 'translateX(24px)';
-        el.style.transition = 'opacity .4s ease, transform .4s ease, background-color .2s, color .2s';
+    });
+    $$('[data-goto-join]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        $('#join').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(function () { $('#joinEmail').focus({ preventScroll: true }); }, 600);
       });
-      cta.style.opacity = '0';
-      cta.style.transform = 'translateY(16px)';
+    });
 
-      function setMenu(state) {
-        open = state;
-        btn.setAttribute('aria-expanded', String(open));
-        drawer.setAttribute('aria-hidden', String(!open));
-        document.body.style.overflow = open ? 'hidden' : '';
+    // ───────────────── mobile menu ─────────────────
+    var btn = $('#menuBtn'), overlay = $('#overlay'), drawer = $('#drawer');
+    var iconMenu = $('#iconMenu'), iconClose = $('#iconClose');
+    var mLinks = $$('.m-link', drawer), mCta = $('#drawerCta');
+    var menuOpen = false;
 
-        overlay.classList.toggle('opacity-0', !open);
-        overlay.classList.toggle('opacity-100', open);
-        overlay.classList.toggle('pointer-events-none', !open);
-        drawer.classList.toggle('translate-x-full', !open);
-        drawer.classList.toggle('translate-x-0', open);
+    mLinks.forEach(function (el) {
+      el.style.opacity = '0';
+      el.style.transform = 'translateX(24px)';
+      el.style.transition = 'opacity .4s ease, transform .4s ease, background-color .2s, color .2s';
+    });
+    mCta.style.opacity = '0';
+    mCta.style.transform = 'translateY(16px)';
 
-        iconMenu.classList.toggle('rotate-90', open);
-        iconMenu.classList.toggle('scale-0', open);
-        iconMenu.classList.toggle('opacity-0', open);
-        iconClose.classList.toggle('-rotate-90', !open);
-        iconClose.classList.toggle('scale-0', !open);
-        iconClose.classList.toggle('opacity-0', !open);
+    function setMenu(state) {
+      menuOpen = state;
+      btn.setAttribute('aria-expanded', String(state));
+      drawer.setAttribute('aria-hidden', String(!state));
+      document.body.style.overflow = state ? 'hidden' : '';
 
-        links.forEach(function (el, i) {
-          el.style.transitionDelay = open ? ((i + 1) * 60) + 'ms' : '0ms';
-          el.style.opacity = open ? '1' : '0';
-          el.style.transform = open ? 'translateX(0)' : 'translateX(24px)';
+      overlay.classList.toggle('opacity-0', !state);
+      overlay.classList.toggle('opacity-100', state);
+      overlay.classList.toggle('pointer-events-none', !state);
+      drawer.classList.toggle('translate-x-full', !state);
+      drawer.classList.toggle('translate-x-0', state);
+
+      iconMenu.classList.toggle('rotate-90', state);
+      iconMenu.classList.toggle('scale-0', state);
+      iconMenu.classList.toggle('opacity-0', state);
+      iconClose.classList.toggle('-rotate-90', !state);
+      iconClose.classList.toggle('scale-0', !state);
+      iconClose.classList.toggle('opacity-0', !state);
+
+      mLinks.forEach(function (el, i) {
+        el.style.transitionDelay = state ? ((i + 1) * 60) + 'ms' : '0ms';
+        el.style.opacity = state ? '1' : '0';
+        el.style.transform = state ? 'translateX(0)' : 'translateX(24px)';
+      });
+      var d = state ? '300ms' : '0ms';
+      mCta.style.transition = 'opacity .4s ease ' + d + ', transform .4s ease ' + d;
+      mCta.style.opacity = state ? '1' : '0';
+      mCta.style.transform = state ? 'translateY(0)' : 'translateY(16px)';
+    }
+    btn.addEventListener('click', function () { setMenu(!menuOpen); });
+    overlay.addEventListener('click', function () { setMenu(false); });
+    mCta.addEventListener('click', function () { setMenu(false); });
+    mLinks.forEach(function (a) { a.addEventListener('click', function () { setMenu(false); }); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && menuOpen) setMenu(false); });
+    window.addEventListener('resize', function () { if (menuOpen && window.innerWidth >= 768) setMenu(false); });
+
+    // ───────────────── reveal on scroll ─────────────────
+    var revealEls = $$('.reveal');
+    if ('IntersectionObserver' in window) {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
         });
-        var d = open ? '300ms' : '0ms';
-        cta.style.transition = 'opacity .4s ease ' + d + ', transform .4s ease ' + d;
-        cta.style.opacity = open ? '1' : '0';
-        cta.style.transform = open ? 'translateY(0)' : 'translateY(16px)';
-      }
+      }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+      revealEls.forEach(function (el) { io.observe(el); });
+    } else {
+      revealEls.forEach(function (el) { el.classList.add('in'); });
+    }
 
-      btn.addEventListener('click', function () { setMenu(!open); });
-      overlay.addEventListener('click', function () { setMenu(false); });
-      cta.addEventListener('click', function () { setMenu(false); });
-      document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && open) setMenu(false); });
-      window.addEventListener('resize', function () { if (open && window.innerWidth >= 768) setMenu(false); });
+    // ───────────────── waitlist forms (hero + final CTA) ─────────────────
+    var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
-      // ───── Waitlist form ─────
-      var form = document.getElementById('wlForm');
-      var submit = document.getElementById('wlBtn');
-      var spin = document.getElementById('wlSpin');
-      var label = document.getElementById('wlLabel');
-      var msg = document.getElementById('wlMsg');
-      var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    function initWaitlist(form) {
+      var input = $('input[name=email]', form);
+      var hp = $('input[name=website]', form);
+      var submit = $('button[type=submit]', form);
+      var spin = $('.wl-spin', form);
+      var label = $('.wl-label', form);
+      var msg = $('.wl-msg', form.parentElement);
+      var tone = form.getAttribute('data-tone');
 
       function setLoading(on) {
         submit.disabled = on;
-        emailInput.disabled = on;
+        input.disabled = on;
         spin.classList.toggle('hidden', !on);
         label.textContent = on ? 'Joining…' : 'Get started';
       }
-
       function show(kind, text) {
-        var color = kind === 'error'
-          ? 'text-red-700 lg:text-red-400'
-          : 'text-emerald-800 lg:text-emerald-400';
-        msg.className = 'mt-3 min-h-[1.5rem] text-sm font-medium pop ' + color;
+        var cls;
+        if (tone === 'hero') {
+          cls = kind === 'error' ? 'text-red-700 lg:text-red-400' : 'text-emerald-800 lg:text-emerald-400';
+        } else {
+          cls = kind === 'error' ? 'text-red-400' : 'text-emerald-400';
+        }
+        msg.className = 'wl-msg mt-3 min-h-[1.5rem] text-sm font-medium pop ' + cls;
         msg.textContent = (kind === 'error' ? '✕ ' : '✓ ') + text;
       }
-
       function fail(text) {
         show('error', text);
         form.classList.remove('shake');
@@ -247,20 +673,15 @@
       form.addEventListener('submit', async function (e) {
         e.preventDefault();
         msg.textContent = '';
-        var email = emailInput.value.trim();
-
-        if (!EMAIL_RE.test(email)) {
-          fail('Please enter a valid email address.');
-          emailInput.focus();
-          return;
-        }
+        var email = input.value.trim();
+        if (!EMAIL_RE.test(email)) { fail('Please enter a valid email address.'); input.focus(); return; }
 
         setLoading(true);
         try {
           var res = await fetch('/api/waitlist', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: email, website: form.elements['website'].value })
+            body: JSON.stringify({ email: email, website: hp.value })
           });
           var data = null;
           try { data = await res.json(); } catch (_) {}
@@ -269,7 +690,7 @@
             show('success', data.status === 'already_joined'
               ? 'You are already on the list. We will be in touch.'
               : 'You are in! We will email you when your spot opens.');
-            emailInput.value = '';
+            input.value = '';
             setLoading(false);
             return;
           }
@@ -279,7 +700,316 @@
         }
         setLoading(false);
       });
-    })();
+    }
+    $$('.wl-form').forEach(initWaitlist);
+
+    // ═════════════════════════════════════════════════════════
+    //                         DEMO
+    // ═════════════════════════════════════════════════════════
+    var ICON = {
+      telegram: '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 3.5L2.8 10.7l5.9 2.2 2.3 6.6 3.1-4.2 4.6 3.4z"/><path d="M8.7 12.9l12-8.6"/></svg>',
+      x: '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>',
+      linkedin: '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M20.45 20.45h-3.56v-5.57c0-1.33-.03-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.35V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 110-4.12 2.06 2.06 0 010 4.12zM7.12 20.45H3.56V9h3.56v11.45z"/></svg>',
+      webhook: '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9l-4 3 4 3M16 9l4 3-4 3M13 6l-2 12"/></svg>'
+    };
+    var CH = {
+      telegram: { name: 'Telegram', limit: 4096 },
+      x:        { name: 'X',        limit: 280 },
+      linkedin: { name: 'LinkedIn', limit: 3000 },
+      webhook:  { name: 'Webhook',  limit: null }
+    };
+    var ORDER = ['telegram', 'x', 'linkedin', 'webhook'];
+
+    // schedule options (computed from the visitor's clock)
+    var now = new Date();
+    var d1 = new Date(now.getTime() + 60000);
+    var d2 = new Date(now); d2.setDate(d2.getDate() + 1); d2.setHours(9, 0, 0, 0);
+    var d3 = new Date(now); d3.setDate(d3.getDate() + (((5 - d3.getDay() + 7) % 7) || 7)); d3.setHours(18, 30, 0, 0);
+    var fmt = function (d) { return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); };
+    var WHEN = [
+      { id: 'm1', label: 'In 1 minute',     date: d1 },
+      { id: 't9', label: 'Tomorrow · 09:00', date: d2 },
+      { id: 'f18', label: 'Friday · 18:30',  date: d3 }
+    ];
+
+    var state = { sel: ['telegram', 'x'], active: 'telegram', when: 't9', busy: false };
+
+    var ta = $('#postText');
+    ta.value = "Vane's waitlist is open.\n\nOne flat price: $12/mo. Every channel, every teammate. No per-channel fees.\n\nhttps://vaneapp.dev #buildinpublic";
+
+    var chipsEl = $('#chips'), whenEl = $('#when'), countsEl = $('#counts');
+    var tabsEl = $('#tabs'), pv = $('#pv');
+    var schedBtn = $('#schedBtn'), schedSpin = $('#schedSpin'), schedLabel = $('#schedLabel');
+    var hintEl = $('#hint'), resultEl = $('#result');
+
+    // ---------- controls ----------
+    function buildChips() {
+      chipsEl.innerHTML = '';
+      ORDER.forEach(function (k) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'chip';
+        b.setAttribute('aria-pressed', String(state.sel.indexOf(k) > -1));
+        b.innerHTML = ICON[k] + '<span>' + CH[k].name + '</span>';
+        b.addEventListener('click', function () {
+          if (state.busy) return;
+          var i = state.sel.indexOf(k);
+          if (i > -1) state.sel.splice(i, 1); else { state.sel.push(k); state.active = k; }
+          state.sel.sort(function (a, b2) { return ORDER.indexOf(a) - ORDER.indexOf(b2); });
+          b.setAttribute('aria-pressed', String(state.sel.indexOf(k) > -1));
+          update();
+        });
+        chipsEl.appendChild(b);
+      });
+    }
+    function buildWhen() {
+      whenEl.innerHTML = '';
+      WHEN.forEach(function (w) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'chip';
+        b.setAttribute('aria-pressed', String(state.when === w.id));
+        b.innerHTML = '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>' + w.label + '</span>';
+        b.addEventListener('click', function () {
+          if (state.busy) return;
+          state.when = w.id;
+          $$('.chip', whenEl).forEach(function (c, i) { c.setAttribute('aria-pressed', String(WHEN[i].id === w.id)); });
+          update();
+        });
+        whenEl.appendChild(b);
+      });
+    }
+
+    function curWhen() { return WHEN.filter(function (w) { return w.id === state.when; })[0]; }
+
+    // ---------- formatting for previews ----------
+    function rich(text, tagCls) {
+      var h = esc(text);
+      h = h.replace(/(https?:\/\/[^\s<]+)/g, '<span class="' + tagCls + '">$1</span>');
+      h = h.replace(/(^|\s)([#@][\p{L}\p{N}_]+)/gu, '$1<span class="' + tagCls + '">$2</span>');
+      return h.replace(/\n/g, '<br>');
+    }
+    function avatar(px) {
+      return '<div class="flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-sky-400 text-xs font-bold text-white" style="width:' + px + 'px;height:' + px + 'px">V</div>';
+    }
+    var EMPTY = '<span class="text-white/35">Your post will appear here…</span>';
+
+    function viewTelegram(text, time) {
+      var body = text ? rich(text, 'text-sky-400') : EMPTY;
+      return '<div class="flex h-full flex-col" style="background:#0e1621">' +
+        '<div class="flex items-center gap-2.5 border-b border-white/5 bg-[#17212b] px-3 py-2.5">' + avatar(34) +
+          '<div class="leading-tight"><div class="text-[13px] font-semibold">Vane Updates</div><div class="text-[11px] text-white/45">1 204 subscribers</div></div></div>' +
+        '<div class="flex-1 p-3"><div class="pop max-w-[94%] rounded-2xl rounded-tl-md bg-[#182533] px-3 py-2 text-[13px] leading-snug">' + body +
+          '<div class="mt-1.5 flex justify-end gap-2 text-[10.5px] text-white/40"><span>1.2K views</span><span>' + time + '</span></div></div></div></div>';
+    }
+    function viewX(text, time) {
+      var body = text ? rich(text, 'text-sky-400') : EMPTY;
+      var over = text.length > CH.x.limit;
+      var ico = function (p) { return '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="' + p + '"/></svg>'; };
+      return '<div class="p-3.5"><div class="pop flex gap-2.5">' + avatar(36) +
+        '<div class="min-w-0 flex-1"><div class="flex flex-wrap items-center gap-x-1 text-[13px]"><span class="font-bold">Vane</span><span class="text-white/45">@vaneapp · ' + time + '</span></div>' +
+        '<div class="mt-1 break-words text-[13.5px] leading-snug">' + body + '</div>' +
+        (over ? '<div class="mt-2 rounded-lg bg-red-500/15 px-2.5 py-1.5 text-[11px] text-red-300">' + (text.length - CH.x.limit) + ' characters over the limit. X would reject this post.</div>' : '') +
+        '<div class="mt-3 flex justify-between pr-3 text-white/40">' +
+          ico('M21 12a8 8 0 01-11.6 7.1L3 21l1.9-5.4A8 8 0 1121 12z') +
+          ico('M17 2l4 4-4 4M3 11V9a3 3 0 013-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 01-3 3H3') +
+          ico('M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 00-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 000-7.8z') +
+          ico('M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7M16 6l-4-4-4 4M12 2v13') +
+        '</div></div></div></div>';
+    }
+    function viewLinkedin(text, time) {
+      var shown = text, more = false;
+      if (text.length > 220) { shown = text.slice(0, 220).replace(/\s+\S*$/, ''); more = true; }
+      var body = shown ? rich(shown, 'text-sky-400') : EMPTY;
+      return '<div class="p-3"><div class="pop rounded-xl bg-[#1b1f23] p-3 ring-1 ring-white/10">' +
+        '<div class="flex gap-2.5">' + avatar(40) +
+          '<div class="leading-tight"><div class="text-[13px] font-semibold">Vane</div><div class="text-[11px] text-white/50">Social scheduling for minimalists</div><div class="text-[11px] text-white/40">' + time + '</div></div></div>' +
+        '<div class="mt-2.5 break-words text-[13px] leading-snug text-white/90">' + body + (more ? '… <span class="text-white/50">see more</span>' : '') + '</div>' +
+        '<div class="mt-3 flex justify-between border-t border-white/10 pt-2 text-[11.5px] text-white/55"><span>Like</span><span>Comment</span><span>Repost</span><span>Send</span></div>' +
+        '</div></div>';
+    }
+    function viewWebhook(text, when) {
+      var k = function (s) { return '<span class="text-sky-300">"' + s + '"</span>'; };
+      var v = function (s) { return '<span class="text-emerald-300">' + esc(JSON.stringify(s)) + '</span>'; };
+      var chans = state.sel.filter(function (c) { return c !== 'webhook'; });
+      return '<div class="p-3 font-mono text-[11.5px] leading-relaxed"><div class="pop break-words rounded-xl bg-white/[0.04] p-3 ring-1 ring-white/10">' +
+        '<div class="mb-2 flex items-center gap-2"><span class="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">POST</span><span class="text-white/50">/hooks/vane</span></div>' +
+        '<div class="text-white/40">{</div>' +
+        '<div class="pl-3">' + k('event') + ': ' + v('post.published') + ',</div>' +
+        '<div class="pl-3">' + k('id') + ': ' + v('post_8f3a1c') + ',</div>' +
+        '<div class="pl-3">' + k('text') + ': ' + (text ? v(text) : '<span class="text-white/35">""</span>') + ',</div>' +
+        '<div class="pl-3">' + k('channels') + ': <span class="text-amber-300">' + esc(JSON.stringify(chans)) + '</span>,</div>' +
+        '<div class="pl-3">' + k('scheduled_at') + ': ' + v(when.toISOString()) + '</div>' +
+        '<div class="text-white/40">}</div></div></div>';
+    }
+
+    // ---------- render ----------
+    function renderCounts(len) {
+      countsEl.innerHTML = '';
+      state.sel.forEach(function (k) {
+        if (CH[k].limit == null) return;
+        var over = len > CH[k].limit;
+        var s = document.createElement('span');
+        s.className = 'rounded-full px-2.5 py-1 font-medium ' + (over ? 'bg-red-500/15 text-red-300' : 'bg-white/5 text-white/50');
+        s.textContent = CH[k].name + ' ' + len + '/' + CH[k].limit;
+        countsEl.appendChild(s);
+      });
+      if (!countsEl.children.length) {
+        var s2 = document.createElement('span');
+        s2.className = 'rounded-full bg-white/5 px-2.5 py-1 text-white/50';
+        s2.textContent = len + ' characters';
+        countsEl.appendChild(s2);
+      }
+    }
+
+    function renderTabs() {
+      tabsEl.innerHTML = '';
+      state.sel.forEach(function (k) {
+        var t = document.createElement('button');
+        t.type = 'button';
+        t.className = 'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ' +
+          (k === state.active ? 'bg-white text-black' : 'bg-white/10 text-white/70 hover:bg-white/15');
+        t.innerHTML = ICON[k].replace('h-4 w-4', 'h-3 w-3') + CH[k].name;
+        t.addEventListener('click', function () { state.active = k; renderTabs(); renderPreview(); });
+        tabsEl.appendChild(t);
+      });
+    }
+
+    function renderPreview() {
+      var text = ta.value.trim();
+      var w = curWhen();
+      var time = fmt(w.date);
+      if (!state.sel.length) {
+        pv.innerHTML = '<div class="flex h-full items-center justify-center px-8 text-center text-[13px] text-white/40">Pick a channel to see how your post will look.</div>';
+        return;
+      }
+      if (state.sel.indexOf(state.active) < 0) state.active = state.sel[0];
+      var html = state.active === 'telegram' ? viewTelegram(text, time)
+               : state.active === 'x' ? viewX(text, time)
+               : state.active === 'linkedin' ? viewLinkedin(text, time)
+               : viewWebhook(text, w.date);
+      pv.innerHTML = html;
+    }
+
+    function validate() {
+      var text = ta.value.trim();
+      if (!text) return 'Write something first.';
+      if (!state.sel.length) return 'Pick at least one channel.';
+      for (var i = 0; i < state.sel.length; i++) {
+        var c = CH[state.sel[i]];
+        if (c.limit != null && text.length > c.limit) return c.name + ' allows ' + c.limit + ' characters.';
+      }
+      return '';
+    }
+
+    function update() {
+      renderCounts(ta.value.length);
+      renderTabs();
+      renderPreview();
+      var err = validate();
+      hintEl.textContent = err;
+      schedBtn.disabled = !!err || state.busy;
+    }
+
+    // ---------- simulated scheduling ----------
+    function resetResult() {
+      resultEl.classList.add('hidden');
+      resultEl.innerHTML = '';
+      schedLabel.textContent = 'Schedule post';
+      state.busy = false;
+      update();
+    }
+
+    schedBtn.addEventListener('click', function () {
+      if (validate() || state.busy) return;
+      state.busy = true;
+      schedBtn.disabled = true;
+      schedSpin.classList.remove('hidden');
+      schedLabel.textContent = 'Scheduling…';
+
+      var w = curWhen();
+      var chans = state.sel.slice();
+
+      setTimeout(function () {
+        schedSpin.classList.add('hidden');
+        schedLabel.textContent = 'Scheduled';
+        resultEl.classList.remove('hidden');
+        resultEl.innerHTML = '<div class="pop flex items-center gap-2 text-emerald-300"><span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>Queued for ' + esc(w.label) + ' on ' + chans.length + ' channel' + (chans.length > 1 ? 's' : '') + '</div>';
+
+        setTimeout(function () {
+          var ff = document.createElement('div');
+          ff.className = 'pop mt-2 text-white/45';
+          ff.textContent = '» fast-forwarding to ' + fmt(w.date) + ':00 …';
+          resultEl.appendChild(ff);
+
+          chans.forEach(function (k, i) {
+            setTimeout(function () {
+              var ms = 28 + Math.floor(Math.random() * 62);
+              var line = document.createElement('div');
+              line.className = 'pop mt-1.5 flex flex-wrap items-center gap-x-2 text-white/80';
+              line.innerHTML = '<span class="text-emerald-400">✓</span><span>' + CH[k].name + '</span><span class="text-white/40">delivered at ' + fmt(w.date) + ':00 · ' + ms + ' ms</span>';
+              resultEl.appendChild(line);
+
+              if (i === chans.length - 1) {
+                setTimeout(function () {
+                  var done = document.createElement('div');
+                  done.className = 'pop mt-3 flex items-center justify-between gap-3 border-t border-white/10 pt-3';
+                  done.innerHTML = '<span class="text-white/45">All delivered (simulated).</span>';
+                  var again = document.createElement('button');
+                  again.type = 'button';
+                  again.className = 'rounded-full bg-white/10 px-3 py-1 text-white/80 transition-colors hover:bg-white/20';
+                  again.textContent = 'Edit post';
+                  again.addEventListener('click', resetResult);
+                  done.appendChild(again);
+                  resultEl.appendChild(done);
+                }, 350);
+              }
+            }, 450 + i * 380);
+          });
+        }, 800);
+      }, 650);
+    });
+
+    ta.addEventListener('input', function () { if (!state.busy) update(); else { renderCounts(ta.value.length); renderPreview(); } });
+
+    buildChips();
+    buildWhen();
+    update();
+
+    // ═════════════════════════════════════════════════════════
+    //                   SAVINGS CALCULATOR
+    // ═════════════════════════════════════════════════════════
+    var range = $('#chRange'), chOut = $('#chOut'), ppc = $('#ppc');
+    var othersEl = $('#othersCost'), saveBox = $('#saveBox');
+    var VANE = 12;
+    var money = function (n) { return '$' + (Math.round(n * 100) / 100).toLocaleString('en-US'); };
+
+    function calc() {
+      var ch = parseInt(range.value, 10) || 1;
+      var price = Math.max(0, parseFloat(ppc.value) || 0);
+      var others = ch * price;
+      chOut.textContent = ch;
+      othersEl.textContent = money(others);
+
+      if (price <= 0) {
+        saveBox.className = 'mt-3 rounded-2xl bg-white/5 p-4 text-sm text-white/55 ring-1 ring-white/10';
+        saveBox.textContent = 'Enter a per-channel price to compare.';
+        return;
+      }
+      var diff = others - VANE;
+      var breakeven = Math.floor(VANE / price) + 1;
+      if (diff > 0) {
+        saveBox.className = 'mt-3 rounded-2xl bg-emerald-400/10 p-4 text-sm text-emerald-300 ring-1 ring-emerald-400/20';
+        saveBox.innerHTML = 'You would save <strong>' + money(diff) + '</strong> a month, <strong>' + money(diff * 12) + '</strong> a year.';
+      } else {
+        saveBox.className = 'mt-3 rounded-2xl bg-white/5 p-4 text-sm text-white/65 ring-1 ring-white/10';
+        saveBox.textContent = 'At this setup per-channel pricing is cheaper. Vane wins from ' + breakeven + ' channels up.';
+      }
+    }
+    range.addEventListener('input', calc);
+    ppc.addEventListener('input', calc);
+    calc();
+  })();
   </script>
 </body>
 </html>
