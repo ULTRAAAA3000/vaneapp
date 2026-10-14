@@ -7,7 +7,11 @@
     "db:local": "wrangler d1 execute vane-db --local --file=./schema.sql",
     "db:remote": "wrangler d1 execute vane-db --remote --file=./schema.sql",
     "deploy": "wrangler pages deploy ./public --project-name=vaneapp",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "cron:dev": "wrangler dev --config worker/wrangler.toml --test-scheduled --local --persist-to .wrangler/state",
+    "cron:deploy": "wrangler deploy --config worker/wrangler.toml",
+    "cron:secret": "wrangler secret put ENCRYPTION_KEY --config worker/wrangler.toml",
+    "cron:logs": "wrangler tail vane-cron --format pretty"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250101.0",

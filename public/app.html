@@ -92,12 +92,15 @@
               <svg class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7"/></svg>
               <input id="mediaUrl" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://example.com/photo.jpg" class="field !pl-10" />
             </div>
-            <button id="uploadBtn" type="button" class="btn btn-ghost hidden shrink-0"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>Upload</button>
+            <button id="uploadBtn" type="button" class="btn btn-ghost shrink-0"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>Upload</button>
             <input id="fileInput" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" />
           </div>
-          <p id="mediaHint" class="mt-2 text-xs text-white/35">Paste a public https link to a photo. Telegram limits text under an image to 1024 characters.</p>
+          <p id="mediaHint" class="mt-2 text-xs text-white/35">Upload a JPEG, PNG or WebP (max 5 MB), drop a file here, paste a screenshot, or use a public https link. Text under an image is limited to 1024 characters.</p>
           <div id="mediaPreview" class="mt-3 hidden items-center gap-3 rounded-2xl bg-white/[0.04] p-2.5 ring-1 ring-white/5">
-            <img id="mediaImg" alt="" class="h-14 w-14 rounded-xl bg-white/5 object-cover" referrerpolicy="no-referrer" />
+            <div class="relative h-14 w-14 shrink-0">
+              <img id="mediaImg" alt="" class="h-14 w-14 rounded-xl bg-white/5 object-cover" referrerpolicy="no-referrer" />
+              <span id="mediaBusy" class="absolute inset-0 hidden items-center justify-center rounded-xl bg-black/65"><span class="spinner"></span></span>
+            </div>
             <span id="mediaName" class="min-w-0 flex-1 truncate text-xs text-white/55"></span>
             <button id="mediaClear" type="button" class="icon-btn" aria-label="Remove image"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
           </div>

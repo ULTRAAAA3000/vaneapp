@@ -191,8 +191,18 @@ export interface PostPublic {
   /** unix seconds */
   scheduledAt: number;
   status: PostStatus;
+  /** delivery attempts made so far (the sender retries temporary failures) */
+  attempts: number;
   error: string | null;
   sentAt: number | null;
 }
 
 export type ListPostsResponse = { ok: true; posts: PostPublic[] } | ApiError;
+
+// ───────────────────────── Cron worker (stage 4) ─────────────────────────
+/** Bindings of the separate `vane-cron` Worker (see worker/wrangler.toml). */
+export interface CronEnv {
+  DB: D1Database;
+  ENCRYPTION_KEY?: string;   // MUST be the same value as on the Pages project
+  APP_URL?: string;          // public origin, used to turn stored R2 keys into URLs
+}
