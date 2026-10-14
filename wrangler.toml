@@ -7,7 +7,8 @@ binding = "DB"
 database_name = "vane-db"
 database_id = "9e560592-ec8e-451d-97d3-c2d8082c527e"   # npx wrangler d1 create vane-db
 
-# Enable when you start stage 2 (media uploads):
+# Image uploads (optional). 1) npx wrangler r2 bucket create vane-media  2) uncomment  3) redeploy.
+# Until then the dashboard hides the upload button and users paste an image link instead.
 # [[r2_buckets]]
 # binding = "MEDIA"
 # bucket_name = "vane-media"

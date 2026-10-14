@@ -6,14 +6,16 @@
  *     if (!auth.ok) return auth.response;
  *     // auth.userId is now trustworthy
  *
- * Tokens travel in the `Authorization: Bearer <jwt>` header (not cookies), so they are
- * not sent automatically by the browser and CSRF does not apply.
- * Registration / login (which will MINT these tokens) is a later stage; until then use
- * scripts/dev-token.mjs.
+ * Two ways to authenticate:
+ *   1. Browser  → HttpOnly session cookie (see session.ts). State-changing requests also
+ *                 pass a same-origin (CSRF) check.
+ *   2. Scripts  → `Authorization: Bearer <jwt>` (see scripts/dev-token.mjs). Not sent
+ *                 automatically by browsers, so CSRF does not apply.
  */
 import type { Env } from '../../../types';
 import { fromB64Url, toB64Url } from './encoding';
-import { fail } from './http';
+import { crossOriginViolation, fail } from './http';
+import { readSessionToken, userIdFromSession } from './session';
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -64,7 +66,9 @@ export async function verifyJWT(token: string, secret: string): Promise<JwtPaylo
   }
 }
 
-export type AuthResult = { ok: true; userId: string } | { ok: false; response: Response };
+export type AuthResult = { ok: true; userId: string; via: 'session' | 'bearer' } | { ok: false; response: Response };
+
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 export async function requireUser(request: Request, env: Env): Promise<AuthResult> {
   const unauthorized = (msg = 'Authentication required') => ({
@@ -72,20 +76,32 @@ export async function requireUser(request: Request, env: Env): Promise<AuthResul
     response: fail(401, msg, { 'WWW-Authenticate': 'Bearer' }),
   });
 
-  if (!env.JWT_SECRET || env.JWT_SECRET.length < MIN_SECRET_LEN) {
-    console.error('JWT_SECRET is missing or shorter than 32 characters');
-    return { ok: false, response: fail(500, 'Server is not configured correctly') };
+  // ── 1) Bearer JWT (scripts, tests)
+  const bearer = /^Bearer\s+(\S+)$/i.exec(request.headers.get('authorization') ?? '');
+  if (bearer) {
+    if (!env.JWT_SECRET || env.JWT_SECRET.length < MIN_SECRET_LEN) {
+      console.error('JWT_SECRET is missing or shorter than 32 characters');
+      return { ok: false, response: fail(500, 'Server is not configured correctly') };
+    }
+    const payload = await verifyJWT(bearer[1], env.JWT_SECRET);
+    if (!payload) return unauthorized('Invalid or expired token');
+
+    // A valid signature for a user that no longer exists must not pass.
+    const user = await env.DB.prepare('SELECT id FROM users WHERE id = ?1').bind(payload.sub).first<{ id: string }>();
+    if (!user) return unauthorized('Invalid or expired token');
+    return { ok: true, userId: user.id, via: 'bearer' };
   }
 
-  const m = /^Bearer\s+(\S+)$/i.exec(request.headers.get('authorization') ?? '');
-  if (!m) return unauthorized();
+  // ── 2) Session cookie (the browser dashboard)
+  const token = readSessionToken(request);
+  if (!token) return unauthorized();
 
-  const payload = await verifyJWT(m[1], env.JWT_SECRET);
-  if (!payload) return unauthorized('Invalid or expired token');
+  if (!SAFE_METHODS.has(request.method.toUpperCase())) {
+    const csrf = crossOriginViolation(request);
+    if (csrf) return { ok: false, response: csrf };
+  }
 
-  // A valid signature for a user that no longer exists must not pass.
-  const user = await env.DB.prepare('SELECT id FROM users WHERE id = ?1').bind(payload.sub).first<{ id: string }>();
-  if (!user) return unauthorized('Invalid or expired token');
-
-  return { ok: true, userId: user.id };
+  const userId = await userIdFromSession(env, token);
+  if (!userId) return unauthorized('Session expired. Please sign in again.');
+  return { ok: true, userId, via: 'session' };
 }
