@@ -1,6 +1,6 @@
 # Cron worker: sends scheduled posts. Deployed SEPARATELY from the Pages site:
 #   npm run cron:deploy      then      npm run cron:secret     (paste the SAME ENCRYPTION_KEY as Pages)
-name = "vane-cron"
+name = "vaneapp"
 main = "src/index.ts"
 compatibility_date = "2025-01-01"
 workers_dev = false          # no public *.workers.dev URL: nothing can call this Worker over HTTP
