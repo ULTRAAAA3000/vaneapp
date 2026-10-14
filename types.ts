@@ -9,7 +9,7 @@ export interface Env {
   /** D1 database (binding name must match wrangler.toml) */
   DB: D1Database;
   /** R2 bucket for post media */
-  MEDIA: R2Bucket;
+  MEDIA?: R2Bucket;             // optional: uploads are enabled only when the R2 bucket is bound
 
   /** Secrets (wrangler secret put / Pages → Settings → Variables) */
   ENCRYPTION_KEY?: string;      // for encrypting channels.credentials (>= 32 random chars)
@@ -163,3 +163,36 @@ export type CreatePostResponse =
       posts: { id: string; channelId: string; status: 'scheduled' }[];
     }
   | ApiError;
+
+// ───────────────────────── Auth API (stage 3) ─────────────────────────
+export interface UserPublic {
+  id: string;
+  email: string;
+  name: string | null;
+  timezone: string;
+}
+
+export interface RegisterRequest { email: string; password: string; name?: string; timezone?: string }
+export interface LoginRequest { email: string; password: string }
+
+export type AuthResponse = { ok: true; user: UserPublic } | ApiError;
+export type MeResponse = { ok: true; user: UserPublic; features: { uploads: boolean } } | ApiError;
+
+// ───────────────────────── Posts list (stage 3) ─────────────────────────
+export interface PostPublic {
+  id: string;
+  /** posts created together (one per channel) share a groupId */
+  groupId: string;
+  channelId: string;
+  channelName: string;
+  platform: ChannelType;
+  content: string;
+  mediaUrl: string | null;
+  /** unix seconds */
+  scheduledAt: number;
+  status: PostStatus;
+  error: string | null;
+  sentAt: number | null;
+}
+
+export type ListPostsResponse = { ok: true; posts: PostPublic[] } | ApiError;

@@ -11,9 +11,10 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
 import type { ChannelPublic, ChannelRow, ChannelType, Env } from '../../../types';
 import { requireUser } from '../lib/auth';
-import { encryptToken } from '../lib/crypto';
+import { decryptToken, encryptToken } from '../lib/crypto';
 import { fail, isRecord, json, methodNotAllowed, readJson, UUID_RE } from '../lib/http';
-import { normalizeChatId, validateTelegramBot } from './telegram';
+import { bump, retryAfter } from '../lib/throttle';
+import { normalizeChatId, sendTelegramPost, validateTelegramBot } from './telegram';
 
 const CHANNEL_TYPES: readonly ChannelType[] = ['telegram', 'x', 'linkedin', 'webhook'];
 const MAX_NAME_LEN = 80;
@@ -134,6 +135,46 @@ export const handleDeleteChannel: PagesFunction<Env, 'id'> = async ({ request, e
 
   if ((res.meta?.changes ?? 0) === 0) return fail(404, 'Channel not found');
   return json({ ok: true, deletedScheduledPosts: pending?.n ?? 0 });
+};
+
+// ───────────────────────── POST /api/channels/:id/test ─────────────────────────
+/** Sends a short message through the saved credentials: proves decryption + bot + permissions work end to end. */
+export const handleTestChannel: PagesFunction<Env, 'id'> = async ({ request, env, params }) => {
+  const auth = await requireUser(request, env);
+  if (!auth.ok) return auth.response;
+  if (!env.ENCRYPTION_KEY) return fail(500, 'Server is not configured correctly');
+
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  if (!id || !UUID_RE.test(id)) return fail(404, 'Channel not found');
+
+  // A test message is a real outbound call: cap it at 10 per hour per user.
+  const key = `test:${auth.userId}`;
+  const wait = await retryAfter(env, key, 10);
+  if (wait) return fail(429, 'Too many test messages. Try again later.', { 'Retry-After': String(wait) });
+
+  const row = await env.DB
+    .prepare('SELECT type, name, credentials FROM channels WHERE id = ?1 AND user_id = ?2')
+    .bind(id, auth.userId)
+    .first<Pick<ChannelRow, 'type' | 'name' | 'credentials'>>();
+  if (!row) return fail(404, 'Channel not found');
+  if (row.type !== 'telegram') return fail(501, 'Testing is only available for Telegram channels.');
+
+  let creds: { botToken?: string; chatId?: string };
+  try {
+    creds = JSON.parse(await decryptToken(row.credentials, env.ENCRYPTION_KEY));
+  } catch {
+    console.error('channel credentials could not be decrypted');
+    return fail(500, 'Saved credentials could not be read. Reconnect the channel.');
+  }
+
+  await bump(env, key, 3600);
+  const sent = await sendTelegramPost(
+    creds.botToken ?? '',
+    creds.chatId ?? '',
+    '✅ Vane is connected. Posts you schedule to this channel will appear here.',
+  );
+  if (!sent.ok) return fail(502, sent.error);
+  return json({ ok: true, messageId: sent.messageId });
 };
 
 // ───────────────────────── routes for this file ─────────────────────────

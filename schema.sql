@@ -80,3 +80,24 @@ CREATE TABLE IF NOT EXISTS logs (
 );
 CREATE INDEX IF NOT EXISTS idx_logs_post ON logs(post_id);
 CREATE INDEX IF NOT EXISTS idx_logs_user ON logs(user_id, created_at);
+
+-- ───────────────────────── Sessions (stage 3) ─────────────────────────
+-- The browser holds a random token in an HttpOnly cookie; we store only its SHA-256,
+-- so a leaked database can't be replayed as live sessions.
+CREATE TABLE IF NOT EXISTS sessions (
+  id          TEXT    PRIMARY KEY,                          -- sha256 hex of the cookie token
+  user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_agent  TEXT,
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+  expires_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_exp  ON sessions(expires_at);
+
+-- ───────────────────────── Rate limits (stage 3) ─────────────────────────
+-- Tiny fixed-window counters: login brute force, signup spam, upload spam.
+CREATE TABLE IF NOT EXISTS rate_limits (
+  key       TEXT    PRIMARY KEY,                            -- e.g. 'login:em:a@b.co', 'reg:1.2.3.4'
+  count     INTEGER NOT NULL,
+  reset_at  INTEGER NOT NULL
+);

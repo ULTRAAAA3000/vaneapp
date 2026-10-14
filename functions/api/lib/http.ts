@@ -46,3 +46,19 @@ export async function readJson(request: Request, maxBytes = 32_768): Promise<Bod
     return { ok: false, response: fail(400, 'Invalid JSON body') };
   }
 }
+
+/**
+ * CSRF guard for cookie-authenticated requests. Browsers always attach Origin /
+ * Sec-Fetch-Site to cross-site requests and scripts cannot forge them, so a mismatch
+ * means "another website is driving the user's browser".
+ * (SameSite=Lax on the cookie is the first line of defence; this is the second.)
+ */
+export function crossOriginViolation(request: Request): Response | null {
+  const origin = request.headers.get('origin');
+  if (origin && origin !== new URL(request.url).origin) return fail(403, 'Cross-origin request blocked');
+  const site = request.headers.get('sec-fetch-site');
+  if (site && site !== 'same-origin' && site !== 'none') return fail(403, 'Cross-origin request blocked');
+  return null;
+}
+
+export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
