@@ -16,7 +16,8 @@
     tab: 'upcoming',
     armed: {},          // two-step confirm state: key → timeout id
     submitting: false,
-    uploading: false
+    uploading: false,
+    mediaMeta: null     // { url, name, size } for an uploaded image
   };
 
   var TG_LIMIT = 4096, CAPTION_LIMIT = 1024;
@@ -67,9 +68,10 @@
     $('greeting').textContent = (h < 5 ? 'Late night' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening') + ', ' + display;
     $('today').textContent = fmtLong.format(new Date());
     $('tz').textContent = 'Times are in your timezone: ' + (Intl.DateTimeFormat().resolvedOptions().timeZone || 'local');
-    if (S.uploads) {
-      $('uploadBtn').classList.remove('hidden');
-      $('mediaHint').textContent = 'Paste a public https link, or upload a JPEG / PNG / WebP (max 5 MB). Text under an image is limited to 1024 characters.';
+    if (!S.uploads) {
+      $('uploadBtn').disabled = true;
+      $('uploadBtn').title = 'Image uploads are not enabled on this server yet. Paste an image link instead.';
+      $('mediaHint').textContent = 'Paste a public https link to a photo (uploads are not enabled on this server yet). Text under an image is limited to 1024 characters.';
     }
     $('app').classList.remove('opacity-0');
 
@@ -304,42 +306,77 @@
   whenEl.addEventListener('input', function () { syncQuick(); renderPreview(); validate(); });
 
   // media
-  function currentMedia() { var v = mediaEl.value.trim(); return v; }
+  function currentMedia() { return mediaEl.value.trim(); }
+  var fmtSize = function (n) { return n < 1024 * 1024 ? Math.max(1, Math.round(n / 1024)) + ' KB' : (n / 1048576).toFixed(1) + ' MB'; };
+
   function renderMedia() {
     var v = currentMedia(), valid = v && Vane.isHttps(v);
     mediaEl.setAttribute('aria-invalid', v && !valid ? 'true' : 'false');
     var pv = $('mediaPreview');
+    if (S.uploading) return; // the uploading state owns the preview while it runs
+    $('mediaBusy').classList.add('hidden'); $('mediaBusy').classList.remove('flex');
     if (valid) {
       pv.classList.remove('hidden'); pv.classList.add('flex');
       $('mediaImg').src = v;
-      $('mediaName').textContent = v.replace(/^https:\/\//, '');
+      var meta = S.mediaMeta && S.mediaMeta.url === v ? S.mediaMeta : null;
+      $('mediaName').textContent = meta ? meta.name + ' · ' + fmtSize(meta.size) : v.replace(/^https:\/\//, '');
     } else {
       pv.classList.add('hidden'); pv.classList.remove('flex'); $('mediaImg').removeAttribute('src');
     }
   }
-  mediaEl.addEventListener('input', function () { renderMedia(); renderPreview(); validate(); });
-  $('mediaClear').addEventListener('click', function () { mediaEl.value = ''; renderMedia(); renderPreview(); validate(); });
+  mediaEl.addEventListener('input', function () { S.mediaMeta = null; renderMedia(); renderPreview(); validate(); });
+  $('mediaClear').addEventListener('click', function () { mediaEl.value = ''; S.mediaMeta = null; renderMedia(); renderPreview(); validate(); });
 
+  /** Picks a file → uploads it right away → puts the returned link into the form and the preview. */
   async function handleFile(file) {
     if (!file || S.uploading) return;
+    if (!S.uploads) return Vane.toast('err', 'Image uploads are not enabled on this server yet. Paste an image link instead.');
     if (['image/jpeg', 'image/png', 'image/webp'].indexOf(file.type) < 0) return Vane.toast('err', 'Only JPEG, PNG and WebP images are supported.');
     if (file.size > 5 * 1024 * 1024) return Vane.toast('err', 'Image is too large (max 5 MB).');
+
     S.uploading = true;
-    var btn = $('uploadBtn'), old = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Uploading';
+    var btn = $('uploadBtn'), old = btn.innerHTML;
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Uploading';
+    var pv = $('mediaPreview');
+    pv.classList.remove('hidden'); pv.classList.add('flex');
+    $('mediaImg').removeAttribute('src');
+    $('mediaBusy').classList.remove('hidden'); $('mediaBusy').classList.add('flex');
+    $('mediaName').textContent = 'Uploading ' + (file.name || 'image') + '…';
+    validate();
+
     var r = await Vane.upload(file);
+
     S.uploading = false; btn.disabled = false; btn.innerHTML = old;
-    if (!r.ok) return Vane.toast('err', r.error);
-    mediaEl.value = r.url; renderMedia(); renderPreview(); validate();
+    if (!r.ok) {
+      Vane.toast('err', r.error);
+      renderMedia(); validate();
+      return;
+    }
+    mediaEl.value = r.url;
+    S.mediaMeta = { url: r.url, name: file.name || 'image', size: r.size || file.size };
+    renderMedia(); renderPreview(); validate();
     Vane.toast('ok', 'Image uploaded.');
   }
   $('uploadBtn').addEventListener('click', function () { $('fileInput').click(); });
-  $('fileInput').addEventListener('change', function () { handleFile(this.files[0]); this.value = ''; });
-  var mediaBox = $('mediaBox');
+  $('fileInput').addEventListener('change', function () { var f = this.files && this.files[0]; this.value = ''; handleFile(f); });
+
+  var mediaBox = $('mediaBox'), HILITE = ['bg-white/[0.06]', 'ring-2', 'ring-white/20'];
   ['dragenter', 'dragover'].forEach(function (ev) {
-    mediaBox.addEventListener(ev, function (e) { if (!S.uploads) return; e.preventDefault(); mediaBox.classList.add('bg-white/[0.06]', 'ring-2', 'ring-white/20'); });
+    mediaBox.addEventListener(ev, function (e) { e.preventDefault(); if (S.uploads) HILITE.forEach(function (c) { mediaBox.classList.add(c); }); });
   });
   ['dragleave', 'drop'].forEach(function (ev) {
-    mediaBox.addEventListener(ev, function (e) { if (!S.uploads) return; e.preventDefault(); mediaBox.classList.remove('bg-white/[0.06]', 'ring-2', 'ring-white/20'); if (ev === 'drop' && e.dataTransfer) handleFile(e.dataTransfer.files[0]); });
+    mediaBox.addEventListener(ev, function (e) {
+      e.preventDefault(); HILITE.forEach(function (c) { mediaBox.classList.remove(c); });
+      if (ev === 'drop' && e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+    });
+  });
+  // Paste a screenshot / copied image straight into the text box.
+  $('text').addEventListener('paste', function (e) {
+    var files = e.clipboardData && e.clipboardData.files;
+    if (!files || !files.length) return;
+    for (var i = 0; i < files.length; i++) {
+      if (/^image\//.test(files[i].type)) { e.preventDefault(); handleFile(files[i]); return; }
+    }
   });
 
   // text + counter
@@ -355,7 +392,8 @@
     counter.className = 'rounded-full px-2.5 py-1 text-xs font-medium ' + (len > limit ? 'bg-red-500/15 text-red-300' : 'bg-white/[0.06] text-white/50');
 
     var msg = '';
-    if (!S.channels.length) msg = 'Connect a channel to start.';
+    if (S.uploading) msg = 'Waiting for the image to finish uploading…';
+    else if (!S.channels.length) msg = 'Connect a channel to start.';
     else if (!S.selected.size) msg = 'Pick at least one channel.';
     else if (!text && !media) msg = 'Write something or add an image.';
     else if (len > limit) msg = media ? 'With an image the text can be at most ' + CAPTION_LIMIT + ' characters.' : 'Text is too long for Telegram.';
@@ -414,7 +452,7 @@
 
     var n = r.data.posts.length;
     Vane.toast('ok', 'Scheduled for ' + fmtWhen.format(new Date(r.data.scheduledAt * 1000)) + (n > 1 ? ' on ' + n + ' channels.' : '.'));
-    textEl.value = ''; mediaEl.value = ''; renderMedia();
+    textEl.value = ''; mediaEl.value = ''; S.mediaMeta = null; renderMedia();
     initQuick();
     await Promise.all([loadPosts('upcoming')]);
     S.tab = 'upcoming'; setTab('upcoming');
@@ -486,6 +524,9 @@
             (p.mediaUrl ? '<span class="inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-2.5 py-1 text-xs text-white/55">' + ICON.image + 'Image</span>' : '') +
           '</div>' +
           errs.map(function (x) { return '<p class="mt-2 text-xs text-red-300/90">' + esc(x.channelName) + ': ' + esc(x.error) + '</p>'; }).join('') +
+          g.filter(function (x) { return (x.status === 'scheduled' || x.status === 'processing') && x.attempts > 0 && x.error; }).map(function (x) {
+            return '<p class="mt-2 text-xs text-amber-300/90">Retrying (attempt ' + x.attempts + '): ' + esc(x.error) + '</p>';
+          }).join('') +
         '</div>' +
         (cancellable
           ? '<div class="shrink-0 self-start">' +

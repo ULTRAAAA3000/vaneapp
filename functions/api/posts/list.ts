@@ -10,7 +10,7 @@ import { fail, json } from '../lib/http';
 
 interface Row {
   id: string; group_id: string | null; channel_id: string; channel_name: string; channel_type: PostPublic['platform'];
-  content: string; media_keys: string; scheduled_at: number; status: PostStatus; error: string | null; sent_at: number | null;
+  content: string; media_keys: string; scheduled_at: number; status: PostStatus; attempts: number; error: string | null; sent_at: number | null;
 }
 
 function firstMediaUrl(json: string): string | null {
@@ -38,7 +38,7 @@ export const handleListPosts: PagesFunction<Env> = async ({ request, env }) => {
   const { results } = await env.DB
     .prepare(
       `SELECT p.id, p.group_id, p.channel_id, c.name AS channel_name, c.type AS channel_type,
-              p.content, p.media_keys, p.scheduled_at, p.status, p.error, p.sent_at
+              p.content, p.media_keys, p.scheduled_at, p.status, p.attempts, p.error, p.sent_at
          FROM posts p JOIN channels c ON c.id = p.channel_id
         WHERE p.user_id = ?1 AND p.status IN (${statuses})
         ORDER BY ${order} LIMIT 200`,
@@ -56,6 +56,7 @@ export const handleListPosts: PagesFunction<Env> = async ({ request, env }) => {
     mediaUrl: firstMediaUrl(r.media_keys),
     scheduledAt: r.scheduled_at,
     status: r.status,
+    attempts: r.attempts,
     error: r.error,
     sentAt: r.sent_at,
   }));

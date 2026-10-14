@@ -34,15 +34,17 @@
     return { ok: ok, status: res.status, data: data, error: ok ? null : ((data && data.error) || 'Request failed (' + res.status + ')') };
   };
 
-  /** Raw image upload → { ok, url, error } */
+  /** Raw image upload to /api/media/upload → { ok, url, size, width, height, error } */
   Vane.upload = async function (file) {
     var res;
     try {
-      res = await fetch('/api/media', { method: 'POST', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file, credentials: 'same-origin' });
+      res = await fetch('/api/media/upload', { method: 'POST', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file, credentials: 'same-origin' });
     } catch (e) { return { ok: false, error: 'Network error during upload.' }; }
     var data = null; try { data = await res.json(); } catch (e) {}
     if (res.status === 401) Vane.go('/login');
-    return res.ok && data && data.ok ? { ok: true, url: data.url } : { ok: false, error: (data && data.error) || 'Upload failed.' };
+    return res.ok && data && data.ok
+      ? { ok: true, url: data.url, size: data.size, width: data.width, height: data.height }
+      : { ok: false, status: res.status, error: (data && data.error) || 'Upload failed.' };
   };
 
   /** Toasts: Vane.toast('ok' | 'err' | 'info', text) */
