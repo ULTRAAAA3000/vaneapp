@@ -8,7 +8,7 @@ Cloudflare Pages (site + `/api`) · D1 (database) · R2 (images) · a cron Worke
 |---|---|
 | `public/` | Landing, `/login`, `/app` dashboard (static, Tailwind via CDN) |
 | `functions/api/` | Pages Functions: auth, channels, posts, media, waitlist |
-| `worker/` | `vane-cron` Worker: every minute it sends due posts |
+| `worker/` | Cron Worker (name set in `worker/wrangler.toml`): every minute it sends due posts |
 | `schema.sql` | Whole schema. Idempotent: safe to re-run after every update |
 
 ## Setup / deploy checklist (order matters)
