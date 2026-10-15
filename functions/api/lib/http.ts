@@ -88,3 +88,12 @@ export async function readBodyLimited(request: Request, maxBytes: number): Promi
   for (const c of chunks) { out.set(c, offset); offset += c.byteLength; }
   return out;
 }
+
+/** Constant-time string comparison (for secrets), with no early exit on the first difference. */
+export function safeEqualStrings(a: string, b: string): boolean {
+  const ea = new TextEncoder().encode(a), eb = new TextEncoder().encode(b);
+  let diff = ea.length ^ eb.length;
+  const n = Math.max(ea.length, eb.length);
+  for (let i = 0; i < n; i++) diff |= (ea[i] ?? 0) ^ (eb[i] ?? 0);
+  return diff === 0;
+}

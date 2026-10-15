@@ -15,7 +15,10 @@
     history: [],
     tab: 'upcoming',
     armed: {},          // two-step confirm state: key → timeout id
-    submitting: false
+    submitting: false,
+    quick: false,       // Quick Connect (shared bot) available on this server
+    systemBot: '@VanePublishBot',
+    connTab: 'quick'
   };
 
   var TG_LIMIT = 4096, CAPTION_LIMIT = 1024;
@@ -58,7 +61,10 @@
     var me = await Vane.api('GET', '/api/auth/me'); // 401 → /login
     if (!me.ok) return;
     S.user = me.data.user;
-    S.uploads = !!(me.data.features && me.data.features.uploads);
+    var feats = me.data.features || {};
+    S.uploads = !!feats.uploads;
+    S.quick = !!feats.quickConnect;
+    if (feats.systemBot) S.systemBot = feats.systemBot;
 
     var display = S.user.name || S.user.email.split('@')[0];
     $('userEmail').textContent = S.user.email;
@@ -194,48 +200,141 @@
 
   // ───────────────────────── connect dialog ─────────────────────────
   var dlg = $('connectDialog');
-  function openConnect() {
-    $('connectForm').reset();
-    $('cErr').classList.add('hidden');
-    $('cToken').type = 'password'; $('cTokenToggle').textContent = 'Show';
-    if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
-    setTimeout(function () { $('cName').focus(); }, 60);
-  }
-  function closeConnect() {
-    $('cToken').value = ''; // don't leave the secret sitting in the DOM
-    if (typeof dlg.close === 'function') dlg.close(); else dlg.removeAttribute('open');
-  }
-  $('connectBtn').addEventListener('click', openConnect);
-  $('connectClose').addEventListener('click', closeConnect);
-  $('cCancel').addEventListener('click', closeConnect);
-  dlg.addEventListener('click', function (e) { if (e.target === dlg) closeConnect(); });
-  dlg.addEventListener('close', function () { $('cToken').value = ''; });
-  $('cTokenToggle').addEventListener('click', function () {
-    var show = $('cToken').type === 'password';
-    $('cToken').type = show ? 'text' : 'password';
-    this.textContent = show ? 'Hide' : 'Show';
-  });
+  var POLL_MS = window.__VANE_POLL_MS || 3000;
 
-  $('connectForm').addEventListener('submit', async function (e) {
+  /** Copies text; falls back to a hidden textarea where the Clipboard API is unavailable. */
+  async function copyText(text) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(text); return true; }
+    } catch (e) { /* fall through */ }
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      var done = document.execCommand && document.execCommand('copy');
+      ta.remove();
+      return !!done;
+    } catch (e) { return false; }
+  }
+  function copyWithToast(text, label) {
+    copyText(text).then(function (ok) { Vane.toast(ok ? 'ok' : 'info', ok ? label + ' copied.' : 'Select the text and press Ctrl+C to copy it.'); });
+  }
+
+  function showErr(box, form, msg) {
+    box.textContent = msg; box.classList.remove('hidden');
+    if (form) { form.classList.remove('shake'); void form.offsetWidth; form.classList.add('shake'); }
+  }
+  function hideErr(box) { box.classList.add('hidden'); box.textContent = ''; }
+
+  // ---- tabs
+  function setConnTab(tab) {
+    var quick = tab === 'quick';
+    S.connTab = tab;
+    $('connSeg').style.transform = quick ? 'translateX(0)' : 'translateX(100%)';
+    $('tabQuick').setAttribute('aria-selected', String(quick));
+    $('tabCustom').setAttribute('aria-selected', String(!quick));
+    $('tabQuick').style.color = quick ? '#010101' : 'rgba(255,255,255,.65)';
+    $('tabCustom').style.color = quick ? 'rgba(255,255,255,.65)' : '#010101';
+    $('panelQuick').classList.toggle('hidden', !quick);
+    $('panelCustom').classList.toggle('hidden', quick);
+    $('connNote').textContent = quick
+      ? 'Vane publishes through its own bot, so none of your credentials are stored.'
+      : 'The bot token is encrypted (AES-256) before it is stored and is never shown again.';
+    if (quick) qResume(); else qPause();
+  }
+  $('tabQuick').addEventListener('click', function () { setConnTab('quick'); });
+  $('tabCustom').addEventListener('click', function () { setConnTab('custom'); });
+  $('qOffSwitch').addEventListener('click', function () { setConnTab('custom'); });
+
+  // ---- Quick Connect state machine:  enter → verify → ready   (or → expired)
+  var Q = { phase: 'enter', id: '', code: '', expiresAt: 0, title: '', pollTimer: null, tickTimer: null, polling: false };
+  var fmtClock = function (sec) { sec = Math.max(0, sec); return Math.floor(sec / 60) + ':' + pad(sec % 60); };
+
+  function qStopTimers() { clearInterval(Q.pollTimer); clearInterval(Q.tickTimer); Q.pollTimer = Q.tickTimer = null; }
+  function qPause() { qStopTimers(); }
+  function qResume() { if (Q.phase === 'verify') qStartTimers(); }
+
+  function qRender() {
+    var verifying = Q.phase === 'verify', ready = Q.phase === 'ready', expired = Q.phase === 'expired';
+    var show = function (id, on) { var el = $(id); el.classList.toggle('hidden', !on); el.classList.toggle('flex', on); };
+    show('qS3', Q.phase !== 'enter'); show('qS4', ready);
+    $('qChat').disabled = Q.phase !== 'enter';
+    $('qCheck').disabled = Q.phase !== 'enter';
+    if (Q.phase === 'enter') return;
+
+    $('qChatTitle').textContent = Q.title;
+    $('qCode').textContent = Q.code;
+    $('qWaitSpin').classList.toggle('hidden', !verifying);
+    $('qRetry').classList.toggle('hidden', !expired);
+    $('qReset').classList.toggle('hidden', ready);
+    $('qCodeCopy').disabled = !verifying;
+    if (verifying) { $('qWaitText').textContent = 'Waiting for your message…'; $('qWaitText').className = ''; }
+    if (ready) { $('qWaitText').textContent = '✓ Code received. The channel is confirmed.'; $('qWaitText').className = 'font-medium text-emerald-300'; $('qTimer').textContent = ''; }
+    if (expired) { $('qWaitText').textContent = 'This code expired.'; $('qWaitText').className = 'text-amber-300'; $('qTimer').textContent = ''; }
+  }
+
+  function qTick() {
+    if (Q.phase !== 'verify') return;
+    var left = Q.expiresAt - Math.floor(Date.now() / 1000);
+    $('qTimer').textContent = fmtClock(left);
+    if (left <= 0) qPoll();      // one last look: the code may have been seen right at the deadline
+  }
+  async function qPoll() {
+    if (Q.phase !== 'verify' || Q.polling) return;
+    Q.polling = true;
+    var r = await Vane.api('GET', '/api/channels/quick/status?id=' + encodeURIComponent(Q.id));
+    Q.polling = false;
+    if (Q.phase !== 'verify') return;           // user moved on while we were waiting
+    if (!r.ok) {
+      if (r.status === 404) { qFail('This verification is no longer valid. Get a new code.'); }
+      return;                                   // transient error: the next poll will try again
+    }
+    if (r.data.verified) { qPause(); Q.phase = 'ready'; $('qName').value = (Q.title || 'My Telegram channel').slice(0, 80); qRender(); $('qName').focus(); Vane.toast('ok', 'Code received. Channel confirmed.'); }
+    else if (r.data.expired) { qPause(); Q.phase = 'expired'; qRender(); }
+  }
+  function qFail(msg) { qPause(); Q.phase = 'expired'; qRender(); $('qWaitText').textContent = msg; }
+  function qStartTimers() {
+    qStopTimers();
+    Q.pollTimer = setInterval(qPoll, POLL_MS);
+    Q.tickTimer = setInterval(qTick, 1000);
+    qTick();
+  }
+  function qReset() {
+    qStopTimers();
+    Q = { phase: 'enter', id: '', code: '', expiresAt: 0, title: '', pollTimer: null, tickTimer: null, polling: false };
+    hideErr($('qErr')); qRender();
+  }
+
+  $('qForm').addEventListener('submit', async function (e) {
     e.preventDefault();
-    var err = $('cErr'), btn = $('cSubmit');
-    var showErr = function (m) {
-      err.textContent = m; err.classList.remove('hidden');
-      var f = $('connectForm'); f.classList.remove('shake'); void f.offsetWidth; f.classList.add('shake');
-    };
-    err.classList.add('hidden');
+    hideErr($('qErr'));
+    var chat = $('qChat').value.trim();
+    if (!chat) return showErr($('qErr'), $('qForm'), 'Enter your channel @username (or a t.me link).');
+    $('qCheck').disabled = true; $('qCheckSpin').classList.remove('hidden'); $('qCheckLabel').textContent = 'Checking…';
+    var r = await Vane.api('POST', '/api/channels/quick/start', { chat: chat });
+    $('qCheckSpin').classList.add('hidden'); $('qCheckLabel').textContent = 'Check access';
+    if (!r.ok) { $('qCheck').disabled = false; return showErr($('qErr'), $('qForm'), r.error); }
 
-    var name = $('cName').value.trim() || 'My Telegram channel';
-    var token = $('cToken').value.trim();
-    var chat = $('cChat').value.trim();
-    if (!token) return showErr('Paste the bot token from @BotFather.');
-    if (!chat) return showErr('Enter the channel @username or numeric id.');
+    Q.id = r.data.verificationId; Q.code = r.data.code; Q.expiresAt = r.data.expiresAt;
+    Q.title = (r.data.chat && r.data.chat.title) || chat; Q.phase = 'verify';
+    qRender(); qStartTimers();
+  });
+  $('qCodeCopy').addEventListener('click', function () { copyWithToast(Q.code, 'Code'); });
+  $('qBotCopy').addEventListener('click', function () { copyWithToast(S.systemBot, 'Bot name'); });
+  $('qReset').addEventListener('click', qReset);
+  $('qRetry').addEventListener('click', function () { var chat = $('qChat').value; qReset(); $('qChat').value = chat; $('qForm').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); });
 
-    btn.disabled = true; $('cSpin').classList.remove('hidden'); $('cLabel').textContent = 'Checking with Telegram…';
-    var r = await Vane.api('POST', '/api/channels/add', { platform: 'telegram', name: name, credentials: { botToken: token, chatId: chat } });
-    btn.disabled = false; $('cSpin').classList.add('hidden'); $('cLabel').textContent = 'Verify & connect';
-
-    if (!r.ok) return showErr(r.error);
+  $('qConnect').addEventListener('click', async function () {
+    if (Q.phase !== 'ready') return;
+    hideErr($('qErr'));
+    var name = $('qName').value.trim() || Q.title || 'My Telegram channel';
+    $('qConnect').disabled = true; $('qConnectSpin').classList.remove('hidden'); $('qConnectLabel').textContent = 'Connecting…';
+    var r = await Vane.api('POST', '/api/channels/add', { platform: 'telegram', method: 'quick', name: name, credentials: { verificationId: Q.id } });
+    $('qConnect').disabled = false; $('qConnectSpin').classList.add('hidden'); $('qConnectLabel').textContent = 'Connect channel';
+    if (!r.ok) {
+      if (r.status === 404 || r.status === 410) { qFail(r.error); }
+      return showErr($('qErr'), null, r.error);
+    }
     var title = r.data.telegram && r.data.telegram.chatTitle;
     closeConnect();
     Vane.toast('ok', 'Connected' + (title ? ' to ' + title : '') + '. Send a test message to try it.');
@@ -243,6 +342,62 @@
     await loadChannels();
     renderAll();
   });
+
+  // ---- Custom bot (the original flow)
+  $('cTokenToggle').addEventListener('click', function () {
+    var show = $('cToken').type === 'password';
+    $('cToken').type = show ? 'text' : 'password';
+    this.textContent = show ? 'Hide' : 'Show';
+  });
+  $('connectForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var btn = $('cSubmit');
+    hideErr($('cErr'));
+
+    var name = $('cName').value.trim() || 'My Telegram channel';
+    var token = $('cToken').value.trim();
+    var chat = $('cChat').value.trim();
+    if (!token) return showErr($('cErr'), $('connectForm'), 'Paste the bot token from @BotFather.');
+    if (!chat) return showErr($('cErr'), $('connectForm'), 'Enter the channel @username or numeric id.');
+
+    btn.disabled = true; $('cSpin').classList.remove('hidden'); $('cLabel').textContent = 'Checking with Telegram…';
+    var r = await Vane.api('POST', '/api/channels/add', { platform: 'telegram', method: 'custom', name: name, credentials: { botToken: token, chatId: chat } });
+    btn.disabled = false; $('cSpin').classList.add('hidden'); $('cLabel').textContent = 'Verify & connect';
+
+    if (!r.ok) return showErr($('cErr'), $('connectForm'), r.error);
+    var title = r.data.telegram && r.data.telegram.chatTitle;
+    closeConnect();
+    Vane.toast('ok', 'Connected' + (title ? ' to ' + title : '') + '. Send a test message to try it.');
+    S.selected.add(r.data.channel.id);
+    await loadChannels();
+    renderAll();
+  });
+
+  // ---- open / close
+  function openConnect(tab) {
+    $('connectForm').reset(); hideErr($('cErr'));
+    $('cToken').type = 'password'; $('cTokenToggle').textContent = 'Show';
+    qReset(); $('qChat').value = '';
+
+    $('qBot').textContent = S.systemBot;
+    $('qOff').classList.toggle('hidden', S.quick);
+    $('qOn').classList.toggle('hidden', !S.quick);
+    $('tabQuickBadge').classList.toggle('hidden', !S.quick);
+    setConnTab(tab || (S.quick ? 'quick' : 'custom'));
+
+    if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
+    setTimeout(function () { ($('panelQuick').classList.contains('hidden') ? $('cName') : $('qChat')).focus(); }, 60);
+  }
+  function closeConnect() {
+    qStopTimers();
+    $('cToken').value = ''; // don't leave the secret sitting in the DOM
+    if (typeof dlg.close === 'function') dlg.close(); else dlg.removeAttribute('open');
+  }
+  $('connectBtn').addEventListener('click', function () { openConnect(); });
+  $('connectClose').addEventListener('click', closeConnect);
+  $('cCancel').addEventListener('click', closeConnect);
+  dlg.addEventListener('click', function (e) { if (e.target === dlg) closeConnect(); });
+  dlg.addEventListener('close', function () { $('cToken').value = ''; qStopTimers(); });
 
   // ───────────────────────── composer ─────────────────────────
   var textEl = $('text'), whenEl = $('when');

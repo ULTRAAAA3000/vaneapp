@@ -1,3 +1,7 @@
 # Copy to .dev.vars (git-ignored) for `npm run dev`. Generate each value with:  openssl rand -base64 32
 ENCRYPTION_KEY=replace-with-32+-random-chars
 JWT_SECRET=replace-with-another-32+-random-chars
+
+# Quick Connect (shared bot). Optional: without these the dashboard only offers "Custom bot".
+SYSTEM_BOT_TOKEN=token-of-the-shared-bot-from-BotFather
+TELEGRAM_WEBHOOK_SECRET=random-16+-chars-A-Za-z0-9_-   # e.g. openssl rand -hex 32
