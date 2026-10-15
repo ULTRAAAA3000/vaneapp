@@ -16,6 +16,8 @@
     tab: 'upcoming',
     armed: {},          // two-step confirm state: key → timeout id
     submitting: false,
+    refreshing: false,  // a background posts refresh is in flight
+    rev: 0,             // bumped on every posts load, so a stale background refresh can be dropped
     quick: false,       // Quick Connect (shared bot) available on this server
     systemBot: '@VanePublishBot',
     connTab: 'quick',
@@ -83,7 +85,12 @@
     renderAll();
 
     setInterval(function () { renderStats(); renderPosts(); }, 30000);
-    setInterval(function () { if (document.visibilityState === 'visible') refreshPostsQuietly(); }, 60000);
+    // live posts: poll while the tab is visible, and catch up the moment it is back in front
+    // (a post may have been scheduled or sent from another device in the meantime)
+    setInterval(function () { if (document.visibilityState === 'visible') refreshPostsQuietly(); }, 15000);
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') refreshPostsQuietly(); });
+    window.addEventListener('focus', refreshPostsQuietly);
+    window.addEventListener('online', refreshPostsQuietly);
   }
 
   // ───────────────────────── data ─────────────────────────
@@ -98,12 +105,28 @@
   async function loadPosts(view) {
     var r = await Vane.api('GET', '/api/posts?view=' + view);
     if (!r.ok) { Vane.toast('err', r.error); return; }
+    S.rev++;
     S[view] = r.data.posts;
   }
+  // changes whenever a post appears, disappears or moves to another state / time
+  function postsSig() {
+    return [S.upcoming, S.history].map(function (list) {
+      return list.map(function (p) { return p.id + ':' + p.status + ':' + p.attempts + ':' + p.scheduledAt; }).join('|');
+    }).join('#');
+  }
+  // Silent refresh of both lists: no toasts, no full re-render (the composer and preview are left alone).
   async function refreshPostsQuietly() {
-    var before = JSON.stringify(S.upcoming.map(function (p) { return p.id + p.status; }));
-    await Promise.all([loadPosts('upcoming'), loadPosts('history')]);
-    if (before !== JSON.stringify(S.upcoming.map(function (p) { return p.id + p.status; }))) renderAll();
+    if (S.refreshing || S.submitting) return;
+    S.refreshing = true;
+    var rev = S.rev, before = postsSig();
+    var rs = await Promise.all([Vane.api('GET', '/api/posts?view=upcoming'), Vane.api('GET', '/api/posts?view=history')]);
+    S.refreshing = false;
+    if (!rs[0].ok || !rs[1].ok) return;   // offline or a server hiccup: keep what is on screen, retry next tick
+    if (rev !== S.rev) return;            // the user's own action reloaded the lists meanwhile: this answer is stale
+    S.rev++;
+    S.upcoming = rs[0].data.posts;
+    S.history = rs[1].data.posts;
+    if (before !== postsSig()) { renderStats(); renderPosts(); }
   }
 
   // ───────────────────────── render: everything ─────────────────────────
