@@ -100,3 +100,17 @@ label.lbl { display: block; margin-bottom: .45rem; font-size: .7rem; font-weight
 dialog.vane-dialog { padding: 0; border: 0; background: transparent; color: #fff; max-width: min(34rem, calc(100vw - 1.5rem)); width: 100%; max-height: calc(100vh - 2rem); overflow: visible; margin: auto; }
 dialog.vane-dialog::backdrop { background: rgba(0,0,0,.72); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
 dialog.vane-dialog[open] { animation: pop .4s cubic-bezier(.16,1,.3,1); }
+
+/* media picker */
+.dropzone { display: flex; width: 100%; flex-direction: column; align-items: center; gap: .5rem; padding: 1.4rem 1rem;
+  border-radius: 18px; border: 1.5px dashed rgba(255,255,255,.16); background: rgba(255,255,255,.025);
+  color: rgba(255,255,255,.82); text-align: center; cursor: pointer;
+  transition: border-color .2s, background-color .2s, transform .15s; }
+.dropzone:hover:not(:disabled), .dropzone.is-over { border-color: rgba(255,255,255,.45); background: rgba(255,255,255,.06); }
+.dropzone.is-over { transform: scale(1.012); }
+.dropzone:disabled { opacity: .55; cursor: not-allowed; }
+.dropzone:focus-visible { outline: 2px solid rgba(255,255,255,.55); outline-offset: 2px; }
+.progress { height: .375rem; overflow: hidden; border-radius: 9999px; background: rgba(255,255,255,.1); }
+.progress > span { display: block; height: 100%; width: 0; border-radius: 9999px; background: #fff; transition: width .18s ease-out; }
+.progress.is-indeterminate > span { width: 40% !important; animation: indet 1.1s ease-in-out infinite; }
+@keyframes indet { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }

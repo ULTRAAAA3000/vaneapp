@@ -34,17 +34,35 @@
     return { ok: ok, status: res.status, data: data, error: ok ? null : ((data && data.error) || 'Request failed (' + res.status + ')') };
   };
 
-  /** Raw image upload to /api/media/upload → { ok, url, size, width, height, error } */
-  Vane.upload = async function (file) {
-    var res;
-    try {
-      res = await fetch('/api/media/upload', { method: 'POST', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file, credentials: 'same-origin' });
-    } catch (e) { return { ok: false, error: 'Network error during upload.' }; }
-    var data = null; try { data = await res.json(); } catch (e) {}
-    if (res.status === 401) Vane.go('/login');
-    return res.ok && data && data.ok
-      ? { ok: true, url: data.url, size: data.size, width: data.width, height: data.height }
-      : { ok: false, status: res.status, error: (data && data.error) || 'Upload failed.' };
+  /**
+   * Uploads one file to /api/media/upload as multipart/form-data, with progress.
+   * Returns { promise, abort }. The promise always resolves to
+   *   { ok:true, kind, url, key, size, contentType, width?, height? }  or  { ok:false, error, aborted? }
+   * (XMLHttpRequest is used because fetch() cannot report upload progress.)
+   */
+  Vane.uploadFile = function (file, onProgress) {
+    var xhr = new XMLHttpRequest();
+    var promise = new Promise(function (resolve) {
+      xhr.open('POST', '/api/media/upload');
+      xhr.responseType = 'text';
+      xhr.upload.onprogress = function (e) {
+        if (onProgress && e.lengthComputable && e.total > 0) onProgress(e.loaded / e.total);
+      };
+      xhr.onload = function () {
+        var data = null;
+        try { data = JSON.parse(xhr.responseText); } catch (e) { /* not JSON */ }
+        if (xhr.status === 401) Vane.go('/login');
+        if (xhr.status >= 200 && xhr.status < 300 && data && data.ok) resolve(data);
+        else resolve({ ok: false, status: xhr.status, error: (data && data.error) || 'Upload failed (' + xhr.status + ').' });
+      };
+      xhr.onerror = function () { resolve({ ok: false, error: 'Network error during upload. Check your connection and try again.' }); };
+      xhr.ontimeout = function () { resolve({ ok: false, error: 'The upload took too long. Try again.' }); };
+      xhr.onabort = function () { resolve({ ok: false, aborted: true, error: 'Upload cancelled.' }); };
+      var fd = new FormData();
+      fd.append('file', file, file.name || 'upload');
+      xhr.send(fd);
+    });
+    return { promise: promise, abort: function () { try { xhr.abort(); } catch (e) { /* already finished */ } } };
   };
 
   /** Toasts: Vane.toast('ok' | 'err' | 'info', text) */

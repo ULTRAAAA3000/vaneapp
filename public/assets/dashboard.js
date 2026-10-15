@@ -15,9 +15,7 @@
     history: [],
     tab: 'upcoming',
     armed: {},          // two-step confirm state: key → timeout id
-    submitting: false,
-    uploading: false,
-    mediaMeta: null     // { url, name, size } for an uploaded image
+    submitting: false
   };
 
   var TG_LIMIT = 4096, CAPTION_LIMIT = 1024;
@@ -27,6 +25,7 @@
     telegramSm: '<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 3.5L2.8 10.7l5.9 2.2 2.3 6.6 3.1-4.2 4.6 3.4z"/><path d="M8.7 12.9l12-8.6"/></svg>',
     trash: '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6M10 11v6M14 11v6"/></svg>',
     clock: '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+    video: '<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="14" height="14" rx="3"/><path d="M16 10l6-3v10l-6-3z"/></svg>',
     image: '<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>'
   };
 
@@ -68,11 +67,7 @@
     $('greeting').textContent = (h < 5 ? 'Late night' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening') + ', ' + display;
     $('today').textContent = fmtLong.format(new Date());
     $('tz').textContent = 'Times are in your timezone: ' + (Intl.DateTimeFormat().resolvedOptions().timeZone || 'local');
-    if (!S.uploads) {
-      $('uploadBtn').disabled = true;
-      $('uploadBtn').title = 'Image uploads are not enabled on this server yet. Paste an image link instead.';
-      $('mediaHint').textContent = 'Paste a public https link to a photo (uploads are not enabled on this server yet). Text under an image is limited to 1024 characters.';
-    }
+    picker.setEnabled(S.uploads);
     $('app').classList.remove('opacity-0');
 
     initQuick();
@@ -250,7 +245,7 @@
   });
 
   // ───────────────────────── composer ─────────────────────────
-  var textEl = $('text'), mediaEl = $('mediaUrl'), whenEl = $('when');
+  var textEl = $('text'), whenEl = $('when');
 
   function renderChips() {
     var box = $('chipsBox');
@@ -305,77 +300,21 @@
   });
   whenEl.addEventListener('input', function () { syncQuick(); renderPreview(); validate(); });
 
-  // media
-  function currentMedia() { return mediaEl.value.trim(); }
-  var fmtSize = function (n) { return n < 1024 * 1024 ? Math.max(1, Math.round(n / 1024)) + ' KB' : (n / 1048576).toFixed(1) + ' MB'; };
-
-  function renderMedia() {
-    var v = currentMedia(), valid = v && Vane.isHttps(v);
-    mediaEl.setAttribute('aria-invalid', v && !valid ? 'true' : 'false');
-    var pv = $('mediaPreview');
-    if (S.uploading) return; // the uploading state owns the preview while it runs
-    $('mediaBusy').classList.add('hidden'); $('mediaBusy').classList.remove('flex');
-    if (valid) {
-      pv.classList.remove('hidden'); pv.classList.add('flex');
-      $('mediaImg').src = v;
-      var meta = S.mediaMeta && S.mediaMeta.url === v ? S.mediaMeta : null;
-      $('mediaName').textContent = meta ? meta.name + ' · ' + fmtSize(meta.size) : v.replace(/^https:\/\//, '');
-    } else {
-      pv.classList.add('hidden'); pv.classList.remove('flex'); $('mediaImg').removeAttribute('src');
-    }
-  }
-  mediaEl.addEventListener('input', function () { S.mediaMeta = null; renderMedia(); renderPreview(); validate(); });
-  $('mediaClear').addEventListener('click', function () { mediaEl.value = ''; S.mediaMeta = null; renderMedia(); renderPreview(); validate(); });
-
-  /** Picks a file → uploads it right away → puts the returned link into the form and the preview. */
-  async function handleFile(file) {
-    if (!file || S.uploading) return;
-    if (!S.uploads) return Vane.toast('err', 'Image uploads are not enabled on this server yet. Paste an image link instead.');
-    if (['image/jpeg', 'image/png', 'image/webp'].indexOf(file.type) < 0) return Vane.toast('err', 'Only JPEG, PNG and WebP images are supported.');
-    if (file.size > 5 * 1024 * 1024) return Vane.toast('err', 'Image is too large (max 5 MB).');
-
-    S.uploading = true;
-    var btn = $('uploadBtn'), old = btn.innerHTML;
-    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Uploading';
-    var pv = $('mediaPreview');
-    pv.classList.remove('hidden'); pv.classList.add('flex');
-    $('mediaImg').removeAttribute('src');
-    $('mediaBusy').classList.remove('hidden'); $('mediaBusy').classList.add('flex');
-    $('mediaName').textContent = 'Uploading ' + (file.name || 'image') + '…';
-    validate();
-
-    var r = await Vane.upload(file);
-
-    S.uploading = false; btn.disabled = false; btn.innerHTML = old;
-    if (!r.ok) {
-      Vane.toast('err', r.error);
-      renderMedia(); validate();
-      return;
-    }
-    mediaEl.value = r.url;
-    S.mediaMeta = { url: r.url, name: file.name || 'image', size: r.size || file.size };
-    renderMedia(); renderPreview(); validate();
-    Vane.toast('ok', 'Image uploaded.');
-  }
-  $('uploadBtn').addEventListener('click', function () { $('fileInput').click(); });
-  $('fileInput').addEventListener('change', function () { var f = this.files && this.files[0]; this.value = ''; handleFile(f); });
-
-  var mediaBox = $('mediaBox'), HILITE = ['bg-white/[0.06]', 'ring-2', 'ring-white/20'];
-  ['dragenter', 'dragover'].forEach(function (ev) {
-    mediaBox.addEventListener(ev, function (e) { e.preventDefault(); if (S.uploads) HILITE.forEach(function (c) { mediaBox.classList.add(c); }); });
+  // media: the MediaPicker component owns upload, progress and preview
+  var picker = Vane.createMediaPicker($('media'), {
+    enabled: false,                         // enabled in boot() once the server reports R2 is bound
+    dropTarget: $('composer'),
+    onChange: function () { renderPreview(); validate(); },
+    onBusy: function () { validate(); }
   });
-  ['dragleave', 'drop'].forEach(function (ev) {
-    mediaBox.addEventListener(ev, function (e) {
-      e.preventDefault(); HILITE.forEach(function (c) { mediaBox.classList.remove(c); });
-      if (ev === 'drop' && e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
-    });
-  });
+  function currentMedia() { return picker.getUrl(); }
+
   // Paste a screenshot / copied image straight into the text box.
   $('text').addEventListener('paste', function (e) {
     var files = e.clipboardData && e.clipboardData.files;
     if (!files || !files.length) return;
     for (var i = 0; i < files.length; i++) {
-      if (/^image\//.test(files[i].type)) { e.preventDefault(); handleFile(files[i]); return; }
+      if (/^(image|video)\//.test(files[i].type)) { e.preventDefault(); picker.handleFile(files[i]); return; }
     }
   });
 
@@ -392,12 +331,11 @@
     counter.className = 'rounded-full px-2.5 py-1 text-xs font-medium ' + (len > limit ? 'bg-red-500/15 text-red-300' : 'bg-white/[0.06] text-white/50');
 
     var msg = '';
-    if (S.uploading) msg = 'Waiting for the image to finish uploading…';
+    if (picker.isBusy()) msg = 'Waiting for the upload to finish…';
     else if (!S.channels.length) msg = 'Connect a channel to start.';
     else if (!S.selected.size) msg = 'Pick at least one channel.';
-    else if (!text && !media) msg = 'Write something or add an image.';
-    else if (len > limit) msg = media ? 'With an image the text can be at most ' + CAPTION_LIMIT + ' characters.' : 'Text is too long for Telegram.';
-    else if (media && !Vane.isHttps(media)) msg = 'The image link must be a public https URL.';
+    else if (!text && !media) msg = 'Write something or add an image or video.';
+    else if (len > limit) msg = media ? 'With an image or video the text can be at most ' + CAPTION_LIMIT + ' characters.' : 'Text is too long for Telegram.';
     else if (!whenEl.value || isNaN(new Date(whenEl.value).getTime())) msg = 'Pick a date and time.';
     else if (new Date(whenEl.value).getTime() <= Date.now() + 30000) msg = 'Pick a time at least a minute from now.';
 
@@ -408,7 +346,7 @@
 
   // preview (Telegram bubble)
   function renderPreview() {
-    var text = textEl.value.trim(), media = currentMedia(), validMedia = media && Vane.isHttps(media);
+    var text = textEl.value.trim(), m = picker.getMedia();
     var first = S.channels.filter(function (c) { return S.selected.has(c.id); })[0];
     var title = first ? first.name : 'Your channel';
     var when = whenEl.value && !isNaN(new Date(whenEl.value).getTime()) ? fmtHM.format(new Date(whenEl.value)) : '';
@@ -418,7 +356,9 @@
         '<div class="min-w-0 leading-tight"><div class="truncate text-[13px] font-semibold">' + esc(title) + '</div><div class="text-[11px] text-white/45">channel</div></div>' +
       '</div>' +
       '<div class="p-3.5"><div class="max-w-[94%] overflow-hidden rounded-2xl rounded-tl-md bg-[#182533]">' +
-        (validMedia ? '<img src="' + esc(media) + '" alt="" referrerpolicy="no-referrer" class="max-h-56 w-full bg-black/20 object-cover" data-hide-on-error />' : '') +
+        (m && m.kind === 'video'
+          ? '<video src="' + esc(m.url) + '" controls playsinline preload="metadata" class="max-h-56 w-full bg-black"></video>'
+          : (m ? '<img src="' + esc(m.url) + '" alt="" referrerpolicy="no-referrer" class="max-h-56 w-full bg-black/20 object-cover" data-hide-on-error />' : '')) +
         '<div class="px-3 py-2 text-[13px] leading-snug">' +
           (text ? Vane.rich(text) : '<span class="text-white/35">Your post will appear here…</span>') +
           '<div class="mt-1.5 flex justify-end text-[10.5px] text-white/40">' + esc(when) + '</div>' +
@@ -452,7 +392,7 @@
 
     var n = r.data.posts.length;
     Vane.toast('ok', 'Scheduled for ' + fmtWhen.format(new Date(r.data.scheduledAt * 1000)) + (n > 1 ? ' on ' + n + ' channels.' : '.'));
-    textEl.value = ''; mediaEl.value = ''; S.mediaMeta = null; renderMedia();
+    textEl.value = ''; picker.clear();
     initQuick();
     await Promise.all([loadPosts('upcoming')]);
     S.tab = 'upcoming'; setTab('upcoming');
@@ -521,7 +461,7 @@
           '</div>' +
           '<p class="mt-2 line-clamp-2 break-words text-sm leading-relaxed text-white/85">' + esc(p.content) + '</p>' +
           '<div class="mt-2.5 flex flex-wrap items-center gap-1.5">' + pills +
-            (p.mediaUrl ? '<span class="inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-2.5 py-1 text-xs text-white/55">' + ICON.image + 'Image</span>' : '') +
+            (p.mediaUrl ? '<span class="inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-2.5 py-1 text-xs text-white/55">' + (p.mediaKind === 'video' ? ICON.video + 'Video' : ICON.image + 'Image') + '</span>' : '') +
           '</div>' +
           errs.map(function (x) { return '<p class="mt-2 text-xs text-red-300/90">' + esc(x.channelName) + ': ' + esc(x.error) + '</p>'; }).join('') +
           g.filter(function (x) { return (x.status === 'scheduled' || x.status === 'processing') && x.attempts > 0 && x.error; }).map(function (x) {

@@ -13,8 +13,12 @@
  * This file is NOT a route: it only exports helpers (Pages ignores files without onRequest*).
  */
 
+import { mediaKindFromUrl } from '../lib/media';
+
 const TG_API = 'https://api.telegram.org';
-const TIMEOUT_MS = 8_000;
+const TIMEOUT_MS = 8_000;           // lookups and plain text
+const PHOTO_TIMEOUT_MS = 20_000;    // Telegram downloads the photo (≤ 5 MB) before answering
+const VIDEO_TIMEOUT_MS = 60_000;    // ...and the video (≤ 20 MB)
 
 export const TELEGRAM_TEXT_LIMIT = 4096;
 export const TELEGRAM_CAPTION_LIMIT = 1024;
@@ -46,20 +50,21 @@ export function isValidMediaUrl(v: unknown): v is string {
 
 // ───────────────────────── low-level call ─────────────────────────
 type TgOk<T> = { ok: true; result: T };
-type TgErr = { ok: false; errorCode: number; description: string; retryAfter?: number; network?: boolean };
+type TgErr = { ok: false; errorCode: number; description: string; retryAfter?: number; network?: boolean; timedOut?: boolean };
 
-async function tgCall<T>(botToken: string, method: string, params: Record<string, unknown>): Promise<TgOk<T> | TgErr> {
+async function tgCall<T>(botToken: string, method: string, params: Record<string, unknown>, timeoutMs = TIMEOUT_MS): Promise<TgOk<T> | TgErr> {
   let res: Response;
   try {
     res = await fetch(`${TG_API}/bot${botToken}/${method}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
-  } catch {
+  } catch (e) {
     // Deliberately drop the error object: some runtimes include the URL (= the token) in it.
-    return { ok: false, errorCode: 0, description: 'Network error or timeout', network: true };
+    const timedOut = e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError');
+    return { ok: false, errorCode: 0, description: timedOut ? 'Telegram did not answer in time' : 'Network error', network: true, timedOut };
   }
 
   let data: { ok?: boolean; result?: T; error_code?: number; description?: string; parameters?: { retry_after?: number } } | null = null;
@@ -183,26 +188,32 @@ export async function sendTelegramPost(
   if (!hasMedia && content.trim() === '') return permanent('Nothing to send: empty text and no media');
 
   // Pre-check limits so we don't burn an API call (or retry forever) on a doomed request.
-  // Photo + long text would need two messages; a partial failure would then duplicate the photo
+  // Media + long text would need two messages; a partial failure would then duplicate the media
   // on retry, so we refuse it outright instead.
   if (hasMedia && content.length > TELEGRAM_CAPTION_LIMIT) {
-    return permanent(`With an image, Telegram allows at most ${TELEGRAM_CAPTION_LIMIT} characters of text`);
+    return permanent(`With an image or video, Telegram allows at most ${TELEGRAM_CAPTION_LIMIT} characters of text`);
   }
   if (!hasMedia && content.length > TELEGRAM_TEXT_LIMIT) {
     return permanent(`Telegram allows at most ${TELEGRAM_TEXT_LIMIT} characters per message`);
   }
 
   // No parse_mode on purpose: plain text can never fail with "can't parse entities".
-  const r = hasMedia
-    ? await tgCall<{ message_id: number }>(botToken, 'sendPhoto', {
-        chat_id: chat,
-        photo: mediaUrl,
-        ...(content ? { caption: content } : {}),
-      })
-    : await tgCall<{ message_id: number }>(botToken, 'sendMessage', { chat_id: chat, text: content });
+  const kind = hasMedia ? mediaKindFromUrl(mediaUrl) : null;
+  const caption = content ? { caption: content } : {};
+  const r =
+    kind === 'video'
+      ? await tgCall<{ message_id: number }>(botToken, 'sendVideo', { chat_id: chat, video: mediaUrl, supports_streaming: true, ...caption }, VIDEO_TIMEOUT_MS)
+      : kind === 'image'
+        ? await tgCall<{ message_id: number }>(botToken, 'sendPhoto', { chat_id: chat, photo: mediaUrl, ...caption }, PHOTO_TIMEOUT_MS)
+        : await tgCall<{ message_id: number }>(botToken, 'sendMessage', { chat_id: chat, text: content });
 
   if (r.ok) return { ok: true, messageId: r.result.message_id };
 
+  // A send that timed out is AMBIGUOUS: Telegram may still have published it. Retrying could post it
+  // twice, so we stop and tell the user (same at-most-once rule the scheduler uses elsewhere).
+  if (r.timedOut) {
+    return permanent('Telegram did not confirm delivery in time. The post may already be published: check the channel before rescheduling.');
+  }
   if (r.network) return { ok: false, error: r.description, retryable: true };
   if (r.errorCode === 429) {
     return { ok: false, error: 'Telegram rate limit hit', retryable: true, retryAfter: r.retryAfter };
@@ -211,7 +222,11 @@ export async function sendTelegramPost(
   if (r.errorCode === 401) return permanent('Telegram rejected the bot token');
   if (r.errorCode === 403) return permanent('The bot was removed from the chat or lost its permissions');
   if (hasMedia && r.errorCode === 400) {
-    return permanent('Telegram could not use the image URL (it must be a public direct link to a photo)');
+    return permanent(
+      kind === 'video'
+        ? 'Telegram could not download the video (it must be an MP4 under 20 MB at a public link)'
+        : 'Telegram could not use the image URL (it must be a public direct link to a photo)',
+    );
   }
   return permanent(`Telegram refused the message: ${r.description}`);
 }

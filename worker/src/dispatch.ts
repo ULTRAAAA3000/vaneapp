@@ -29,7 +29,7 @@ export const MAX_LATE_SECONDS = 2 * 60 * 60;
 /** Seconds to wait after `attempts` failed tries: 120, 240, 480, 900, 900… (SQL below must match). */
 export const backoffSeconds = (attempts: number): number => Math.min(60 * 2 ** attempts, 900);
 
-const MEDIA_KEY_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|png|webp)$/;
+const MEDIA_KEY_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|png|webp|mp4|mov)$/;
 
 /** `media_keys` holds https URLs or R2 object keys; Telegram needs a public URL. */
 export function resolveMediaUrl(entry: unknown, appUrl: string | undefined): string | null {
