@@ -129,9 +129,11 @@
         <section class="fade-up glass-d rounded-3xl p-5 sm:p-6" style="animation-delay:.18s" aria-labelledby="previewTitle">
           <div class="flex items-center justify-between">
             <h2 id="previewTitle" class="text-lg font-semibold tracking-tight">Preview</h2>
-            <span class="text-xs text-white/35">Telegram</span>
+            <span id="pvCount" class="rounded-full bg-white/[0.06] px-2.5 py-1 text-xs font-medium text-white/50"></span>
           </div>
+          <div id="pvTabs" class="mt-4 flex flex-wrap gap-2" role="group" aria-label="Preview network"></div>
           <div id="preview" class="mt-4 overflow-hidden rounded-2xl" style="background:#0e1621"></div>
+          <p id="pvNote" class="mt-3 min-h-[1rem] text-xs text-white/40" role="status" aria-live="polite"></p>
         </section>
       </div>
     </div>

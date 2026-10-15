@@ -18,7 +18,8 @@
     submitting: false,
     quick: false,       // Quick Connect (shared bot) available on this server
     systemBot: '@VanePublishBot',
-    connTab: 'quick'
+    connTab: 'quick',
+    net: 'telegram'     // network shown in the preview
   };
 
   var TG_LIMIT = 4096, CAPTION_LIMIT = 1024;
@@ -499,26 +500,128 @@
     return msg;
   }
 
-  // preview (Telegram bubble)
-  function renderPreview() {
-    var text = textEl.value.trim(), m = picker.getMedia();
-    var first = S.channels.filter(function (c) { return S.selected.has(c.id); })[0];
-    var title = first ? first.name : 'Your channel';
-    var when = whenEl.value && !isNaN(new Date(whenEl.value).getTime()) ? fmtHM.format(new Date(whenEl.value)) : '';
-    $('preview').innerHTML =
-      '<div class="flex items-center gap-2.5 border-b border-white/5 bg-[#17212b] px-3.5 py-2.5">' +
-        '<div class="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-sky-400 text-sm font-bold">' + esc(title.charAt(0).toUpperCase()) + '</div>' +
-        '<div class="min-w-0 leading-tight"><div class="truncate text-[13px] font-semibold">' + esc(title) + '</div><div class="text-[11px] text-white/45">channel</div></div>' +
+  // ───────────────────────── preview (per network) ─────────────────────────
+  // Limits: Telegram 4096 (1024 under an image or video), LinkedIn 3000, Threads 500, Bluesky 300 (graphemes).
+  var NET = {
+    telegram: { name: 'Telegram', limit: 4096, bg: '#0e1621', hint: '' },
+    linkedin: { name: 'LinkedIn', limit: 3000, bg: '#000000', hint: 'LinkedIn folds long posts behind “see more” after about three lines.' },
+    threads:  { name: 'Threads',  limit: 500,  bg: '#101010', hint: '' },
+    bluesky:  { name: 'Bluesky',  limit: 300,  bg: '#161e27', hint: 'Bluesky counts graphemes, so an emoji is one character.' }
+  };
+  var NET_ORDER = ['telegram', 'linkedin', 'threads', 'bluesky'];
+  var EMPTY = '<span class="text-white/35">Your post will appear here…</span>';
+  var segmenter = window.Intl && Intl.Segmenter ? new Intl.Segmenter(undefined, { granularity: 'grapheme' }) : null;
+
+  function netLen(net, text) {
+    return net === 'bluesky' && segmenter ? Array.from(segmenter.segment(text)).length : text.length;
+  }
+  function netLimit(net, hasMedia) { return net === 'telegram' && hasMedia ? CAPTION_LIMIT : NET[net].limit; }
+
+  function pvAvatar(px, name) {
+    return '<div class="flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-sky-400 text-xs font-bold" style="width:' + px + 'px;height:' + px + 'px">' + esc(name.charAt(0).toUpperCase()) + '</div>';
+  }
+  function pvIco(path) {
+    return '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="' + path + '"/></svg>';
+  }
+  var PV_ACTIONS =
+    pvIco('M21 12a8 8 0 01-11.6 7.1L3 21l1.9-5.4A8 8 0 1121 12z') +
+    pvIco('M17 2l4 4-4 4M3 11V9a3 3 0 013-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 01-3 3H3') +
+    pvIco('M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 00-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 000-7.8z') +
+    pvIco('M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7M16 6l-4-4-4 4M12 2v13');
+
+  function pvMedia(m, cls) {
+    if (!m) return '';
+    return m.kind === 'video'
+      ? '<video src="' + esc(m.url) + '" controls playsinline preload="metadata" class="' + cls + ' bg-black"></video>'
+      : '<img src="' + esc(m.url) + '" alt="" referrerpolicy="no-referrer" class="' + cls + ' bg-black/20 object-cover" data-hide-on-error />';
+  }
+
+  function viewTelegram(c) {
+    return '<div class="flex items-center gap-2.5 border-b border-white/5 bg-[#17212b] px-3.5 py-2.5">' +
+        '<div class="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-sky-400 text-sm font-bold">' + esc(c.title.charAt(0).toUpperCase()) + '</div>' +
+        '<div class="min-w-0 leading-tight"><div class="truncate text-[13px] font-semibold">' + esc(c.title) + '</div><div class="text-[11px] text-white/45">channel</div></div>' +
       '</div>' +
       '<div class="p-3.5"><div class="max-w-[94%] overflow-hidden rounded-2xl rounded-tl-md bg-[#182533]">' +
-        (m && m.kind === 'video'
-          ? '<video src="' + esc(m.url) + '" controls playsinline preload="metadata" class="max-h-56 w-full bg-black"></video>'
-          : (m ? '<img src="' + esc(m.url) + '" alt="" referrerpolicy="no-referrer" class="max-h-56 w-full bg-black/20 object-cover" data-hide-on-error />' : '')) +
+        pvMedia(c.m, 'max-h-56 w-full') +
         '<div class="px-3 py-2 text-[13px] leading-snug">' +
-          (text ? Vane.rich(text) : '<span class="text-white/35">Your post will appear here…</span>') +
-          '<div class="mt-1.5 flex justify-end text-[10.5px] text-white/40">' + esc(when) + '</div>' +
+          (c.text ? Vane.rich(c.text) : EMPTY) +
+          '<div class="mt-1.5 flex justify-end text-[10.5px] text-white/40">' + esc(c.when) + '</div>' +
         '</div>' +
       '</div></div>';
+  }
+  function viewLinkedin(c) {
+    var shown = c.text, more = false;
+    if (shown.length > 220) { shown = shown.slice(0, 220).replace(/\s+\S*$/, ''); more = true; }
+    return '<div class="p-3"><div class="overflow-hidden rounded-xl bg-[#1b1f23] ring-1 ring-white/10">' +
+        '<div class="flex gap-2.5 p-3 pb-0">' + pvAvatar(40, c.name) +
+          '<div class="min-w-0 leading-tight"><div class="truncate text-[13px] font-semibold">' + esc(c.name) + '</div><div class="text-[11px] text-white/40">' + esc(c.when || 'Scheduled') + '</div></div></div>' +
+        '<div class="break-words px-3 pt-2.5 text-[13px] leading-snug text-white/90">' + (shown ? Vane.rich(shown) : EMPTY) + (more ? '… <span class="text-white/50">see more</span>' : '') + '</div>' +
+        pvMedia(c.m, 'mt-2.5 max-h-56 w-full') +
+        '<div class="mt-3 flex justify-between border-t border-white/10 px-3 py-2 text-[11.5px] text-white/55"><span>Like</span><span>Comment</span><span>Repost</span><span>Send</span></div>' +
+      '</div></div>';
+  }
+  function viewThreads(c) {
+    return '<div class="p-3.5"><div class="flex gap-2.5">' + pvAvatar(36, c.name) +
+      '<div class="min-w-0 flex-1">' +
+        '<div class="flex flex-wrap items-center gap-x-1.5 text-[13px]"><span class="font-semibold">' + esc(c.handle) + '</span><span class="text-white/40">' + esc(c.when) + '</span></div>' +
+        '<div class="mt-1 break-words text-[13.5px] leading-snug">' + (c.text ? Vane.rich(c.text) : EMPTY) + '</div>' +
+        pvMedia(c.m, 'mt-2.5 max-h-56 w-full rounded-xl') +
+        '<div class="mt-3 flex gap-5 text-white/40">' + PV_ACTIONS + '</div>' +
+      '</div></div></div>';
+  }
+  function viewBluesky(c) {
+    return '<div class="p-3.5"><div class="flex gap-2.5">' + pvAvatar(40, c.name) +
+      '<div class="min-w-0 flex-1">' +
+        '<div class="flex flex-wrap items-baseline gap-x-1 text-[13px]"><span class="font-semibold">' + esc(c.name) + '</span><span class="truncate text-white/45">@' + esc(c.handle) + '.bsky.social</span>' + (c.when ? '<span class="text-white/35">· ' + esc(c.when) + '</span>' : '') + '</div>' +
+        '<div class="mt-1 break-words text-[13.5px] leading-snug">' + (c.text ? Vane.rich(c.text) : EMPTY) + '</div>' +
+        pvMedia(c.m, 'mt-2.5 max-h-56 w-full rounded-xl') +
+        '<div class="mt-3 flex justify-between pr-6 text-white/40">' + PV_ACTIONS + '</div>' +
+      '</div></div></div>';
+  }
+  var PV_VIEW = { telegram: viewTelegram, linkedin: viewLinkedin, threads: viewThreads, bluesky: viewBluesky };
+
+  // tabs are built once, then only their pressed state changes (keeps keyboard focus)
+  function syncPvTabs() {
+    var box = $('pvTabs');
+    if (!box.children.length) {
+      NET_ORDER.forEach(function (k) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'chip !px-3 !py-1.5 !text-xs';
+        b.setAttribute('data-net', k);
+        b.textContent = NET[k].name;
+        b.addEventListener('click', function () { S.net = k; renderPreview(); });
+        box.appendChild(b);
+      });
+    }
+    Array.prototype.forEach.call(box.children, function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-net') === S.net));
+    });
+  }
+
+  function renderPreview() {
+    var raw = textEl.value, text = raw.trim(), m = picker.getMedia();
+    var first = S.channels.filter(function (c) { return S.selected.has(c.id); })[0];
+    var display = S.user ? (S.user.name || S.user.email.split('@')[0]) : 'You';
+    var c = {
+      text: text, m: m,
+      title: first ? first.name : 'Your channel',
+      name: display,
+      handle: display.toLowerCase().replace(/[^a-z0-9]+/g, '') || 'you',
+      when: whenEl.value && !isNaN(new Date(whenEl.value).getTime()) ? fmtHM.format(new Date(whenEl.value)) : ''
+    };
+    var net = NET[S.net] ? S.net : 'telegram';
+    syncPvTabs();
+    $('preview').style.background = NET[net].bg;
+    $('preview').innerHTML = PV_VIEW[net](c);
+
+    var len = netLen(net, raw), limit = netLimit(net, !!m), over = len > limit;
+    $('pvCount').textContent = len + ' / ' + limit;
+    $('pvCount').className = 'rounded-full px-2.5 py-1 text-xs font-medium ' + (over ? 'bg-red-500/15 text-red-300' : 'bg-white/[0.06] text-white/50');
+    $('pvNote').className = 'mt-3 min-h-[1rem] text-xs ' + (over ? 'text-red-300' : 'text-white/40');
+    $('pvNote').textContent = over
+      ? NET[net].name + ' allows ' + limit + ' characters' + (net === 'telegram' && m ? ' under an image or video' : '') + ', so this post is ' + (len - limit) + ' over.'
+      : NET[net].hint;
   }
   document.addEventListener('error', function (e) {
     if (e.target && e.target.tagName === 'IMG' && e.target.hasAttribute('data-hide-on-error')) e.target.style.display = 'none';
