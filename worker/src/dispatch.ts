@@ -18,7 +18,7 @@
  * message id.
  */
 import type { ChannelRow, CronEnv } from '../../types';
-import { decryptToken } from '../../functions/api/lib/crypto';
+import { CREDS_ERROR, loadTelegramCreds, type TelegramCreds } from '../../functions/api/channels/credentials';
 import { isValidMediaUrl, sendTelegramPost } from '../../functions/api/channels/telegram';
 
 export const BATCH_SIZE = 20;               // per run: keeps us inside Workers' subrequest limits
@@ -113,19 +113,25 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
     .bind(...channelIds)
     .all<ChannelInfo>();
   const channels = new Map(chRows.map((c) => [c.id, c]));
-  const credCache = new Map<string, { botToken: string; chatId: string } | null>();
+  type CredsOutcome = { creds: TelegramCreds } | { error: string };
+  const credCache = new Map<string, CredsOutcome>();
 
-  async function credsFor(ch: ChannelInfo) {
-    if (credCache.has(ch.id)) return credCache.get(ch.id)!;
-    let creds: { botToken: string; chatId: string } | null = null;
-    try {
-      const parsed = JSON.parse(await decryptToken(ch.credentials, env.ENCRYPTION_KEY!));
-      if (typeof parsed.botToken === 'string' && typeof parsed.chatId === 'string') creds = parsed;
-    } catch {
-      console.error(`vane-cron: could not decrypt credentials of channel ${ch.id} (wrong ENCRYPTION_KEY or corrupt data)`);
+  async function credsFor(ch: ChannelInfo): Promise<CredsOutcome> {
+    const cached = credCache.get(ch.id);
+    if (cached) return cached;
+    const loaded = await loadTelegramCreds(ch.credentials, env);
+    let outcome: CredsOutcome;
+    if (loaded.ok) outcome = { creds: loaded.creds };
+    else {
+      outcome = { error: CREDS_ERROR[loaded.reason] };
+      console.error(
+        loaded.reason === 'system_bot_missing'
+          ? `vane-cron: SYSTEM_BOT_TOKEN is not set on this worker, so Quick Connect channels (e.g. ${ch.id}) cannot be published to`
+          : `vane-cron: could not decrypt credentials of channel ${ch.id} (wrong ENCRYPTION_KEY or corrupt data)`,
+      );
     }
-    credCache.set(ch.id, creds);
-    return creds;
+    credCache.set(ch.id, outcome);
+    return outcome;
   }
 
   // ── 5) Deliver, one post at a time (Telegram allows ~20 messages/min per channel).
@@ -162,12 +168,12 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
     if (!ch.is_active) return finish(post, 'failed', 'The channel is disabled.');
     if (ch.type !== 'telegram') return finish(post, 'failed', `Publishing to ${ch.type} is not supported yet.`);
 
-    const creds = await credsFor(ch);
-    if (!creds) {
-      // Often a wrong/missing ENCRYPTION_KEY rather than bad data: retry a few times before giving up.
-      const msg = 'Saved credentials could not be read. Reconnect the channel.';
-      return finish(post, post.attempts < MAX_ATTEMPTS ? 'retry' : 'failed', msg);
+    const resolved = await credsFor(ch);
+    if ('error' in resolved) {
+      // Often a missing/wrong secret rather than bad data: retry a few times before giving up.
+      return finish(post, post.attempts < MAX_ATTEMPTS ? 'retry' : 'failed', resolved.error);
     }
+    const creds = resolved.creds;
 
     let mediaUrl: string | undefined;
     try {

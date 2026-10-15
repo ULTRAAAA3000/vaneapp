@@ -101,3 +101,21 @@ CREATE TABLE IF NOT EXISTS rate_limits (
   count     INTEGER NOT NULL,
   reset_at  INTEGER NOT NULL
 );
+
+-- ───────────────────────── Telegram ownership proof (Quick Connect) ─────────────────────────
+-- The shared Vane bot is admin in MANY channels, so "the bot can post there" does not prove the
+-- Vane user owns the channel. The user must post a one-time code in it (only admins can); the bot
+-- sees it through its webhook and marks the row verified.
+CREATE TABLE IF NOT EXISTS telegram_verifications (
+  id          TEXT    PRIMARY KEY,                          -- uuid
+  user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  chat_id     TEXT    NOT NULL,                             -- canonical numeric id (from getChat)
+  chat_title  TEXT,
+  chat_type   TEXT    NOT NULL,
+  code        TEXT    NOT NULL UNIQUE,                      -- 'VANE-XXXXXXXX'
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+  expires_at  INTEGER NOT NULL,
+  verified_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_tgv_user ON telegram_verifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_tgv_lookup ON telegram_verifications(chat_id, code);

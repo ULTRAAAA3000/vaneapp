@@ -11,9 +11,11 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
 import type { ChannelPublic, ChannelRow, ChannelType, Env } from '../../../types';
 import { requireUser } from '../lib/auth';
-import { decryptToken, encryptToken } from '../lib/crypto';
+import { encryptToken } from '../lib/crypto';
 import { fail, isRecord, json, methodNotAllowed, readJson, UUID_RE } from '../lib/http';
 import { bump, retryAfter } from '../lib/throttle';
+import { CREDS_ERROR, findDuplicateTelegramChannel, loadTelegramCreds } from './credentials';
+import { quickConnectAvailable, VERIFIED_VALID_SECONDS } from './quick';
 import { normalizeChatId, sendTelegramPost, validateTelegramBot } from './telegram';
 
 const CHANNEL_TYPES: readonly ChannelType[] = ['telegram', 'x', 'linkedin', 'webhook'];
@@ -42,6 +44,12 @@ export const handleListChannels: PagesFunction<Env> = async ({ request, env }) =
 };
 
 // ───────────────────────── POST /api/channels/add ─────────────────────────
+/**
+ * Two ways to connect Telegram:
+ *   method 'custom' (default)  credentials { botToken, chatId }      the user's own bot (BotFather token)
+ *   method 'quick'             credentials { verificationId }        the shared Vane bot, after the user
+ *                                                                    proved ownership (see ./quick.ts)
+ */
 export const handleAddChannel: PagesFunction<Env> = async ({ request, env }) => {
   const auth = await requireUser(request, env);
   if (!auth.ok) return auth.response;
@@ -69,48 +77,75 @@ export const handleAddChannel: PagesFunction<Env> = async ({ request, env }) => 
   const name = typeof body.name === 'string' ? body.name.replace(/[\u0000-\u001f\u007f]/g, '').trim() : '';
   if (!name || name.length > MAX_NAME_LEN) return fail(400, `name is required (max ${MAX_NAME_LEN} characters)`);
 
-  // credentials (telegram)
+  // method
+  const method = body.method === undefined ? 'custom' : body.method;
+  if (method !== 'custom' && method !== 'quick') return fail(400, 'method must be "custom" or "quick"');
+  if (!isRecord(body.credentials)) {
+    return fail(400, method === 'quick' ? 'credentials must be an object: { verificationId }' : 'credentials must be an object: { botToken, chatId }');
+  }
   const creds = body.credentials;
-  if (!isRecord(creds)) return fail(400, 'credentials must be an object: { botToken, chatId }');
-  const botToken = typeof creds.botToken === 'string' ? creds.botToken.trim() : '';
-  const chatId = normalizeChatId(creds.chatId);
-  if (!botToken) return fail(400, 'credentials.botToken is required');
-  if (!chatId) return fail(400, 'credentials.chatId must be @channelname or a numeric id');
 
-  // Ask Telegram: is the token real, does the chat exist, may the bot post there?
-  const check = await validateTelegramBot(botToken, chatId);
-  if (!check.ok) {
-    const status = check.code === 'network' || check.code === 'rate_limited' ? 502 : 400;
-    return fail(status, check.error);
+  let chatIdToStore: string;
+  let blob: Record<string, unknown>;
+  let info: { chatType: string; chatTitle: string | null; botUsername: string | null };
+  const now = Math.floor(Date.now() / 1000);
+  let consumeVerification: string | null = null;
+
+  if (method === 'custom') {
+    const botToken = typeof creds.botToken === 'string' ? creds.botToken.trim() : '';
+    const chatId = normalizeChatId(creds.chatId);
+    if (!botToken) return fail(400, 'credentials.botToken is required');
+    if (!chatId) return fail(400, 'credentials.chatId must be @channelname or a numeric id');
+
+    // Ask Telegram: is the token real, does the chat exist, may the bot post there?
+    const check = await validateTelegramBot(botToken, chatId);
+    if (!check.ok) return fail(check.code === 'network' || check.code === 'rate_limited' ? 502 : 400, check.error);
+    chatIdToStore = check.chatId;
+    info = { chatType: check.chatType, chatTitle: check.chatTitle, botUsername: check.botUsername };
+    blob = { type: 'telegram', mode: 'custom', botToken, chatId: check.chatId };
+  } else {
+    if (!quickConnectAvailable(env)) return fail(503, 'Quick Connect is not available on this server yet. Connect with your own bot instead.');
+    const vid = typeof creds.verificationId === 'string' ? creds.verificationId : '';
+    if (!UUID_RE.test(vid)) return fail(400, 'credentials.verificationId is required');
+
+    const v = await env.DB
+      .prepare('SELECT chat_id, verified_at FROM telegram_verifications WHERE id = ?1 AND user_id = ?2')
+      .bind(vid, auth.userId)
+      .first<{ chat_id: string; verified_at: number | null }>();
+    if (!v) return fail(404, 'Verification not found. Start again.');
+    if (v.verified_at === null) return fail(409, 'We have not seen your code in the channel yet. Post it there and try again.');
+    if (v.verified_at + VERIFIED_VALID_SECONDS < now) return fail(410, 'This verification expired. Start again.');
+
+    // The bot may have been removed since the code was seen: check the rights again.
+    const check = await validateTelegramBot(env.SYSTEM_BOT_TOKEN!, v.chat_id);
+    if (!check.ok) return fail(check.code === 'network' || check.code === 'rate_limited' ? 502 : 400, check.error);
+    chatIdToStore = check.chatId;
+    info = { chatType: check.chatType, chatTitle: check.chatTitle, botUsername: check.botUsername };
+    blob = { type: 'telegram', mode: 'system', chatId: check.chatId };   // NO token: it comes from the server secret
+    consumeVerification = vid;                                           // single use
   }
 
-  // Store the canonical numeric chat id, encrypt the whole credentials blob.
-  const secret = JSON.stringify({ type: 'telegram', botToken, chatId: check.chatId });
-  const encrypted = await encryptToken(secret, env.ENCRYPTION_KEY);
+  // Connecting the same chat twice would double-post: refuse, whichever method was used before.
+  const dup = await findDuplicateTelegramChannel(env.DB, env.ENCRYPTION_KEY, auth.userId, chatIdToStore);
+  if (dup) return fail(409, `This chat is already connected as "${dup}".`);
 
+  const encrypted = await encryptToken(JSON.stringify(blob), env.ENCRYPTION_KEY);
   const id = crypto.randomUUID();
-  const now = Math.floor(Date.now() / 1000);
   try {
-    await env.DB
-      .prepare(
-        `INSERT INTO channels (id, user_id, type, name, credentials, is_active, created_at, updated_at)
-         VALUES (?1, ?2, 'telegram', ?3, ?4, 1, ?5, ?5)`,
-      )
-      .bind(id, auth.userId, name, encrypted, now)
-      .run();
+    const insert = env.DB
+      .prepare(`INSERT INTO channels (id, user_id, type, name, credentials, is_active, created_at, updated_at) VALUES (?1, ?2, 'telegram', ?3, ?4, 1, ?5, ?5)`)
+      .bind(id, auth.userId, name, encrypted, now);
+    if (consumeVerification) {
+      await env.DB.batch([insert, env.DB.prepare('DELETE FROM telegram_verifications WHERE id = ?1').bind(consumeVerification)]);
+    } else {
+      await insert.run();
+    }
   } catch (err) {
     console.error('channel insert failed', err instanceof Error ? err.message : 'unknown');
     return fail(500, 'Could not save the channel. Please try again.');
   }
 
-  return json(
-    {
-      ok: true,
-      channel: toPublic({ id, type: 'telegram', name, is_active: 1, created_at: now }),
-      telegram: { chatType: check.chatType, chatTitle: check.chatTitle, botUsername: check.botUsername },
-    },
-    201,
-  );
+  return json({ ok: true, channel: toPublic({ id, type: 'telegram', name, is_active: 1, created_at: now }), telegram: info }, 201);
 };
 
 // ───────────────────────── DELETE /api/channels/:id ─────────────────────────
@@ -159,18 +194,17 @@ export const handleTestChannel: PagesFunction<Env, 'id'> = async ({ request, env
   if (!row) return fail(404, 'Channel not found');
   if (row.type !== 'telegram') return fail(501, 'Testing is only available for Telegram channels.');
 
-  let creds: { botToken?: string; chatId?: string };
-  try {
-    creds = JSON.parse(await decryptToken(row.credentials, env.ENCRYPTION_KEY));
-  } catch {
-    console.error('channel credentials could not be decrypted');
-    return fail(500, 'Saved credentials could not be read. Reconnect the channel.');
+  const loaded = await loadTelegramCreds(row.credentials, env);
+  if (!loaded.ok) {
+    console.error(`channel credentials unusable: ${loaded.reason}`);
+    return fail(loaded.reason === 'system_bot_missing' ? 503 : 500, CREDS_ERROR[loaded.reason]);
   }
+  const creds = loaded.creds;
 
   await bump(env, key, 3600);
   const sent = await sendTelegramPost(
-    creds.botToken ?? '',
-    creds.chatId ?? '',
+    creds.botToken,
+    creds.chatId,
     '✅ Vane is connected. Posts you schedule to this channel will appear here.',
   );
   if (!sent.ok) return fail(502, sent.error);

@@ -16,15 +16,32 @@ Cloudflare Pages (site + `/api`) · D1 (database) · R2 (images) · a cron Worke
 1. **R2 bucket** (must exist before the Pages deploy, because `wrangler.toml` binds it):
    `npx wrangler r2 bucket create vane-media`
    If the last Pages deployment failed, open Cloudflare → Workers & Pages → vaneapp → Deployments → **Retry**.
-2. **Database:** `npm run db:remote` (creates the `sessions` and `rate_limits` tables).
+2. **Database:** `npm run db:remote` (idempotent; re-run it after every update that touches `schema.sql`).
 3. **Pages secrets** (generate each with `openssl rand -base64 32`):
    `npx wrangler pages secret put ENCRYPTION_KEY --project-name=vaneapp`
    `npx wrangler pages secret put JWT_SECRET --project-name=vaneapp`
 4. **Cron worker** (needs the SAME `ENCRYPTION_KEY` as Pages, otherwise saved bot tokens can't be read):
    `npm run cron:deploy`, then `npm run cron:secret`
-5. **Check it live:** sign up at `/login`, connect a Telegram channel, press *Send test*, schedule a post 2–3 minutes ahead and watch `npm run cron:logs`.
+5. **Quick Connect (optional, recommended)**: publishing through the shared bot.
+   1. In Telegram, @BotFather → `/newbot` → username `VanePublishBot` (another name works: set the `SYSTEM_BOT_USERNAME` variable).
+   2. Pick a webhook secret: `openssl rand -hex 32`.
+   3. Pages secrets: `SYSTEM_BOT_TOKEN` (the bot token) and `TELEGRAM_WEBHOOK_SECRET` (the value from step 2), same `wrangler pages secret put … --project-name=vaneapp` command as above.
+   4. **Also give the cron worker the bot token:** `npm run cron:secret-bot` (without it Quick Connect posts cannot be published).
+   5. Register the webhook once: `SYSTEM_BOT_TOKEN=… TELEGRAM_WEBHOOK_SECRET=… npm run telegram:webhook set` (`info` shows delivery errors, `delete` removes it).
+   Until steps 3-5 are done the dashboard simply offers **Custom bot** only.
+6. **Check it live:** sign up at `/login`, connect a Telegram channel, press *Send test*, schedule a post 2–3 minutes ahead and watch `npm run cron:logs`.
 
 Never lose `ENCRYPTION_KEY`: without it every stored channel token is unreadable.
+
+## Telegram connection methods
+
+| | Quick Connect | Custom bot |
+|---|---|---|
+| Whose bot | shared `@VanePublishBot` | the user's own (from @BotFather) |
+| User does | add the bot as admin, enter `@channel`, post a one-time code in it | create a bot, paste its token |
+| Stored per channel | only the chat id (encrypted); **no token** | token + chat id (AES-256-GCM) |
+
+**Why the one-time code?** The shared bot is an admin in many channels, so "the bot can post there" says nothing about who owns the channel. Only an admin can post the code, and the bot sees it through the webhook, so ownership is proven before the channel is connected.
 
 ## Local development
 

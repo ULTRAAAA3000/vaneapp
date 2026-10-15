@@ -15,9 +15,12 @@ export interface Env {
   ENCRYPTION_KEY?: string;      // for encrypting channels.credentials (>= 32 random chars)
   JWT_SECRET?: string;          // signs/verifies API bearer tokens (>= 32 chars)
   STRIPE_SECRET_KEY?: string;
+  SYSTEM_BOT_TOKEN?: string;        // token of the shared Vane bot used by Quick Connect
+  TELEGRAM_WEBHOOK_SECRET?: string; // proves webhook calls really come from Telegram
 
   /** Plain vars */
   APP_URL?: string;             // e.g. https://vaneapp.dev
+  SYSTEM_BOT_USERNAME?: string; // shared bot username without @ (default: VanePublishBot)
 }
 
 // ───────────────────────── Enums ─────────────────────────
@@ -126,8 +129,10 @@ export interface ChannelPublic {
 export interface AddChannelRequest {
   platform: ChannelType;
   name: string;
-  /** telegram: { botToken, chatId }  (chatId: "@channel", "-100…" or a number) */
-  credentials: { botToken: string; chatId: string | number };
+  /** 'custom' (default): the user's own bot · 'quick': the shared Vane bot after ownership proof */
+  method?: 'custom' | 'quick';
+  /** custom: { botToken, chatId }  (chatId: "@channel", "-100…" or a number) · quick: { verificationId } */
+  credentials: { botToken: string; chatId: string | number } | { verificationId: string };
 }
 
 export type ApiError = { ok: false; error: string };
@@ -176,7 +181,14 @@ export interface RegisterRequest { email: string; password: string; name?: strin
 export interface LoginRequest { email: string; password: string }
 
 export type AuthResponse = { ok: true; user: UserPublic } | ApiError;
-export type MeResponse = { ok: true; user: UserPublic; features: { uploads: boolean } } | ApiError;
+export interface UserFeatures {
+  uploads: boolean;
+  /** Quick Connect (shared bot) is configured on this server */
+  quickConnect: boolean;
+  /** e.g. "@VanePublishBot" when quickConnect is true */
+  systemBot: string | null;
+}
+export type MeResponse = { ok: true; user: UserPublic; features: UserFeatures } | ApiError;
 
 // ───────────────────────── Posts list (stage 3) ─────────────────────────
 export interface PostPublic {
@@ -206,5 +218,24 @@ export type ListPostsResponse = { ok: true; posts: PostPublic[] } | ApiError;
 export interface CronEnv {
   DB: D1Database;
   ENCRYPTION_KEY?: string;   // MUST be the same value as on the Pages project
+  SYSTEM_BOT_TOKEN?: string; // MUST be the same as on Pages: needed to publish to Quick Connect channels
   APP_URL?: string;          // public origin, used to turn stored R2 keys into URLs
 }
+
+// ───────────────────────── Quick Connect (stage 2 of the upgrade) ─────────────────────────
+export interface QuickStartRequest { chat: string }
+
+export type QuickStartResponse =
+  | {
+      ok: true;
+      verificationId: string;
+      /** one-time code the user must post in the channel, e.g. "VANE-7K3F9QXA" */
+      code: string;
+      /** unix seconds */
+      expiresAt: number;
+      bot: string;
+      chat: { title: string | null; type: string };
+    }
+  | ApiError;
+
+export type QuickStatusResponse = { ok: true; verified: boolean; expired: boolean; expiresAt: number } | ApiError;

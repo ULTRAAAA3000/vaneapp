@@ -33,6 +33,9 @@ export function normalizeChatId(v: unknown): string | null {
   if (typeof v === 'number' && Number.isSafeInteger(v)) return String(v);
   if (typeof v !== 'string') return null;
   const s = v.trim();
+  // Convenience: accept a pasted channel link such as https://t.me/mychannel
+  const link = /^(?:https?:\/\/)?(?:t|telegram)\.me\/([A-Za-z][A-Za-z0-9_]{4,31})\/?$/i.exec(s);
+  if (link) return '@' + link[1];
   if (/^-?\d{1,20}$/.test(s)) return s;
   if (/^@[A-Za-z][A-Za-z0-9_]{4,31}$/.test(s)) return s;
   return null;
@@ -92,6 +95,8 @@ export type TelegramValidation =
       chatType: string;
       chatTitle: string | null;
       botUsername: string | null;
+      /** the bot's role in the chat: 'creator' | 'administrator' | 'member' | 'restricted' | 'private' */
+      botStatus: string;
     }
   | {
       ok: false;
@@ -134,7 +139,7 @@ export async function validateTelegramBot(botToken: string, chatId: string): Pro
   // 2) Who is the bot?
   const me = await tgCall<{ id: number; username?: string }>(botToken, 'getMe', {});
   if (!me.ok) return map(me);
-  const ok = { ...base, botUsername: me.result.username ?? null };
+  const ok = { ...base, botUsername: me.result.username ?? null, botStatus: 'private' };
 
   // Private chats have no member roles: getChat succeeding means the user has started the bot.
   if (info.type === 'private') return ok;
@@ -143,10 +148,11 @@ export async function validateTelegramBot(botToken: string, chatId: string): Pro
   const m = await tgCall<TgMember>(botToken, 'getChatMember', { chat_id: info.id, user_id: me.result.id });
   if (!m.ok) return map(m);
   const { status, can_post_messages, can_send_messages, is_member } = m.result;
+  const ok2 = { ...ok, botStatus: status };
 
   if (info.type === 'channel') {
-    if (status === 'creator') return ok;
-    if (status === 'administrator' && can_post_messages === true) return ok;
+    if (status === 'creator') return ok2;
+    if (status === 'administrator' && can_post_messages === true) return ok2;
     return {
       ok: false,
       code: 'no_permission',
@@ -155,8 +161,8 @@ export async function validateTelegramBot(botToken: string, chatId: string): Pro
   }
 
   // group / supergroup
-  if (status === 'creator' || status === 'administrator' || status === 'member') return ok;
-  if (status === 'restricted' && is_member !== false && can_send_messages !== false) return ok;
+  if (status === 'creator' || status === 'administrator' || status === 'member') return ok2;
+  if (status === 'restricted' && is_member !== false && can_send_messages !== false) return ok2;
   return { ok: false, code: 'no_permission', error: 'The bot is not allowed to send messages in this group.' };
 }
 
@@ -229,4 +235,16 @@ export async function sendTelegramPost(
     );
   }
   return permanent(`Telegram refused the message: ${r.description}`);
+}
+
+// ───────────────────────── membership lookup ─────────────────────────
+/**
+ * Is `userId` a creator/administrator of the chat? Used to confirm a verification code posted in a
+ * group really came from one of its admins. Returns null when Telegram can't tell us.
+ */
+export async function isChatAdmin(botToken: string, chatId: string, userId: number): Promise<boolean | null> {
+  if (!isValidBotToken(botToken) || !normalizeChatId(chatId) || !Number.isSafeInteger(userId)) return null;
+  const r = await tgCall<{ status: string }>(botToken, 'getChatMember', { chat_id: chatId, user_id: userId });
+  if (!r.ok) return null;
+  return r.result.status === 'creator' || r.result.status === 'administrator';
 }
