@@ -133,7 +133,7 @@
               <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
             </a>
             <a href="#pricing" class="rounded-full px-4 py-1.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">Pricing</a>
-            <a href="/login" class="rounded-full px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-white/10">Log in</a>
+            <a href="/login" data-auth-link class="rounded-full px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-white/10">Log in</a>
           </div>
           <button type="button" data-focus-hero class="btn-grad self-stretch rounded-full px-5 text-sm font-medium text-white transition-opacity hover:opacity-90">Get started</button>
         </div>
@@ -156,7 +156,7 @@
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
           </a>
           <a href="#pricing" class="m-link rounded-xl px-4 py-3.5 text-base font-medium text-white/80 hover:bg-white/10 hover:text-white">Pricing</a>
-          <a href="/login" class="m-link rounded-xl px-4 py-3.5 text-base font-semibold text-white hover:bg-white/10">Log in</a>
+          <a href="/login" data-auth-link class="m-link rounded-xl px-4 py-3.5 text-base font-semibold text-white hover:bg-white/10">Log in</a>
         </div>
         <div class="mt-auto px-6 pb-10">
           <button id="drawerCta" type="button" data-focus-hero class="btn-grad w-full rounded-full py-3 text-sm font-medium text-white transition-opacity hover:opacity-90">Get started</button>
@@ -545,9 +545,9 @@
           <a href="#features" class="transition-colors hover:text-white">Features</a>
           <a href="#pricing" class="transition-colors hover:text-white">Pricing</a>
           <a href="#faq" class="transition-colors hover:text-white">FAQ</a>
-          <a href="/login" class="transition-colors hover:text-white">Log in</a>
+          <a href="/login" data-auth-link class="transition-colors hover:text-white">Log in</a>
         </nav>
-        <p class="text-xs text-white/35">© <span id="year"></span> Vane · vaneapp.dev</p>
+        <p class="text-center text-xs text-white/35">© <span id="year"></span> Vane · vaneapp.dev · Powered by <a href="https://wysb.eu" target="_blank" rel="noopener" class="font-medium text-white/50 transition-colors hover:text-white">WYSB</a></p>
       </div>
     </footer>
   </div>
@@ -560,6 +560,27 @@
     var esc = function (s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
 
     $('#year').textContent = new Date().getFullYear();
+
+    // ───────────────── signed-in state: "Log in" → "Dashboard" ─────────────────
+    // The session cookie is HttpOnly, so we ask the API. The last known answer is remembered to avoid a flash.
+    var AUTH_HINT = 'vane_signed_in';
+    function showAuth(on) {
+      $$('[data-auth-link]').forEach(function (a) {
+        a.textContent = on ? 'Dashboard' : 'Log in';
+        a.setAttribute('href', on ? '/app' : '/login');
+      });
+    }
+    function checkAuth() {
+      fetch('/api/auth/me', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+        .then(function (res) {
+          try { if (res.ok) localStorage.setItem(AUTH_HINT, '1'); else if (res.status === 401) localStorage.removeItem(AUTH_HINT); } catch (e) { /* storage blocked */ }
+          if (res.ok || res.status === 401) showAuth(res.ok);
+        })
+        .catch(function () { /* offline: keep whatever is shown */ });
+    }
+    try { if (localStorage.getItem(AUTH_HINT) === '1') showAuth(true); } catch (e) { /* storage blocked */ }
+    checkAuth();
+    window.addEventListener('pageshow', function (e) { if (e.persisted) checkAuth(); }); // back button after sign-out
 
     // ───────────────── scroll helpers ─────────────────
     $$('[data-focus-hero]').forEach(function (b) {
