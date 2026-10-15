@@ -7,6 +7,7 @@ import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env, PostPublic, PostStatus } from '../../../types';
 import { requireUser } from '../lib/auth';
 import { fail, json } from '../lib/http';
+import { mediaKindFromUrl } from '../lib/media';
 
 interface Row {
   id: string; group_id: string | null; channel_id: string; channel_name: string; channel_type: PostPublic['platform'];
@@ -54,6 +55,7 @@ export const handleListPosts: PagesFunction<Env> = async ({ request, env }) => {
     platform: r.channel_type,
     content: r.content,
     mediaUrl: firstMediaUrl(r.media_keys),
+    mediaKind: (() => { const u = firstMediaUrl(r.media_keys); return u ? mediaKindFromUrl(u) : null; })(),
     scheduledAt: r.scheduled_at,
     status: r.status,
     attempts: r.attempts,

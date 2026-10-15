@@ -188,6 +188,8 @@ export interface PostPublic {
   platform: ChannelType;
   content: string;
   mediaUrl: string | null;
+  /** 'image' | 'video' — derived from the attached file */
+  mediaKind: 'image' | 'video' | null;
   /** unix seconds */
   scheduledAt: number;
   status: PostStatus;
