@@ -65,11 +65,12 @@ Vane — это сверхбыстрый, легкий (Cloudflare Edge) авт�
 - **Что дает:** Включает **+180 API-постов в месяц** с сохранением льготных Overage-ставок ($0.015 / $0.045).
 
 ### 2.5. Phase 2: Vane Video Engine ($8.99 / мес) — *Expansion Plan*
-- **Цель:** Захват рынка автопостинга коротких видео (Shorts, TikTok, Reels).
-- **Цена:** $8.99 / мес (отдельный план или видео-аддон).
-- **Платформы:** YouTube Shorts, TikTok Direct Post, Instagram Reels.
-- **Инфраструктура:** Chunked Uploads через Cloudflare R2 (**$0 Egress fee**) + Workers AI Video Script & Hook Generator.
-- **Лимит:** ~60–90 видео в месяц (~2–3 видео/день).
+- **Цель:** Полная автономия видео-контента (Shorts, Reels, TikTok + Полноформатные YouTube видео).
+- **Платформы:** 
+  - **Short-form:** YouTube Shorts, TikTok Direct Post, Instagram Reels.
+  - **Long-form:** YouTube Long-form Videos (с поддержкой кастомных превью, плейлистов и тегов).
+- **Инфраструктура:** Chunked Resumable Uploads через Cloudflare R2 (**$0 Egress fee**) + YouTube Data API v3 / TikTok API.
+- **Workers AI Engine:** Генератор хуков, сценариев, описаний, авто-тегов и таймкодов.
 
 ---
 
