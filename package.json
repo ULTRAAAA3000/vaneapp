@@ -11,7 +11,7 @@
     "cron:dev": "wrangler dev --config worker/wrangler.toml --test-scheduled --local --persist-to .wrangler/state",
     "cron:deploy": "wrangler deploy --config worker/wrangler.toml",
     "cron:secret": "wrangler secret put ENCRYPTION_KEY --config worker/wrangler.toml",
-    "cron:logs": "wrangler tail vane-cron --format pretty"
+    "cron:logs": "wrangler tail --config worker/wrangler.toml --format pretty"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250101.0",

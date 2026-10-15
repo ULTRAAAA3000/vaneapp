@@ -17,4 +17,4 @@ database_id = "9e560592-ec8e-451d-97d3-c2d8082c527e"
 APP_URL = "https://vaneapp.dev"   # turns stored R2 keys into public image links
 
 [observability]
-enabled = true               # keep logs: Workers → vane-cron → Logs
+enabled = true               # keep logs: Workers & Pages → this worker → Logs
