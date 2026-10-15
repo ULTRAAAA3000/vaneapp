@@ -257,8 +257,6 @@
     $('connSeg').style.transform = quick ? 'translateX(0)' : 'translateX(100%)';
     $('tabQuick').setAttribute('aria-selected', String(quick));
     $('tabCustom').setAttribute('aria-selected', String(!quick));
-    $('tabQuick').style.color = quick ? '#010101' : 'rgba(255,255,255,.65)';
-    $('tabCustom').style.color = quick ? 'rgba(255,255,255,.65)' : '#010101';
     $('panelQuick').classList.toggle('hidden', !quick);
     $('panelCustom').classList.toggle('hidden', quick);
     $('connNote').textContent = quick
@@ -688,8 +686,6 @@
     $('postsSeg').style.transform = h ? 'translateX(100%)' : 'translateX(0)';
     $('tabUpcoming').setAttribute('aria-selected', String(!h));
     $('tabHistory').setAttribute('aria-selected', String(h));
-    $('tabUpcoming').style.color = h ? 'rgba(255,255,255,.65)' : '#010101';
-    $('tabHistory').style.color = h ? '#010101' : 'rgba(255,255,255,.65)';
     renderPosts();
   }
   $('tabUpcoming').addEventListener('click', function () { setTab('upcoming'); });

@@ -9,3 +9,6 @@
 
 /login
   Cache-Control: no-store
+
+/assets/*
+  Cache-Control: no-cache

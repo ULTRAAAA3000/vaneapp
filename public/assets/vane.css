@@ -53,6 +53,10 @@ label.lbl { display: block; margin-bottom: .45rem; font-size: .7rem; font-weight
   color: rgba(255,255,255,.55); background: transparent; border: 0; cursor: pointer; transition: background-color .2s, color .2s; }
 .icon-btn:hover { background: rgba(255,255,255,.1); color: #fff; }
 
+/* segmented tabs (connect dialog, posts list): the label colour follows aria-selected, so it never depends on JS-set inline styles */
+[role="tablist"] > [role="tab"] { color: rgba(255,255,255,.65); }
+[role="tablist"] > [role="tab"][aria-selected="true"] { color: #010101; }
+
 /* channel / schedule chips */
 .chip { display: inline-flex; align-items: center; gap: .5rem; border-radius: 9999px; padding: .5rem .9rem;
   font-size: .85rem; font-weight: 500; color: rgba(255,255,255,.8); cursor: pointer;
