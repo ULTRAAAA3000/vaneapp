@@ -24,16 +24,65 @@
     net: 'telegram'     // network shown in the preview
   };
 
-  var TG_LIMIT = 4096, CAPTION_LIMIT = 1024;
+  var TG_LIMIT = 4096, CAPTION_LIMIT = 1024, MAX_LEN = 10000;
 
   var ICON = {
-    telegram: '<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 3.5L2.8 10.7l5.9 2.2 2.3 6.6 3.1-4.2 4.6 3.4z"/><path d="M8.7 12.9l12-8.6"/></svg>',
-    telegramSm: '<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 3.5L2.8 10.7l5.9 2.2 2.3 6.6 3.1-4.2 4.6 3.4z"/><path d="M8.7 12.9l12-8.6"/></svg>',
     trash: '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6M10 11v6M14 11v6"/></svg>',
     clock: '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
     video: '<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="14" height="14" rx="3"/><path d="M16 10l6-3v10l-6-3z"/></svg>',
     image: '<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>'
   };
+
+  // ───────────────────────── networks ─────────────────────────
+  // One entry per social network: icon, tile colour, text limit, preview background and the card in the connect dialog.
+  // To open a network for connecting: set ready: true and add a <div data-step="<key>"> setup block to the dialog in app.html.
+  // Limits: Telegram 4096 (1024 under an image or video), LinkedIn 3000, Threads 500, Bluesky 300 (graphemes).
+  var NET = {
+    telegram: {
+      name: 'Telegram', ready: true, blurb: 'Channels and groups', setup: 'Choose how Vane should publish to your channel.',
+      tile: 'bg-sky-500/15 text-sky-300', limit: 4096, bg: '#0e1621', hint: '',
+      icon: { d: 'M21.5 3.5L2.8 10.7l5.9 2.2 2.3 6.6 3.1-4.2 4.6 3.4zM8.7 12.9l12-8.6' }
+    },
+    linkedin: {
+      name: 'LinkedIn', ready: false, blurb: 'Profiles and pages', setup: 'Choose which profile or page Vane should publish to.',
+      tile: 'bg-blue-600/20 text-blue-300', limit: 3000, bg: '#000000', hint: 'LinkedIn folds long posts behind “see more” after about three lines.',
+      icon: { fill: true, d: 'M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z' }
+    },
+    threads: {
+      name: 'Threads', ready: false, blurb: 'Your Threads profile', setup: 'Choose which profile Vane should publish to.',
+      tile: 'bg-white/10 text-white/85', limit: 500, bg: '#101010', hint: '',
+      icon: { fill: true, d: 'M12.186 24h-.007c-3.581-.024-6.334-1.205-8.184-3.509C2.35 18.44 1.5 15.586 1.472 12.01v-.017c.03-3.579.879-6.43 2.525-8.482C5.845 1.205 8.6.024 12.18 0h.014c2.746.02 5.043.725 6.826 2.098 1.677 1.29 2.858 3.13 3.509 5.467l-2.04.569c-1.104-3.96-3.898-5.984-8.304-6.015-2.91.022-5.11.936-6.54 2.717C4.307 6.504 3.616 8.914 3.589 12c.027 3.086.718 5.496 2.057 7.164 1.43 1.783 3.631 2.698 6.54 2.717 2.623-.02 4.358-.631 5.8-2.045 1.647-1.613 1.618-3.593 1.09-4.798-.31-.71-.873-1.3-1.634-1.75-.192 1.352-.622 2.446-1.284 3.272-.886 1.102-2.14 1.704-3.73 1.79-1.202.065-2.361-.218-3.259-.801-1.063-.689-1.685-1.74-1.752-2.964-.065-1.19.408-2.285 1.33-3.082.88-.76 2.119-1.207 3.583-1.291a13.853 13.853 0 0 1 3.02.142c-.126-.742-.375-1.332-.75-1.757-.513-.586-1.308-.883-2.359-.89h-.029c-.844 0-1.992.232-2.721 1.32L7.734 7.847c.98-1.454 2.568-2.256 4.478-2.256h.044c3.194.02 5.097 1.975 5.287 5.388.108.046.216.094.321.142 1.49.7 2.58 1.761 3.154 3.07.797 1.82.871 4.79-1.548 7.158-1.85 1.81-4.094 2.628-7.277 2.65Zm1.003-11.69c-.242 0-.487.007-.739.021-1.836.103-2.98.946-2.916 2.143.067 1.256 1.452 1.839 2.784 1.767 1.224-.065 2.818-.543 3.086-3.71a10.5 10.5 0 0 0-2.215-.221z' }
+    },
+    bluesky: {
+      name: 'Bluesky', ready: false, blurb: 'Your Bluesky account', setup: 'Choose which account Vane should publish to.',
+      tile: 'bg-cyan-400/15 text-cyan-300', limit: 300, bg: '#161e27', hint: 'Bluesky counts graphemes, so an emoji is one character.',
+      icon: { fill: true, d: 'M12 10.8c-1.087-2.114-4.046-6.053-6.798-7.995C2.566.944 1.561 1.266.902 1.565.139 1.908 0 3.08 0 3.768c0 .69.378 5.65.624 6.479.815 2.736 3.713 3.66 6.383 3.364.136-.02.275-.039.415-.056-.138.022-.276.04-.415.056-3.912.58-7.387 2.005-2.83 7.078 5.013 5.19 6.87-1.113 7.823-4.308.953 3.195 2.05 9.271 7.733 4.308 4.267-4.308 1.172-6.498-2.74-7.078a8.741 8.741 0 0 1-.415-.056c.14.017.279.036.415.056 2.67.297 5.568-.628 6.383-3.364.246-.828.624-5.79.624-6.478 0-.69-.139-1.861-.902-2.206-.659-.298-1.664-.62-4.3 1.24C16.046 4.748 13.087 8.687 12 10.8z' }
+    }
+  };
+  var NET_ORDER = ['telegram', 'linkedin', 'threads', 'bluesky'];
+  // channels of a network this dashboard has no entry for (for example "x" or "webhook") get the generic link icon
+  var NET_OTHER = { tile: 'bg-white/[0.08] text-white/70', icon: { d: 'M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7' } };
+
+  function netIcon(key, cls) {
+    var ic = (NET[key] || NET_OTHER).icon;
+    return '<svg class="' + cls + '" viewBox="0 0 24 24" aria-hidden="true" ' +
+      (ic.fill ? 'fill="currentColor"' : 'fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"') +
+      '><path d="' + ic.d + '"/></svg>';
+  }
+  function netTile(key) { return (NET[key] || NET_OTHER).tile; }
+  function netName(key) { return NET[key] ? NET[key].name : key.charAt(0).toUpperCase() + key.slice(1); }
+
+  // channels split by network: known networks in NET_ORDER first, anything else after them
+  function groupChannels(list) {
+    var map = {}, keys = [];
+    list.forEach(function (c) { (map[c.platform] = map[c.platform] || []).push(c); });
+    NET_ORDER.forEach(function (k) { if (map[k]) keys.push(k); });
+    Object.keys(map).forEach(function (k) { if (keys.indexOf(k) < 0) keys.push(k); });
+    return keys.map(function (k) { return { net: k, items: map[k] }; });
+  }
+  function groupHead(g) {
+    return '<div class="net-group-label">' + netIcon(g.net, 'h-3.5 w-3.5') + '<span>' + esc(netName(g.net)) + '</span><span class="net-count">' + g.items.length + '</span></div>';
+  }
 
   // ───────────────────────── time helpers ─────────────────────────
   var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
@@ -162,26 +211,28 @@
     if (!S.channels.length) {
       box.innerHTML =
         '<div class="rounded-2xl border border-dashed border-white/10 px-5 py-8 text-center">' +
-          '<div class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-500/15 text-sky-300">' + ICON.telegram + '</div>' +
+          '<div class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl ' + netTile('other') + '">' + netIcon('other', 'h-5 w-5') + '</div>' +
           '<p class="mt-4 text-sm font-medium">No channels yet</p>' +
-          '<p class="mx-auto mt-1 max-w-[16rem] text-xs leading-relaxed text-white/45">Connect a Telegram channel to start scheduling posts.</p>' +
-          '<button type="button" data-act="connect" class="btn btn-white btn-sm mt-5">Connect Telegram</button>' +
+          '<p class="mx-auto mt-1 max-w-[16rem] text-xs leading-relaxed text-white/45">Connect a social network to start scheduling posts.</p>' +
+          '<button type="button" data-act="connect" class="btn btn-white btn-sm mt-5">Connect a channel</button>' +
         '</div>';
       return;
     }
-    box.innerHTML = S.channels.map(function (c) {
-      var armed = !!S.armed['del:' + c.id];
-      return '<div class="flex items-center gap-3 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/5">' +
-        '<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-500/15 text-sky-300">' + ICON.telegram + '</div>' +
-        '<div class="min-w-0 flex-1">' +
-          '<div class="truncate text-sm font-medium">' + esc(c.name) + '</div>' +
-          '<div class="mt-0.5 text-xs text-white/40">Telegram · added ' + esc(new Date(c.createdAt * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })) + '</div>' +
-        '</div>' +
-        '<button type="button" data-act="test" data-id="' + esc(c.id) + '" class="btn btn-ghost btn-sm shrink-0">Send test</button>' +
-        (armed
-          ? '<button type="button" data-act="del" data-id="' + esc(c.id) + '" class="btn btn-danger btn-sm shrink-0">Remove?</button>'
-          : '<button type="button" data-act="del" data-id="' + esc(c.id) + '" class="icon-btn shrink-0" aria-label="Remove ' + esc(c.name) + '">' + ICON.trash + '</button>') +
-      '</div>';
+    box.innerHTML = groupChannels(S.channels).map(function (g, i) {
+      return '<div' + (i ? ' class="pt-2"' : '') + '>' + groupHead(g) + '<div class="space-y-2.5">' + g.items.map(function (c) {
+        var armed = !!S.armed['del:' + c.id];
+        return '<div class="flex items-center gap-3 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/5">' +
+          '<div class="net-tile ' + netTile(c.platform) + '">' + netIcon(c.platform, 'h-5 w-5') + '</div>' +
+          '<div class="min-w-0 flex-1">' +
+            '<div class="truncate text-sm font-medium">' + esc(c.name) + '</div>' +
+            '<div class="mt-0.5 text-xs text-white/40">Added ' + esc(new Date(c.createdAt * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })) + '</div>' +
+          '</div>' +
+          '<button type="button" data-act="test" data-id="' + esc(c.id) + '" class="btn btn-ghost btn-sm shrink-0">Send test</button>' +
+          (armed
+            ? '<button type="button" data-act="del" data-id="' + esc(c.id) + '" class="btn btn-danger btn-sm shrink-0">Remove?</button>'
+            : '<button type="button" data-act="del" data-id="' + esc(c.id) + '" class="icon-btn shrink-0" aria-label="Remove ' + esc(c.name) + '">' + ICON.trash + '</button>') +
+        '</div>';
+      }).join('') + '</div></div>';
     }).join('');
   }
 
@@ -395,8 +446,44 @@
     renderAll();
   });
 
+  // ---- steps: pick a network, then set it up (each network's setup is the block with its data-step)
+  function renderNetGrid() {
+    $('netGrid').innerHTML = NET_ORDER.map(function (k) {
+      var n = NET[k];
+      return '<button type="button" class="net-card" data-net="' + k + '"' + (n.ready ? '' : ' disabled') + '>' +
+        '<span class="net-tile ' + n.tile + '">' + netIcon(k, 'h-5 w-5') + '</span>' +
+        '<span class="min-w-0 flex-1"><span class="block text-sm font-semibold">' + esc(n.name) + '</span><span class="block truncate text-xs text-white/45">' + esc(n.ready ? n.blurb : 'Coming soon') + '</span></span>' +
+        (n.ready ? '' : '<span class="rounded-full bg-white/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/50">Soon</span>') +
+      '</button>';
+    }).join('');
+  }
+  function showStep(step) {
+    var n = NET[step];
+    Array.prototype.forEach.call(dlg.querySelectorAll('[data-step]'), function (el) {
+      el.classList.toggle('hidden', el.getAttribute('data-step') !== step);
+    });
+    $('connectBack').classList.toggle('hidden', !n);
+    $('connIcon').className = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ' + netTile(step);
+    $('connIcon').innerHTML = netIcon(step, 'h-5 w-5');
+    $('connectTitle').textContent = n ? 'Connect ' + n.name : 'Connect a channel';
+    $('connectSub').textContent = n ? n.setup : 'Choose a social network.';
+    if (step === 'telegram') setConnTab(S.connTab); else qPause();
+  }
+  function openStep(step) {
+    showStep(step);
+    setTimeout(function () {
+      var first = step === 'telegram' ? ($('panelQuick').classList.contains('hidden') ? $('cName') : $('qChat')) : dlg.querySelector('.net-card:not(:disabled)');
+      if (first) first.focus();
+    }, 60);
+  }
+  $('netGrid').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-net]');
+    if (b && !b.disabled) openStep(b.getAttribute('data-net'));
+  });
+  $('connectBack').addEventListener('click', function () { openStep('pick'); });
+
   // ---- open / close
-  function openConnect(tab) {
+  function openConnect(net) {
     $('connectForm').reset(); hideErr($('cErr'));
     $('cToken').type = 'password'; $('cTokenToggle').textContent = 'Show';
     qReset(); $('qChat').value = '';
@@ -405,10 +492,11 @@
     $('qOff').classList.toggle('hidden', S.quick);
     $('qOn').classList.toggle('hidden', !S.quick);
     $('tabQuickBadge').classList.toggle('hidden', !S.quick);
-    setConnTab(tab || (S.quick ? 'quick' : 'custom'));
+    S.connTab = S.quick ? 'quick' : 'custom';
+    renderNetGrid();
 
     if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
-    setTimeout(function () { ($('panelQuick').classList.contains('hidden') ? $('cName') : $('qChat')).focus(); }, 60);
+    openStep(NET[net] && NET[net].ready ? net : 'pick');
   }
   function closeConnect() {
     qStopTimers();
@@ -427,11 +515,13 @@
   function renderChips() {
     var box = $('chipsBox');
     if (!S.channels.length) {
-      box.innerHTML = '<button type="button" data-act="connect" class="chip">' + ICON.telegramSm + ' Connect a channel first</button>';
+      box.innerHTML = '<button type="button" data-act="connect" class="chip">' + netIcon('other', 'h-3.5 w-3.5') + ' Connect a channel first</button>';
       return;
     }
-    box.innerHTML = S.channels.map(function (c) {
-      return '<button type="button" class="chip" data-id="' + esc(c.id) + '" aria-pressed="' + S.selected.has(c.id) + '">' + ICON.telegramSm + '<span>' + esc(c.name) + '</span></button>';
+    box.innerHTML = groupChannels(S.channels).map(function (g) {
+      return '<div>' + groupHead(g) + '<div class="flex flex-wrap gap-2.5">' + g.items.map(function (c) {
+        return '<button type="button" class="chip" data-id="' + esc(c.id) + '" aria-pressed="' + S.selected.has(c.id) + '">' + netIcon(c.platform, 'h-3.5 w-3.5') + '<span>' + esc(c.name) + '</span></button>';
+      }).join('') + '</div></div>';
     }).join('');
   }
   $('chipsBox').addEventListener('click', function (e) {
@@ -498,11 +588,21 @@
   // text + counter
   textEl.addEventListener('input', function () { renderPreview(); validate(); });
 
+  // The selected network whose limit is closest to (or past) the text length: with several networks that is the strictest one.
+  function tightest(raw, media) {
+    var worst = null;
+    S.channels.forEach(function (c) {
+      if (!S.selected.has(c.id)) return;
+      var limit = netLimit(c.platform, !!media), len = netLen(c.platform, raw);
+      if (!worst || limit - len < worst.limit - worst.len) worst = { net: c.platform, len: len, limit: limit };
+    });
+    return worst || { net: 'telegram', len: raw.length, limit: media ? CAPTION_LIMIT : TG_LIMIT };
+  }
+
   // validation (live: drives the hint and the button)
   function validate() {
     var text = textEl.value.trim(), media = currentMedia();
-    var limit = media ? CAPTION_LIMIT : TG_LIMIT;
-    var len = textEl.value.length;
+    var t = tightest(textEl.value, media), len = t.len, limit = t.limit;
     var counter = $('count');
     counter.textContent = len + ' / ' + limit;
     counter.className = 'rounded-full px-2.5 py-1 text-xs font-medium ' + (len > limit ? 'bg-red-500/15 text-red-300' : 'bg-white/[0.06] text-white/50');
@@ -512,7 +612,7 @@
     else if (!S.channels.length) msg = 'Connect a channel to start.';
     else if (!S.selected.size) msg = 'Pick at least one channel.';
     else if (!text && !media) msg = 'Write something or add an image or video.';
-    else if (len > limit) msg = media ? 'With an image or video the text can be at most ' + CAPTION_LIMIT + ' characters.' : 'Text is too long for Telegram.';
+    else if (len > limit) msg = media && t.net === 'telegram' ? 'With an image or video the text can be at most ' + CAPTION_LIMIT + ' characters.' : 'Text is too long for ' + netName(t.net) + '.';
     else if (!whenEl.value || isNaN(new Date(whenEl.value).getTime())) msg = 'Pick a date and time.';
     else if (new Date(whenEl.value).getTime() <= Date.now() + 30000) msg = 'Pick a time at least a minute from now.';
 
@@ -522,21 +622,16 @@
   }
 
   // ───────────────────────── preview (per network) ─────────────────────────
-  // Limits: Telegram 4096 (1024 under an image or video), LinkedIn 3000, Threads 500, Bluesky 300 (graphemes).
-  var NET = {
-    telegram: { name: 'Telegram', limit: 4096, bg: '#0e1621', hint: '' },
-    linkedin: { name: 'LinkedIn', limit: 3000, bg: '#000000', hint: 'LinkedIn folds long posts behind “see more” after about three lines.' },
-    threads:  { name: 'Threads',  limit: 500,  bg: '#101010', hint: '' },
-    bluesky:  { name: 'Bluesky',  limit: 300,  bg: '#161e27', hint: 'Bluesky counts graphemes, so an emoji is one character.' }
-  };
-  var NET_ORDER = ['telegram', 'linkedin', 'threads', 'bluesky'];
   var EMPTY = '<span class="text-white/35">Your post will appear here…</span>';
   var segmenter = window.Intl && Intl.Segmenter ? new Intl.Segmenter(undefined, { granularity: 'grapheme' }) : null;
 
   function netLen(net, text) {
     return net === 'bluesky' && segmenter ? Array.from(segmenter.segment(text)).length : text.length;
   }
-  function netLimit(net, hasMedia) { return net === 'telegram' && hasMedia ? CAPTION_LIMIT : NET[net].limit; }
+  function netLimit(net, hasMedia) {
+    if (!NET[net]) return MAX_LEN;
+    return net === 'telegram' && hasMedia ? CAPTION_LIMIT : NET[net].limit;
+  }
 
   function pvAvatar(px, name) {
     return '<div class="flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-sky-400 text-xs font-bold" style="width:' + px + 'px;height:' + px + 'px">' + esc(name.charAt(0).toUpperCase()) + '</div>';
@@ -622,7 +717,8 @@
 
   function renderPreview() {
     var raw = textEl.value, text = raw.trim(), m = picker.getMedia();
-    var first = S.channels.filter(function (c) { return S.selected.has(c.id); })[0];
+    var chosen = S.channels.filter(function (c) { return S.selected.has(c.id); });
+    var first = chosen.filter(function (c) { return c.platform === S.net; })[0] || chosen[0];
     var display = S.user ? (S.user.name || S.user.email.split('@')[0]) : 'You';
     var c = {
       text: text, m: m,
@@ -723,7 +819,7 @@
 
       var pills = g.map(function (x) {
         return '<span class="inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-2.5 py-1 text-xs text-white/70">' +
-          '<span class="h-1.5 w-1.5 rounded-full" style="background:' + (DOT[x.status] || DOT.scheduled) + '"></span>' + esc(x.channelName) + '</span>';
+          '<span class="h-1.5 w-1.5 rounded-full" style="background:' + (DOT[x.status] || DOT.scheduled) + '"></span>' + netIcon(x.platform, 'h-3 w-3 text-white/50') + esc(x.channelName) + '</span>';
       }).join('');
 
       return '<article class="flex gap-4 rounded-2xl bg-white/[0.04] p-4 ring-1 ring-white/5 transition-colors hover:bg-white/[0.06]">' +
