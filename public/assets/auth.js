@@ -119,9 +119,107 @@
       try { body.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (err) { /* server falls back to UTC */ }
     }
     var r = await Vane.api('POST', mode === 'register' ? '/api/auth/register' : '/api/auth/login', body, { noRedirect: true });
+    // 202 + verify = no session yet: a 6-digit code was emailed (new account, or back after more than 3 days away)
+    if (r.ok && r.data && r.data.verify) { setLoading(false); tsReset(); showVerify(r.data.verify); return; }
     if (r.ok) { label.textContent = 'Redirecting…'; Vane.go('/app'); return; }
     setLoading(false);
     tsReset();
     showError(r.error, r.status === 409 ? email : (r.status === 401 ? password : null));
+  });
+
+  // ───────────────────────── step 2: the 6-digit code ─────────────────────────
+  var pending = null;        // { email, purpose, resendAt }  (resendAt is on THIS device's clock, built from the server's relative seconds)
+  var resendTimer = null;
+  var checking = false;
+  var vErr = $('vErr'), codeInput = $('code');
+
+  function showVError(msg) {
+    vErr.textContent = msg; vErr.classList.remove('hidden');
+    var f = $('vForm'); f.classList.remove('shake'); void f.offsetWidth; f.classList.add('shake');
+  }
+  function hideVError() { vErr.classList.add('hidden'); vErr.textContent = ''; }
+
+  function tickResend() {
+    var btn = $('vResend');
+    var left = Math.max(0, Math.ceil((pending.resendAt - Date.now()) / 1000));
+    btn.disabled = left > 0;
+    btn.textContent = left > 0 ? 'Resend code in ' + (left > 120 ? Math.ceil(left / 60) + ' min' : left + 's') : 'Resend code';
+    if (left <= 0) { clearInterval(resendTimer); resendTimer = null; }
+  }
+  function startResendTimer(seconds) {
+    pending.resendAt = Date.now() + seconds * 1000;
+    clearInterval(resendTimer);
+    resendTimer = setInterval(tickResend, 1000);
+    tickResend();
+  }
+
+  function showVerify(ch) {
+    pending = { email: ch.email, purpose: ch.purpose, resendAt: 0 };
+    $('viewAuth').classList.add('hidden');
+    $('viewVerify').classList.remove('hidden');
+    $('vSub').textContent = ch.purpose === 'login'
+      ? 'You haven’t signed in for a few days, so we need to confirm it’s you. Enter the 6-digit code we sent to'
+      : 'Enter the 6-digit code we sent to';
+    $('vEmail').textContent = ch.email;
+    codeInput.value = '';
+    hideVError();
+    startResendTimer(ch.resendIn);
+    codeInput.focus();
+  }
+
+  // Back to the form (the typed email and password are still there). `msg` explains why, when it is not the user's own choice.
+  function backToForm(msg) {
+    clearInterval(resendTimer); resendTimer = null;
+    pending = null; checking = false;
+    $('viewVerify').classList.add('hidden');
+    $('viewAuth').classList.remove('hidden');
+    if (msg) showError(msg); else hideError();
+    email.focus();
+  }
+  $('vBack').addEventListener('click', function () { backToForm(); });
+
+  function setChecking(on) {
+    checking = on;
+    $('vSubmit').disabled = on;
+    $('vSpin').classList.toggle('hidden', !on);
+    $('vLabel').textContent = on ? 'Checking…' : 'Verify';
+  }
+
+  async function submitCode() {
+    if (checking || !pending) return;
+    var code = codeInput.value;
+    if (code.length !== 6) return showVError('Enter the 6-digit code.');
+    setChecking(true);
+    var r = await Vane.api('POST', '/api/auth/verify', { email: pending.email, code: code, purpose: pending.purpose }, { noRedirect: true });
+    if (r.ok) { $('vLabel').textContent = 'Redirecting…'; Vane.go('/app'); return; }
+    setChecking(false);
+    if (r.status === 404 || r.status === 409) return backToForm(r.error);   // nothing is waiting any more, or the account already exists
+    showVError(r.error);
+    if (r.status === 400) { codeInput.value = ''; codeInput.focus(); }
+  }
+
+  // digits only (a pasted "123 456" works); the sixth digit sends it
+  codeInput.addEventListener('input', function () {
+    var digits = codeInput.value.replace(/\D/g, '').slice(0, 6);
+    if (digits !== codeInput.value) codeInput.value = digits;
+    hideVError();
+    if (digits.length === 6) submitCode();
+  });
+  $('vForm').addEventListener('submit', function (e) { e.preventDefault(); submitCode(); });
+
+  $('vResend').addEventListener('click', async function () {
+    if (!pending) return;
+    hideVError();
+    this.disabled = true;
+    var r = await Vane.api('POST', '/api/auth/resend', { email: pending.email, purpose: pending.purpose }, { noRedirect: true });
+    if (r.ok && r.data && r.data.verify) {
+      startResendTimer(r.data.verify.resendIn);
+      codeInput.value = ''; codeInput.focus();
+      Vane.toast('ok', 'A new code is on its way.');
+      return;
+    }
+    if (r.status === 404) return backToForm(r.error);
+    if (r.status === 429 && r.data && r.data.retryAfter) startResendTimer(r.data.retryAfter); else this.disabled = false;
+    showVError(r.error);
   });
 })();

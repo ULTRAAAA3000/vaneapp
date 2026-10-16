@@ -1,11 +1,19 @@
-/** POST /api/auth/register  { email, password, name?, timezone?, turnstileToken? } → 201 + session cookie */
+/**
+ * POST /api/auth/register  { email, password, name?, timezone?, turnstileToken? }
+ *   → 201 + session cookie                         emailed codes off: the account is created right away
+ *   → 202 { ok, verify }, NO account yet           emailed codes on: a 6-digit code was mailed; the account is
+ *                                                  created by POST /api/auth/verify once the code is entered
+ */
 import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env, UserPublic } from '../../../types';
+import { issueCode } from '../lib/emailcode';
+import { emailConfigured } from '../lib/mail';
 import { hashPassword } from '../lib/password';
 import { createSession, SESSION_TTL_SECONDS, sessionCookie } from '../lib/session';
 import { bump, clientIp, retryAfter } from '../lib/throttle';
 import { crossOriginViolation, EMAIL_RE, fail, isRecord, json, methodNotAllowed, readJson } from '../lib/http';
 import { requireHuman } from '../lib/turnstile';
+import { createUser } from '../lib/users';
 
 const MIN_PASSWORD = 8;
 const MAX_PASSWORD = 128; // also caps the CPU an attacker can make us spend hashing
@@ -53,20 +61,24 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const exists = await env.DB.prepare('SELECT id FROM users WHERE email = ?1').bind(email).first();
   if (exists) return fail(409, 'An account with this email already exists. Try signing in.');
 
-  const id = crypto.randomUUID();
   const passwordHash = await hashPassword(password);
-  try {
-    await env.DB
-      .prepare('INSERT INTO users (id, email, password_hash, name, timezone) VALUES (?1, ?2, ?3, ?4, ?5)')
-      .bind(id, email, passwordHash, name || null, timezone)
-      .run();
-  } catch (err) {
-    // Lost a race with a parallel sign-up for the same email.
-    if (err instanceof Error && /UNIQUE/i.test(err.message)) {
-      return fail(409, 'An account with this email already exists. Try signing in.');
-    }
-    console.error('register insert failed', err instanceof Error ? err.message : 'unknown');
-    return fail(500, 'Could not create the account. Please try again.');
+
+  // Nothing is created yet: the sign-up waits for the code from the email. Mistyped or made-up addresses
+  // therefore never become accounts (see verify.ts for the second half).
+  if (emailConfigured(env)) {
+    const issued = await issueCode(env, request, email, 'signup', {
+      payload: JSON.stringify({ passwordHash, name: name || null, timezone }),
+    });
+    if (!issued.ok) return issued.response;
+    return json({ ok: true, verify: issued.challenge }, 202);
+  }
+
+  const id = crypto.randomUUID();
+  const created = await createUser(env, { id, email, passwordHash, name: name || null, timezone });
+  if (!created.ok) {
+    return created.taken
+      ? fail(409, 'An account with this email already exists. Try signing in.')
+      : fail(500, 'Could not create the account. Please try again.');
   }
 
   const token = await createSession(env, request, id);
