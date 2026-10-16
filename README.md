@@ -29,7 +29,12 @@ Cloudflare Pages (site + `/api`) · D1 (database) · R2 (images) · a cron Worke
    4. **Also give the cron worker the bot token:** `npm run cron:secret-bot` (without it Quick Connect posts cannot be published).
    5. Register the webhook once: `SYSTEM_BOT_TOKEN=… TELEGRAM_WEBHOOK_SECRET=… npm run telegram:webhook set` (`info` shows delivery errors, `delete` removes it).
    Until steps 3-5 are done the dashboard simply offers **Custom bot** only.
-6. **Check it live:** sign up at `/login`, connect a Telegram channel, press *Send test*, schedule a post 2–3 minutes ahead and watch `npm run cron:logs`.
+6. **Bot protection (Turnstile, optional, recommended):** Cloudflare dashboard → Turnstile → *Add widget* (domain `vaneapp.dev`, mode *Managed*).
+   Put the **site key** into Pages → Settings → Variables as `TURNSTILE_SITE_KEY` (plain text) and the **secret key** as a secret:
+   `npx wrangler pages secret put TURNSTILE_SECRET_KEY --project-name=vaneapp`, then redeploy.
+   Sign-in and sign-up then require a passed check; it is enforced only when **both** values are set, and it fails closed if Cloudflare cannot be reached.
+   Locally use the test keys from `.dev.vars.example`.
+7. **Check it live:** sign up at `/login`, connect a Telegram channel, press *Send test*, schedule a post 2–3 minutes ahead and watch `npm run cron:logs`.
 
 Never lose `ENCRYPTION_KEY`: without it every stored channel token is unreadable.
 

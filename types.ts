@@ -18,8 +18,11 @@ export interface Env {
   SYSTEM_BOT_TOKEN?: string;        // token of the shared Vane bot used by Quick Connect
   TELEGRAM_WEBHOOK_SECRET?: string; // proves webhook calls really come from Telegram
 
+  TURNSTILE_SECRET_KEY?: string;    // Cloudflare Turnstile secret; bot check on sign-in / sign-up is enforced when set together with the site key
+
   /** Plain vars */
   APP_URL?: string;             // e.g. https://vaneapp.dev
+  TURNSTILE_SITE_KEY?: string;  // Cloudflare Turnstile site key (public, rendered on /login)
   SYSTEM_BOT_USERNAME?: string; // shared bot username without @ (default: VanePublishBot)
 }
 

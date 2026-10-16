@@ -1,10 +1,11 @@
-/** POST /api/auth/register  { email, password, name?, timezone? } → 201 + session cookie */
+/** POST /api/auth/register  { email, password, name?, timezone?, turnstileToken? } → 201 + session cookie */
 import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env, UserPublic } from '../../../types';
 import { hashPassword } from '../lib/password';
 import { createSession, SESSION_TTL_SECONDS, sessionCookie } from '../lib/session';
 import { bump, clientIp, retryAfter } from '../lib/throttle';
 import { crossOriginViolation, EMAIL_RE, fail, isRecord, json, methodNotAllowed, readJson } from '../lib/http';
+import { requireHuman } from '../lib/turnstile';
 
 const MIN_PASSWORD = 8;
 const MAX_PASSWORD = 128; // also caps the CPU an attacker can make us spend hashing
@@ -33,6 +34,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
   if (!isRecord(body)) return fail(400, 'Body must be a JSON object');
+
+  // First line of defence against bots. Checked before any throttle or DB work, so bots can neither
+  // burn an account's login attempts nor make us hash passwords.
+  const human = await requireHuman(env, request, body.turnstileToken);
+  if (human) return human;
 
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
   if (!EMAIL_RE.test(email) || email.length > 254) return fail(400, 'Enter a valid email address.');
