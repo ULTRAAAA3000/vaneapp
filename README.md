@@ -58,6 +58,6 @@ npm run cron:dev                 # separate terminal; trigger a tick: curl "http
 - A post more than 2 hours late is marked failed instead of being published stale.
 - If `ENCRYPTION_KEY` is missing in the worker, it touches nothing.
 
-## Landing demo videos
+## Landing video demo
 
-The "See Vane in action" section (`#videos` in `public/index.html`) is an iPad mockup with three demo cards. Each card is a `<button class="demo-item">`; set its `data-demo-src` to your clip (mp4/webm URL) and `data-demo-title` to the label shown on the iPad. The video is only requested when a card is clicked. All three currently point to the hero clip as a placeholder.
+The "Publish videos like you publish posts" section (`#videos` in `public/index.html`) is an iPad showing a YouTube-style channel feed plus a mini dashboard under it. Typing a title and pressing "Publish video" adds a non-clickable card to the feed (up to 3 uploads, then "Reset demo"). It is a pure front-end simulation: the filler videos are in `YT_OLD` and the upload limit is `YT_MAX` in the page script.
