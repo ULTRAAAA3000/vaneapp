@@ -57,3 +57,7 @@ npm run cron:dev                 # separate terminal; trigger a tick: curl "http
 - Temporary failures (network, Telegram 429/5xx) retry with backoff (2, 4, 8, 15 min) up to 5 attempts; permanent ones (bot removed, bad image) fail immediately with the reason shown in the dashboard.
 - A post more than 2 hours late is marked failed instead of being published stale.
 - If `ENCRYPTION_KEY` is missing in the worker, it touches nothing.
+
+## Landing demo videos
+
+The "See Vane in action" section (`#videos` in `public/index.html`) is an iPad mockup with three demo cards. Each card is a `<button class="demo-item">`; set its `data-demo-src` to your clip (mp4/webm URL) and `data-demo-title` to the label shown on the iPad. The video is only requested when a card is clicked. All three currently point to the hero clip as a placeholder.

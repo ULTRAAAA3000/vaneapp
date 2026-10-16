@@ -4,13 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Vane — Schedule once. Post everywhere.</title>
-  <meta name="description" content="Flat $12/mo. Unlimited channels, unlimited teammates. Schedule once and post to LinkedIn, Threads, Telegram and Bluesky in one click, at the edge with zero delay." />
+  <meta name="description" content="Schedule once and post to LinkedIn, Threads, Telegram and Bluesky. Flat pricing from $9.99/mo with unlimited channels, built-in AI and a REST API. Start free, no card required." />
   <meta name="theme-color" content="#070708" />
   <link rel="icon" href="/favicon.ico" sizes="32x32" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <meta property="og:title" content="Vane — Schedule once. Post everywhere." />
-  <meta property="og:description" content="One flat price. No per-channel fees. Schedule once, post to LinkedIn, Threads, Telegram and Bluesky in one click." />
+  <meta property="og:description" content="Schedule once, post everywhere. Flat pricing from $9.99/mo, unlimited channels, built-in AI and a REST API. Start free, no card required." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://vaneapp.dev" />
 
@@ -71,6 +71,56 @@
       display: flex; align-items: center; justify-content: space-between; padding: 6px 26px 0;
       font-size: 12px; font-weight: 600; }
 
+    /* ── ipad mockup (video demos) ── */
+    .ipad {
+      width: 100%; aspect-ratio: 4 / 3;
+      border-radius: 38px; padding: 14px;
+      background: linear-gradient(145deg, #34343a, #0c0c0e 60%);
+      box-shadow:
+        inset 0 0 0 1px rgba(255,255,255,.14),
+        0 50px 120px -30px rgba(90,110,255,.35),
+        0 25px 50px -10px rgba(0,0,0,.7);
+    }
+    .ipad-screen { position: relative; height: 100%; border-radius: 26px; overflow: hidden; background: #000; }
+    .ipad-cam { position: absolute; top: 9px; left: 50%; width: 7px; height: 7px; margin-left: -3.5px; z-index: 5;
+      border-radius: 9999px; background: #15161a; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+    .ipad-status { position: absolute; top: 0; left: 0; right: 0; height: 30px; z-index: 4; pointer-events: none;
+      display: flex; align-items: center; justify-content: space-between; padding: 4px 22px 0;
+      font-size: 11px; font-weight: 600; }
+    .ipad-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000;
+      opacity: 0; visibility: hidden; transition: opacity .4s ease; }
+    .ipad-idle { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 1.5rem; text-align: center; transition: opacity .4s ease;
+      background:
+        radial-gradient(circle at 25% 15%, rgba(99,102,241,.38), transparent 55%),
+        radial-gradient(circle at 85% 85%, rgba(56,189,248,.26), transparent 50%),
+        #060608; }
+    .ipad-now { position: absolute; top: 38px; left: 16px; z-index: 4; max-width: calc(100% - 32px); pointer-events: none;
+      padding: .3rem .7rem; border-radius: 9999px; font-size: 11px; font-weight: 500; color: rgba(255,255,255,.85);
+      background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.12);
+      -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+      opacity: 0; transform: translateY(-4px); transition: opacity .4s ease, transform .4s ease; }
+    .ipad-spin { position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; margin: -15px 0 0 -15px; z-index: 3; pointer-events: none;
+      border-radius: 9999px; border: 2px solid rgba(255,255,255,.25); border-top-color: #fff; opacity: 0; animation: spin .7s linear infinite; }
+    .ipad-screen.has-video .ipad-video { opacity: 1; visibility: visible; }
+    .ipad-screen.has-video .ipad-idle { opacity: 0; pointer-events: none; }
+    .ipad-screen.has-video .ipad-now { opacity: 1; transform: none; }
+    .ipad-screen.is-loading .ipad-spin { opacity: 1; }
+    @media (max-width: 640px) { .ipad { border-radius: 28px; padding: 10px; } .ipad-screen { border-radius: 20px; } }
+
+    /* ── demo picker ── */
+    .demo-item { display: flex; width: 100%; align-items: flex-start; gap: 1rem; padding: 1rem 1.1rem; border-radius: 20px;
+      text-align: left; color: #fff; cursor: pointer;
+      background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+      transition: background-color .2s, border-color .2s, transform .15s; }
+    .demo-item:hover { background: rgba(255,255,255,.08); }
+    .demo-item:active { transform: scale(.99); }
+    .demo-item:focus-visible { outline: 2px solid rgba(255,255,255,.55); outline-offset: 2px; }
+    .demo-item[aria-pressed="true"] { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.4); }
+    .demo-now { display: none; width: 7px; height: 7px; border-radius: 9999px; background: #34d399;
+      box-shadow: 0 0 0 4px rgba(52,211,153,.18); }
+    .demo-item[aria-pressed="true"] .demo-now { display: block; }
+
     /* ── range slider ── */
     input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 4px;
       border-radius: 9999px; background: rgba(255,255,255,.18); outline: none; }
@@ -130,10 +180,7 @@
           <div class="flex items-center gap-1 rounded-full bg-white/10 px-1.5 py-1.5 backdrop-blur-lg">
             <a href="#features" class="rounded-full px-4 py-1.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">Features</a>
             <a href="#demo" class="rounded-full px-4 py-1.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">Channels</a>
-            <a href="#how" class="flex items-center gap-1 rounded-full px-4 py-1.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">
-              Solutions
-              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-            </a>
+            <a href="#api" class="rounded-full px-4 py-1.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">Developers</a>
             <a href="#pricing" class="rounded-full px-4 py-1.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">Pricing</a>
             <a href="/login" data-auth-link class="rounded-full px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-white/10">Log in</a>
           </div>
@@ -153,10 +200,7 @@
         <div class="flex flex-col gap-2 px-6 pt-24">
           <a href="#features" class="m-link rounded-xl px-4 py-3.5 text-base font-medium text-white/80 hover:bg-white/10 hover:text-white">Features</a>
           <a href="#demo" class="m-link rounded-xl px-4 py-3.5 text-base font-medium text-white/80 hover:bg-white/10 hover:text-white">Channels</a>
-          <a href="#how" class="m-link flex items-center justify-between rounded-xl px-4 py-3.5 text-base font-medium text-white/80 hover:bg-white/10 hover:text-white">
-            Solutions
-            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-          </a>
+          <a href="#api" class="m-link rounded-xl px-4 py-3.5 text-base font-medium text-white/80 hover:bg-white/10 hover:text-white">Developers</a>
           <a href="#pricing" class="m-link rounded-xl px-4 py-3.5 text-base font-medium text-white/80 hover:bg-white/10 hover:text-white">Pricing</a>
           <a href="/login" data-auth-link class="m-link rounded-xl px-4 py-3.5 text-base font-semibold text-white hover:bg-white/10">Log in</a>
         </div>
@@ -172,7 +216,7 @@
             Schedule once. Post everywhere.
           </h1>
           <h2 class="mt-4 max-w-xl text-base font-medium leading-snug text-[#010101]/70 sm:text-lg lg:text-xl lg:text-white/70">
-            LinkedIn, Threads, Telegram &amp; Bluesky in one click.
+            LinkedIn, Threads, Telegram &amp; Bluesky in one click, with AI and an API built in.
           </h2>
 
           <div class="mt-6 sm:mt-8">
@@ -194,9 +238,9 @@
 
         <div class="flex w-full flex-col gap-4 sm:flex-row lg:w-auto lg:gap-5">
           <div class="flex flex-col justify-between rounded-2xl bg-white/10 p-5 backdrop-blur-lg sm:w-64 sm:p-6">
-            <div class="pixel text-3xl tracking-tight text-[#010101] sm:text-4xl lg:text-white">$12</div>
+            <div class="pixel text-3xl tracking-tight text-[#010101] sm:text-4xl lg:text-white">$9.99</div>
             <p class="mt-3 text-sm leading-relaxed text-[#010101]/70 sm:mt-4 lg:text-white/70">
-              Flat per month. Every channel and every teammate included.
+              Early Bird, per month. Unlimited channels and workspaces. Standard price is $12.
             </p>
           </div>
 
@@ -206,9 +250,9 @@
               <span class="text-sm font-semibold text-[#010101] lg:text-white">Why Vane</span>
             </div>
             <ul class="space-y-2 text-sm leading-relaxed text-[#010101]/80 lg:text-white/80">
-              <li><span class="font-semibold">No per-channel fee.</span> One price, unlimited accounts.</li>
+              <li><span class="font-semibold">No per-channel fee.</span> Unlimited channels and workspaces.</li>
               <li><span class="font-semibold">Edge-speed, 0 ms delay.</span> Posts leave on the minute.</li>
-              <li><span class="font-semibold">One click, four networks.</span> LinkedIn, Threads, Telegram and Bluesky.</li>
+              <li><span class="font-semibold">AI and API included.</span> From hashtags to a full REST gateway.</li>
             </ul>
           </div>
         </div>
@@ -294,12 +338,97 @@
       </div>
     </section>
 
+    <!-- ───────────── VIDEO DEMOS (iPad) ───────────── -->
+    <!-- To swap in your own clips, change the data-demo-src (and data-demo-title) of the three buttons below. -->
+    <section id="videos" class="relative px-5 pb-20 sm:px-8 sm:pb-28 lg:px-12">
+      <div class="mx-auto max-w-6xl">
+        <div class="reveal mx-auto max-w-2xl text-center">
+          <span class="glass-d inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium text-white/70">
+            <svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+            Watch it work
+          </span>
+          <h2 class="mt-5 text-3xl font-semibold leading-[1.1] tracking-tight sm:text-5xl">See Vane in action.</h2>
+          <p class="mt-4 text-sm leading-relaxed text-white/60 sm:text-base">Pick a demo and watch a real workflow, from the first draft to the delivered post. Short clips, no sign-up.</p>
+        </div>
+
+        <div class="mt-12 grid items-start gap-8 lg:mt-16 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-14">
+          <!-- demo picker (text only) -->
+          <div class="reveal glass-d order-last rounded-3xl p-5 sm:p-7 lg:order-first">
+            <div class="text-xs font-medium uppercase tracking-widest text-white/40">Demo videos</div>
+            <div id="demoList" class="mt-4 space-y-3">
+              <button type="button" class="demo-item" aria-pressed="false" aria-controls="demoVideo"
+                data-demo-title="Schedule once, post everywhere"
+                data-demo-src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260803_192301_9231ed6b-c55c-4a48-909c-4ebe11cf2e11.mp4">
+                <span class="flex w-7 shrink-0 flex-col items-center gap-2"><span class="pixel text-2xl leading-none text-white/90">01</span><span class="demo-now" aria-hidden="true"></span></span>
+                <span class="min-w-0 flex-1">
+                  <span class="block text-[15px] font-semibold">Schedule once, post everywhere</span>
+                  <span class="mt-1 block text-sm leading-relaxed text-white/55">Write one draft, pick LinkedIn, Threads, Telegram and Bluesky, and queue it for the minute you choose.</span>
+                </span>
+              </button>
+
+              <button type="button" class="demo-item" aria-pressed="false" aria-controls="demoVideo"
+                data-demo-title="Reformat with Vane AI"
+                data-demo-src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260803_192301_9231ed6b-c55c-4a48-909c-4ebe11cf2e11.mp4">
+                <span class="flex w-7 shrink-0 flex-col items-center gap-2"><span class="pixel text-2xl leading-none text-white/90">02</span><span class="demo-now" aria-hidden="true"></span></span>
+                <span class="min-w-0 flex-1">
+                  <span class="block text-[15px] font-semibold">Reformat with Vane AI</span>
+                  <span class="mt-1 block text-sm leading-relaxed text-white/55">Turn a Telegram long-read into a Threads thread and a LinkedIn post, then fix the tone in one tap.</span>
+                </span>
+              </button>
+
+              <button type="button" class="demo-item" aria-pressed="false" aria-controls="demoVideo"
+                data-demo-title="Automate with the API"
+                data-demo-src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260803_192301_9231ed6b-c55c-4a48-909c-4ebe11cf2e11.mp4">
+                <span class="flex w-7 shrink-0 flex-col items-center gap-2"><span class="pixel text-2xl leading-none text-white/90">03</span><span class="demo-now" aria-hidden="true"></span></span>
+                <span class="min-w-0 flex-1">
+                  <span class="block text-[15px] font-semibold">Automate with the API</span>
+                  <span class="mt-1 block text-sm leading-relaxed text-white/55">Send a scheduled post from a script, Make or a Custom GPT with a single REST call.</span>
+                </span>
+              </button>
+            </div>
+            <p class="mt-5 text-[11px] text-white/35">Videos load only when you pick one, so the page stays fast.</p>
+          </div>
+
+          <!-- iPad -->
+          <div id="ipadWrap" class="reveal order-first flex justify-center lg:sticky lg:top-8 lg:order-last">
+            <div class="float w-full" style="max-width:600px">
+              <div class="ipad">
+                <div id="ipadScreen" class="ipad-screen">
+                  <span class="ipad-cam" aria-hidden="true"></span>
+                  <div class="ipad-status text-white" aria-hidden="true">
+                    <span>9:41</span>
+                    <span class="flex items-center gap-1.5">
+                      <svg width="16" height="10" viewBox="0 0 16 10" fill="currentColor"><rect x="0" y="6" width="3" height="4" rx=".6"/><rect x="4.4" y="4" width="3" height="6" rx=".6"/><rect x="8.8" y="2" width="3" height="8" rx=".6"/><rect x="13.2" y="0" width="2.8" height="10" rx=".6"/></svg>
+                      <svg width="22" height="10" viewBox="0 0 22 10" fill="none"><rect x=".5" y=".5" width="18" height="9" rx="2.5" stroke="currentColor" opacity=".5"/><rect x="2" y="2" width="13" height="6" rx="1.3" fill="currentColor"/><rect x="19.6" y="3.2" width="1.6" height="3.6" rx=".8" fill="currentColor" opacity=".5"/></svg>
+                    </span>
+                  </div>
+
+                  <video id="demoVideo" class="ipad-video" playsinline controls preload="none" loop aria-label="Vane demo video"></video>
+                  <div id="demoNow" class="ipad-now" aria-live="polite"></div>
+                  <span class="ipad-spin" aria-hidden="true"></span>
+
+                  <div id="demoIdle" class="ipad-idle">
+                    <div class="flex h-16 w-16 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/15 backdrop-blur">
+                      <svg class="ml-0.5 h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                    </div>
+                    <p id="demoIdleTitle" class="mt-4 text-sm font-semibold">Choose a demo</p>
+                    <p id="demoIdleText" class="mt-1 max-w-[16rem] text-xs leading-relaxed text-white/50">Your video appears here the moment you pick one.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ───────────── FEATURES ───────────── -->
     <section id="features" class="relative px-5 pb-20 sm:px-8 sm:pb-28 lg:px-12">
       <div class="mx-auto max-w-6xl">
         <div class="reveal max-w-2xl">
           <p class="text-xs font-medium uppercase tracking-widest text-white/40">Why Vane</p>
           <h2 class="mt-3 text-3xl font-semibold leading-[1.1] tracking-tight sm:text-5xl">Fewer knobs. Faster posts. A price that never moves.</h2>
+          <p class="mt-4 text-sm leading-relaxed text-white/60 sm:text-base">Most schedulers charge for every channel you add. Vane charges one flat price, runs on the edge, and ships with AI and an API instead of upsells.</p>
         </div>
 
         <div class="mt-12 grid gap-4 md:grid-cols-6 md:gap-5">
@@ -307,14 +436,14 @@
             <div class="pixel text-5xl tracking-tight sm:text-6xl">$0</div>
             <div class="mt-8">
               <h3 class="text-xl font-semibold">No per-channel fee</h3>
-              <p class="mt-2 text-sm leading-relaxed text-white/60">Connect every account you own. The price stays at $12 a month. We don’t meter profiles or add surprise line items.</p>
+              <p class="mt-2 text-sm leading-relaxed text-white/60">Connect every account and workspace you own. One flat price, no meters on profiles and no surprise line items.</p>
             </div>
           </article>
 
           <article class="reveal glass-d flex flex-col justify-between rounded-3xl p-6 sm:p-8 md:col-span-3" style="transition-delay:.08s">
             <div class="pixel text-5xl tracking-tight sm:text-6xl">0 ms</div>
             <div class="mt-8">
-              <h3 class="text-xl font-semibold">Edge-speed scheduling</h3>
+              <h3 class="text-xl font-semibold">Edge-speed publishing</h3>
               <p class="mt-2 text-sm leading-relaxed text-white/60">A scheduler on Cloudflare’s edge wakes up every minute and ships whatever is due. No queue lag, no cold servers to wait for.</p>
             </div>
           </article>
@@ -332,32 +461,142 @@
               <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
             </div>
             <h3 class="text-lg font-semibold">Previews that know the limits</h3>
-            <p class="mt-2 text-sm leading-relaxed text-white/60">See the post as it will look on each network and get a warning before you cross its character limit.</p>
+            <p class="mt-2 text-sm leading-relaxed text-white/60">See the post as it will look on each network, with a warning before you cross its character limit.</p>
           </article>
 
           <article class="reveal glass-d rounded-3xl p-6 md:col-span-2" style="transition-delay:.12s">
             <div class="mb-5 flex h-10 w-10 items-center justify-center rounded-xl bg-white/10">
-              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.9M16 3.1a4 4 0 010 7.8"/></svg>
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 3.5L2.8 10.7l5.9 2.2 2.3 6.6 3.1-4.2 4.6 3.4z"/><path d="M8.7 12.9l12-8.6"/></svg>
             </div>
-            <h3 class="text-lg font-semibold">Unlimited teammates</h3>
-            <p class="mt-2 text-sm leading-relaxed text-white/60">Invite the whole team. Seats are not a pricing lever here.</p>
+            <h3 class="text-lg font-semibold">Telegram, done properly</h3>
+            <p class="mt-2 text-sm leading-relaxed text-white/60">Inline buttons, spoilers and polls, the things that make a channel post feel native.</p>
           </article>
 
-          <article class="reveal glass-d rounded-3xl p-6 md:col-span-3">
+          <article class="reveal glass-d rounded-3xl p-6 md:col-span-2">
+            <div class="mb-5 flex h-10 w-10 items-center justify-center rounded-xl bg-white/10">
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            </div>
+            <h3 class="text-lg font-semibold">Calendar and board</h3>
+            <p class="mt-2 text-sm leading-relaxed text-white/60">Plan the week on a visual calendar, or move posts across a Kanban board.</p>
+          </article>
+
+          <article class="reveal glass-d rounded-3xl p-6 md:col-span-2" style="transition-delay:.06s">
             <div class="mb-5 flex h-10 w-10 items-center justify-center rounded-xl bg-white/10">
               <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
             </div>
-            <h3 class="text-lg font-semibold">Media on R2</h3>
-            <p class="mt-2 text-sm leading-relaxed text-white/60">Images and video live on Cloudflare R2, close to the scheduler that publishes them.</p>
+            <h3 class="text-lg font-semibold">Media library on R2</h3>
+            <p class="mt-2 text-sm leading-relaxed text-white/60">Images and video live on Cloudflare R2, right next to the scheduler that publishes them.</p>
           </article>
 
-          <article class="reveal glass-d rounded-3xl p-6 md:col-span-3" style="transition-delay:.08s">
+          <article class="reveal glass-d rounded-3xl p-6 md:col-span-2" style="transition-delay:.12s">
             <div class="mb-5 flex h-10 w-10 items-center justify-center rounded-xl bg-white/10">
               <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
             </div>
             <h3 class="text-lg font-semibold">Delivery logs you can trust</h3>
             <p class="mt-2 text-sm leading-relaxed text-white/60">Every attempt is recorded, so when something fails you know which channel and why.</p>
           </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────────── AI ───────────── -->
+    <section id="ai" class="relative px-5 pb-20 sm:px-8 sm:pb-28 lg:px-12">
+      <div class="mx-auto max-w-6xl">
+        <div class="reveal max-w-2xl">
+          <p class="text-xs font-medium uppercase tracking-widest text-white/40">Vane AI</p>
+          <h2 class="mt-3 text-3xl font-semibold leading-[1.1] tracking-tight sm:text-5xl">Write faster. Sound right. Fit every network.</h2>
+          <p class="mt-4 text-sm leading-relaxed text-white/60 sm:text-base">Everyday polish is free on every plan. The heavier tools live in Vane AI Pass, which is included with Pro.</p>
+        </div>
+
+        <div class="mt-12 grid gap-5 lg:grid-cols-2">
+          <!-- free utilities -->
+          <div class="reveal glass-d flex flex-col rounded-3xl p-6 sm:p-8">
+            <div class="flex items-center justify-between gap-3">
+              <h3 class="text-xl font-semibold">Free AI utilities</h3>
+              <span class="rounded-full bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300 ring-1 ring-emerald-400/20">Every plan</span>
+            </div>
+            <ul class="mt-6 divide-y divide-white/10 text-sm">
+              <li class="py-3.5 first:pt-0"><div class="font-medium">Hashtag generator</div><div class="mt-1 leading-relaxed text-white/55">Picks tags from the meaning of your post.</div></li>
+              <li class="py-3.5"><div class="font-medium">Emoji and grammar fix</div><div class="mt-1 leading-relaxed text-white/55">Basic text clean-up and a touch of emoji.</div></li>
+              <li class="py-3.5"><div class="font-medium">Character limit guard</div><div class="mt-1 leading-relaxed text-white/55">Adapts the length of your text to each network’s limit.</div></li>
+            </ul>
+            <p class="mt-auto pt-6 text-xs leading-relaxed text-white/40">The free trial also includes 10 AI credits to try the heavier tools below.</p>
+          </div>
+
+          <!-- AI pass -->
+          <div class="reveal glass-d flex flex-col rounded-3xl p-6 ring-1 ring-white/20 sm:p-8" style="transition-delay:.08s">
+            <div class="flex items-center justify-between gap-3">
+              <h3 class="flex items-center gap-2 text-xl font-semibold">
+                <svg class="h-5 w-5 text-sky-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.7 1.8 1.8.7-1.8.7L19 20l-.7-1.8-1.8-.7 1.8-.7z"/></svg>
+                Vane AI Pass
+              </h3>
+              <span class="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-[#010101]">Included in Pro</span>
+            </div>
+            <ul class="mt-6 divide-y divide-white/10 text-sm">
+              <li class="py-3.5 first:pt-0"><div class="font-medium">Smart re-formatter</div><div class="mt-1 leading-relaxed text-white/55">Turns a Telegram long-read into a thread for Threads and a post for LinkedIn.</div></li>
+              <li class="py-3.5"><div class="font-medium">Post and idea generator</div><div class="mt-1 leading-relaxed text-white/55">Drafts posts from scratch and builds a content plan.</div></li>
+              <li class="py-3.5"><div class="font-medium">Tone fixer</div><div class="mt-1 leading-relaxed text-white/55">Switch between Professional, Viral, Friendly and Tech.</div></li>
+              <li class="py-3.5"><div class="font-medium">Hook and CTA generator</div><div class="mt-1 leading-relaxed text-white/55">Sharper openings and clearer calls to action.</div></li>
+              <li class="py-3.5"><div class="flex items-center gap-2 font-medium">Video script generator <span class="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/55">Soon</span></div><div class="mt-1 leading-relaxed text-white/55">Scripts and hooks for Shorts, TikTok and Reels. Arrives with the Video Engine.</div></li>
+            </ul>
+            <p class="mt-auto pt-6 text-xs leading-relaxed text-white/40">Pro includes a soft limit of about 250 generations a month. On the Developer API plan, an AI post is $0.09.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────────── DEVELOPERS / API ───────────── -->
+    <section id="api" class="relative px-5 pb-20 sm:px-8 sm:pb-28 lg:px-12">
+      <div class="mx-auto max-w-6xl">
+        <div class="reveal max-w-2xl">
+          <p class="text-xs font-medium uppercase tracking-widest text-white/40">Developers</p>
+          <h2 class="mt-3 text-3xl font-semibold leading-[1.1] tracking-tight sm:text-5xl">Headless and API-first.</h2>
+          <p class="mt-4 text-sm leading-relaxed text-white/60 sm:text-base">Everything the dashboard does is one REST call away. Plug Vane into your scripts, your no-code automations or your favourite AI assistant.</p>
+        </div>
+
+        <div class="mt-12 grid items-start gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,.9fr)]">
+          <!-- code -->
+          <div class="reveal glass-d overflow-hidden rounded-3xl">
+            <div class="flex items-center justify-between border-b border-white/10 px-5 py-3">
+              <div class="flex gap-1.5" aria-hidden="true"><span class="h-2.5 w-2.5 rounded-full bg-white/15"></span><span class="h-2.5 w-2.5 rounded-full bg-white/15"></span><span class="h-2.5 w-2.5 rounded-full bg-white/15"></span></div>
+              <span class="text-[11px] font-medium uppercase tracking-widest text-white/35">API preview</span>
+            </div>
+<pre class="no-scrollbar overflow-x-auto p-5 font-mono text-[12.5px] leading-relaxed text-white/80"><code><span class="text-white/35"># Schedule a post to your channels</span>
+curl -X POST https://vaneapp.dev/api/posts \
+  -H <span class="text-emerald-300">"Authorization: Bearer $VANE_API_KEY"</span> \
+  -H <span class="text-emerald-300">"Content-Type: application/json"</span> \
+  -d <span class="text-emerald-300">'{
+    "content": "Shipping v2 today",
+    "channelIds": ["&lt;channel-id&gt;"],
+    "scheduledAt": "2026-10-20T09:00:00Z"
+  }'</span>
+
+<span class="text-white/35"># Response</span>
+{ <span class="text-sky-300">"ok"</span>: true, <span class="text-sky-300">"posts"</span>: [{ <span class="text-sky-300">"status"</span>: <span class="text-emerald-300">"scheduled"</span> }] }</code></pre>
+          </div>
+
+          <div class="flex flex-col gap-5">
+            <!-- integrations -->
+            <div class="reveal glass-d rounded-3xl p-6 sm:p-7">
+              <h3 class="text-lg font-semibold">Works with your stack</h3>
+              <ul class="mt-4 divide-y divide-white/10 text-sm">
+                <li class="flex items-start justify-between gap-3 py-3 first:pt-0"><span><span class="font-medium">REST API</span><span class="mt-0.5 block text-white/55">Bearer auth, webhooks and an OpenAPI spec.</span></span><span class="mt-0.5 shrink-0 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300 ring-1 ring-emerald-400/20">At launch</span></li>
+                <li class="flex items-center justify-between gap-3 py-3"><span class="font-medium">Make.com and Zapier</span><span class="shrink-0 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/55">Soon</span></li>
+                <li class="flex items-center justify-between gap-3 py-3"><span class="font-medium">Custom GPT action</span><span class="shrink-0 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/55">Soon</span></li>
+                <li class="flex items-center justify-between gap-3 py-3 pb-0"><span class="font-medium">Claude MCP server</span><span class="shrink-0 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/55">Soon</span></li>
+              </ul>
+            </div>
+
+            <!-- keys -->
+            <div class="reveal glass-d rounded-3xl p-6 sm:p-7" style="transition-delay:.08s">
+              <h3 class="text-lg font-semibold">Keys built for safety</h3>
+              <ul class="mt-4 space-y-3 text-sm text-white/70">
+                <li class="flex gap-3"><span class="text-emerald-400">✓</span><span>Separate keys for text and video, each limited to its own endpoints.</span></li>
+                <li class="flex gap-3"><span class="text-emerald-400">✓</span><span>Test keys simulate responses without posting or touching your quota.</span></li>
+                <li class="flex gap-3"><span class="text-emerald-400">✓</span><span>Keys are hashed with SHA-256 before they are stored.</span></li>
+              </ul>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -374,7 +613,7 @@
           <div class="reveal glass-d rounded-3xl p-6 sm:p-8">
             <div class="pixel text-4xl text-white/90">01</div>
             <h3 class="mt-6 text-lg font-semibold">Write</h3>
-            <p class="mt-2 text-sm leading-relaxed text-white/60">Type or paste your post and attach media. One draft, every network.</p>
+            <p class="mt-2 text-sm leading-relaxed text-white/60">Type or paste your post, or let Vane AI draft and reformat it. Attach media. One draft, every network.</p>
           </div>
           <div class="reveal glass-d rounded-3xl p-6 sm:p-8" style="transition-delay:.08s">
             <div class="pixel text-4xl text-white/90">02</div>
@@ -395,31 +634,125 @@
       <div class="mx-auto max-w-6xl">
         <div class="reveal max-w-2xl">
           <p class="text-xs font-medium uppercase tracking-widest text-white/40">Pricing</p>
-          <h2 class="mt-3 text-3xl font-semibold leading-[1.1] tracking-tight sm:text-5xl">One price. Do the math yourself.</h2>
+          <h2 class="mt-3 text-3xl font-semibold leading-[1.1] tracking-tight sm:text-5xl">Simple plans. Do the math yourself.</h2>
+          <p class="mt-4 text-sm leading-relaxed text-white/60 sm:text-base">Start free, no card required. Pay a flat monthly price when you are ready. No per-channel fees on any plan.</p>
         </div>
 
-        <div class="mt-12 grid gap-5 lg:grid-cols-2">
-          <!-- plan -->
-          <div class="reveal glass-d flex flex-col rounded-3xl p-6 sm:p-8">
-            <p class="text-xs font-medium uppercase tracking-widest text-white/40">Everything included</p>
+        <div class="mt-12 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          <!-- free trial -->
+          <div class="reveal glass-d flex flex-col rounded-3xl p-6 sm:p-7">
+            <p class="text-xs font-medium uppercase tracking-widest text-white/40">Free Trial</p>
             <div class="mt-4 flex items-end gap-2">
-              <span class="pixel text-6xl leading-none tracking-tight sm:text-7xl">$12</span>
-              <span class="pb-1.5 text-sm text-white/50">/ month</span>
+              <span class="pixel text-5xl leading-none tracking-tight">$0</span>
             </div>
-            <ul class="mt-8 space-y-3 text-sm text-white/75">
-              <li class="flex gap-3"><span class="text-emerald-400">✓</span> Unlimited connected channels</li>
-              <li class="flex gap-3"><span class="text-emerald-400">✓</span> Unlimited team members</li>
-              <li class="flex gap-3"><span class="text-emerald-400">✓</span> LinkedIn, Threads, Telegram and Bluesky</li>
-              <li class="flex gap-3"><span class="text-emerald-400">✓</span> Media uploads and a scheduled queue</li>
-              <li class="flex gap-3"><span class="text-emerald-400">✓</span> Delivery logs with failure details</li>
+            <p class="mt-2 text-sm text-white/50">No card required.</p>
+            <ul class="mt-6 space-y-3 text-sm text-white/75">
+              <li class="flex gap-3"><span class="text-emerald-400">✓</span> 30 posts in total</li>
+              <li class="flex gap-3"><span class="text-emerald-400">✓</span> Up to 2 connected channels</li>
+              <li class="flex gap-3"><span class="text-emerald-400">✓</span> 10 free AI credits</li>
+              <li class="flex gap-3"><span class="text-emerald-400">✓</span> Free AI utilities</li>
+              <li class="flex gap-3"><span class="text-emerald-400">✓</span> Try the dashboard and the API</li>
             </ul>
-            <div class="mt-auto pt-8"><button type="button" data-goto-join class="rounded-full bg-white px-6 py-3 text-sm font-semibold text-[#010101] transition-opacity hover:opacity-90">Join the waitlist</button></div>
+            <div class="mt-auto pt-7"><button type="button" data-goto-join class="w-full rounded-full bg-white/10 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/20">Join the waitlist</button></div>
+          </div>
+
+          <!-- developer api -->
+          <div class="reveal glass-d flex flex-col rounded-3xl p-6 sm:p-7" style="transition-delay:.06s">
+            <p class="text-xs font-medium uppercase tracking-widest text-white/40">Developer API</p>
+            <div class="mt-4 flex items-end gap-2">
+              <span class="pixel text-5xl leading-none tracking-tight">$5.99</span>
+              <span class="pb-1 text-sm text-white/50">/ month</span>
+            </div>
+            <p class="mt-2 text-sm text-white/50">A headless gateway for scripts and bots.</p>
+            <ul class="mt-6 space-y-3 text-sm text-white/75">
+              <li class="flex gap-3"><span class="text-emerald-400">✓</span> REST API with Bearer auth, webhooks and an OpenAPI spec</li>
+              <li class="flex gap-3"><span class="text-emerald-400">✓</span> 180 API posts a month (about 6 a day)</li>
+              <li class="flex gap-3"><span class="text-emerald-400">✓</span> Custom GPT and Claude MCP access when they launch</li>
+              <li class="flex gap-3"><span class="text-emerald-400">✓</span> Extra posts: $0.03 each, $0.09 for AI posts</li>
+            </ul>
+            <div class="mt-auto pt-7"><button type="button" data-goto-join class="w-full rounded-full bg-white/10 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/20">Join the waitlist</button></div>
+          </div>
+
+          <!-- pro -->
+          <div class="reveal glass-d relative flex flex-col rounded-3xl p-6 ring-1 ring-white/30 sm:p-7" style="transition-delay:.12s">
+            <span class="absolute -top-3 left-6 rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-[#010101]">Early Bird</span>
+            <p class="text-xs font-medium uppercase tracking-widest text-white/40">Pro Dashboard</p>
+            <div class="mt-4 flex items-end gap-2">
+              <span class="pixel text-5xl leading-none tracking-tight">$9.99</span>
+              <span class="pb-1 text-sm text-white/50">/ month</span>
+            </div>
+            <p class="mt-2 text-sm text-white/50"><span class="line-through">$12</span> standard, or $99 a year.</p>
+            <ul class="mt-6 space-y-3 text-sm text-white/75">
+              <li class="flex gap-3"><span class="text-emerald-400">✓</span> Full dashboard with calendar and Kanban</li>
+              <li class="flex gap-3"><span class="text-emerald-400">✓</span> Unlimited workspaces and channels</li>
+              <li class="flex gap-3"><span class="text-emerald-400">✓</span> 1,000 posts a month</li>
+              <li class="flex gap-3"><span class="text-emerald-400">✓</span> Telegram inline buttons, spoilers and polls</li>
+              <li class="flex gap-3"><span class="text-emerald-400">✓</span> Media library on Cloudflare R2</li>
+              <li class="flex gap-3"><span class="text-emerald-400">✓</span> Vane AI Pass included</li>
+              <li class="flex gap-3"><span class="text-emerald-400">✓</span> Extra posts: $0.015 each, $0.045 for AI posts</li>
+            </ul>
+            <div class="mt-auto pt-7"><button type="button" data-goto-join class="w-full rounded-full bg-white px-6 py-3 text-sm font-semibold text-[#010101] transition-opacity hover:opacity-90">Join the waitlist</button></div>
+          </div>
+
+          <!-- video engine -->
+          <div class="reveal glass-d flex flex-col rounded-3xl p-6 sm:p-7" style="transition-delay:.18s">
+            <div class="flex h-5 items-center justify-between gap-3">
+              <p class="text-xs font-medium uppercase tracking-widest text-white/40">Video Engine</p>
+              <span class="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/55">Coming soon</span>
+            </div>
+            <div class="mt-4 flex items-end gap-2">
+              <span class="pixel text-5xl leading-none tracking-tight">$8.99</span>
+              <span class="pb-1 text-sm text-white/50">/ month</span>
+            </div>
+            <p class="mt-2 text-sm text-white/50">Video publishing, end to end.</p>
+            <ul class="mt-6 space-y-3 text-sm text-white/75">
+              <li class="flex gap-3"><span class="text-emerald-400">✓</span> YouTube Shorts, TikTok and Instagram Reels</li>
+              <li class="flex gap-3"><span class="text-emerald-400">✓</span> YouTube long-form with custom thumbnails, playlists and tags</li>
+              <li class="flex gap-3"><span class="text-emerald-400">✓</span> Resumable uploads on Cloudflare R2</li>
+              <li class="flex gap-3"><span class="text-emerald-400">✓</span> AI hooks, scripts, descriptions, tags and timestamps</li>
+            </ul>
+            <div class="mt-auto pt-7"><button type="button" data-goto-join class="w-full rounded-full bg-white/10 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/20">Get notified</button></div>
+          </div>
+        </div>
+
+        <!-- add-on strip -->
+        <div class="reveal glass-d mt-5 flex flex-col gap-4 rounded-3xl p-6 sm:flex-row sm:items-center sm:justify-between sm:p-7">
+          <div>
+            <h3 class="text-lg font-semibold">Need the dashboard and the API?</h3>
+            <p class="mt-1 text-sm leading-relaxed text-white/60">Add the API to Pro for <span class="font-semibold text-white">+$2.99 a month</span>. It adds 180 API posts and keeps Pro’s low overage rates.</p>
+          </div>
+          <span class="pixel shrink-0 text-3xl leading-none">+$2.99</span>
+        </div>
+
+        <div class="mt-5 grid gap-5 lg:grid-cols-2">
+          <!-- overage + payments -->
+          <div class="flex flex-col gap-5">
+            <div class="reveal glass-d rounded-3xl p-6 sm:p-8">
+              <p class="text-xs font-medium uppercase tracking-widest text-white/40">Going over your quota</p>
+              <p class="mt-2 text-sm leading-relaxed text-white/55">Posts beyond your monthly quota are billed per post. Pro gets half the Developer API rate.</p>
+              <div class="mt-5 overflow-hidden rounded-2xl ring-1 ring-white/10">
+                <div class="grid grid-cols-3 bg-white/5 px-4 py-2.5 text-xs font-medium text-white/45"><span>Plan</span><span>Post</span><span>AI post</span></div>
+                <div class="grid grid-cols-3 border-t border-white/10 px-4 py-3 text-sm"><span class="text-white/70">Developer API</span><span class="pixel text-base">$0.03</span><span class="pixel text-base">$0.09</span></div>
+                <div class="grid grid-cols-3 border-t border-white/10 px-4 py-3 text-sm"><span class="text-white/70">Pro Dashboard</span><span class="pixel text-base">$0.015</span><span class="pixel text-base">$0.045</span></div>
+              </div>
+            </div>
+
+            <div class="reveal glass-d rounded-3xl p-6 sm:p-8" style="transition-delay:.06s">
+              <p class="text-xs font-medium uppercase tracking-widest text-white/40">Pay your way</p>
+              <p class="mt-2 text-sm leading-relaxed text-white/55">Your plan switches on automatically the moment the payment clears.</p>
+              <div class="mt-5 flex flex-wrap gap-2.5">
+                <span class="rounded-full border border-white/10 bg-white/[0.07] px-3.5 py-1.5 text-sm text-white/80">Visa and Mastercard</span>
+                <span class="rounded-full border border-white/10 bg-white/[0.07] px-3.5 py-1.5 text-sm text-white/80">Apple Pay</span>
+                <span class="rounded-full border border-white/10 bg-white/[0.07] px-3.5 py-1.5 text-sm text-white/80">Google Pay</span>
+                <span class="rounded-full border border-white/10 bg-white/[0.07] px-3.5 py-1.5 text-sm text-white/80">USDT and USDC (Solana, Polygon)</span>
+              </div>
+            </div>
           </div>
 
           <!-- calculator -->
           <div class="reveal glass-d rounded-3xl p-6 sm:p-8" style="transition-delay:.08s">
             <p class="text-xs font-medium uppercase tracking-widest text-white/40">Savings calculator</p>
-            <p class="mt-2 text-sm leading-relaxed text-white/55">Enter what a per-channel tool charges you and how many channels you run. The figure below is illustrative; use your own numbers.</p>
+            <p class="mt-2 text-sm leading-relaxed text-white/55">Enter what a per-channel tool charges you and how many channels you run. Vane Pro is compared at its $12 standard price, so Early Bird saves you even more. The figure below is illustrative; use your own numbers.</p>
 
             <div class="mt-6">
               <div class="flex items-center justify-between text-sm">
@@ -441,7 +774,7 @@
                 <div id="othersCost" class="pixel mt-1 text-2xl">$30</div>
               </div>
               <div class="rounded-2xl bg-black/30 p-4 ring-1 ring-white/5">
-                <div class="text-xs text-white/45">Vane</div>
+                <div class="text-xs text-white/45">Vane Pro</div>
                 <div class="pixel mt-1 text-2xl">$12</div>
               </div>
             </div>
@@ -462,10 +795,26 @@
         <div class="mt-10 space-y-3">
           <details name="faq" class="reveal glass-d rounded-2xl p-5 transition-colors sm:p-6">
             <summary class="flex items-center justify-between gap-4 text-[15px] font-medium sm:text-base">
-              Is the $12 price really flat?
+              Is the price really flat?
               <span class="faq-plus text-xl text-white/40 transition-transform duration-300">+</span>
             </summary>
-            <p class="mt-3 text-sm leading-relaxed text-white/60">Yes. $12 a month covers all connected channels and all teammates. There are no per-channel or per-seat add-ons.</p>
+            <p class="mt-3 text-sm leading-relaxed text-white/60">Yes. Pro is $9.99 a month (Early Bird) or $12 standard, or $99 a year, and it covers unlimited channels and workspaces. There are no per-channel add-ons. Only posts beyond your monthly quota are billed, at the overage rates in the pricing section.</p>
+          </details>
+
+          <details name="faq" class="reveal glass-d rounded-2xl p-5 transition-colors sm:p-6">
+            <summary class="flex items-center justify-between gap-4 text-[15px] font-medium sm:text-base">
+              Do I need a card to try Vane?
+              <span class="faq-plus text-xl text-white/40 transition-transform duration-300">+</span>
+            </summary>
+            <p class="mt-3 text-sm leading-relaxed text-white/60">No. The Free Trial needs no card and includes 30 posts in total, up to 2 channels and 10 AI credits. When the 30 posts are used, publishing stops until you choose a plan. We never charge you automatically.</p>
+          </details>
+
+          <details name="faq" class="reveal glass-d rounded-2xl p-5 transition-colors sm:p-6">
+            <summary class="flex items-center justify-between gap-4 text-[15px] font-medium sm:text-base">
+              What happens if I go over my monthly quota?
+              <span class="faq-plus text-xl text-white/40 transition-transform duration-300">+</span>
+            </summary>
+            <p class="mt-3 text-sm leading-relaxed text-white/60">Extra posts are billed per post. On Pro that is $0.015 per post and $0.045 per AI-generated post. On the Developer API plan it is $0.03 and $0.09. Pro includes 1,000 posts a month and the Developer API includes 180.</p>
           </details>
 
           <details name="faq" class="reveal glass-d rounded-2xl p-5 transition-colors sm:p-6">
@@ -474,6 +823,38 @@
               <span class="faq-plus text-xl text-white/40 transition-transform duration-300">+</span>
             </summary>
             <p class="mt-3 text-sm leading-relaxed text-white/60">LinkedIn, Threads, Telegram and Bluesky at launch. Each one gets its own preview and its own character limit (LinkedIn 3,000, Threads 500, Bluesky 300, Telegram 4,096), so you see what fits before you schedule.</p>
+          </details>
+
+          <details name="faq" class="reveal glass-d rounded-2xl p-5 transition-colors sm:p-6">
+            <summary class="flex items-center justify-between gap-4 text-[15px] font-medium sm:text-base">
+              What is Vane AI Pass?
+              <span class="faq-plus text-xl text-white/40 transition-transform duration-300">+</span>
+            </summary>
+            <p class="mt-3 text-sm leading-relaxed text-white/60">A set of AI tools included with Pro: a re-formatter that turns Telegram long-reads into threads and LinkedIn posts, a post and idea generator, a tone fixer, and a hook and CTA generator. Pro has a soft limit of about 250 generations a month. Hashtags, emoji and grammar fixes and the character limit guard are free on every plan.</p>
+          </details>
+
+          <details name="faq" class="reveal glass-d rounded-2xl p-5 transition-colors sm:p-6">
+            <summary class="flex items-center justify-between gap-4 text-[15px] font-medium sm:text-base">
+              Can I use Vane from code or no-code tools?
+              <span class="faq-plus text-xl text-white/40 transition-transform duration-300">+</span>
+            </summary>
+            <p class="mt-3 text-sm leading-relaxed text-white/60">Yes. The REST API comes with the Developer plan or as a +$2.99 add-on to Pro. Make.com, Zapier, a Custom GPT action and a Claude MCP server are planned right after launch.</p>
+          </details>
+
+          <details name="faq" class="reveal glass-d rounded-2xl p-5 transition-colors sm:p-6">
+            <summary class="flex items-center justify-between gap-4 text-[15px] font-medium sm:text-base">
+              When will video publishing arrive?
+              <span class="faq-plus text-xl text-white/40 transition-transform duration-300">+</span>
+            </summary>
+            <p class="mt-3 text-sm leading-relaxed text-white/60">The Video Engine ($8.99 a month) is the next expansion, covering YouTube Shorts, TikTok, Instagram Reels and YouTube long-form. It needs approval from each platform before it can go live, so we will announce the date once those clear. Join the waitlist and we will tell you.</p>
+          </details>
+
+          <details name="faq" class="reveal glass-d rounded-2xl p-5 transition-colors sm:p-6">
+            <summary class="flex items-center justify-between gap-4 text-[15px] font-medium sm:text-base">
+              How do I pay?
+              <span class="faq-plus text-xl text-white/40 transition-transform duration-300">+</span>
+            </summary>
+            <p class="mt-3 text-sm leading-relaxed text-white/60">By Visa or Mastercard, including Apple Pay and Google Pay, or in USDT or USDC on Solana or Polygon. Your plan or API key switches on automatically as soon as the payment is confirmed.</p>
           </details>
 
           <details name="faq" class="reveal glass-d rounded-2xl p-5 transition-colors sm:p-6">
@@ -502,10 +883,10 @@
 
           <details name="faq" class="reveal glass-d rounded-2xl p-5 transition-colors sm:p-6">
             <summary class="flex items-center justify-between gap-4 text-[15px] font-medium sm:text-base">
-              Is the demo above real?
+              Are the demos above real?
               <span class="faq-plus text-xl text-white/40 transition-transform duration-300">+</span>
             </summary>
-            <p class="mt-3 text-sm leading-relaxed text-white/60">It is a simulation that runs in your browser to show how previews work. It does not post anywhere, and your text is not sent to a server.</p>
+            <p class="mt-3 text-sm leading-relaxed text-white/60">The live preview is a simulation that runs in your browser. It does not post anywhere, and your text is not sent to a server. The videos show the workflows end to end.</p>
           </details>
         </div>
       </div>
@@ -516,7 +897,7 @@
       <div class="reveal glass-d relative mx-auto max-w-5xl overflow-hidden rounded-[2rem] px-6 py-14 text-center sm:px-12 sm:py-20">
         <div class="pointer-events-none absolute -top-24 left-1/2 h-64 w-[36rem] -translate-x-1/2 rounded-full bg-indigo-500/25 blur-[90px]" aria-hidden="true"></div>
         <h2 class="relative text-3xl font-semibold leading-[1.1] tracking-tight sm:text-5xl">Stop paying per channel.</h2>
-        <p class="relative mx-auto mt-4 max-w-md text-sm leading-relaxed text-white/60 sm:text-base">Join the waitlist and get early access to unfairly fast scheduling for a flat $12.</p>
+        <p class="relative mx-auto mt-4 max-w-md text-sm leading-relaxed text-white/60 sm:text-base">Join the waitlist for early access. Pro starts at $9.99 a month, flat, with every channel included.</p>
 
         <div class="relative mt-8">
           <form class="wl-form mx-auto flex max-w-md flex-col gap-3 sm:inline-flex sm:max-w-none sm:flex-row sm:items-center sm:gap-0 sm:rounded-full sm:bg-white sm:p-1.5" novalidate data-tone="dark" id="joinForm">
@@ -548,6 +929,7 @@
         <nav class="flex gap-6 text-sm text-white/50">
           <a href="#features" class="transition-colors hover:text-white">Features</a>
           <a href="#pricing" class="transition-colors hover:text-white">Pricing</a>
+          <a href="#api" class="transition-colors hover:text-white">API</a>
           <a href="#faq" class="transition-colors hover:text-white">FAQ</a>
           <a href="/login" data-auth-link class="transition-colors hover:text-white">Log in</a>
         </nav>
@@ -765,7 +1147,7 @@
     var state = { sel: ['linkedin', 'threads', 'telegram', 'bluesky'], active: 'linkedin', when: 't9', busy: false };
 
     var ta = $('#postText');
-    ta.value = "Vane's waitlist is open.\n\nOne flat price: $12/mo. Every channel, every teammate. No per-channel fees.\n\nhttps://vaneapp.dev #buildinpublic";
+    ta.value = "Vane's waitlist is open.\n\nOne flat price from $9.99/mo. Every channel, every workspace. No per-channel fees.\n\nhttps://vaneapp.dev #buildinpublic";
 
     var chipsEl = $('#chips'), whenEl = $('#when'), countsEl = $('#counts');
     var tabsEl = $('#tabs'), pv = $('#pv');
@@ -1001,6 +1383,53 @@
     buildChips();
     buildWhen();
     update();
+
+    // ═════════════════════════════════════════════════════════
+    //                   VIDEO DEMOS (iPad)
+    // ═════════════════════════════════════════════════════════
+    var vScreen = $('#ipadScreen'), vEl = $('#demoVideo'), vNow = $('#demoNow'), vWrap = $('#ipadWrap');
+    var vIdleTitle = $('#demoIdleTitle'), vIdleText = $('#demoIdleText'), vItems = $$('.demo-item');
+
+    function demoPlay() {
+      var p = vEl.play();
+      if (p && p.catch) {
+        // some browsers refuse sound-on autoplay: retry muted, the controls let people unmute
+        p.catch(function () { vEl.muted = true; var q = vEl.play(); if (q && q.catch) q.catch(function () {}); });
+      }
+    }
+    function demoSelect(item) {
+      var src = item.getAttribute('data-demo-src');
+      vItems.forEach(function (b) { b.setAttribute('aria-pressed', String(b === item)); });
+      vNow.textContent = item.getAttribute('data-demo-title');
+      vScreen.classList.add('has-video', 'is-loading');
+      if (vEl.getAttribute('src') !== src) { vEl.setAttribute('src', src); vEl.load(); }
+      demoPlay();
+      // stacked (phone / tablet) layouts: keep the iPad in view after a pick
+      var r = vWrap.getBoundingClientRect();
+      if (window.innerWidth < 1024 && (r.top < 0 || r.bottom > window.innerHeight)) {
+        vWrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+    vItems.forEach(function (b) { b.addEventListener('click', function () { demoSelect(b); }); });
+
+    ['playing', 'canplay'].forEach(function (ev) {
+      vEl.addEventListener(ev, function () { vScreen.classList.remove('is-loading'); });
+    });
+    vEl.addEventListener('waiting', function () { vScreen.classList.add('is-loading'); });
+    vEl.addEventListener('error', function () {
+      if (!vEl.getAttribute('src')) return;
+      vScreen.classList.remove('has-video', 'is-loading');
+      vItems.forEach(function (b) { b.setAttribute('aria-pressed', 'false'); });
+      vIdleTitle.textContent = 'This video could not load';
+      vIdleText.textContent = 'Check your connection and pick a demo to try again.';
+      vEl.removeAttribute('src');
+    });
+    // stop playing when the iPad scrolls out of view
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) { if (!e.isIntersecting && !vEl.paused) vEl.pause(); });
+      }, { threshold: 0.15 }).observe(vScreen);
+    }
 
     // ═════════════════════════════════════════════════════════
     //                   SAVINGS CALCULATOR
