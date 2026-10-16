@@ -19,10 +19,12 @@ export interface Env {
   TELEGRAM_WEBHOOK_SECRET?: string; // proves webhook calls really come from Telegram
 
   TURNSTILE_SECRET_KEY?: string;    // Cloudflare Turnstile secret; bot check on sign-in / sign-up is enforced when set together with the site key
+  RESEND_API_KEY?: string;          // Resend API key; emailed 6-digit codes are enforced when set together with EMAIL_FROM
 
   /** Plain vars */
   APP_URL?: string;             // e.g. https://vaneapp.dev
   TURNSTILE_SITE_KEY?: string;  // Cloudflare Turnstile site key (public, rendered on /login)
+  EMAIL_FROM?: string;          // sender on a domain verified in Resend, e.g. "Vane <noreply@vaneapp.dev>"
   SYSTEM_BOT_USERNAME?: string; // shared bot username without @ (default: VanePublishBot)
 }
 
@@ -192,6 +194,23 @@ export interface UserFeatures {
   systemBot: string | null;
 }
 export type MeResponse = { ok: true; user: UserPublic; features: UserFeatures } | ApiError;
+
+// ───────────────────────── Email verification (6-digit codes) ─────────────────────────
+export type VerifyPurpose = 'signup' | 'login';
+
+/** Sent with HTTP 202 by register / login / resend once a code was emailed. No session exists yet. */
+export interface VerifyChallenge {
+  email: string;
+  purpose: VerifyPurpose;
+  /** seconds from now until the code stops working */
+  expiresIn: number;
+  /** seconds from now until a new code can be requested (relative, so a wrong clock on the device can't break the timer) */
+  resendIn: number;
+}
+
+export interface VerifyRequest { email: string; code: string; purpose: VerifyPurpose }
+
+export type VerifyStartResponse = { ok: true; verify: VerifyChallenge } | ApiError;
 
 // ───────────────────────── Posts list (stage 3) ─────────────────────────
 export interface PostPublic {

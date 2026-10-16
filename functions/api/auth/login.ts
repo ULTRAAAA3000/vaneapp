@@ -1,6 +1,14 @@
-/** POST /api/auth/login  { email, password, turnstileToken? } → 200 + session cookie */
+/**
+ * POST /api/auth/login  { email, password, turnstileToken? }
+ *   → 200 + session cookie
+ *   → 202 { ok, verify }, NO session yet   emailed codes on, and the account was not opened for more than
+ *                                          3 days: a code was mailed, POST /api/auth/verify finishes the sign-in
+ */
 import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env, UserPublic } from '../../../types';
+import { awayTooLong, lastSeen, markSeen } from '../lib/activity';
+import { issueCode } from '../lib/emailcode';
+import { emailConfigured } from '../lib/mail';
 import { burnPasswordCheck, verifyPassword } from '../lib/password';
 import { createSession, purgeExpired, SESSION_TTL_SECONDS, sessionCookie } from '../lib/session';
 import { bump, clear, clientIp, retryAfter } from '../lib/throttle';
@@ -55,8 +63,18 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
 
   await clear(env, emailKey);
+
+  // The password is right, but nobody has opened this account for more than 3 days: also prove the mailbox.
+  const codes = emailConfigured(env);
+  if (codes && awayTooLong(await lastSeen(env, user.id))) {
+    const issued = await issueCode(env, request, email, 'login');
+    if (!issued.ok) return issued.response;
+    return json({ ok: true, verify: issued.challenge }, 202);
+  }
+
   await purgeExpired(env);
   const token = await createSession(env, request, user.id);
+  if (codes) await markSeen(env, user.id);
   const out: UserPublic = { id: user.id, email: user.email, name: user.name, timezone: user.timezone };
   return json({ ok: true, user: out }, 200, { 'Set-Cookie': sessionCookie(request, token, SESSION_TTL_SECONDS) });
 };

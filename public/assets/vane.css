@@ -34,6 +34,8 @@ body {
 .field:hover { border-color: rgba(255,255,255,.18); }
 .field:focus { border-color: rgba(255,255,255,.4); box-shadow: 0 0 0 4px rgba(255,255,255,.06); }
 .field[aria-invalid="true"] { border-color: rgba(248,113,113,.7); }
+.field.otp { padding-left: calc(.95rem + .6em); text-align: center; font-family: 'Silkscreen', cursive; font-size: clamp(1.25rem, 6.5vw, 1.6rem); letter-spacing: .6em; } /* the 6-digit code: padding-left offsets the spacing after the last digit, so it looks centred */
+.field.otp::placeholder { letter-spacing: .6em; }
 input[type="datetime-local"]::-webkit-calendar-picker-indicator { filter: invert(1); opacity: .55; cursor: pointer; }
 label.lbl { display: block; margin-bottom: .45rem; font-size: .7rem; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; color: rgba(255,255,255,.42); }
 

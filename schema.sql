@@ -119,3 +119,28 @@ CREATE TABLE IF NOT EXISTS telegram_verifications (
 );
 CREATE INDEX IF NOT EXISTS idx_tgv_user ON telegram_verifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_tgv_lookup ON telegram_verifications(chat_id, code);
+
+-- ───────────────────────── Email verification (6-digit codes) ─────────────────────────
+-- A code is needed (a) to finish signing up and (b) to sign in after more than 3 days away.
+-- It is enforced only when RESEND_API_KEY + EMAIL_FROM are set (see README), and it lives in NEW
+-- tables: SQLite has no "ADD COLUMN IF NOT EXISTS", so touching `users` would break re-running this file.
+--   signup : the account does not exist yet. `payload` holds the pending sign-up and the users row is
+--            created only once the right code is entered.
+--   login  : the password was already right; the code is the second step.
+CREATE TABLE IF NOT EXISTS email_verifications (
+  email       TEXT    NOT NULL COLLATE NOCASE,
+  purpose     TEXT    NOT NULL CHECK (purpose IN ('signup', 'login')),
+  code_hash   TEXT    NOT NULL,                             -- HMAC of the code; the code itself is never stored
+  payload     TEXT,                                         -- signup only: JSON { passwordHash, name, timezone }
+  attempts    INTEGER NOT NULL DEFAULT 0,                   -- wrong guesses against the current code
+  created_at  INTEGER NOT NULL,                             -- when the current code was sent (resend cooldown)
+  expires_at  INTEGER NOT NULL,                             -- the code stops working here
+  PRIMARY KEY (email, purpose)
+);
+CREATE INDEX IF NOT EXISTS idx_email_ver_exp ON email_verifications(expires_at);
+
+-- When each user was last active, to spot accounts nobody has opened for more than 3 days.
+CREATE TABLE IF NOT EXISTS user_activity (
+  user_id       TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  last_seen_at  INTEGER NOT NULL
+);
