@@ -195,9 +195,8 @@
             <a href="#demo" class="rounded-full px-4 py-1.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">Channels</a>
             <a href="#api" class="rounded-full px-4 py-1.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">Developers</a>
             <a href="#pricing" class="rounded-full px-4 py-1.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">Pricing</a>
-            <a href="/login" data-auth-link class="rounded-full px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-white/10">Log in</a>
           </div>
-          <button type="button" data-focus-hero class="btn-grad self-stretch rounded-full px-5 text-sm font-medium text-white transition-opacity hover:opacity-90">Get started</button>
+          <a href="/login" data-auth-link class="btn-grad flex items-center self-stretch rounded-full px-5 text-sm font-medium text-white transition-opacity hover:opacity-90">Log in</a>
         </div>
 
         <button id="menuBtn" type="button" aria-label="Toggle menu" aria-expanded="false"
@@ -215,10 +214,9 @@
           <a href="#demo" class="m-link rounded-xl px-4 py-3.5 text-base font-medium text-white/80 hover:bg-white/10 hover:text-white">Channels</a>
           <a href="#api" class="m-link rounded-xl px-4 py-3.5 text-base font-medium text-white/80 hover:bg-white/10 hover:text-white">Developers</a>
           <a href="#pricing" class="m-link rounded-xl px-4 py-3.5 text-base font-medium text-white/80 hover:bg-white/10 hover:text-white">Pricing</a>
-          <a href="/login" data-auth-link class="m-link rounded-xl px-4 py-3.5 text-base font-semibold text-white hover:bg-white/10">Log in</a>
         </div>
         <div class="mt-auto px-6 pb-10">
-          <button id="drawerCta" type="button" data-focus-hero class="btn-grad w-full rounded-full py-3 text-sm font-medium text-white transition-opacity hover:opacity-90">Get started</button>
+          <a id="drawerCta" href="/login" data-auth-link class="btn-grad block w-full rounded-full py-3 text-center text-sm font-medium text-white transition-opacity hover:opacity-90">Log in</a>
         </div>
       </aside>
 
@@ -232,20 +230,9 @@
             LinkedIn, Threads, Telegram &amp; Bluesky in one click, with AI and an API built in.
           </h2>
 
-          <div class="mt-6 sm:mt-8">
-            <form class="wl-form flex flex-col gap-3 sm:inline-flex sm:flex-row sm:items-center sm:gap-0 sm:rounded-full sm:bg-white sm:p-1.5" novalidate data-tone="hero" id="heroForm">
-              <label for="heroEmail" class="sr-only">Email</label>
-              <input id="heroEmail" name="email" type="email" inputmode="email" autocomplete="email" required
-                placeholder="Type your email"
-                class="rounded-full bg-white px-5 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none sm:w-64 sm:rounded-none sm:bg-transparent sm:px-4 sm:py-2" />
-              <input type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" class="absolute -left-[9999px] h-0 w-0 opacity-0" />
-              <button type="submit"
-                class="btn-grad flex items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70 sm:py-2.5">
-                <span class="wl-spin spinner hidden"></span>
-                <span class="wl-label">Get started</span>
-              </button>
-            </form>
-            <div class="wl-msg mt-3 min-h-[1.5rem] text-sm" role="status" aria-live="polite"></div>
+          <div class="mt-6 flex flex-col items-start gap-3 sm:mt-8 sm:flex-row sm:items-center sm:gap-4">
+            <a href="/login?mode=register" data-register-link class="btn-grad inline-flex w-full items-center justify-center rounded-full px-7 py-3.5 text-sm font-medium text-white transition-opacity hover:opacity-90 sm:w-auto sm:text-base">Get started</a>
+            <p data-register-note class="text-sm text-[#010101]/60 lg:text-white/60">Start free, no card required.</p>
           </div>
         </div>
 
@@ -973,7 +960,7 @@ curl -X POST https://vaneapp.dev/api/posts \
 
     $('#year').textContent = new Date().getFullYear();
 
-    // ───────────────── signed-in state: "Log in" → "Dashboard" ─────────────────
+    // ───────────────── signed-in state: "Log in" → "Dashboard", "Get started" → "Open dashboard" ─────────────────
     // The session cookie is HttpOnly, so we ask the API. The last known answer is remembered to avoid a flash.
     var AUTH_HINT = 'vane_signed_in';
     function showAuth(on) {
@@ -981,6 +968,11 @@ curl -X POST https://vaneapp.dev/api/posts \
         a.textContent = on ? 'Dashboard' : 'Log in';
         a.setAttribute('href', on ? '/app' : '/login');
       });
+      $$('[data-register-link]').forEach(function (a) {
+        a.textContent = on ? 'Open dashboard' : 'Get started';
+        a.setAttribute('href', on ? '/app' : '/login?mode=register');
+      });
+      $$('[data-register-note]').forEach(function (n) { n.classList.toggle('hidden', on); });
     }
     function checkAuth() {
       fetch('/api/auth/me', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
@@ -995,12 +987,6 @@ curl -X POST https://vaneapp.dev/api/posts \
     window.addEventListener('pageshow', function (e) { if (e.persisted) checkAuth(); }); // back button after sign-out
 
     // ───────────────── scroll helpers ─────────────────
-    $$('[data-focus-hero]').forEach(function (b) {
-      b.addEventListener('click', function () {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        setTimeout(function () { $('#heroEmail').focus({ preventScroll: true }); }, 350);
-      });
-    });
     $$('[data-goto-join]').forEach(function (b) {
       b.addEventListener('click', function () {
         $('#join').scrollIntoView({ behavior: 'smooth', block: 'center' });
