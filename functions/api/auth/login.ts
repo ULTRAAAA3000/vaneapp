@@ -1,10 +1,11 @@
-/** POST /api/auth/login  { email, password } → 200 + session cookie */
+/** POST /api/auth/login  { email, password, turnstileToken? } → 200 + session cookie */
 import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env, UserPublic } from '../../../types';
 import { burnPasswordCheck, verifyPassword } from '../lib/password';
 import { createSession, purgeExpired, SESSION_TTL_SECONDS, sessionCookie } from '../lib/session';
 import { bump, clear, clientIp, retryAfter } from '../lib/throttle';
 import { crossOriginViolation, fail, isRecord, json, methodNotAllowed, readJson } from '../lib/http';
+import { requireHuman } from '../lib/turnstile';
 
 const WINDOW = 15 * 60;
 const MAX_FAILS_PER_EMAIL = 8;
@@ -18,6 +19,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
   if (!isRecord(body)) return fail(400, 'Body must be a JSON object');
+
+  // First line of defence against bots. Checked before any throttle or DB work, so bots can neither
+  // burn an account's login attempts nor make us hash passwords.
+  const human = await requireHuman(env, request, body.turnstileToken);
+  if (human) return human;
 
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
   const password = typeof body.password === 'string' ? body.password : '';

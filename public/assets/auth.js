@@ -59,6 +59,31 @@
     $('meterText').textContent = s < 0 ? 'At least 8 characters.' : WORDS[s];
   });
 
+  // ── Turnstile (bot protection): active only when the server reports a site key
+  var ts = { key: null, id: null, token: '' };
+  function tsReset() {                       // a token works once, so fetch a fresh one after every attempt
+    ts.token = '';
+    if (ts.id !== null && window.turnstile) window.turnstile.reset(ts.id);
+  }
+  Vane.api('GET', '/api/auth/config', undefined, { noRedirect: true }).then(function (r) {
+    if (!r.ok || !r.data.turnstileSiteKey) return;
+    ts.key = r.data.turnstileSiteKey;
+    $('tsBox').classList.remove('hidden');
+    var s = document.createElement('script');
+    s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    s.async = true;
+    s.onload = function () {
+      ts.id = window.turnstile.render('#tsBox', {
+        sitekey: ts.key, theme: 'dark', size: 'flexible',
+        callback: function (t) { ts.token = t; hideError(); },
+        'expired-callback': function () { ts.token = ''; },
+        'error-callback': function () { ts.token = ''; }
+      });
+    };
+    s.onerror = function () { showError('Could not load the human check. Turn off ad-blockers for this page and reload.'); };
+    document.head.appendChild(s);
+  });
+
   // ── errors
   function showError(msg, field) {
     errBox.textContent = msg;
@@ -84,9 +109,11 @@
     if (!EMAIL_RE.test(em)) return showError('Enter a valid email address.', email);
     if (!pw) return showError('Enter your password.', password);
     if (mode === 'register' && pw.length < 8) return showError('Password must be at least 8 characters.', password);
+    if (ts.key && !ts.token) return showError('Please complete the human check.');
 
     setLoading(true);
     var body = { email: em, password: pw };
+    if (ts.key) body.turnstileToken = ts.token;
     if (mode === 'register') {
       body.name = nameInput.value.trim();
       try { body.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (err) { /* server falls back to UTC */ }
@@ -94,6 +121,7 @@
     var r = await Vane.api('POST', mode === 'register' ? '/api/auth/register' : '/api/auth/login', body, { noRedirect: true });
     if (r.ok) { label.textContent = 'Redirecting…'; Vane.go('/app'); return; }
     setLoading(false);
+    tsReset();
     showError(r.error, r.status === 409 ? email : (r.status === 401 ? password : null));
   });
 })();
