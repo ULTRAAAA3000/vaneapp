@@ -341,9 +341,9 @@
     <!-- ───────────── VIDEO ENGINE DEMO (iPad on YouTube + mini dashboard) ───────────── -->
     <section id="videos" class="relative px-5 pb-20 sm:px-8 sm:pb-28 lg:px-12">
       <div class="mx-auto max-w-6xl">
-        <div class="grid grid-cols-[minmax(0,1fr)] items-start gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-14">
+        <div class="grid grid-cols-[minmax(0,1fr)] items-start gap-10 lg:grid-cols-[minmax(0,6fr)_minmax(0,5fr)] lg:gap-14">
           <!-- copy -->
-          <div class="reveal lg:sticky lg:top-8">
+          <div class="reveal lg:order-last lg:sticky lg:top-8">
             <span class="glass-d inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium text-white/70">
               Video Engine
               <span class="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/55">Coming soon</span>
@@ -363,8 +363,8 @@
             </div>
           </div>
 
-          <!-- iPad + mini dashboard -->
-          <div class="reveal">
+          <!-- iPad + mini dashboard (left on desktop: zigzag with the phone demo above) -->
+          <div class="reveal lg:order-first">
             <div class="float mx-auto w-full" style="max-width:600px">
               <div class="ipad">
                 <div class="ipad-screen">
