@@ -20,8 +20,11 @@ import type { D1PreparedStatement, PagesFunction } from '@cloudflare/workers-typ
 import type { ChannelRow, ChannelType, Env } from '../../../types';
 import { requireUser } from '../lib/auth';
 import { fail, isRecord, json, readJson, UUID_RE } from '../lib/http';
+import { mediaKindFromUrl } from '../lib/media';
 import { postUnits } from '../lib/plans';
+import { graphemeLength, utf8Length } from '../lib/text';
 import { countUiPosts } from '../lib/usage';
+import { BLUESKY_TEXT_LIMIT, BLUESKY_TEXT_MAX_BYTES } from '../channels/bluesky';
 import { isValidMediaUrl, TELEGRAM_CAPTION_LIMIT } from '../channels/telegram';
 
 const MAX_CHANNELS = 20;
@@ -33,6 +36,9 @@ const CONTENT_LIMIT: Record<ChannelType, number> = {
   x: 280,
   linkedin: 3000,
   webhook: 10_000,
+  bluesky: BLUESKY_TEXT_LIMIT,   // counted in graphemes, see below
+  mastodon: 500,
+  threads: 500,
 };
 const ABSOLUTE_MAX_CONTENT = 10_000;
 
@@ -116,9 +122,14 @@ export async function validateCreatePost(env: Env, userId: string, body: unknown
   // ── per-platform limits
   for (const ch of owned) {
     const limit = ch.type === 'telegram' && mediaUrl ? TELEGRAM_CAPTION_LIMIT : CONTENT_LIMIT[ch.type];
-    if (content.length > limit) {
+    const length = ch.type === 'bluesky' ? graphemeLength(content) : content.length;   // Bluesky counts what a person sees: an emoji is 1
+    if (length > limit) {
       const why = ch.type === 'telegram' && mediaUrl ? ' when the post has an image' : '';
-      return bad(fail(400, `Text is too long for ${ch.type}${why}: ${content.length}/${limit} characters`));
+      return bad(fail(400, `Text is too long for ${ch.type}${why}: ${length}/${limit} characters`));
+    }
+    if (ch.type === 'bluesky') {
+      if (utf8Length(content) > BLUESKY_TEXT_MAX_BYTES) return bad(fail(400, 'Text is too long for bluesky: too many emoji or symbols'));
+      if (mediaUrl && mediaKindFromUrl(mediaUrl) === 'video') return bad(fail(400, 'Bluesky posts with video are not supported yet. Attach an image or remove the media.'));
     }
   }
 

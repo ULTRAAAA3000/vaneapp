@@ -16,6 +16,7 @@
     "cron:secret-bot": "wrangler secret put SYSTEM_BOT_TOKEN --config worker/wrangler.toml",
     "plan:set": "node scripts/set-plan.mjs",
     "test:api": "node scripts/api-e2e.mjs",
+    "db:migrate:networks": "wrangler d1 execute vane-db --remote --file=./migrations/0001-channel-types.sql",
     "check:integrations": "node scripts/check-integrations.mjs"
   },
   "devDependencies": {

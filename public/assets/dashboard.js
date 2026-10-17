@@ -54,7 +54,7 @@
       icon: { fill: true, d: 'M12.186 24h-.007c-3.581-.024-6.334-1.205-8.184-3.509C2.35 18.44 1.5 15.586 1.472 12.01v-.017c.03-3.579.879-6.43 2.525-8.482C5.845 1.205 8.6.024 12.18 0h.014c2.746.02 5.043.725 6.826 2.098 1.677 1.29 2.858 3.13 3.509 5.467l-2.04.569c-1.104-3.96-3.898-5.984-8.304-6.015-2.91.022-5.11.936-6.54 2.717C4.307 6.504 3.616 8.914 3.589 12c.027 3.086.718 5.496 2.057 7.164 1.43 1.783 3.631 2.698 6.54 2.717 2.623-.02 4.358-.631 5.8-2.045 1.647-1.613 1.618-3.593 1.09-4.798-.31-.71-.873-1.3-1.634-1.75-.192 1.352-.622 2.446-1.284 3.272-.886 1.102-2.14 1.704-3.73 1.79-1.202.065-2.361-.218-3.259-.801-1.063-.689-1.685-1.74-1.752-2.964-.065-1.19.408-2.285 1.33-3.082.88-.76 2.119-1.207 3.583-1.291a13.853 13.853 0 0 1 3.02.142c-.126-.742-.375-1.332-.75-1.757-.513-.586-1.308-.883-2.359-.89h-.029c-.844 0-1.992.232-2.721 1.32L7.734 7.847c.98-1.454 2.568-2.256 4.478-2.256h.044c3.194.02 5.097 1.975 5.287 5.388.108.046.216.094.321.142 1.49.7 2.58 1.761 3.154 3.07.797 1.82.871 4.79-1.548 7.158-1.85 1.81-4.094 2.628-7.277 2.65Zm1.003-11.69c-.242 0-.487.007-.739.021-1.836.103-2.98.946-2.916 2.143.067 1.256 1.452 1.839 2.784 1.767 1.224-.065 2.818-.543 3.086-3.71a10.5 10.5 0 0 0-2.215-.221z' }
     },
     bluesky: {
-      name: 'Bluesky', ready: false, blurb: 'Your Bluesky account', setup: 'Choose which account Vane should publish to.',
+      name: 'Bluesky', ready: true, blurb: 'Your Bluesky account', setup: 'Sign in with an app password. It never opens your main account.',
       tile: 'bg-cyan-400/15 text-cyan-300', limit: 300, bg: '#161e27', hint: 'Bluesky counts graphemes, so an emoji is one character.',
       icon: { fill: true, d: 'M12 10.8c-1.087-2.114-4.046-6.053-6.798-7.995C2.566.944 1.561 1.266.902 1.565.139 1.908 0 3.08 0 3.768c0 .69.378 5.65.624 6.479.815 2.736 3.713 3.66 6.383 3.364.136-.02.275-.039.415-.056-.138.022-.276.04-.415.056-3.912.58-7.387 2.005-2.83 7.078 5.013 5.19 6.87-1.113 7.823-4.308.953 3.195 2.05 9.271 7.733 4.308 4.267-4.308 1.172-6.498-2.74-7.078a8.741 8.741 0 0 1-.415-.056c.14.017.279.036.415.056 2.67.297 5.568-.628 6.383-3.364.246-.828.624-5.79.624-6.478 0-.69-.139-1.861-.902-2.206-.659-.298-1.664-.62-4.3 1.24C16.046 4.748 13.087 8.687 12 10.8z' }
     }
@@ -227,7 +227,7 @@
             '<div class="truncate text-sm font-medium">' + esc(c.name) + '</div>' +
             '<div class="mt-0.5 text-xs text-white/40">Added ' + esc(new Date(c.createdAt * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })) + '</div>' +
           '</div>' +
-          '<button type="button" data-act="test" data-id="' + esc(c.id) + '" class="btn btn-ghost btn-sm shrink-0">Send test</button>' +
+          (c.platform === 'telegram' ? '<button type="button" data-act="test" data-id="' + esc(c.id) + '" class="btn btn-ghost btn-sm shrink-0">Send test</button>' : '') +
           (armed
             ? '<button type="button" data-act="del" data-id="' + esc(c.id) + '" class="btn btn-danger btn-sm shrink-0">Remove?</button>'
             : '<button type="button" data-act="del" data-id="' + esc(c.id) + '" class="icon-btn shrink-0" aria-label="Remove ' + esc(c.name) + '">' + ICON.trash + '</button>') +
@@ -446,6 +446,35 @@
     renderAll();
   });
 
+  // ---- Bluesky: handle + app password
+  $('bPassToggle').addEventListener('click', function () {
+    var show = $('bPass').type === 'password';
+    $('bPass').type = show ? 'text' : 'password';
+    this.textContent = show ? 'Hide' : 'Show';
+  });
+  $('bForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var btn = $('bSubmit');
+    hideErr($('bErr'));
+
+    var handle = $('bHandle').value.trim().replace(/^@/, '');
+    var pass = $('bPass').value.trim();
+    var name = $('bName').value.trim() || handle;
+    if (!handle) return showErr($('bErr'), $('bForm'), 'Enter your Bluesky handle, like alice.bsky.social.');
+    if (!pass) return showErr($('bErr'), $('bForm'), 'Paste the app password you created in Bluesky.');
+
+    btn.disabled = true; $('bSpin').classList.remove('hidden'); $('bLabel').textContent = 'Checking with Bluesky…';
+    var r = await Vane.api('POST', '/api/channels/add', { platform: 'bluesky', name: name, credentials: { identifier: handle, appPassword: pass } });
+    btn.disabled = false; $('bSpin').classList.add('hidden'); $('bLabel').textContent = 'Verify & connect';
+
+    if (!r.ok) return showErr($('bErr'), $('bForm'), r.error);
+    closeConnect();
+    Vane.toast('ok', 'Connected to ' + (r.data.bluesky && r.data.bluesky.handle ? '@' + r.data.bluesky.handle : 'Bluesky') + '.');
+    S.selected.add(r.data.channel.id);
+    await loadChannels();
+    renderAll();
+  });
+
   // ---- steps: pick a network, then set it up (each network's setup is the block with its data-step)
   function renderNetGrid() {
     $('netGrid').innerHTML = NET_ORDER.map(function (k) {
@@ -472,7 +501,7 @@
   function openStep(step) {
     showStep(step);
     setTimeout(function () {
-      var first = step === 'telegram' ? ($('panelQuick').classList.contains('hidden') ? $('cName') : $('qChat')) : dlg.querySelector('.net-card:not(:disabled)');
+      var first = step === 'telegram' ? ($('panelQuick').classList.contains('hidden') ? $('cName') : $('qChat')) : step === 'bluesky' ? $('bHandle') : dlg.querySelector('.net-card:not(:disabled)');
       if (first) first.focus();
     }, 60);
   }
@@ -486,6 +515,7 @@
   function openConnect(net) {
     $('connectForm').reset(); hideErr($('cErr'));
     $('cToken').type = 'password'; $('cTokenToggle').textContent = 'Show';
+    $('bForm').reset(); hideErr($('bErr')); $('bPass').type = 'password'; $('bPassToggle').textContent = 'Show';
     qReset(); $('qChat').value = '';
 
     $('qBot').textContent = S.systemBot;
@@ -500,14 +530,15 @@
   }
   function closeConnect() {
     qStopTimers();
-    $('cToken').value = ''; // don't leave the secret sitting in the DOM
+    $('cToken').value = ''; $('bPass').value = ''; // don't leave the secrets sitting in the DOM
     if (typeof dlg.close === 'function') dlg.close(); else dlg.removeAttribute('open');
   }
   $('connectBtn').addEventListener('click', function () { openConnect(); });
   $('connectClose').addEventListener('click', closeConnect);
   $('cCancel').addEventListener('click', closeConnect);
+  $('bCancel').addEventListener('click', closeConnect);
   dlg.addEventListener('click', function (e) { if (e.target === dlg) closeConnect(); });
-  dlg.addEventListener('close', function () { $('cToken').value = ''; qStopTimers(); });
+  dlg.addEventListener('close', function () { $('cToken').value = ''; $('bPass').value = ''; qStopTimers(); });
 
   // ───────────────────────── composer ─────────────────────────
   var textEl = $('text'), whenEl = $('when');

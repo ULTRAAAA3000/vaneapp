@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/assets/vane.css?v=20261016" />
+  <link rel="stylesheet" href="/assets/vane.css?v=20261017" />
 </head>
 
 <body class="min-h-screen overflow-x-hidden bg-[#070708]">
@@ -294,11 +294,47 @@
 
         <p id="connNote" class="mt-5 text-center text-xs text-white/30"></p>
       </div>
+
+      <div data-step="bluesky" class="hidden">
+        <ol class="mt-6 space-y-3 text-sm text-white/65">
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>In Bluesky open <b class="font-semibold text-white">Settings → Privacy and security → App passwords</b> and add a new one (for example “Vane”).</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Paste your handle and that password below. It looks like <code class="rounded bg-white/10 px-1.5 py-0.5 text-xs">xxxx-xxxx-xxxx-xxxx</code>.</span></li>
+        </ol>
+        <p class="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-xs leading-relaxed text-white/50">Never enter your normal password. An app password can only post for you, can't change your account, and you can delete it in Bluesky at any time to disconnect Vane.</p>
+
+        <form id="bForm" class="mt-6 space-y-4" novalidate autocomplete="off">
+          <div>
+            <label for="bHandle" class="lbl">Handle</label>
+            <input id="bHandle" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="alice.bsky.social" class="field font-mono !text-[13px]" />
+          </div>
+          <div>
+            <div class="flex items-center justify-between">
+              <label for="bPass" class="lbl !mb-0">App password</label>
+              <button type="button" id="bPassToggle" class="text-xs text-white/45 transition-colors hover:text-white">Show</button>
+            </div>
+            <input id="bPass" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="xxxx-xxxx-xxxx-xxxx" class="field mt-2 font-mono !text-[13px]" />
+          </div>
+          <div>
+            <label for="bName" class="lbl">Display name</label>
+            <input id="bName" type="text" maxlength="80" placeholder="Same as the handle" class="field" />
+          </div>
+
+          <div id="bErr" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
+
+          <div class="flex items-center justify-end gap-3 pt-1">
+            <button type="button" id="bCancel" class="btn btn-ghost">Cancel</button>
+            <button type="submit" id="bSubmit" class="btn btn-white">
+              <span id="bSpin" class="spinner spinner-dark hidden"></span>
+              <span id="bLabel">Verify &amp; connect</span>
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   </dialog>
 
   <script src="/assets/vane.js?v=20261015"></script>
   <script src="/assets/media-picker.js?v=20261015"></script>
-  <script src="/assets/dashboard.js?v=20261016"></script>
+  <script src="/assets/dashboard.js?v=20261017"></script>
 </body>
 </html>
