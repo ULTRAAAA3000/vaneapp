@@ -75,6 +75,83 @@ npm run cron:dev                 # separate terminal; trigger a tick: curl "http
 - A post more than 2 hours late is marked failed instead of being published stale.
 - If `ENCRYPTION_KEY` is missing in the worker, it touches nothing.
 
+## Public API: keys, plans and quotas
+
+Spec: `ECONOMY_AND_FINANCE.md` §2 and §6, `SECURITY_ARCHITECTURE.md` §2-3. Built in parts; **part 1 (this) is the engine**.
+
+| Part | What | Status |
+|---|---|---|
+| 1 | Tables, key generation and hashing, key auth, scopes, test mode, quota engine with 402, `/api/v1/*`, usage | done |
+| 2 | "API" screen in the dashboard: create / revoke keys, quota meter | next |
+| 3 | OpenAPI spec, `Idempotency-Key` (safe retries from Make / Zapier), webhooks | |
+| 4 | Payments (Monobank, USDT/USDC) that grant the plan and issue keys automatically | |
+| 5 | AI endpoints on Workers AI (reformat, tone, hooks) with their own metering | |
+
+> **After pulling this update run `npm run db:remote`** (four new tables: `subscriptions`, `api_keys`, `usage_counters`, `usage_logs`; safe to re-run). Until then the dashboard keeps working, its posts are simply not counted yet, but keys and `/api/v1` answer with errors.
+
+### Keys
+
+| Key | Does |
+|---|---|
+| `cpost_live_…` | real posts, counted against the plan's API quota |
+| `cpost_test_…` | **simulated**: validated like a live request and answered with `"test": true`, but nothing is posted, saved or counted. Allowed on every plan |
+| `cvid_live_…` / `cvid_test_…` | Video Engine (format reserved, endpoints come with that product) |
+
+Each key is 24 random characters (`crypto.getRandomValues`, no modulo bias) and unique to one account. Only its **SHA-256** is stored; the key is shown **once**, when it is created. A key never opens dashboard routes, and a key cannot mint other keys. Up to 10 active keys per account, 100 requests a minute per key (`429` + `Retry-After`).
+
+Until the dashboard screen exists, create a key with a session cookie or a dev JWT (`node scripts/dev-token.mjs <JWT_SECRET> <userId>`):
+
+```
+curl -X POST https://vaneapp.dev/api/keys -H "Authorization: Bearer <jwt>" -H "Content-Type: application/json" -d '{"name":"Make.com"}'
+# → { "ok": true, "key": { … }, "secret": "cpost_live_…" }     copy "secret" now, it is never shown again
+```
+
+### Endpoints (`Authorization: Bearer <key>`)
+
+| | |
+|---|---|
+| `GET /api/v1/me` | is the key valid, which plan (the "test connection" call for Make / Zapier) |
+| `GET /api/v1/usage` | plan, quota, what is left, what extra posts cost |
+| `GET /api/v1/channels` | my channels; their `id`s go into `channelIds` |
+| `POST /api/v1/posts` | schedule a post: `{ "content", "channelIds": [..], "scheduledAt", "mediaUrl"? }` (**metered**) |
+| `GET /api/v1/posts?view=upcoming\|history` | list |
+| `GET /api/v1/posts/:id` | one post's status (`scheduled` → `processing` → `sent` / `failed` / `cancelled`) |
+| `DELETE /api/v1/posts/:id` | cancel while still `scheduled` |
+
+Every metered response carries `X-Vane-Quota-Limit`, `X-Vane-Quota-Remaining` and `X-Vane-Quota-Reset`. Errors are `{ "ok": false, "error": "…", "code": "…" }`; branch on `code`:
+`invalid_api_key` (401) · `wrong_key_scope` (403) · `api_not_in_plan` (403) · `quota_exceeded` (402) · `rate_limited` (429) · `too_many_keys` (409).
+
+Make.com: *HTTP → Make a request*, URL `https://vaneapp.dev/api/v1/posts`, header `Authorization: Bearer <key>`, body type *Raw / JSON*. A scenario that runs on a key that is out of quota gets `402`, which Make shows as an error you can route.
+
+### How the quota works
+
+| Plan | Quota | Over it |
+|---|---|---|
+| Free Trial | **30 posts in total** (dashboard + API share it, never resets) | stops, `402`, never charged |
+| Developer API | 180 API posts a month (UTC month) | `402`, or $0.03 / post with overage on |
+| Pro Dashboard | 1,000 dashboard posts; **no API** until the Add-on | live keys get `403 api_not_in_plan` |
+| Pro + API Add-on | 1,000 dashboard + 180 API posts a month | `402`, or $0.015 / post with overage on |
+
+- **1 request = 1 post**, however many channels it targets. The unit rule is one function: `postUnits` in `functions/api/lib/plans.ts`.
+- The quota is taken by **one conditional upsert** on `usage_counters`, so parallel requests can never both take the last unit (the test fires 12 at 5 remaining: exactly 5 pass).
+- A request that fails validation costs nothing. If saving fails after the quota was taken, it is given back. Cancelling a post does not refund it.
+- A paid plan whose period ended (or that is not `active`) falls back to the Free Trial limits until it is renewed.
+- Overage billing is **off by default** (`subscriptions.overage_enabled = 0`): out of quota means `402`, never a surprise charge.
+- Dashboard posts are **counted** (they share the Free Trial total) but not blocked yet; that comes with the dashboard part.
+- All prices and limits live in `functions/api/lib/plans.ts`.
+
+### Giving an account a plan by hand (until payments do it)
+
+```
+npm run plan:set -- me@example.com api                       # Developer API for 30 days
+npm run plan:set -- me@example.com pro --addon --overage     # Pro + API Add-on, overage billing on
+npm run plan:set -- me@example.com pro --addon --forever --remote   # production, no expiry
+```
+
+### Test it
+
+`npm run db:local && npm run dev` in one terminal, `npm run test:api` in another: 66 checks that walk through keys, scopes, test mode, the Free Trial, every plan, the parallel-request race, overage, revoking and the rate limit. It only schedules posts for a placeholder channel; nothing is sent anywhere.
+
 ## Landing video demo
 
 The "Publish videos like you publish posts" section (`#videos` in `public/index.html`) is an iPad showing a YouTube-style channel feed plus a mini dashboard under it. Typing a title and pressing "Publish video" adds a non-clickable card to the feed (up to 3 uploads, then "Reset demo"). It is a pure front-end simulation: the filler videos are in `YT_OLD` and the upload limit is `YT_MAX` in the page script.

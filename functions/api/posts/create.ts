@@ -16,10 +16,12 @@
  * `media_keys` holds either R2 object keys or external https URLs; the sender tells them
  * apart by the "https://" prefix.
  */
-import type { PagesFunction } from '@cloudflare/workers-types';
+import type { D1PreparedStatement, PagesFunction } from '@cloudflare/workers-types';
 import type { ChannelRow, ChannelType, Env } from '../../../types';
 import { requireUser } from '../lib/auth';
 import { fail, isRecord, json, readJson, UUID_RE } from '../lib/http';
+import { postUnits } from '../lib/plans';
+import { countUiPosts } from '../lib/usage';
 import { isValidMediaUrl, TELEGRAM_CAPTION_LIMIT } from '../channels/telegram';
 
 const MAX_CHANNELS = 20;
@@ -49,90 +51,130 @@ export function parseScheduledAt(v: unknown): number | null {
   return null;
 }
 
-export const handleCreatePost: PagesFunction<Env> = async ({ request, env }) => {
-  const auth = await requireUser(request, env);
-  if (!auth.ok) return auth.response;
+/** A request that passed every check. */
+export interface ValidatedPost {
+  content: string;
+  mediaUrl: string | null;
+  /** the channels it will be delivered to: all of them are mine and active */
+  channels: Pick<ChannelRow, 'id' | 'type'>[];
+  /** unix seconds, in the future */
+  scheduledAt: number;
+  now: number;
+}
 
-  const parsed = await readJson(request);
-  if (!parsed.ok) return parsed.response;
-  const body = parsed.data;
-  if (!isRecord(body)) return fail(400, 'Body must be a JSON object');
+export type ValidationResult = { ok: true; v: ValidatedPost } | { ok: false; response: Response };
+
+/**
+ * Everything that can be wrong with a "create post" body, shared by the dashboard route and the public API
+ * (`POST /api/v1/posts`), so both always accept and reject exactly the same things.
+ */
+export async function validateCreatePost(env: Env, userId: string, body: unknown): Promise<ValidationResult> {
+  const bad = (response: Response): ValidationResult => ({ ok: false, response });
+  if (!isRecord(body)) return bad(fail(400, 'Body must be a JSON object'));
 
   // ── content
   const content = typeof body.content === 'string' ? body.content.trim() : '';
-  if (!content) return fail(400, 'content is required');
-  if (content.length > ABSOLUTE_MAX_CONTENT) return fail(400, `content is too long (max ${ABSOLUTE_MAX_CONTENT})`);
+  if (!content) return bad(fail(400, 'content is required'));
+  if (content.length > ABSOLUTE_MAX_CONTENT) return bad(fail(400, `content is too long (max ${ABSOLUTE_MAX_CONTENT})`));
 
   // ── mediaUrl (optional)
   let mediaUrl: string | null = null;
   if (body.mediaUrl !== undefined && body.mediaUrl !== null && body.mediaUrl !== '') {
-    if (!isValidMediaUrl(body.mediaUrl)) return fail(400, 'mediaUrl must be a public https URL');
+    if (!isValidMediaUrl(body.mediaUrl)) return bad(fail(400, 'mediaUrl must be a public https URL'));
     mediaUrl = body.mediaUrl;
   }
 
   // ── channelIds
   if (!Array.isArray(body.channelIds) || body.channelIds.length === 0) {
-    return fail(400, 'channelIds must be a non-empty array');
+    return bad(fail(400, 'channelIds must be a non-empty array'));
   }
   const channelIds = [...new Set(body.channelIds)];
-  if (channelIds.length > MAX_CHANNELS) return fail(400, `You can target at most ${MAX_CHANNELS} channels at once`);
+  if (channelIds.length > MAX_CHANNELS) return bad(fail(400, `You can target at most ${MAX_CHANNELS} channels at once`));
   if (!channelIds.every((x): x is string => typeof x === 'string' && UUID_RE.test(x))) {
-    return fail(400, 'channelIds must contain channel ids (uuid)');
+    return bad(fail(400, 'channelIds must contain channel ids (uuid)'));
   }
 
   // ── scheduledAt: must be in the future
   const scheduledAt = parseScheduledAt(body.scheduledAt);
   if (scheduledAt === null) {
-    return fail(400, 'scheduledAt must be an ISO-8601 time with a timezone (e.g. 2026-10-20T09:00:00Z) or unix seconds');
+    return bad(fail(400, 'scheduledAt must be an ISO-8601 time with a timezone (e.g. 2026-10-20T09:00:00Z) or unix seconds'));
   }
   const now = Math.floor(Date.now() / 1000);
-  if (scheduledAt <= now) return fail(400, 'scheduledAt must be in the future');
-  if (scheduledAt > now + MAX_HORIZON_SECONDS) return fail(400, 'scheduledAt can be at most one year ahead');
+  if (scheduledAt <= now) return bad(fail(400, 'scheduledAt must be in the future'));
+  if (scheduledAt > now + MAX_HORIZON_SECONDS) return bad(fail(400, 'scheduledAt can be at most one year ahead'));
 
   // ── ownership: every channel must be MINE and active (one query, no per-id round trips)
   const placeholders = channelIds.map((_, i) => `?${i + 2}`).join(',');
   const { results: owned } = await env.DB
     .prepare(`SELECT id, type FROM channels WHERE user_id = ?1 AND is_active = 1 AND id IN (${placeholders})`)
-    .bind(auth.userId, ...channelIds)
+    .bind(userId, ...channelIds)
     .all<Pick<ChannelRow, 'id' | 'type'>>();
 
   // Foreign, inactive and non-existent ids all produce the same answer: no id probing.
-  if (owned.length !== channelIds.length) return fail(404, 'One or more channels were not found');
+  if (owned.length !== channelIds.length) return bad(fail(404, 'One or more channels were not found'));
 
   // ── per-platform limits
   for (const ch of owned) {
     const limit = ch.type === 'telegram' && mediaUrl ? TELEGRAM_CAPTION_LIMIT : CONTENT_LIMIT[ch.type];
     if (content.length > limit) {
       const why = ch.type === 'telegram' && mediaUrl ? ' when the post has an image' : '';
-      return fail(400, `Text is too long for ${ch.type}${why}: ${content.length}/${limit} characters`);
+      return bad(fail(400, `Text is too long for ${ch.type}${why}: ${content.length}/${limit} characters`));
     }
   }
 
-  // ── write
+  return { ok: true, v: { content, mediaUrl, channels: owned, scheduledAt, now } };
+}
+
+export type InsertResult =
+  | { ok: true; groupId: string; posts: { id: string; channelId: string; status: 'scheduled' }[] }
+  | { ok: false };
+
+/**
+ * Writes one row per channel (all sharing a group_id) in a single D1 batch: all-or-nothing.
+ * `extra` builds statements that must succeed or fail together with the posts (e.g. the usage log row).
+ */
+export async function insertPostGroup(
+  env: Env,
+  userId: string,
+  v: ValidatedPost,
+  extra: (groupId: string) => D1PreparedStatement[] = () => [],
+): Promise<InsertResult> {
   const groupId = crypto.randomUUID();
-  const mediaKeys = JSON.stringify(mediaUrl ? [mediaUrl] : []);
+  const mediaKeys = JSON.stringify(v.mediaUrl ? [v.mediaUrl] : []);
   const insert = env.DB.prepare(
     `INSERT INTO posts (id, group_id, user_id, channel_id, content, media_keys, scheduled_at, status, created_at, updated_at)
      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'scheduled', ?8, ?8)`,
   );
-  const posts = owned.map((ch) => ({ id: crypto.randomUUID(), channelId: ch.id }));
+  const posts = v.channels.map((ch) => ({ id: crypto.randomUUID(), channelId: ch.id, status: 'scheduled' as const }));
 
   try {
-    await env.DB.batch(
-      posts.map((p) => insert.bind(p.id, groupId, auth.userId, p.channelId, content, mediaKeys, scheduledAt, now)),
-    );
+    await env.DB.batch([
+      ...posts.map((p) => insert.bind(p.id, groupId, userId, p.channelId, v.content, mediaKeys, v.scheduledAt, v.now)),
+      ...extra(groupId),
+    ]);
   } catch (err) {
     console.error('post insert failed', err instanceof Error ? err.message : 'unknown');
-    return fail(500, 'Could not schedule the post. Please try again.');
+    return { ok: false };
   }
+  return { ok: true, groupId, posts };
+}
 
-  return json(
-    {
-      ok: true,
-      groupId,
-      scheduledAt,
-      posts: posts.map((p) => ({ id: p.id, channelId: p.channelId, status: 'scheduled' as const })),
-    },
-    201,
-  );
+export const handleCreatePost: PagesFunction<Env> = async ({ request, env }) => {
+  const auth = await requireUser(request, env);
+  if (!auth.ok) return auth.response;
+
+  const parsed = await readJson(request);
+  if (!parsed.ok) return parsed.response;
+
+  const checked = await validateCreatePost(env, auth.userId, parsed.data);
+  if (!checked.ok) return checked.response;
+  const v = checked.v;
+
+  const saved = await insertPostGroup(env, auth.userId, v);
+  if (!saved.ok) return fail(500, 'Could not schedule the post. Please try again.');
+
+  // Dashboard posts are counted (the Free Trial total is shared with the API); blocking them is a later part.
+  await countUiPosts(env, auth.userId, postUnits(v.channels.length));
+
+  return json({ ok: true, groupId: saved.groupId, scheduledAt: v.scheduledAt, posts: saved.posts }, 201);
 };

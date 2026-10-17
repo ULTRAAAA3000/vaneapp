@@ -261,3 +261,84 @@ export type QuickStartResponse =
   | ApiError;
 
 export type QuickStatusResponse = { ok: true; verified: boolean; expired: boolean; expiresAt: number } | ApiError;
+
+// ───────────────────────── Public API: keys, plans, usage (API part 1) ─────────────────────────
+export type { PlanId, SubscriptionStatus } from './functions/api/lib/plans';
+import type { PlanId, SubscriptionStatus } from './functions/api/lib/plans';
+
+/** cpost_… keys use the text/media endpoints; cvid_… keys will use the Video Engine (not available yet). */
+export type KeyScope = 'post' | 'video';
+/** live: real posts, counted · test: answers are simulated, nothing is posted and nothing is counted */
+export type KeyMode = 'live' | 'test';
+
+/** What the API ever returns about a key. The secret is shown once, on creation, and the hash never leaves the database. */
+export interface ApiKeyPublic {
+  id: string;
+  name: string;
+  scope: KeyScope;
+  mode: KeyMode;
+  /** masked for display, e.g. "cpost_live_••••ab12" */
+  display: string;
+  createdAt: number;
+  lastUsedAt: number | null;
+}
+
+export interface CreateApiKeyRequest {
+  name: string;
+  mode?: KeyMode;
+  scope?: KeyScope;
+}
+
+export type CreateApiKeyResponse =
+  | {
+      ok: true;
+      key: ApiKeyPublic;
+      /** the full key. Shown ONCE: only its SHA-256 is stored, so it can never be shown again */
+      secret: string;
+    }
+  | ApiError;
+
+export type ListApiKeysResponse = { ok: true; keys: ApiKeyPublic[]; max: number } | ApiError;
+
+/** limit − used = remaining. On the Free Trial UI and API posts share one total, so both buckets show that total. */
+export interface UsageBucket {
+  limit: number;
+  used: number;
+  remaining: number;
+}
+
+export interface UsageSummary {
+  plan: {
+    id: PlanId;
+    label: string;
+    status: SubscriptionStatus;
+    /** a paid plan that is not active any more: the Free Trial limits apply until a payment renews it */
+    lapsed: boolean;
+    apiAddon: boolean;
+    /** unix seconds, null = no expiry */
+    currentPeriodEnd: number | null;
+  };
+  period: {
+    /** 'lifetime' or 'YYYY-MM' (UTC) */
+    key: string;
+    /** unix seconds when the monthly quota resets, null for a lifetime quota */
+    resetsAt: number | null;
+  };
+  /** how many more API posts this account can send */
+  api: UsageBucket;
+  ui: UsageBucket;
+  /** Free Trial only */
+  shared: UsageBucket | null;
+  /** may this account send live API requests? */
+  apiAccess: boolean;
+  overage: {
+    enabled: boolean;
+    /** price per post beyond the quota (USD), null when this plan is never billed for extras */
+    postUsd: number | null;
+    aiPostUsd: number | null;
+    posts: number;
+    costUsd: number;
+  };
+}
+
+export type UsageResponse = { ok: true; usage: UsageSummary } | ApiError;

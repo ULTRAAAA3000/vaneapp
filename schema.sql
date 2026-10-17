@@ -144,3 +144,69 @@ CREATE TABLE IF NOT EXISTS user_activity (
   user_id       TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   last_seen_at  INTEGER NOT NULL
 );
+
+-- ───────────────────────── Public API: subscriptions, keys, metering (API part 1) ─────────────────────────
+-- ECONOMY_AND_FINANCE.md §2 (plans) and §6 (key scoping). Only NEW tables: `users` is never altered (see the note above).
+
+-- One row per user: what they pay for. No row = the Free Trial.
+-- A paid row whose period has ended (or that is not 'active') is treated as the Free Trial until a payment renews it.
+CREATE TABLE IF NOT EXISTS subscriptions (
+  user_id             TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  plan                TEXT    NOT NULL DEFAULT 'free' CHECK (plan IN ('free', 'api', 'pro')),
+  api_addon           INTEGER NOT NULL DEFAULT 0 CHECK (api_addon IN (0, 1)),   -- Pro + API Add-on (+180 API posts)
+  status              TEXT    NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'past_due', 'canceled')),
+  current_period_end  INTEGER,                                                  -- NULL = no expiry (granted by hand)
+  overage_enabled     INTEGER NOT NULL DEFAULT 0 CHECK (overage_enabled IN (0, 1)),  -- 0: over quota -> 402; 1: bill per post
+  provider            TEXT    NOT NULL DEFAULT 'manual',                        -- 'manual' | 'monobank' | 'crypto'
+  provider_ref        TEXT,
+  created_at          INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at          INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+-- API keys. Only the SHA-256 of a key is stored; the key itself is shown once, when it is created.
+--   scope: 'post' -> cpost_… keys (text/media endpoints)   'video' -> cvid_… keys (Video Engine, later)
+--   mode:  'live' -> real posts, counted against the quota   'test' -> answers are simulated, nothing is posted or counted
+CREATE TABLE IF NOT EXISTS api_keys (
+  id            TEXT    PRIMARY KEY,                                            -- uuid
+  user_id       TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name          TEXT    NOT NULL,                                               -- label, e.g. "Make.com"
+  scope         TEXT    NOT NULL CHECK (scope IN ('post', 'video')),
+  mode          TEXT    NOT NULL CHECK (mode IN ('live', 'test')),
+  key_hash      TEXT    NOT NULL UNIQUE,                                        -- sha256 hex of the whole key
+  hint          TEXT    NOT NULL,                                               -- last 4 characters, to recognise a key in the list
+  created_at    INTEGER NOT NULL DEFAULT (unixepoch()),
+  last_used_at  INTEGER,
+  revoked_at    INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_id);
+
+-- Metered usage per user and period ('lifetime' for the Free Trial, 'YYYY-MM' (UTC) for paid plans).
+-- Quota checks are ONE conditional upsert on this row, so two parallel requests can never both take the last unit.
+-- ai_* columns are used by the AI endpoints (a later part).
+CREATE TABLE IF NOT EXISTS usage_counters (
+  user_id            TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  period             TEXT    NOT NULL,
+  api_posts          INTEGER NOT NULL DEFAULT 0,
+  ui_posts           INTEGER NOT NULL DEFAULT 0,
+  ai_posts           INTEGER NOT NULL DEFAULT 0,       -- how many of the API posts were AI-generated
+  ai_generations     INTEGER NOT NULL DEFAULT 0,
+  overage_posts      INTEGER NOT NULL DEFAULT 0,       -- posts beyond the quota (only when overage_enabled)
+  overage_micro_usd  INTEGER NOT NULL DEFAULT 0,       -- what those cost, in millionths of a dollar ($0.03 = 30000)
+  updated_at         INTEGER NOT NULL DEFAULT (unixepoch()),
+  PRIMARY KEY (user_id, period)
+);
+
+-- Audit trail of every metered API call (also what an invoice is built from).
+CREATE TABLE IF NOT EXISTS usage_logs (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id         TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  api_key_id      TEXT    REFERENCES api_keys(id) ON DELETE SET NULL,
+  source          TEXT    NOT NULL CHECK (source IN ('api', 'ui')),
+  kind            TEXT    NOT NULL CHECK (kind IN ('post', 'ai_post')),
+  units           INTEGER NOT NULL DEFAULT 1,
+  overage         INTEGER NOT NULL DEFAULT 0 CHECK (overage IN (0, 1)),
+  cost_micro_usd  INTEGER NOT NULL DEFAULT 0,
+  ref             TEXT,                                                         -- e.g. the post group id
+  created_at      INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_usage_logs_user ON usage_logs(user_id, created_at);

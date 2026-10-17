@@ -13,7 +13,9 @@
     "cron:secret": "wrangler secret put ENCRYPTION_KEY --config worker/wrangler.toml",
     "cron:logs": "wrangler tail --config worker/wrangler.toml --format pretty",
     "telegram:webhook": "node scripts/telegram-webhook.mjs",
-    "cron:secret-bot": "wrangler secret put SYSTEM_BOT_TOKEN --config worker/wrangler.toml"
+    "cron:secret-bot": "wrangler secret put SYSTEM_BOT_TOKEN --config worker/wrangler.toml",
+    "plan:set": "node scripts/set-plan.mjs",
+    "test:api": "node scripts/api-e2e.mjs"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250101.0",
