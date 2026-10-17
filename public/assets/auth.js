@@ -66,19 +66,39 @@
     if (ts.id !== null && window.turnstile) window.turnstile.reset(ts.id);
   }
   Vane.api('GET', '/api/auth/config', undefined, { noRedirect: true }).then(function (r) {
-    if (!r.ok || !r.data.turnstileSiteKey) return;
+    if (!r.ok) { console.warn('[vane] could not read /api/auth/config:', r.error); return; }
+    if (!r.data.turnstileSiteKey) {
+      // The check is OFF. Say why in the console (the page itself stays clean for real visitors).
+      var st = r.data.turnstile || {};
+      if (st.siteKeySet !== st.secretKeySet) {
+        console.warn('[vane] Turnstile is half-configured: ' + (st.siteKeySet ? 'TURNSTILE_SECRET_KEY' : 'TURNSTILE_SITE_KEY') + ' is not visible to the server, so the human check is OFF. See README → Bot protection.');
+      } else {
+        console.info('[vane] Turnstile is not configured on the server (no TURNSTILE_SITE_KEY / TURNSTILE_SECRET_KEY), so there is no human check.');
+      }
+      return;
+    }
     ts.key = r.data.turnstileSiteKey;
     $('tsBox').classList.remove('hidden');
     var s = document.createElement('script');
     s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
     s.async = true;
     s.onload = function () {
-      ts.id = window.turnstile.render('#tsBox', {
-        sitekey: ts.key, theme: 'dark', size: 'flexible',
-        callback: function (t) { ts.token = t; hideError(); },
-        'expired-callback': function () { ts.token = ''; },
-        'error-callback': function () { ts.token = ''; }
-      });
+      try {
+        ts.id = window.turnstile.render('#tsBox', {
+          sitekey: ts.key, theme: 'dark', size: 'flexible',
+          callback: function (t) { ts.token = t; hideError(); },
+          'expired-callback': function () { ts.token = ''; },
+          'error-callback': function (code) {
+            ts.token = '';
+            console.warn('[vane] Turnstile error', code);
+            // 110xxx = the widget itself is misconfigured (bad site key / hostname not allowed): tell the user.
+            if (/^110/.test(String(code))) showError('The human check is misconfigured (error ' + code + '). Please contact support.');
+          }
+        });
+      } catch (e) {
+        console.error('[vane] Turnstile render failed:', e);
+        showError('Could not start the human check. Reload the page and try again.');
+      }
     };
     s.onerror = function () { showError('Could not load the human check. Turn off ad-blockers for this page and reload.'); };
     document.head.appendChild(s);

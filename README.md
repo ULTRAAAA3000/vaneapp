@@ -29,11 +29,16 @@ Cloudflare Pages (site + `/api`) · D1 (database) · R2 (images) · a cron Worke
    4. **Also give the cron worker the bot token:** `npm run cron:secret-bot` (without it Quick Connect posts cannot be published).
    5. Register the webhook once: `SYSTEM_BOT_TOKEN=… TELEGRAM_WEBHOOK_SECRET=… npm run telegram:webhook set` (`info` shows delivery errors, `delete` removes it).
    Until steps 3-5 are done the dashboard simply offers **Custom bot** only.
-6. **Bot protection (Turnstile, optional, recommended):** Cloudflare dashboard → Turnstile → *Add widget* (domain `vaneapp.dev`, mode *Managed*).
-   Put the **site key** into Pages → Settings → Variables as `TURNSTILE_SITE_KEY` (plain text) and the **secret key** as a secret:
-   `npx wrangler pages secret put TURNSTILE_SECRET_KEY --project-name=vaneapp`, then redeploy.
-   Sign-in and sign-up then require a passed check; it is enforced only when **both** values are set, and it fails closed if Cloudflare cannot be reached.
-   Locally use the test keys from `.dev.vars.example`.
+6. **Bot protection (Turnstile, optional, recommended):** Cloudflare dashboard → Turnstile → *Add widget* (hostname `vaneapp.dev`, mode *Managed*).
+   - **Site key** (public by design): put it in `wrangler.toml`. This project is configured by that file, which Cloudflare treats as the source of truth, so a plain variable typed into the Pages dashboard is NOT reliably picked up:
+     ```toml
+     [vars]
+     TURNSTILE_SITE_KEY = "0x4AAAAAAA…"
+     ```
+   - **Secret key:** `npx wrangler pages secret put TURNSTILE_SECRET_KEY --project-name=vaneapp` (do this for Production; Preview has its own secrets).
+   - **Redeploy** afterwards: new values only reach new deployments.
+   - Sign-in and sign-up then require a passed check. It is enforced only when **both** values are visible to the function (fails closed if Cloudflare is unreachable). Locally use the test keys from `.dev.vars.example`.
+   - **Not showing up?** Open `https://vaneapp.dev/api/auth/config`: `"turnstile": { "siteKeySet": …, "secretKeySet": … }` tells you which key the function cannot see (values are never shown). `enabled: true` but still no widget → open the browser console on `/login` (ad-blocker, or the widget's hostname list does not contain `vaneapp.dev`).
 7. **Check it live:** sign up at `/login`, connect a Telegram channel, press *Send test*, schedule a post 2–3 minutes ahead and watch `npm run cron:logs`.
 
 Never lose `ENCRYPTION_KEY`: without it every stored channel token is unreadable.

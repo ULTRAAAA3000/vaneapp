@@ -8,6 +8,21 @@ const MAX_TOKEN = 2048; // documented upper bound of a Turnstile token
 /** Enforced only when BOTH keys are set, so a half-configured deploy can't lock everybody out. */
 export const turnstileEnabled = (env: Env): boolean => Boolean(env.TURNSTILE_SECRET_KEY && env.TURNSTILE_SITE_KEY);
 
+/** Which keys the function can actually see. Booleans only: values are never exposed. */
+export const turnstileStatus = (env: Env) => ({
+  enabled: turnstileEnabled(env),
+  siteKeySet: Boolean(env.TURNSTILE_SITE_KEY),
+  secretKeySet: Boolean(env.TURNSTILE_SECRET_KEY),
+});
+
+/** One of the two keys is missing: the human check is silently OFF, which is almost never intended. */
+export function warnIfHalfConfigured(env: Env): void {
+  const st = turnstileStatus(env);
+  if (st.siteKeySet !== st.secretKeySet) {
+    console.warn(`turnstile is OFF: ${st.siteKeySet ? 'TURNSTILE_SECRET_KEY' : 'TURNSTILE_SITE_KEY'} is not visible to the function (the check needs both)`);
+  }
+}
+
 interface SiteVerify {
   success?: boolean;
   'error-codes'?: string[];
@@ -18,7 +33,10 @@ interface SiteVerify {
  * Fails closed: if Cloudflare cannot be reached, nobody gets through.
  */
 export async function requireHuman(env: Env, request: Request, token: unknown): Promise<Response | null> {
-  if (!turnstileEnabled(env)) return null;
+  if (!turnstileEnabled(env)) {
+    warnIfHalfConfigured(env);
+    return null;
+  }
   if (typeof token !== 'string' || !token) return fail(400, 'Please complete the human check.');
   if (token.length > MAX_TOKEN) return fail(403, 'Human check failed. Please try again.');
 
