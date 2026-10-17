@@ -84,8 +84,8 @@ Spec: `ECONOMY_AND_FINANCE.md` §2 and §6, `SECURITY_ARCHITECTURE.md` §2-3. Bu
 | Part | What | Status |
 |---|---|---|
 | 1 | Tables, key generation and hashing, key auth, scopes, test mode, quota engine with 402, `/api/v1/*`, usage | done |
-| 2 | "API" screen in the dashboard: create / revoke keys, quota meter | next |
-| 3 | OpenAPI spec, `Idempotency-Key` (safe retries from Make / Zapier), webhooks | |
+| 2 | "API access" section in the dashboard: create / revoke keys, quota meter, quick start | done |
+| 3 | OpenAPI spec, `Idempotency-Key` (safe retries from Make / Zapier), webhooks | next |
 | 4 | Payments (Monobank, USDT/USDC) that grant the plan and issue keys automatically | |
 | 5 | AI endpoints on Workers AI (reformat, tone, hooks) with their own metering | |
 
@@ -101,7 +101,16 @@ Spec: `ECONOMY_AND_FINANCE.md` §2 and §6, `SECURITY_ARCHITECTURE.md` §2-3. Bu
 
 Each key is 24 random characters (`crypto.getRandomValues`, no modulo bias) and unique to one account. Only its **SHA-256** is stored; the key is shown **once**, when it is created. A key never opens dashboard routes, and a key cannot mint other keys. Up to 10 active keys per account, 100 requests a minute per key (`429` + `Retry-After`).
 
-Until the dashboard screen exists, create a key with a session cookie or a dev JWT (`node scripts/dev-token.mjs <JWT_SECRET> <userId>`):
+Keys are created in the dashboard, in the **API access** section (`/app#api`):
+
+- **Quota card**: plan, posts used / limit with a meter (green, amber from 80%, red at 100%), when it resets, and what happens over the limit (a 402, or the price per extra post when overage is on). Plans without API access (Pro without the Add-on) get an explanation instead of a meter.
+- **Keys**: name, Live/Test badge, masked key (`cpost_live_••••ab12`), created / last used, and a two-step **Revoke**.
+- **Create key**: name + Live or Test. The full key is shown **once**, with a Copy button; a stray click outside or Esc will not close the dialog while it is unsaved, and the secret is wiped from the page when it closes. Live is disabled (and Test preselected) on plans without API access.
+- **Quick start**: base URL, your channel ids with Copy buttons (what `channelIds` needs), and a ready `curl` request with a `$VANE_API_KEY` placeholder (the page never holds a real key after the dialog closes).
+
+The numbers refresh by themselves (every 30 s while the tab is visible, and right after you schedule a post), so API traffic from Make shows up live. If `/api/usage` fails (for example the new tables are not in the database yet) the section shows a calm message and the rest of the dashboard keeps working.
+
+Without the UI, a key can also be created with a session cookie or a dev JWT (`node scripts/dev-token.mjs <JWT_SECRET> <userId>`):
 
 ```
 curl -X POST https://vaneapp.dev/api/keys -H "Authorization: Bearer <jwt>" -H "Content-Type: application/json" -d '{"name":"Make.com"}'

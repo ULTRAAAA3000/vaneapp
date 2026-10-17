@@ -139,3 +139,16 @@ dialog.vane-dialog[open] { animation: pop .4s cubic-bezier(.16,1,.3,1); }
 .progress > span { display: block; height: 100%; width: 0; border-radius: 9999px; background: #fff; transition: width .18s ease-out; }
 .progress.is-indeterminate > span { width: 40% !important; animation: indet 1.1s ease-in-out infinite; }
 @keyframes indet { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
+
+/* ── API access screen ── */
+.meter { height: .5rem; border-radius: 9999px; background: rgba(255,255,255,.1); overflow: hidden; }
+.meter > i { display: block; height: 100%; border-radius: 9999px; transition: width .7s cubic-bezier(.16,1,.3,1), background-color .3s; }
+.mode-btn { display: block; width: 100%; padding: .85rem 1rem; border-radius: 16px; text-align: left; color: #fff; cursor: pointer;
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.1); transition: background-color .2s, border-color .2s; }
+.mode-btn:hover:not(:disabled) { background: rgba(255,255,255,.08); }
+.mode-btn[aria-pressed="true"] { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.45); }
+.mode-btn:disabled { opacity: .4; cursor: not-allowed; }
+.mode-btn:focus-visible { outline: 2px solid rgba(255,255,255,.55); outline-offset: 2px; }
+details > summary.api-sum { list-style: none; cursor: pointer; }
+details > summary.api-sum::-webkit-details-marker { display: none; }
+details[open] .api-plus { transform: rotate(45deg); }

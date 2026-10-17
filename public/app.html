@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/assets/vane.css?v=20261017" />
+  <link rel="stylesheet" href="/assets/vane.css?v=20261017b" />
 </head>
 
 <body class="min-h-screen overflow-x-hidden bg-[#070708]">
@@ -38,6 +38,7 @@
           <span id="avatar" class="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-sky-400 text-xs font-bold">·</span>
           <span id="userEmail" class="max-w-[14rem] truncate text-sm text-white/70"></span>
         </div>
+        <a href="#api" class="btn btn-ghost btn-sm hidden sm:inline-flex">API</a>
         <button id="logoutBtn" type="button" class="btn btn-ghost btn-sm">Sign out</button>
       </div>
     </div>
@@ -162,6 +163,32 @@
       <div id="posts" class="mt-5 space-y-3">
         <div class="skeleton h-24"></div>
       </div>
+    </section>
+
+    <!-- ═══════════ API ACCESS ═══════════ -->
+    <section id="api" class="fade-up glass-d mt-5 scroll-mt-20 rounded-3xl p-5 sm:p-7" style="animation-delay:.26s" aria-labelledby="apiTitle">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 id="apiTitle" class="text-lg font-semibold tracking-tight">API access</h2>
+          <p class="mt-1 text-xs text-white/45">Post from Make, Zapier, your own scripts or a Custom GPT.</p>
+        </div>
+        <button id="keyNewBtn" type="button" class="btn btn-white btn-sm">
+          <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Create key
+        </button>
+      </div>
+
+      <div class="mt-5 grid items-start gap-5 lg:grid-cols-[minmax(0,.9fr)_minmax(0,1.1fr)]">
+        <div id="apiQuota" class="rounded-2xl bg-white/[0.04] p-5 ring-1 ring-white/5" aria-live="polite"><div class="skeleton h-28"></div></div>
+        <div id="apiKeys" class="space-y-2.5"><div class="skeleton h-16"></div></div>
+      </div>
+
+      <details id="apiQuick" class="mt-5 rounded-2xl bg-white/[0.03] ring-1 ring-white/5">
+        <summary class="api-sum flex items-center justify-between gap-3 px-5 py-4 text-sm font-medium">
+          Quick start
+          <span class="api-plus text-xl leading-none text-white/40 transition-transform duration-300" aria-hidden="true">+</span>
+        </summary>
+        <div id="apiQuickBody" class="space-y-5 px-5 pb-5"></div>
+      </details>
     </section>
   </main>
 
@@ -306,9 +333,67 @@
     </div>
   </dialog>
 
+  <!-- ═══════════ CREATE AN API KEY ═══════════ -->
+  <dialog id="keyDialog" class="vane-dialog" aria-labelledby="keyTitle">
+    <div class="glass-d-strong max-h-[calc(100vh-2rem)] overflow-y-auto rounded-3xl p-6 shadow-2xl sm:p-8">
+      <div class="flex items-start justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2M17 6l3 3M14 9l2 2"/></svg>
+          </div>
+          <div>
+            <h2 id="keyTitle" class="text-xl font-semibold tracking-tight">Create an API key</h2>
+            <p id="keySub" class="text-xs text-white/45">Name it after the place you will use it.</p>
+          </div>
+        </div>
+        <button id="keyClose" type="button" class="icon-btn" aria-label="Close"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+
+      <!-- step 1: name + type -->
+      <form id="keyForm" class="mt-6 space-y-5" novalidate autocomplete="off">
+        <div>
+          <label for="keyName" class="lbl">Name</label>
+          <input id="keyName" type="text" maxlength="60" placeholder="Make.com" class="field" />
+        </div>
+        <div>
+          <span class="mb-2 block text-[0.7rem] font-medium uppercase tracking-widest text-white/40">Type</span>
+          <div class="grid gap-2.5 sm:grid-cols-2" role="group" aria-label="Key type">
+            <button type="button" id="modeLive" data-mode="live" aria-pressed="true" class="mode-btn">
+              <span class="block text-sm font-semibold">Live</span>
+              <span class="mt-1 block text-xs leading-relaxed text-white/55">Posts for real and counts toward your quota.</span>
+            </button>
+            <button type="button" id="modeTest" data-mode="test" aria-pressed="false" class="mode-btn">
+              <span class="block text-sm font-semibold">Test</span>
+              <span class="mt-1 block text-xs leading-relaxed text-white/55">Simulated: nothing is posted or counted. Perfect while you build.</span>
+            </button>
+          </div>
+          <p id="keyModeNote" class="mt-2 hidden text-xs leading-relaxed text-amber-200/90"></p>
+        </div>
+        <div id="keyErr" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
+        <div class="flex items-center justify-end gap-3 pt-1">
+          <button type="button" id="keyCancel" class="btn btn-ghost">Cancel</button>
+          <button type="submit" id="keySubmit" class="btn btn-white"><span id="keySpin" class="spinner spinner-dark hidden"></span><span id="keyLabel">Create key</span></button>
+        </div>
+      </form>
+
+      <!-- step 2: the secret, shown once -->
+      <div id="keyDone" class="mt-6 hidden">
+        <div id="keyWarn" class="rounded-2xl border border-amber-300/20 bg-amber-400/10 p-4 text-sm leading-relaxed text-amber-200">
+          Copy your key now. For your safety it is shown only once. If you lose it, create a new one.
+        </div>
+        <div class="mt-4 flex items-center gap-3 rounded-2xl bg-black/35 p-3 ring-1 ring-white/10">
+          <code id="keySecret" class="min-w-0 flex-1 select-all break-all font-mono text-[13px] leading-relaxed text-white"></code>
+          <button id="keyCopy" type="button" class="btn btn-white btn-sm shrink-0">Copy</button>
+        </div>
+        <p class="mt-4 text-xs leading-relaxed text-white/45">Send it with every request as <code class="rounded bg-white/10 px-1.5 py-0.5">Authorization: Bearer &lt;key&gt;</code>. Anyone who has it can post as you, so keep it out of public code.</p>
+        <div class="mt-6 flex justify-end"><button id="keyFinish" type="button" class="btn btn-white">I've saved it</button></div>
+      </div>
+    </div>
+  </dialog>
+
   <script src="/assets/vane.js?v=20261015"></script>
   <script src="/assets/media-picker.js?v=20261015"></script>
   <script src="/assets/insights.js?v=20261017"></script>
-  <script src="/assets/dashboard.js?v=20261017"></script>
+  <script src="/assets/dashboard.js?v=20261017b"></script>
 </body>
 </html>

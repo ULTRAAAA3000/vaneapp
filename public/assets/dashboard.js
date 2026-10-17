@@ -130,7 +130,7 @@
 
     initQuick();
     var restored = restoreDraft();
-    await Promise.all([loadChannels(), loadPosts('upcoming'), loadPosts('history')]);
+    await Promise.all([loadChannels(), loadPosts('upcoming'), loadPosts('history'), loadApi()]);
     setTab('upcoming');
     renderAll();
     if (restored) Vane.toast('info', 'Your unsent draft is back.');
@@ -142,6 +142,8 @@
     document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') refreshPostsQuietly(); });
     window.addEventListener('focus', refreshPostsQuietly);
     window.addEventListener('online', refreshPostsQuietly);
+    setInterval(function () { if (document.visibilityState === 'visible') refreshApiQuietly(); }, 30000);
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') refreshApiQuietly(); });
   }
 
   // ───────────────────────── data ─────────────────────────
@@ -181,7 +183,7 @@
   }
 
   // ───────────────────────── render: everything ─────────────────────────
-  function renderAll() { renderStats(); renderChannels(); renderChips(); renderPreview(); renderPosts(); validate(); }
+  function renderAll() { renderStats(); renderChannels(); renderChips(); renderPreview(); renderPosts(); renderApi(); renderApiQuick(); validate(); }
 
   // ───────────────────────── stats ─────────────────────────
   function groupPosts(list) {
@@ -247,7 +249,7 @@
 
   function arm(key, ms) {
     clearTimeout(S.armed[key]);
-    S.armed[key] = setTimeout(function () { delete S.armed[key]; renderChannels(); renderPosts(); }, ms || 3200);
+    S.armed[key] = setTimeout(function () { delete S.armed[key]; renderChannels(); renderPosts(); renderApiKeys(); }, ms || 3200);
   }
   function disarm(key) { clearTimeout(S.armed[key]); delete S.armed[key]; }
 
@@ -807,6 +809,7 @@
     Vane.toast('ok', 'Scheduled for ' + fmtWhen.format(new Date(r.data.scheduledAt * 1000)) + (n > 1 ? ' on ' + n + ' channels.' : '.'));
     textEl.value = ''; picker.clear(); saveDraft();
     initQuick();
+    refreshApiQuietly();   // dashboard posts count toward the quota
     await Promise.all([loadPosts('upcoming')]);
     S.tab = 'upcoming'; setTab('upcoming');
     renderAll();
@@ -925,6 +928,257 @@
     await Promise.all([loadPosts('upcoming'), loadPosts('history')]);
     renderAll();
   });
+
+  // ───────────────────────── API access ─────────────────────────
+  S.keys = null;        // null until loaded
+  S.usage = null;
+  S.apiFailed = false;  // e.g. the usage tables are not in the database yet: the section says so instead of breaking
+  S.keyMax = 10;
+
+  async function loadApi() {
+    var rs = await Promise.all([Vane.api('GET', '/api/usage'), Vane.api('GET', '/api/keys')]);
+    if (!rs[0].ok || !rs[1].ok) { if (!S.usage) S.apiFailed = true; return; }   // keep what is on screen on a hiccup
+    S.apiFailed = false;
+    S.usage = rs[0].data.usage;
+    S.keys = rs[1].data.keys;
+    S.keyMax = rs[1].data.max || 10;
+  }
+  // Silent refresh (a post may have been sent through the API from another place, which changes the numbers).
+  async function refreshApiQuietly() {
+    if (S.refreshingApi) return;
+    S.refreshingApi = true;
+    await loadApi();
+    S.refreshingApi = false;
+    renderApi();
+  }
+
+  var METER = function (pct) { return pct >= 100 ? '#f87171' : pct >= 80 ? '#fbbf24' : '#34d399'; };
+  var fmtDay = function (ts) { return new Date(ts * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }); };
+
+  function renderApi() { renderApiQuota(); renderApiKeys(); }
+
+  function renderApiQuota() {
+    var box = $('apiQuota');
+    if (!S.usage) {
+      if (S.apiFailed) box.innerHTML = '<p class="text-sm leading-relaxed text-white/55">API access could not be loaded right now. Try again in a moment.</p>';
+      return;
+    }
+    var u = S.usage, html =
+      '<div class="flex items-start justify-between gap-3">' +
+        '<div><div class="text-xs font-medium uppercase tracking-widest text-white/40">Your plan</div>' +
+        '<div class="mt-1 text-base font-semibold">' + esc(u.plan.label) + '</div></div>' +
+        '<a href="/#pricing" class="shrink-0 text-xs text-white/45 underline underline-offset-4 transition-colors hover:text-white">Compare plans</a>' +
+      '</div>';
+
+    if (u.plan.lapsed) {
+      html += '<div class="mt-4 rounded-xl border border-amber-300/20 bg-amber-400/10 p-3.5 text-sm leading-relaxed text-amber-200">Your paid plan has ended, so Free Trial limits apply until it is renewed.</div>';
+    }
+
+    if (!u.apiAccess) {
+      html += '<div class="mt-5 rounded-xl border border-amber-300/20 bg-amber-400/10 p-3.5 text-sm leading-relaxed text-amber-200">' +
+        'Your plan does not include API access yet. Add the API add-on to send live requests. Test keys work today.</div>';
+    } else {
+      var a = u.api, pct = a.limit ? Math.min(100, Math.round(a.used / a.limit * 100)) : 100;
+      var lifetime = u.period.key === 'lifetime';
+      var sub = (u.shared ? 'Dashboard and API posts share these ' + a.limit + ' posts. ' : '') +
+        (u.period.resetsAt ? 'Resets on ' + fmtDay(u.period.resetsAt) + ' (UTC).' : 'A one-time allowance: it does not reset.');
+      html +=
+        '<div class="mt-5">' +
+          '<div class="text-xs text-white/45">' + (lifetime ? 'Posts used' : 'API posts used this month') + '</div>' +
+          '<div class="mt-1.5 flex items-end justify-between gap-3">' +
+            '<div><span class="pixel text-3xl tracking-tight">' + a.used + '</span><span class="ml-1.5 text-sm text-white/45">/ ' + a.limit + '</span></div>' +
+            '<span class="text-xs text-white/45">' + a.remaining + ' left</span>' +
+          '</div>' +
+          '<div class="meter mt-3" role="progressbar" aria-label="Posts used" aria-valuemin="0" aria-valuemax="' + a.limit + '" aria-valuenow="' + a.used + '"><i style="width:' + pct + '%;background:' + METER(pct) + '"></i></div>' +
+          '<p class="mt-3 text-xs leading-relaxed text-white/45">' + esc(sub) + '</p>' +
+        '</div>';
+
+      var ov = u.overage, line;
+      if (ov.enabled) {
+        line = 'Extra posts are billed at $' + ov.postUsd + ' each' + (ov.posts ? ' (' + ov.posts + ' so far, $' + ov.costUsd.toFixed(2) + ')' : '') + '.';
+      } else if (u.plan.id === 'free') {
+        line = 'When the allowance is used up, posting pauses. You are never charged.';
+      } else {
+        line = 'Over the limit, requests are refused with a 402. Nothing is charged automatically.';
+      }
+      html += '<p class="mt-4 border-t border-white/10 pt-4 text-xs leading-relaxed text-white/45">' + esc(line) + '</p>';
+    }
+    box.innerHTML = html;
+  }
+
+  var KEY_ICON = '<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2M17 6l3 3M14 9l2 2"/></svg>';
+
+  function renderApiKeys() {
+    var box = $('apiKeys'), btn = $('keyNewBtn');
+    if (!S.keys) { box.innerHTML = S.apiFailed ? '' : box.innerHTML; return; }
+    var full = S.keys.length >= S.keyMax;
+    btn.disabled = full;
+    btn.title = full ? 'You can have up to ' + S.keyMax + ' active keys. Revoke one you no longer use.' : '';
+
+    if (!S.keys.length) {
+      box.innerHTML =
+        '<div class="rounded-2xl border border-dashed border-white/10 px-5 py-8 text-center">' +
+          '<div class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white/[0.07] text-white/80">' + KEY_ICON + '</div>' +
+          '<p class="mt-4 text-sm font-medium">No API keys yet</p>' +
+          '<p class="mx-auto mt-1 max-w-[18rem] text-xs leading-relaxed text-white/45">Create a key to connect Make, Zapier or your own scripts.</p>' +
+          '<button type="button" data-act="newkey" class="btn btn-white btn-sm mt-5">Create your first key</button>' +
+        '</div>';
+      return;
+    }
+    box.innerHTML = S.keys.map(function (k) {
+      var armed = !!S.armed['key:' + k.id];
+      var used = k.lastUsedAt ? 'Last used ' + rel(k.lastUsedAt) : 'Never used';
+      return '<div class="flex items-center gap-3 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/5">' +
+        '<div class="net-tile bg-white/[0.07] text-white/80">' + KEY_ICON + '</div>' +
+        '<div class="min-w-0 flex-1">' +
+          '<div class="flex items-center gap-2"><span class="truncate text-sm font-medium">' + esc(k.name) + '</span>' +
+            '<span class="badge ' + (k.mode === 'live' ? 'badge-sent' : 'badge-scheduled') + '">' + (k.mode === 'live' ? 'Live' : 'Test') + '</span></div>' +
+          '<div class="mt-0.5 truncate font-mono text-xs text-white/50">' + esc(k.display) + '</div>' +
+          '<div class="mt-0.5 text-xs text-white/35">Created ' + esc(fmtDay(k.createdAt)) + ' · ' + esc(used) + '</div>' +
+        '</div>' +
+        (armed
+          ? '<button type="button" data-act="revoke" data-id="' + esc(k.id) + '" class="btn btn-danger btn-sm shrink-0">Revoke?</button>'
+          : '<button type="button" data-act="revoke" data-id="' + esc(k.id) + '" class="icon-btn shrink-0" aria-label="Revoke key ' + esc(k.name) + '">' + ICON.trash + '</button>') +
+      '</div>';
+    }).join('');
+  }
+
+  $('apiKeys').addEventListener('click', async function (e) {
+    var btn = e.target.closest('[data-act]');
+    if (!btn) return;
+    var act = btn.getAttribute('data-act'), id = btn.getAttribute('data-id');
+    if (act === 'newkey') return openKeyDialog();
+    if (act === 'revoke') {
+      var key = 'key:' + id;
+      if (!S.armed[key]) { arm(key); renderApiKeys(); return; }
+      disarm(key);
+      btn.disabled = true;
+      var d = await Vane.api('DELETE', '/api/keys/' + encodeURIComponent(id));
+      if (!d.ok) { Vane.toast('err', d.error); renderApiKeys(); return; }
+      Vane.toast('ok', 'Key revoked. Anything still using it stops working now.');
+      await loadApi();
+      renderApi();
+    }
+  });
+  $('keyNewBtn').addEventListener('click', openKeyDialog);
+
+  // ---- quick start: base URL, channel ids and a ready-made request (never contains a real key)
+  var quickSnippet = '';
+  function renderApiQuick() {
+    var base = location.origin + '/api/v1';
+    var first = S.channels[0];
+    var when = new Date(Date.now() + 3600e3).toISOString().replace(/\.\d+Z$/, 'Z');
+    quickSnippet =
+      'curl -X POST ' + base + '/posts \\\n' +
+      '  -H "Authorization: Bearer $VANE_API_KEY" \\\n' +
+      '  -H "Content-Type: application/json" \\\n' +
+      '  -d \'{"content":"Hello from the API","channelIds":["' + (first ? first.id : '<channel-id>') + '"],"scheduledAt":"' + when + '"}\'';
+
+    var chans = S.channels.length
+      ? S.channels.map(function (c) {
+          return '<div class="flex items-center gap-3 rounded-xl bg-white/[0.04] px-3 py-2 ring-1 ring-white/5">' +
+            '<div class="min-w-0 flex-1"><div class="truncate text-sm">' + esc(c.name) + '</div>' +
+            '<div class="truncate font-mono text-[11px] text-white/45">' + esc(c.id) + '</div></div>' +
+            '<button type="button" data-copy="' + esc(c.id) + '" data-label="Channel ID" class="btn btn-ghost btn-sm shrink-0">Copy</button></div>';
+        }).join('')
+      : '<p class="text-xs text-white/45">Connect a channel to get its ID.</p>';
+
+    $('apiQuickBody').innerHTML =
+      '<div><span class="mb-2 block text-[0.7rem] font-medium uppercase tracking-widest text-white/40">Base URL</span>' +
+        '<div class="flex items-center gap-2.5"><code class="field min-w-0 flex-1 truncate font-mono !text-[13px]">' + esc(base) + '</code>' +
+        '<button type="button" data-copy="' + esc(base) + '" data-label="URL" class="btn btn-ghost btn-sm shrink-0">Copy</button></div></div>' +
+      '<div><span class="mb-2 block text-[0.7rem] font-medium uppercase tracking-widest text-white/40">Channel IDs <span class="normal-case tracking-normal text-white/30">(use them as channelIds)</span></span><div class="space-y-2">' + chans + '</div></div>' +
+      '<div><div class="flex items-center justify-between"><span class="block text-[0.7rem] font-medium uppercase tracking-widest text-white/40">Example request</span>' +
+        '<button type="button" data-copy-snippet class="text-xs text-white/45 transition-colors hover:text-white">Copy</button></div>' +
+        '<pre class="no-scrollbar mt-2 overflow-x-auto rounded-2xl bg-black/35 p-4 font-mono text-[12px] leading-relaxed text-white/80 ring-1 ring-white/10"><code id="apiSnippet"></code></pre></div>' +
+      '<p class="text-xs leading-relaxed text-white/45">In Make, add an <b class="font-semibold text-white/70">HTTP → Make a request</b> module, paste the URL, add the header <code class="rounded bg-white/10 px-1.5 py-0.5">Authorization: Bearer your-key</code> and send the body as JSON. When a run is out of quota the API answers <code class="rounded bg-white/10 px-1.5 py-0.5">402</code>.</p>';
+    $('apiSnippet').textContent = quickSnippet;   // textContent: nothing from the server is ever parsed as HTML
+  }
+  $('apiQuickBody').addEventListener('click', function (e) {
+    var c = e.target.closest('[data-copy]');
+    if (c) return copyWithToast(c.getAttribute('data-copy'), c.getAttribute('data-label') || 'Text');
+    if (e.target.closest('[data-copy-snippet]')) copyWithToast(quickSnippet, 'Request');
+  });
+
+  // ---- create-a-key dialog
+  var kdlg = $('keyDialog');
+  var K = { mode: 'live', revealed: false, copied: false, busy: false };
+
+  function setKeyMode(mode) {
+    K.mode = mode;
+    $('modeLive').setAttribute('aria-pressed', String(mode === 'live'));
+    $('modeTest').setAttribute('aria-pressed', String(mode === 'test'));
+  }
+  $('modeLive').addEventListener('click', function () { if (!this.disabled) setKeyMode('live'); });
+  $('modeTest').addEventListener('click', function () { setKeyMode('test'); });
+
+  function openKeyDialog() {
+    K.revealed = false; K.copied = false; K.busy = false;
+    $('keyForm').reset(); hideErr($('keyErr'));
+    $('keyForm').classList.remove('hidden'); $('keyDone').classList.add('hidden');
+    $('keyTitle').textContent = 'Create an API key';
+    $('keySub').textContent = 'Name it after the place you will use it.';
+    $('keySecret').textContent = '';
+    $('keyCopy').textContent = 'Copy';
+    $('keySubmit').disabled = false; $('keySpin').classList.add('hidden'); $('keyLabel').textContent = 'Create key';
+
+    var live = !S.usage || S.usage.apiAccess;
+    $('modeLive').disabled = !live;
+    var note = $('keyModeNote');
+    note.classList.toggle('hidden', live);
+    if (!live) note.textContent = 'Live keys need API access, which your plan does not include yet. A test key is perfect while you build.';
+    setKeyMode(live ? 'live' : 'test');
+
+    if (typeof kdlg.showModal === 'function') kdlg.showModal(); else kdlg.setAttribute('open', '');
+    setTimeout(function () { $('keyName').focus(); }, 60);
+  }
+  function closeKeyDialog() {
+    if (typeof kdlg.close === 'function') kdlg.close(); else kdlg.removeAttribute('open');
+  }
+
+  $('keyForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if (K.busy) return;
+    hideErr($('keyErr'));
+    var name = $('keyName').value.trim();
+    if (!name) return showErr($('keyErr'), $('keyForm'), 'Give the key a name, for example Make.com.');
+
+    K.busy = true; $('keySubmit').disabled = true; $('keySpin').classList.remove('hidden'); $('keyLabel').textContent = 'Creating…';
+    var r = await Vane.api('POST', '/api/keys', { name: name, mode: K.mode });
+    K.busy = false; $('keySubmit').disabled = false; $('keySpin').classList.add('hidden'); $('keyLabel').textContent = 'Create key';
+    if (!r.ok) return showErr($('keyErr'), $('keyForm'), r.error);
+
+    // The secret exists only in this response: put it on screen once, and wipe it when the dialog closes.
+    K.revealed = true;
+    $('keySecret').textContent = r.data.secret;
+    $('keyTitle').textContent = 'Your new key';
+    $('keySub').textContent = r.data.key.name + ' · ' + (r.data.key.mode === 'live' ? 'Live' : 'Test');
+    $('keyForm').classList.add('hidden'); $('keyDone').classList.remove('hidden');
+    refreshApiQuietly();   // the list behind the dialog
+  });
+
+  $('keyCopy').addEventListener('click', async function () {
+    var ok = await copyText($('keySecret').textContent);
+    if (ok) {
+      K.copied = true; this.textContent = 'Copied';
+      var btn = this; setTimeout(function () { btn.textContent = 'Copy'; }, 2000);
+    } else {
+      Vane.toast('info', 'Select the key and press Ctrl+C to copy it.');
+    }
+  });
+
+  $('keyClose').addEventListener('click', closeKeyDialog);
+  $('keyCancel').addEventListener('click', closeKeyDialog);
+  $('keyFinish').addEventListener('click', closeKeyDialog);
+  // While the secret is on screen a stray click outside or Esc must not throw it away.
+  kdlg.addEventListener('click', function (e) { if (e.target === kdlg && !K.revealed) closeKeyDialog(); });
+  kdlg.addEventListener('cancel', function (e) {
+    if (K.revealed && !K.copied) {
+      e.preventDefault();
+      var w = $('keyWarn'); w.classList.remove('shake'); void w.offsetWidth; w.classList.add('shake');
+    }
+  });
+  kdlg.addEventListener('close', function () { $('keySecret').textContent = ''; K.revealed = false; });
 
   // ───────────────────────── sign out ─────────────────────────
   $('logoutBtn').addEventListener('click', async function () {
