@@ -10,6 +10,10 @@
 /login
   Cache-Control: no-store
 
+/copy
+  Cache-Control: no-store
+  Referrer-Policy: no-referrer
+
 /assets/*
   Cache-Control: no-cache
 

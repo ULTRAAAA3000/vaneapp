@@ -48,8 +48,13 @@ export async function sendMail(env: Env, mail: Mail): Promise<boolean> {
   return false;
 }
 
-/** The email that carries a 6-digit code. Plain text first, HTML with inline styles for mail clients. */
-export function codeMail(to: string, code: string, purpose: VerifyPurpose, minutes: number): Mail {
+/**
+ * The email that carries a 6-digit code. Plain text first, HTML with inline styles for mail clients.
+ * `origin` (e.g. https://vaneapp.dev) is where the "Copy code" button points: a mail client runs no scripts, so a real
+ * clipboard button is impossible inside the email; /copy (public/copy.html) copies the code with one tap instead.
+ * The code travels in the URL fragment, which browsers never send to a server.
+ */
+export function codeMail(to: string, code: string, purpose: VerifyPurpose, minutes: number, origin: string): Mail {
   const signup = purpose === 'signup';
   const lead = signup ? 'Use this code to finish creating your Vane account.' : 'Use this code to sign in to Vane.';
   const why = signup
@@ -64,7 +69,8 @@ export function codeMail(to: string, code: string, purpose: VerifyPurpose, minut
     '<td style="padding:32px 28px;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif;color:#ffffff;">' +
     '<div style="font-size:20px;font-weight:600;letter-spacing:-0.01em;">vane</div>' +
     `<p style="margin:24px 0 0;font-size:15px;line-height:1.5;color:#d4d4d8;">${lead}</p>` +
-    `<div style="margin:20px 0;padding:18px 0 18px 10px;background:#070708;border:1px solid #26262c;border-radius:14px;text-align:center;font-family:'SFMono-Regular',Menlo,Consolas,monospace;font-size:32px;font-weight:700;letter-spacing:10px;color:#ffffff;">${code}</div>` +
+    `<div style="margin:20px 0 16px;padding:18px 0 18px 10px;background:#070708;border:1px solid #26262c;border-radius:14px;text-align:center;font-family:'SFMono-Regular',Menlo,Consolas,monospace;font-size:32px;font-weight:700;letter-spacing:10px;color:#ffffff;-webkit-user-select:all;user-select:all;">${code}</div>` +
+    `<div style="margin:0 0 20px;text-align:center;"><a href="${origin}/copy#${code}" style="display:inline-block;padding:11px 24px;background:#ffffff;border-radius:999px;font-size:14px;font-weight:600;line-height:1;color:#010101;text-decoration:none;">Copy code</a></div>` +
     `<p style="margin:0;font-size:13px;line-height:1.5;color:#a1a1aa;">The code works for ${minutes} minutes.</p>` +
     `<p style="margin:12px 0 0;font-size:13px;line-height:1.5;color:#71717a;">${why}</p>` +
     '</td></tr></table></td></tr></table></body></html>';
