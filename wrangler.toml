@@ -16,3 +16,6 @@ bucket_name = "vane-media"
 
 [vars]
 TURNSTILE_SITE_KEY = "0x4AAAAAAFYNiz-h1o5Y-W8u"
+# Sender of the emailed 6-digit codes: a domain verified in Resend. A plain value, so it lives HERE (not in the
+# Pages dashboard, and not in worker/wrangler.toml: the cron worker sends no email). RESEND_API_KEY is a Pages secret.
+EMAIL_FROM = "Vane <noreply@vaneapp.dev>"

@@ -12,13 +12,20 @@ const RESEND_URL = 'https://api.resend.com/emails';
 
 let warned = false;
 
+/** Which settings the function can actually see. Booleans only: values are never exposed. */
+export const emailStatus = (env: Env) => ({
+  enabled: Boolean(env.RESEND_API_KEY && env.EMAIL_FROM),
+  apiKeySet: Boolean(env.RESEND_API_KEY),
+  fromSet: Boolean(env.EMAIL_FROM),
+});
+
 export function emailConfigured(env: Env): boolean {
-  const on = Boolean(env.RESEND_API_KEY && env.EMAIL_FROM);
-  if (!on && (env.RESEND_API_KEY || env.EMAIL_FROM) && !warned) {
+  const st = emailStatus(env);
+  if (!st.enabled && (st.apiKeySet || st.fromSet) && !warned) {
     warned = true; // once per isolate, not once per request
-    console.warn('email codes are OFF: set BOTH RESEND_API_KEY and EMAIL_FROM');
+    console.warn(`email codes are OFF: ${st.apiKeySet ? 'EMAIL_FROM' : 'RESEND_API_KEY'} is not visible to the function (it needs both; they belong to the Pages project, not the cron worker)`);
   }
-  return on;
+  return st.enabled;
 }
 
 export interface Mail { to: string; subject: string; text: string; html: string }
