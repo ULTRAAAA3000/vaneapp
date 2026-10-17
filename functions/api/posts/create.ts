@@ -19,6 +19,7 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
 import type { ChannelRow, ChannelType, Env } from '../../../types';
 import { requireUser } from '../lib/auth';
+import { checkPostQuota } from '../lib/plans';
 import { fail, isRecord, json, readJson, UUID_RE } from '../lib/http';
 import { isValidMediaUrl, TELEGRAM_CAPTION_LIMIT } from '../channels/telegram';
 
@@ -109,6 +110,9 @@ export const handleCreatePost: PagesFunction<Env> = async ({ request, env }) => 
   }
 
   // ── write
+  const overQuota = await checkPostQuota(env, auth.userId);       // plan limit (only while "enforce_limits" is on)
+  if (overQuota) return overQuota;
+
   const groupId = crypto.randomUUID();
   const mediaKeys = JSON.stringify(mediaUrl ? [mediaUrl] : []);
   const insert = env.DB.prepare(

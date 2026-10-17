@@ -10,3 +10,14 @@ TELEGRAM_WEBHOOK_SECRET=random-16+-chars-A-Za-z0-9_-   # e.g. openssl rand -hex 
 # These are Cloudflare's official always-pass TEST keys; real keys: Cloudflare dashboard → Turnstile → Add widget.
 #TURNSTILE_SITE_KEY=1x00000000000000000000AA
 #TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
+
+# Admin panel (/admin). Optional: without ADMIN_EMAIL + ADMIN_PASSWORD_HASH the admin is switched off.
+# Make the hash with `npm run admin:hash` (never write the plain password here).
+#ADMIN_EMAIL=you@example.com
+#ADMIN_PASSWORD_HASH=pbkdf2-sha256$100000$...
+#ADMIN_ALLOW_IPS=203.0.113.7,198.51.100.0/24
+# Google Search Console (Search tab): the whole service-account JSON on ONE line, plus the property
+#GSC_SERVICE_ACCOUNT={"client_email":"...","private_key":"-----BEGIN PRIVATE KEY-----\n..."}
+#GSC_SITE_URL=sc-domain:vaneapp.dev
+# Optional VPN / proxy lookup (proxycheck.io)
+#PROXYCHECK_KEY=

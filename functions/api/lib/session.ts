@@ -57,7 +57,10 @@ export async function destroySession(env: Env, token: string): Promise<void> {
 export async function userIdFromSession(env: Env, token: string): Promise<string | null> {
   const now = Math.floor(Date.now() / 1000);
   const row = await env.DB
-    .prepare('SELECT user_id FROM sessions WHERE id = ?1 AND expires_at > ?2')
+    .prepare(
+      `SELECT s.user_id FROM sessions s LEFT JOIN user_flags f ON f.user_id = s.user_id
+        WHERE s.id = ?1 AND s.expires_at > ?2 AND COALESCE(f.disabled, 0) = 0`,
+    )
     .bind(await sha256Hex(token), now)
     .first<{ user_id: string }>();
   return row?.user_id ?? null;

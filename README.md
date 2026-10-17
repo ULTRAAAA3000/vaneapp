@@ -38,6 +38,41 @@ Cloudflare Pages (site + `/api`) · D1 (database) · R2 (images) · a cron Worke
 
 Never lose `ENCRYPTION_KEY`: without it every stored channel token is unreadable.
 
+## Admin panel (`/admin`)
+
+A separate sign-in at `https://vaneapp.dev/admin` (not linked anywhere, `noindex`). **The credentials are never in the code or the database**: they are Cloudflare secrets, and without them the admin is simply switched off.
+
+1. **Apply the new tables** (safe to repeat, it never overwrites edited plans or settings):
+   `npx wrangler d1 execute vane-db --remote --file=./schema.sql`
+2. **Make the password hash** (typing is hidden, use a long random passphrase):
+   `npm run admin:hash` → prints `pbkdf2-sha256$100000$…`
+3. **Store the secrets** and redeploy:
+   ```
+   npx wrangler pages secret put ADMIN_EMAIL         --project-name=vaneapp   # the login, an e-mail
+   npx wrangler pages secret put ADMIN_PASSWORD_HASH --project-name=vaneapp   # the line from step 2
+   ```
+   Optional: `ADMIN_USERNAME` (a second login name) and `ADMIN_ALLOW_IPS` (comma list of addresses / CIDR ranges that may use the admin, strongly recommended).
+4. **Turn on Turnstile** (setup step 6): the admin sign-in then needs the human check too.
+
+What is inside: **Overview** (users, conversion funnel, sources, MRR), **Users** (search, give or end a plan, disable an account, time on site, first-touch source), **Plans** (prices, limits, features, hidden or "coming soon", new plans such as "2 in 1" or "Ultra"; the landing page pricing reads them live), **Traffic** (time on site, pages, entry pages, countries, devices, live visitors), **Search** (Google Search Console), **Security** (every sign-in / sign-up attempt with address, country and network; blocklist by IP, range, network or country; automatic bans; hosting / VPN networks refused at sign-in and sign-up), **Settings**, **Activity** (audit log).
+
+**Security notes**
+- Separate session (8 h, `SameSite=Strict`, own table). Wrong passwords: throttled after 5, the address is banned after 8 within 15 minutes. All attempts, successful or not, are listed in Security.
+- You cannot block the network you are using right now (no self-lockout).
+- Rotate the password by running `npm run admin:hash` again and replacing the secret; all admin sessions can be cut by deleting rows from `admin_sessions`.
+
+**Plans, limits and payments.** Money is stored in integer cents with a currency; a plan has an optional yearly price, "was" price, trial days and a slot per payment provider (`provider_refs`: Monobank, crypto, Stripe). `subscriptions` is the single source of truth for a user's plan (a grant from the admin is a subscription with `source = 'admin'`, never counted as revenue); a payment integration only has to insert / update rows there. Plan limits (connected channels, posts per month, posts in total) are applied to users only while **Enforce plan limits** is on in Settings (off by default). The other limits (AI credits, API posts, seats, overage prices) are stored and shown but not enforced yet.
+
+**Search Console.** Create a Google Cloud service account, enable the *Search Console API*, add the service account's e-mail as a (restricted) user of your property in Search Console, then:
+```
+npx wrangler pages secret put GSC_SERVICE_ACCOUNT --project-name=vaneapp   # paste the whole JSON key
+npx wrangler pages secret put GSC_SITE_URL        --project-name=vaneapp   # sc-domain:vaneapp.dev  (or https://vaneapp.dev/)
+```
+
+**VPN / proxy lookup (optional).** Hosting and VPN networks are refused through the ASN list in Security (a starter list, extend it). For per-address detection set `PROXYCHECK_KEY` (proxycheck.io); answers are cached for a day and a lookup outage lets people through.
+
+**Analytics and privacy.** `assets/track.js` records page views and a 20-second heartbeat to `/api/track`: no cookies and no third parties; the visitor id lives in `localStorage`, addresses are stored only as a salted hash, bots and the browser's Do-Not-Track / Global Privacy Control are respected. Sign-in attempts keep the raw address for 90 days (security log). If you serve users in the EU, mention both in your privacy policy.
+
 ## Telegram connection methods
 
 | | Quick Connect | Custom bot |

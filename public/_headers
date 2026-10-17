@@ -10,5 +10,9 @@
 /login
   Cache-Control: no-store
 
+/admin
+  Cache-Control: no-store
+  X-Robots-Tag: noindex, nofollow, noarchive
+
 /assets/*
   Cache-Control: no-cache
