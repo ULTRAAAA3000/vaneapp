@@ -32,6 +32,15 @@
     .btn-grad { background: linear-gradient(to bottom, #2B2B2B, #101010); }
     .no-scrollbar { scrollbar-width: none; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
+    /* phone preview tabs: more networks than fit scroll sideways (finger, mouse drag, wheel or this thin bar); the faded edge says there is more */
+    .tabs-scroll { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.28) transparent; overscroll-behavior-x: contain; cursor: grab; }
+    .tabs-scroll::-webkit-scrollbar { height: 4px; }
+    .tabs-scroll::-webkit-scrollbar-track { background: transparent; }
+    .tabs-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.28); border-radius: 9999px; }
+    .tabs-scroll.dragging { cursor: grabbing; user-select: none; }
+    .tabs-scroll[data-r="1"] { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+    .tabs-scroll[data-l="1"] { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent); }
+    .tabs-scroll[data-l="1"][data-r="1"] { -webkit-mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent); }
     section[id] { scroll-margin-top: 24px; }
 
     /* ── glass on dark sections ── */
@@ -328,7 +337,7 @@
                       <svg width="22" height="10" viewBox="0 0 22 10" fill="none"><rect x=".5" y=".5" width="18" height="9" rx="2.5" stroke="currentColor" opacity=".5"/><rect x="2" y="2" width="13" height="6" rx="1.3" fill="currentColor"/><rect x="19.6" y="3.2" width="1.6" height="3.6" rx=".8" fill="currentColor" opacity=".5"/></svg>
                     </span>
                   </div>
-                  <div id="tabs" class="no-scrollbar flex min-h-[3.75rem] items-end gap-1.5 overflow-x-auto bg-black px-3 pb-2 pt-12"></div>
+                  <div id="tabs" class="tabs-scroll relative flex min-h-[3.75rem] items-end gap-1.5 overflow-x-auto bg-black px-3 pb-2 pt-12"></div>
                   <div id="pv" class="no-scrollbar flex-1 overflow-y-auto"></div>
                 </div>
               </div>
@@ -1283,6 +1292,7 @@ curl -X POST https://vaneapp.dev/api/posts \
     }
 
     function renderTabs() {
+      var keep = tabsEl.scrollLeft, activeBtn = null; // rebuilding the buttons must not throw the strip back to the start
       tabsEl.innerHTML = '';
       state.sel.forEach(function (k) {
         var t = document.createElement('button');
@@ -1292,8 +1302,55 @@ curl -X POST https://vaneapp.dev/api/posts \
         t.innerHTML = ICON[k].replace('h-4 w-4', 'h-3 w-3') + CH[k].name;
         t.addEventListener('click', function () { state.active = k; renderTabs(); renderPreview(); });
         tabsEl.appendChild(t);
+        if (k === state.active) activeBtn = t;
       });
+      tabsEl.scrollLeft = keep;
+      if (activeBtn) { // bring the selected tab into view (scrolls the strip only, never the page)
+        var l = activeBtn.offsetLeft - 12, r = activeBtn.offsetLeft + activeBtn.offsetWidth + 12;
+        if (l < tabsEl.scrollLeft) tabsEl.scrollLeft = l;
+        else if (r > tabsEl.scrollLeft + tabsEl.clientWidth) tabsEl.scrollLeft = r - tabsEl.clientWidth;
+      }
+      tabsFade();
     }
+
+    // The tab strip scrolls sideways: a finger on a phone, and with a mouse drag, wheel or the thin bar. Fade the edge that has more.
+    function tabsFade() {
+      var max = tabsEl.scrollWidth - tabsEl.clientWidth;
+      tabsEl.dataset.l = tabsEl.scrollLeft > 2 ? '1' : '0';
+      tabsEl.dataset.r = tabsEl.scrollLeft < max - 2 ? '1' : '0';
+    }
+    var tabDrag = null, tabDragged = false;
+    tabsEl.addEventListener('scroll', tabsFade, { passive: true });
+    window.addEventListener('resize', tabsFade);
+    tabsEl.addEventListener('pointerdown', function (e) {
+      if (e.pointerType !== 'mouse' || e.button !== 0) return; // touch scrolls natively
+      tabDrag = { x: e.clientX, left: tabsEl.scrollLeft, moved: false };
+    });
+    window.addEventListener('pointermove', function (e) {
+      if (!tabDrag) return;
+      var dx = e.clientX - tabDrag.x;
+      if (!tabDrag.moved && Math.abs(dx) < 5) return;
+      tabDrag.moved = true;
+      tabsEl.classList.add('dragging');
+      tabsEl.scrollLeft = tabDrag.left - dx;
+    });
+    window.addEventListener('pointerup', function () {
+      if (!tabDrag) return;
+      tabDragged = tabDrag.moved;
+      tabDrag = null;
+      tabsEl.classList.remove('dragging');
+      setTimeout(function () { tabDragged = false; }, 0); // a drag that ends over a tab must not also click it
+    });
+    tabsEl.addEventListener('click', function (e) { if (tabDragged) { e.stopPropagation(); e.preventDefault(); } }, true);
+    tabsEl.addEventListener('wheel', function (e) {
+      if (Math.abs(e.deltaX) >= Math.abs(e.deltaY)) return; // a sideways gesture already scrolls the strip
+      var max = tabsEl.scrollWidth - tabsEl.clientWidth;
+      if (max <= 0) return;
+      var next = Math.max(0, Math.min(max, tabsEl.scrollLeft + e.deltaY));
+      if (next === tabsEl.scrollLeft) return; // at either end: let the page scroll on
+      tabsEl.scrollLeft = next;
+      e.preventDefault();
+    }, { passive: false });
 
     function renderPreview() {
       var text = ta.value.trim();
