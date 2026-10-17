@@ -103,7 +103,7 @@ export async function issueCode(
       .bind(email, purpose, codeHash, opts.payload ?? null, now, now + CODE_TTL_SECONDS),
   ]);
 
-  if (!(await sendMail(env, codeMail(email, code, purpose, CODE_TTL_SECONDS / 60)))) {
+  if (!(await sendMail(env, codeMail(email, code, purpose, CODE_TTL_SECONDS / 60, new URL(request.url).origin)))) {
     await env.DB.prepare('DELETE FROM email_verifications WHERE email = ?1 AND purpose = ?2').bind(email, purpose).run();
     return { ok: false, response: fail(502, "We couldn't send the email. Check the address and try again.") };
   }
