@@ -14,7 +14,8 @@ database_name = "vane-db"
 database_id = "9e560592-ec8e-451d-97d3-c2d8082c527e"
 
 [vars]
-APP_URL = "https://vaneapp.dev"   # turns stored R2 keys into public image links
+APP_URL = "https://vaneapp.dev"
+TURNSTILE_SITE_KEY = "0x4AAAAAAFYNiz-h1o5Y-W8u"# turns stored R2 keys into public image links
 
 [observability]
 enabled = true               # keep logs: Workers & Pages → this worker → Logs
