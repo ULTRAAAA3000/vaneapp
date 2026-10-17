@@ -129,9 +129,11 @@
     $('app').classList.remove('opacity-0');
 
     initQuick();
+    var restored = restoreDraft();
     await Promise.all([loadChannels(), loadPosts('upcoming'), loadPosts('history')]);
     setTab('upcoming');
     renderAll();
+    if (restored) Vane.toast('info', 'Your unsent draft is back.');
 
     setInterval(function () { renderStats(); renderPosts(); }, 30000);
     // live posts: poll while the tab is visible, and catch up the moment it is back in front
@@ -203,6 +205,13 @@
       $('statNext').textContent = '—';
       $('statNextSub').textContent = 'Until your next post';
     }
+    // everything below is derived from the same two lists: hashtag memory and the Insights card
+    if (tags) tags.setPosts(S.history.concat(S.upcoming));
+    Vane.renderInsights($('insights'), S.history, S.upcoming, {
+      limit: 200,                                   // the server returns at most 200 posts per list
+      netIcon: netIcon,
+      onTag: function (t) { tags.insert(t); }
+    });
   }
 
   // ───────────────────────── channels ─────────────────────────
@@ -588,6 +597,35 @@
   // text + counter
   textEl.addEventListener('input', function () { renderPreview(); validate(); });
 
+  // hashtag memory: suggestions from past posts while you type "#" (assets/insights.js)
+  var tags = Vane.createTagAssist(textEl, $('tagBar'));
+
+  // Ctrl/⌘ + Enter schedules
+  textEl.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.isComposing) { e.preventDefault(); $('schedBtn').click(); }
+  });
+  $('schedBtn').title = 'Ctrl / ⌘ + Enter';
+
+  // Draft: the text survives a reload or a closed tab. Kept per account in this browser only; removed on sign-out and once scheduled.
+  var draftTimer = null;
+  function draftKey() { return 'vane:draft:' + S.user.id; }
+  function saveDraft() {
+    clearTimeout(draftTimer);
+    if (!S.user) return;
+    try {
+      if (textEl.value.trim()) localStorage.setItem(draftKey(), textEl.value); else localStorage.removeItem(draftKey());
+    } catch (e) { /* storage blocked or full: the draft is a convenience, never an error */ }
+  }
+  function restoreDraft() {
+    try {
+      var d = localStorage.getItem(draftKey());
+      if (d && d.trim() && !textEl.value) { textEl.value = d; return true; }
+    } catch (e) { /* storage blocked */ }
+    return false;
+  }
+  textEl.addEventListener('input', function () { clearTimeout(draftTimer); draftTimer = setTimeout(saveDraft, 400); });
+  window.addEventListener('pagehide', saveDraft);
+
   // The selected network whose limit is closest to (or past) the text length: with several networks that is the strictest one.
   function tightest(raw, media) {
     var worst = null;
@@ -767,7 +805,7 @@
 
     var n = r.data.posts.length;
     Vane.toast('ok', 'Scheduled for ' + fmtWhen.format(new Date(r.data.scheduledAt * 1000)) + (n > 1 ? ' on ' + n + ' channels.' : '.'));
-    textEl.value = ''; picker.clear();
+    textEl.value = ''; picker.clear(); saveDraft();
     initQuick();
     await Promise.all([loadPosts('upcoming')]);
     S.tab = 'upcoming'; setTab('upcoming');
@@ -847,12 +885,32 @@
                 ? '<button type="button" data-act="cancel" data-group="' + esc(p.groupId) + '" class="btn btn-danger btn-sm">Cancel post?</button>'
                 : '<button type="button" data-act="cancel" data-group="' + esc(p.groupId) + '" class="btn btn-ghost btn-sm">Cancel</button>') +
             '</div>'
-          : '') +
+          : S.tab === 'history'
+            ? '<div class="shrink-0 self-start"><button type="button" data-act="reuse" data-group="' + esc(p.groupId) + '" class="btn btn-ghost btn-sm" title="Copy this post into the editor">Reuse</button></div>'
+            : '') +
       '</article>';
     }).join('');
   }
 
+  // Reuse: a finished post's text (and the channels it went to, where they still exist) goes back into the editor.
+  function reusePost(gid) {
+    var g = S.history.filter(function (p) { return p.groupId === gid; });
+    if (!g.length) return;
+    textEl.value = g[0].content;
+    var ids = g.map(function (p) { return p.channelId; }).filter(function (id) {
+      return S.channels.some(function (c) { return c.id === id; });
+    });
+    if (ids.length) { S.selected = new Set(ids); S.selectionTouched = true; }
+    picker.clear();
+    renderChips(); renderPreview(); validate(); saveDraft();
+    $('composer').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    textEl.focus();
+    Vane.toast('ok', g[0].mediaUrl ? 'Text copied to the editor. Add the image or video again.' : 'Copied to the editor. Pick a time and schedule it.');
+  }
+
   $('posts').addEventListener('click', async function (e) {
+    var reuse = e.target.closest('[data-act="reuse"]');
+    if (reuse) return reusePost(reuse.getAttribute('data-group'));
     var btn = e.target.closest('[data-act="cancel"]');
     if (!btn) return;
     var gid = btn.getAttribute('data-group'), key = 'cancel:' + gid;
@@ -871,6 +929,7 @@
   // ───────────────────────── sign out ─────────────────────────
   $('logoutBtn').addEventListener('click', async function () {
     this.disabled = true;
+    try { localStorage.removeItem(draftKey()); } catch (e) { /* storage blocked */ }
     await Vane.api('POST', '/api/auth/logout', {}, { noRedirect: true });
     Vane.go('/login');
   });
