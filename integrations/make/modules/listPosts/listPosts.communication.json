@@ -1,0 +1,12 @@
+{
+  "url": "/posts",
+  "method": "GET",
+  "qs": {
+    "view": "{{parameters.view}}"
+  },
+  "response": {
+    "iterate": "{{body.posts}}",
+    "limit": "{{parameters.limit}}",
+    "output": "{{item}}"
+  }
+}

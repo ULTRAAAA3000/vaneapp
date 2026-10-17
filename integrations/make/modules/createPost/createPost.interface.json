@@ -1,0 +1,44 @@
+[
+  {
+    "name": "groupId",
+    "type": "text",
+    "label": "Group ID"
+  },
+  {
+    "name": "scheduledAt",
+    "type": "number",
+    "label": "Scheduled at (unix seconds)"
+  },
+  {
+    "name": "test",
+    "type": "boolean",
+    "label": "Test run (nothing was posted)"
+  },
+  {
+    "name": "overage",
+    "type": "boolean",
+    "label": "Billed as an extra post"
+  },
+  {
+    "name": "posts",
+    "type": "array",
+    "label": "Posts",
+    "spec": [
+      {
+        "name": "id",
+        "type": "text",
+        "label": "Post ID"
+      },
+      {
+        "name": "channelId",
+        "type": "text",
+        "label": "Channel ID"
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "label": "Status"
+      }
+    ]
+  }
+]

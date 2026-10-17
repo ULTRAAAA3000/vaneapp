@@ -126,6 +126,8 @@ Every metered response carries `X-Vane-Quota-Limit`, `X-Vane-Quota-Remaining` an
 - *Claude* and other tools that read OpenAPI: point them at the same file.
 - When an endpoint changes, update `public/vane-openapi.json` in the same commit.
 
+**Make custom app:** a ready app definition lives in `integrations/make/` (modules: Schedule / Get / Cancel a Post, List Posts, List Channels; channels come as a dropdown). Setup is in its README; `npm run check:integrations` checks it still matches the spec.
+
 Make.com: *HTTP → Make a request*, URL `https://vaneapp.dev/api/v1/posts`, header `Authorization: Bearer <key>`, body type *Raw / JSON*. A scenario that runs on a key that is out of quota gets `402`, which Make shows as an error you can route.
 
 ### How the quota works

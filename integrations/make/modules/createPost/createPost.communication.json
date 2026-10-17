@@ -1,0 +1,13 @@
+{
+  "url": "/posts",
+  "method": "POST",
+  "body": {
+    "content": "{{parameters.content}}",
+    "channelIds": "{{parameters.channelIds}}",
+    "scheduledAt": "{{parameters.scheduledAt}}",
+    "mediaUrl": "{{ifempty(parameters.mediaUrl; null)}}"
+  },
+  "response": {
+    "output": "{{body}}"
+  }
+}
