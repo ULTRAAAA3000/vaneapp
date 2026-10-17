@@ -1,0 +1,9 @@
+[
+  {
+    "name": "apiKey",
+    "type": "password",
+    "label": "API key",
+    "required": true,
+    "help": "Create it in the Vane dashboard. Starts with cpost_live_ (real posts) or cpost_test_ (nothing is posted or counted)."
+  }
+]

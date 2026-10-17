@@ -1,0 +1,57 @@
+{
+  "fileVersion": 1,
+  "generatedWith": "hand-written",
+  "origins": [],
+  "components": {
+    "app": {
+      "vane": {
+        "label": "Vane",
+        "description": "Schedule social posts with Vane",
+        "theme": "#0a0a0b",
+        "language": "en",
+        "countries": [],
+        "private": true,
+        "audience": "global"
+      }
+    },
+    "connection": {
+      "vane-key": {
+        "label": "Vane API key",
+        "type": "basic",
+        "connectionType": "connection"
+      }
+    },
+    "rpc": {
+      "listChannels": {
+        "label": "List channels"
+      }
+    },
+    "module": {
+      "createPost": {
+        "label": "Schedule a Post",
+        "moduleType": "action",
+        "connection": "vane-key"
+      },
+      "getPost": {
+        "label": "Get a Post",
+        "moduleType": "action",
+        "connection": "vane-key"
+      },
+      "cancelPost": {
+        "label": "Cancel a Post",
+        "moduleType": "action",
+        "connection": "vane-key"
+      },
+      "listPosts": {
+        "label": "List Posts",
+        "moduleType": "search",
+        "connection": "vane-key"
+      },
+      "listChannels": {
+        "label": "List Channels",
+        "moduleType": "search",
+        "connection": "vane-key"
+      }
+    }
+  }
+}

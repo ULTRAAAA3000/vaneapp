@@ -1,0 +1,11 @@
+{
+  "url": "/channels",
+  "method": "GET",
+  "response": {
+    "iterate": "{{body.channels}}",
+    "output": {
+      "label": "{{item.name}} ({{item.platform}})",
+      "value": "{{item.id}}"
+    }
+  }
+}

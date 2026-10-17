@@ -1,0 +1,9 @@
+{
+  "url": "/me",
+  "method": "GET",
+  "response": {
+    "temp": {
+      "keyName": "{{body.key.name}}"
+    }
+  }
+}

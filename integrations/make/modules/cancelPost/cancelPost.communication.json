@@ -1,0 +1,7 @@
+{
+  "url": "/posts/{{parameters.id}}",
+  "method": "DELETE",
+  "response": {
+    "output": "{{body}}"
+  }
+}

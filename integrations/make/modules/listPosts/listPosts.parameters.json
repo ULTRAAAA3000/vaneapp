@@ -1,0 +1,25 @@
+[
+  {
+    "name": "view",
+    "type": "select",
+    "label": "Which posts",
+    "default": "upcoming",
+    "options": [
+      {
+        "label": "Upcoming",
+        "value": "upcoming"
+      },
+      {
+        "label": "History (sent, failed, cancelled)",
+        "value": "history"
+      }
+    ]
+  },
+  {
+    "name": "limit",
+    "type": "uinteger",
+    "label": "Limit",
+    "default": 10,
+    "help": "The maximum number of posts returned in one run."
+  }
+]
