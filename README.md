@@ -29,16 +29,21 @@ Cloudflare Pages (site + `/api`) · D1 (database) · R2 (images) · a cron Worke
    4. **Also give the cron worker the bot token:** `npm run cron:secret-bot` (without it Quick Connect posts cannot be published).
    5. Register the webhook once: `SYSTEM_BOT_TOKEN=… TELEGRAM_WEBHOOK_SECRET=… npm run telegram:webhook set` (`info` shows delivery errors, `delete` removes it).
    Until steps 3-5 are done the dashboard simply offers **Custom bot** only.
-6. **Bot protection (Turnstile, optional, recommended):** Cloudflare dashboard → Turnstile → *Add widget* (domain `vaneapp.dev`, mode *Managed*).
-   Put the **site key** into Pages → Settings → Variables as `TURNSTILE_SITE_KEY` (plain text) and the **secret key** as a secret:
-   `npx wrangler pages secret put TURNSTILE_SECRET_KEY --project-name=vaneapp`, then redeploy.
-   Sign-in and sign-up then require a passed check; it is enforced only when **both** values are set, and it fails closed if Cloudflare cannot be reached.
-   Locally use the test keys from `.dev.vars.example`.
+6. **Bot protection (Turnstile, optional, recommended):** Cloudflare dashboard → Turnstile → *Add widget* (hostname `vaneapp.dev`, mode *Managed*).
+   - **Site key** (public by design): put it in `wrangler.toml`. This project is configured by that file, which Cloudflare treats as the source of truth, so a plain variable typed into the Pages dashboard is NOT reliably picked up:
+     ```toml
+     [vars]
+     TURNSTILE_SITE_KEY = "0x4AAAAAAA…"
+     ```
+   - **Secret key:** `npx wrangler pages secret put TURNSTILE_SECRET_KEY --project-name=vaneapp` (do this for Production; Preview has its own secrets).
+   - **Redeploy** afterwards: new values only reach new deployments.
+   - Sign-in and sign-up then require a passed check. It is enforced only when **both** values are visible to the function (fails closed if Cloudflare is unreachable). Locally use the test keys from `.dev.vars.example`.
+   - **Not showing up?** Open `https://vaneapp.dev/api/auth/config`: `"turnstile": { "siteKeySet": …, "secretKeySet": … }` tells you which key the function cannot see (values are never shown). `enabled: true` but still no widget → open the browser console on `/login` (ad-blocker, or the widget's hostname list does not contain `vaneapp.dev`).
 7. **Email codes (Resend, optional, recommended):** a 6-digit code is emailed when someone signs up (the account is created only after it is entered) and again when an account has not been opened for more than 3 days. Until it is switched on, sign-up and sign-in work exactly as before. Order matters:
    1. `npm run db:remote` **first** (two new tables, `email_verifications` and `user_activity`; safe to re-run).
    2. [resend.com](https://resend.com) → *Domains* → add `vaneapp.dev` and put the DNS records it shows (SPF, DKIM) into Cloudflare DNS; wait until it says *Verified*. (`onboarding@resend.dev` only delivers to your own Resend address: fine for a first test, useless for real users.)
    3. Resend → *API Keys* → create a key with *Sending access*, then: `npx wrangler pages secret put RESEND_API_KEY --project-name=vaneapp`
-   4. Pages → Settings → Variables: `EMAIL_FROM` = `Vane <noreply@vaneapp.dev>` (plain text), then redeploy.
+   4. `EMAIL_FROM` is a plain value, so (like the Turnstile site key) put it in `wrangler.toml` under `[vars]`: `EMAIL_FROM = "Vane <noreply@vaneapp.dev>"`, then redeploy.
    It is enforced only when **both** values are set. Once on, the account of anyone away for more than 3 days asks for a code at the next sign-in and all their old sessions are ended; accounts that already exist start their 3 days from their next visit. Resend's free plan is limited (check their current quota), so watch it if sign-ups spike.
    Tuning: `AWAY_AFTER_SECONDS` in `functions/api/lib/activity.ts` (3 days); `CODE_TTL_SECONDS`, `RESEND_COOLDOWN_SECONDS`, `MAX_WRONG_GUESSES` in `functions/api/lib/emailcode.ts` (10 min, 60 s, 5).
 8. **Check it live:** sign up at `/login`, connect a Telegram channel, press *Send test*, schedule a post 2–3 minutes ahead and watch `npm run cron:logs`.
