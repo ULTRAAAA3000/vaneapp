@@ -235,6 +235,8 @@ export interface PostPublic {
   attempts: number;
   error: string | null;
   sentAt: number | null;
+  /** where the published post can be opened on its network (https); null while unsent or when the network gives no link */
+  url: string | null;
 }
 
 export type ListPostsResponse = { ok: true; posts: PostPublic[] } | ApiError;

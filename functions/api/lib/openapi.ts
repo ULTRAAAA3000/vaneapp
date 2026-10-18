@@ -250,6 +250,7 @@ export function openApiDocument(origin: string): Json {
             attempts: { type: 'integer', description: 'Delivery attempts so far (temporary failures are retried).' },
             error: { type: ['string', 'null'], description: 'Why a post failed.' },
             sentAt: { type: ['integer', 'null'], description: 'Unix seconds when it was published.' },
+            url: { type: ['string', 'null'], description: 'Link to the published post on its network (https). Null until sent, or when the network gives no link.' },
           },
         },
         CreatePostRequest: {

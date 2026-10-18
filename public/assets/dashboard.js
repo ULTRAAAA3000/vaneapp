@@ -26,6 +26,8 @@
 
   var TG_LIMIT = 4096, CAPTION_LIMIT = 1024, MAX_LEN = 10000;
 
+  // small "opens elsewhere" arrow, shown on pills that link to the published post
+  var EXT = '<svg class="h-3 w-3 text-white/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M8 7h9v9"/></svg>';
   var ICON = {
     trash: '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6M10 11v6M14 11v6"/></svg>',
     clock: '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
@@ -1055,9 +1057,16 @@
       var armed = !!S.armed['cancel:' + p.groupId];
       var errs = g.filter(function (x) { return x.status === 'failed' && x.error; });
 
+      // a sent post that has a link on its network turns its channel pill into a link to it
       var pills = g.map(function (x) {
-        return '<span class="inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-2.5 py-1 text-xs text-white/70">' +
-          '<span class="h-1.5 w-1.5 rounded-full" style="background:' + (DOT[x.status] || DOT.scheduled) + '"></span>' + netIcon(x.platform, 'h-3 w-3 text-white/50') + esc(x.channelName) + '</span>';
+        var link = x.status === 'sent' && typeof x.url === 'string' && x.url.indexOf('https://') === 0;
+        var inner = '<span class="h-1.5 w-1.5 rounded-full" style="background:' + (DOT[x.status] || DOT.scheduled) + '"></span>' +
+          netIcon(x.platform, 'h-3 w-3 text-white/50') + esc(x.channelName) + (link ? EXT : '');
+        var base = 'inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-2.5 py-1 text-xs text-white/70';
+        var net = NET[x.platform] ? NET[x.platform].name : 'the network';
+        return link
+          ? '<a href="' + esc(x.url) + '" target="_blank" rel="noopener noreferrer" class="' + base + ' transition-colors hover:bg-white/[0.14] hover:text-white" title="Open the post on ' + esc(net) + '" aria-label="Open the post on ' + esc(net) + ' (' + esc(x.channelName) + ')">' + inner + '</a>'
+          : '<span class="' + base + '">' + inner + '</span>';
       }).join('');
 
       return '<article class="flex gap-4 rounded-2xl bg-white/[0.04] p-4 ring-1 ring-white/5 transition-colors hover:bg-white/[0.06]">' +
