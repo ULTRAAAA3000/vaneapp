@@ -188,6 +188,14 @@ They share the account and the sign-in, nothing else; each host answers 404 to t
   from the uploads step (videos live under a private `videos/` prefix, never served publicly).
 - **Switch it on for an account** (until payments do it): `npm run video:set -- me@example.com [--days 365] [--remote]`;
   `--off` takes it away again. Without it uploads and live `cvid_live_` keys answer `403 video_engine_required`; `cvid_test_` keys always work.
+- **No terminal?** Do the same in Cloudflare → D1 → `vane-db` → **Console**: paste the whole `schema.sql` and run it (it is idempotent), then grant the account (it must already exist: sign up on the site first):
+  ```sql
+  INSERT INTO video_subscriptions (user_id, status, current_period_end, provider, created_at, updated_at)
+  SELECT id, 'active', NULL, 'manual', unixepoch(), unixepoch() FROM users WHERE email = 'me@example.com'
+  ON CONFLICT(user_id) DO UPDATE SET status = 'active', current_period_end = NULL, updated_at = unixepoch();
+  ```
+  To switch it off again: `UPDATE video_subscriptions SET status = 'canceled' WHERE user_id = (SELECT id FROM users WHERE email = 'me@example.com');`
+- **Sign-in:** the sign-in page has a **Vane Post / Vane Studio** switch (one account works for both); the choice decides where you land. Signing up does not switch Studio on: that is the grant above (until payments exist).
 - **Upload flow** (chunks of 8 MiB, resumable): `POST /api/video/uploads` → `PUT …/uploads/:id/parts/:n` → `POST …/uploads/:id/complete`.
 - **Test it locally:** `npm run db:local && npm run dev`, then `npm run test:video` (API) and `npm run test:hosts` (subdomain routing).
 

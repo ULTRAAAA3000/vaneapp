@@ -55,6 +55,18 @@
         <div class="glass-d-strong rounded-[1.75rem] p-6 shadow-2xl sm:p-8">
           <!-- ───── STEP 1: sign in / create account ───── -->
           <div id="viewAuth">
+            <!-- which product: Vane Post (scheduling) or Vane Studio (video). One account works for both. -->
+            <div id="product" class="mb-4 grid grid-cols-2 gap-1.5" role="group" aria-label="Product">
+              <button type="button" id="prodPost" aria-pressed="true" class="rounded-xl border border-white/10 px-3 py-2 text-left transition-colors">
+                <span class="block text-sm font-semibold">Vane Post</span>
+                <span class="block text-[11px] text-white/45">Schedule posts</span>
+              </button>
+              <button type="button" id="prodStudio" aria-pressed="false" class="rounded-xl border border-white/10 px-3 py-2 text-left transition-colors">
+                <span class="block text-sm font-semibold">Vane Studio</span>
+                <span class="block text-[11px] text-white/45">Video library</span>
+              </button>
+            </div>
+
             <!-- segmented control -->
             <div class="relative grid grid-cols-2 rounded-full bg-white/[0.06] p-1" role="tablist" aria-label="Account">
               <span id="seg" class="absolute bottom-1 left-1 top-1 w-[calc(50%-0.25rem)] rounded-full bg-white transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]" aria-hidden="true"></span>

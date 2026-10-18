@@ -20,9 +20,12 @@
   Vane.home = function () {
     var h = location.hostname;
     if (OWN_HOST.test(h)) return '/';
-    if (/^(www\.)?vaneapp\.dev$/i.test(h)) return 'https://post.vaneapp.dev/';
-    var next = new URLSearchParams(location.search).get('next');
-    return DEV_PAGES.indexOf(next) !== -1 ? next : '/app';
+    var q = new URLSearchParams(location.search);
+    var studio = q.get('product') === 'studio';                        // chosen on the sign-in page's Post / Studio switch
+    if (/^(www\.)?vaneapp\.dev$/i.test(h)) return studio ? 'https://studio.vaneapp.dev/' : 'https://post.vaneapp.dev/';
+    var next = q.get('next');
+    if (DEV_PAGES.indexOf(next) !== -1) return next;
+    return studio ? '/studio' : '/app';
   };
   Vane.loginUrl = function () {
     if (OWN_HOST.test(location.hostname) || DEV_PAGES.indexOf(location.pathname) === -1) return '/login';
