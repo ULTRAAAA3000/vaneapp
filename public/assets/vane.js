@@ -1,4 +1,4 @@
-/* Shared helpers for /login and /app. Exposes window.Vane. */
+/* Shared helpers for /login, the Vane Post dashboard and the Vane Studio dashboard. Exposes window.Vane. */
 (function () {
   'use strict';
   var Vane = {};
@@ -11,8 +11,27 @@
   Vane.go = function (url) { if (window.__go) window.__go(url); else window.location.assign(url); };
 
   /**
+   * Each product has its own host (post.vaneapp.dev, studio.vaneapp.dev) and one sign-in covers both.
+   * Vane.home(): where a signed-in user lands.  Vane.loginUrl(): where a signed-out visitor is sent.
+   * On the main site that is Vane Post; in local dev (no subdomains) /app and /studio are plain paths, and ?next= carries the choice.
+   */
+  var OWN_HOST = /^(post|studio)\.vaneapp\.dev$/i;
+  var DEV_PAGES = ['/app', '/studio'];
+  Vane.home = function () {
+    var h = location.hostname;
+    if (OWN_HOST.test(h)) return '/';
+    if (/^(www\.)?vaneapp\.dev$/i.test(h)) return 'https://post.vaneapp.dev/';
+    var next = new URLSearchParams(location.search).get('next');
+    return DEV_PAGES.indexOf(next) !== -1 ? next : '/app';
+  };
+  Vane.loginUrl = function () {
+    if (OWN_HOST.test(location.hostname) || DEV_PAGES.indexOf(location.pathname) === -1) return '/login';
+    return '/login?next=' + encodeURIComponent(location.pathname);
+  };
+
+  /**
    * JSON API client. Resolves to { ok, status, data, error } and never throws.
-   * A 401 sends the user to /login unless opts.noRedirect is set.
+   * A 401 sends the user to the sign-in page unless opts.noRedirect is set.
    */
   Vane.api = async function (method, path, body, opts) {
     opts = opts || {};
@@ -29,7 +48,7 @@
     }
     var data = null;
     try { data = await res.json(); } catch (e) { /* non-JSON */ }
-    if (res.status === 401 && !opts.noRedirect) Vane.go('/login');
+    if (res.status === 401 && !opts.noRedirect) Vane.go(Vane.loginUrl());
     var ok = res.ok && !(data && data.ok === false);
     return { ok: ok, status: res.status, data: data, error: ok ? null : ((data && data.error) || 'Request failed (' + res.status + ')') };
   };
@@ -51,7 +70,7 @@
       xhr.onload = function () {
         var data = null;
         try { data = JSON.parse(xhr.responseText); } catch (e) { /* not JSON */ }
-        if (xhr.status === 401) Vane.go('/login');
+        if (xhr.status === 401) Vane.go(Vane.loginUrl());
         if (xhr.status >= 200 && xhr.status < 300 && data && data.ok) resolve(data);
         else resolve({ ok: false, status: xhr.status, error: (data && data.error) || 'Upload failed (' + xhr.status + ').' });
       };

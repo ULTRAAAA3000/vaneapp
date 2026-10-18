@@ -9,7 +9,7 @@
   var mode = 'login';
 
   // Already signed in? Skip the form.
-  Vane.api('GET', '/api/auth/me', undefined, { noRedirect: true }).then(function (r) { if (r.ok) Vane.go('/app'); });
+  Vane.api('GET', '/api/auth/me', undefined, { noRedirect: true }).then(function (r) { if (r.ok) Vane.go(Vane.home()); });
 
   // ── mode switching
   function setMode(next) {
@@ -141,7 +141,7 @@
     var r = await Vane.api('POST', mode === 'register' ? '/api/auth/register' : '/api/auth/login', body, { noRedirect: true });
     // 202 + verify = no session yet: a 6-digit code was emailed (new account, or back after more than 3 days away)
     if (r.ok && r.data && r.data.verify) { setLoading(false); tsReset(); showVerify(r.data.verify); return; }
-    if (r.ok) { label.textContent = 'Redirecting…'; Vane.go('/app'); return; }
+    if (r.ok) { label.textContent = 'Redirecting…'; Vane.go(Vane.home()); return; }
     setLoading(false);
     tsReset();
     showError(r.error, r.status === 409 ? email : (r.status === 401 ? password : null));
@@ -211,7 +211,7 @@
     if (code.length !== 6) return showVError('Enter the 6-digit code.');
     setChecking(true);
     var r = await Vane.api('POST', '/api/auth/verify', { email: pending.email, code: code, purpose: pending.purpose }, { noRedirect: true });
-    if (r.ok) { $('vLabel').textContent = 'Redirecting…'; Vane.go('/app'); return; }
+    if (r.ok) { $('vLabel').textContent = 'Redirecting…'; Vane.go(Vane.home()); return; }
     setChecking(false);
     if (r.status === 404 || r.status === 409) return backToForm(r.error);   // nothing is waiting any more, or the account already exists
     showVError(r.error);

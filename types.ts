@@ -8,7 +8,9 @@ import type { D1Database, R2Bucket } from '@cloudflare/workers-types';
 export interface Env {
   /** D1 database (binding name must match wrangler.toml) */
   DB: D1Database;
-  /** R2 bucket for post media */
+  /** Pages' static-files binding: always there on Cloudflare Pages (functions/_middleware.ts serves a page from it under another path) */
+  ASSETS: Fetcher;
+  /** R2 bucket for post media and the Vane Studio video library */
   MEDIA?: R2Bucket;             // optional: uploads are enabled only when the R2 bucket is bound
 
   /** Secrets (wrangler secret put / Pages → Settings → Variables) */

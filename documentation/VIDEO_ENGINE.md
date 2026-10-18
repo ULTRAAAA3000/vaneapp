@@ -1,7 +1,7 @@
 # Vane Studio (Video Engine) — архитектура и реализация
 
-**Версия документа:** 0.2.0
-**Статус:** Этап 1 (фундамент бэкенда) реализован; дашборд `studio.vaneapp.dev` — следующий этап
+**Версия документа:** 0.3.0
+**Статус:** Этапы 1–2 реализованы: бэкенд, поддомены `post.` / `studio.` и дашборд Studio (загрузка, библиотека, плеер, ключи)
 **Источники в документации:** ECONOMY_AND_FINANCE.md §1, §2.5, §2.6, §3, §4.2, §7 · SECURITY_ARCHITECTURE.md §2.2, §3.2 · SOCIAL_PLATFORMS_VERIFICATION.md §5, §7, §8
 
 ---
@@ -12,19 +12,33 @@ Vane Studio — отдельный продукт ($12.00 / мес, ECONOMY §2.
 
 | | Vane Post | Vane Studio |
 | :--- | :--- | :--- |
-| Дашборд | `/app` (`post.vaneapp.dev`) | `studio.vaneapp.dev` (этап 2) |
+| Дашборд | `post.vaneapp.dev` (`public/app.html`) | `studio.vaneapp.dev` (`public/studio.html`) |
 | API дашборда (сессия) | `/api/posts`, `/api/channels`, `/api/keys`… | `/api/video/*` |
 | Публичное API (ключи) | `/api/v1/*` · `cpost_live_` / `cpost_test_` | `/api/v1/video/*` · `cvid_live_` / `cvid_test_` |
 | Подписка | таблица `subscriptions` (free / api / pro) | таблица `video_subscriptions` |
 | Лимит запросов на ключ | 100 / мин | 10 / мин (SECURITY §2.2) |
 
-Общее: аккаунт (`users`) и сессия. Ключ неправильного типа отклоняется мгновенно, до обращения к базе
+Общее: аккаунт (`users`) и вход: сессионная cookie выставляется на весь домен `vaneapp.dev`, поэтому один вход действует на обоих поддоменах. Ключ неправильного типа отклоняется мгновенно, до обращения к базе
 (`403 wrong_key_scope`, SECURITY §3.2). Бандл Suite ($18.00, §2.6) = подписка Post + подписка Studio: код Studio не зависит от
 того, как подписка оплачена, поэтому бандл просто создаст строки в обеих таблицах.
 
 **Связка Studio → Post (ECONOMY §3, будет позже).** После отправки видео Studio предложит «Отправить анонс в соцсети?» и серверным
 запросом вызовет `POST /api/v1/posts` с названием, описанием и ссылкой на ролик. Стабильная точка стыковки — `videos.id`
 и публичная ссылка на видео (этап 3). В коде этой связи пока нет намеренно: ни одна таблица Post не тронута.
+
+### Поддомены (`functions/_middleware.ts`, `lib/hosts.ts`, `public/_routes.json`)
+
+Один Pages-проект отвечает на три хоста; продукт выбирается по хосту:
+
+| Хост | `/` | Что отдаёт API |
+| :--- | :--- | :--- |
+| `post.vaneapp.dev` | дашборд постинга | всё, кроме `/api/video/*` и `/api/v1/video/*` (404) |
+| `studio.vaneapp.dev` | дашборд Studio | только `/api/video/*`, `/api/v1/video/*`, `/api/auth/*`, `/api/keys` (остальное 404) |
+| `vaneapp.dev`, `www.` | лендинг; `/app` и `/studio` перенаправляют (308) на поддомены | всё (старые интеграции Make / Zapier продолжают работать) |
+| localhost, `*.pages.dev` | без изменений: `/app` и `/studio` как обычные пути | всё |
+
+`_routes.json` пропускает через функцию только `/`, `/app`, `/studio` и `/api/*`, поэтому обычные статические файлы её не вызывают.
+Проверка: `npm run test:hosts`.
 
 ## 2. Данные (`schema.sql`, только новые таблицы)
 
@@ -63,9 +77,8 @@ MP4/MOV с брендом, совпадающим с заявленным тип
 
 ## 5. Что дальше
 
-1. Дашборд Studio (отдельная страница и навигация, загрузчик с прогрессом и докачкой, библиотека, плеер) на `studio.vaneapp.dev`.
-2. Публичные ссылки на видео (cdn) для TikTok / Reels и для анонса в Post.
-3. Каналы YouTube / TikTok / Reels и публикация (после App Verification, SOCIAL_PLATFORMS §5, §7, §8).
-4. Video AI Engine: хуки, сценарии, описания, теги, таймкоды (ECONOMY §2.5).
-5. Оплата Studio и бандла Suite (Monobank / крипто) вместо ручной выдачи `npm run video:set`.
-6. Связка Studio → Post (ECONOMY §3).
+1. Публичные ссылки на видео (cdn) для TikTok / Reels и для анонса в Post.
+2. Каналы YouTube / TikTok / Reels и публикация (после App Verification, SOCIAL_PLATFORMS §5, §7, §8).
+3. Video AI Engine: хуки, сценарии, описания, теги, таймкоды (ECONOMY §2.5).
+4. Оплата Studio и бандла Suite (Monobank / крипто) вместо ручной выдачи `npm run video:set`.
+5. Связка Studio → Post (ECONOMY §3).

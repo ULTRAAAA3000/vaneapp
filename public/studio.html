@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Studio — Vane</title>
+  <meta name="robots" content="noindex" />
+  <meta name="theme-color" content="#070708" />
+  <link rel="icon" href="/favicon.ico" sizes="32x32" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/assets/vane.css?v=20261018a" />
+</head>
+
+<body class="min-h-screen overflow-x-hidden bg-[#070708]">
+  <!-- ambient glows: Studio leans violet, Vane Post leans indigo/sky -->
+  <div class="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
+    <div class="absolute -left-40 -top-20 h-[34rem] w-[34rem] rounded-full bg-violet-600/20 blur-[120px]"></div>
+    <div class="absolute -right-40 top-1/3 h-[32rem] w-[32rem] rounded-full bg-fuchsia-500/10 blur-[120px]"></div>
+    <div class="absolute bottom-0 left-1/3 h-[28rem] w-[28rem] rounded-full bg-indigo-600/10 blur-[120px]"></div>
+  </div>
+
+  <!-- ═══════════ HEADER ═══════════ -->
+  <header class="sticky top-0 z-30 border-b border-white/5 bg-[#070708]/70 backdrop-blur-xl">
+    <div class="mx-auto flex max-w-6xl items-center justify-between px-5 py-3 sm:px-8">
+      <a href="/" class="flex items-center gap-2" aria-label="Vane Studio home">
+        <img src="/assets/logo.svg" alt="" width="31" height="22" />
+        <span class="text-lg font-semibold">vane</span>
+        <span class="pixel rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-widest text-white/70">studio</span>
+      </a>
+      <div class="flex items-center gap-2.5">
+        <div class="glass-d hidden items-center gap-2 rounded-full py-1 pl-1 pr-4 sm:flex">
+          <span id="avatar" class="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-400 text-xs font-bold">·</span>
+          <span id="userEmail" class="max-w-[14rem] truncate text-sm text-white/70"></span>
+        </div>
+        <a id="postLink" href="/app" class="btn btn-ghost btn-sm hidden sm:inline-flex">Vane Post</a>
+        <button id="logoutBtn" type="button" class="btn btn-ghost btn-sm">Sign out</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="app" class="relative mx-auto max-w-6xl px-5 pb-24 pt-8 opacity-0 transition-opacity duration-500 sm:px-8 sm:pt-10">
+
+    <section class="fade-up">
+      <p class="text-xs font-medium uppercase tracking-widest text-white/40">Vane Studio</p>
+      <h1 class="mt-2 text-3xl font-semibold leading-[1.1] tracking-tight sm:text-4xl">Your videos</h1>
+      <p class="mt-2 text-sm text-white/55">Upload once, keep it safe, publish it everywhere.</p>
+    </section>
+
+    <!-- not active -->
+    <section id="inactive" class="fade-up glass-d mt-7 hidden rounded-3xl p-6 sm:p-8" role="alert">
+      <h2 class="text-lg font-semibold">Vane Studio is not active on this account</h2>
+      <p id="inactiveText" class="mt-2 max-w-xl text-sm text-white/60">Uploading is switched off until Vane Studio is activated. Your existing videos stay here and can still be watched or deleted.</p>
+    </section>
+
+    <!-- stats -->
+    <section class="fade-up mt-7 grid gap-3 sm:grid-cols-3 sm:gap-4" style="animation-delay:.06s" aria-label="Overview">
+      <div class="glass-d rounded-2xl p-5">
+        <div id="statVideos" class="pixel text-3xl tracking-tight sm:text-4xl">0</div>
+        <div id="statVideosSub" class="mt-2 text-xs text-white/45">Videos in your library</div>
+      </div>
+      <div class="glass-d rounded-2xl p-5">
+        <div id="statStorage" class="pixel text-3xl tracking-tight sm:text-4xl">0 MB</div>
+        <div class="mt-2 text-xs text-white/45">Stored</div>
+      </div>
+      <div class="glass-d rounded-2xl p-5">
+        <div id="statStatus" class="pixel text-3xl tracking-tight sm:text-4xl">—</div>
+        <div id="statStatusSub" class="mt-2 truncate text-xs text-white/45">Vane Studio</div>
+      </div>
+    </section>
+
+    <!-- ═══════════ UPLOADER ═══════════ -->
+    <section id="uploader" class="fade-up glass-d mt-5 hidden rounded-3xl p-5 sm:p-7" style="animation-delay:.1s" aria-labelledby="uploaderTitle">
+      <h2 id="uploaderTitle" class="text-lg font-semibold">Upload a video</h2>
+      <p class="mt-1 text-xs text-white/45">MP4 or MOV. Large files go up in chunks, and an interrupted upload continues where it stopped: choose the same file again.</p>
+
+      <div class="mt-5 grid gap-5 lg:grid-cols-2">
+        <label id="drop" for="fileInput" class="flex min-h-[11rem] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-white/20 bg-black/20 px-4 py-8 text-center transition-colors hover:border-white/40">
+          <span id="dropTitle" class="text-sm font-medium text-white/85">Choose a video, or drop it here</span>
+          <span id="dropSub" class="mt-1 text-xs text-white/45">MP4 or MOV</span>
+          <input id="fileInput" type="file" accept="video/mp4,video/quicktime,.mp4,.mov" class="sr-only" />
+        </label>
+
+        <div class="space-y-3">
+          <div>
+            <label for="upTitle" class="mb-1 block text-xs text-white/55">Title</label>
+            <input id="upTitle" class="field" maxlength="100" placeholder="Taken from the file name if empty" />
+          </div>
+          <div>
+            <label for="upDesc" class="mb-1 block text-xs text-white/55">Description</label>
+            <textarea id="upDesc" class="field" rows="3" maxlength="5000" placeholder="Optional"></textarea>
+          </div>
+          <div>
+            <label for="upTags" class="mb-1 block text-xs text-white/55">Tags, separated by commas</label>
+            <input id="upTags" class="field" placeholder="travel, vlog" />
+          </div>
+        </div>
+      </div>
+
+      <div id="progressBox" class="mt-5 hidden">
+        <div class="flex items-center justify-between text-xs text-white/60">
+          <span id="progressLabel">Uploading…</span>
+          <span id="progressPct" class="pixel">0%</span>
+        </div>
+        <div class="mt-2 h-2 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressBar">
+          <div id="progressFill" class="h-full w-0 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-400 transition-[width] duration-200"></div>
+        </div>
+      </div>
+
+      <div class="mt-5 flex flex-wrap items-center gap-2.5">
+        <button id="uploadBtn" type="button" class="btn btn-white" disabled>Upload</button>
+        <button id="cancelBtn" type="button" class="btn btn-ghost hidden">Cancel upload</button>
+      </div>
+    </section>
+
+    <!-- ═══════════ LIBRARY ═══════════ -->
+    <section class="fade-up mt-5" style="animation-delay:.14s" aria-labelledby="libTitle">
+      <h2 id="libTitle" class="mb-3 text-lg font-semibold">Library</h2>
+      <div id="library" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"></div>
+      <p id="libEmpty" class="glass-d hidden rounded-2xl p-6 text-sm text-white/55">No videos yet. Your uploads will appear here.</p>
+    </section>
+
+    <!-- ═══════════ API KEYS ═══════════ -->
+    <section class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" style="animation-delay:.18s" aria-labelledby="keysTitle">
+      <h2 id="keysTitle" class="text-lg font-semibold">API keys</h2>
+      <p class="mt-1 text-xs text-white/45">Video keys (<span class="pixel">cvid_</span>) work only with the video API at <span class="pixel">/api/v1/video</span>. A test key never stores anything.</p>
+      <div class="mt-4 flex flex-wrap items-end gap-2.5">
+        <div class="min-w-[10rem] flex-1">
+          <label for="keyName" class="mb-1 block text-xs text-white/55">Name</label>
+          <input id="keyName" class="field" maxlength="60" placeholder="e.g. Make.com" />
+        </div>
+        <select id="keyMode" class="field !w-auto" aria-label="Key mode">
+          <option value="live">Live</option>
+          <option value="test">Test</option>
+        </select>
+        <button id="keyCreate" type="button" class="btn btn-white">Create key</button>
+      </div>
+      <div id="newKey" class="mt-4 hidden rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-4 text-sm">
+        <p class="text-emerald-200">Copy this key now. It is shown only once.</p>
+        <code id="newKeySecret" class="mt-2 block break-all text-white"></code>
+        <button id="newKeyCopy" type="button" class="btn btn-ghost btn-sm mt-3">Copy</button>
+      </div>
+      <ul id="keyList" class="mt-4 space-y-2"></ul>
+    </section>
+  </main>
+
+  <!-- player / editor -->
+  <div id="modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
+    <div class="glass-d-strong max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl p-5 sm:p-6">
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <script src="/assets/vane.js?v=20261018a"></script>
+  <script src="/assets/studio.js?v=20261018a"></script>
+</body>
+</html>
