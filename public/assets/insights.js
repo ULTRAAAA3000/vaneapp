@@ -216,7 +216,7 @@
   var CHART_PX = 96;
 
   /**
-   * Fills `root` with the card body.
+   * Fills `root` with the card body and returns the numbers it drew (the same object `compute` makes).
    * opts: { limit (the list size the server caps at, to say "latest N posts"), netIcon(platform, cls), onTag(tag) }
    */
   Vane.renderInsights = function (root, history, upcoming, opts) {
@@ -229,7 +229,7 @@
           '<p class="text-sm font-medium">Nothing to measure yet</p>' +
           '<p class="mx-auto mt-1 max-w-xs text-xs leading-relaxed text-white/45">Your numbers appear here after the first posts go out.</p>' +
         '</div>';
-      return;
+      return d;
     }
 
     var max = 1;
@@ -288,5 +288,6 @@
     for (var i = 0; i < btns.length; i++) {
       btns[i].addEventListener('click', function () { if (opts.onTag) opts.onTag(this.getAttribute('data-tag')); });
     }
+    return d;
   };
 })();
