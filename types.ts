@@ -8,7 +8,9 @@ import type { D1Database, R2Bucket } from '@cloudflare/workers-types';
 export interface Env {
   /** D1 database (binding name must match wrangler.toml) */
   DB: D1Database;
-  /** R2 bucket for post media */
+  /** Pages' static-files binding: always there on Cloudflare Pages (functions/_middleware.ts serves a page from it under another path) */
+  ASSETS: Fetcher;
+  /** R2 bucket for post media and the Vane Studio video library */
   MEDIA?: R2Bucket;             // optional: uploads are enabled only when the R2 bucket is bound
 
   /** Secrets (wrangler secret put / Pages → Settings → Variables) */
@@ -268,7 +270,7 @@ export type QuickStatusResponse = { ok: true; verified: boolean; expired: boolea
 export type { PlanId, SubscriptionStatus } from './functions/api/lib/plans';
 import type { PlanId, SubscriptionStatus } from './functions/api/lib/plans';
 
-/** cpost_… keys use the text/media endpoints; cvid_… keys will use the Video Engine (not available yet). */
+/** cpost_… keys use the text/media endpoints; cvid_… keys use the Video Engine (/api/v1/video/*). */
 export type KeyScope = 'post' | 'video';
 /** live: real posts, counted · test: answers are simulated, nothing is posted and nothing is counted */
 export type KeyMode = 'live' | 'test';
@@ -344,3 +346,74 @@ export interface UsageSummary {
 }
 
 export type UsageResponse = { ok: true; usage: UsageSummary } | ApiError;
+
+// ───────────────────────── Vane Studio / Video Engine (separate dashboard, API: /api/video/*, /api/v1/video/*) ─────────────────────────
+export type VideoStatus = 'uploading' | 'ready' | 'failed';
+export type VideoContentType = 'video/mp4' | 'video/quicktime';
+
+export interface VideoRow {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string;
+  /** JSON string: string[] */
+  tags: string;
+  status: VideoStatus;
+  r2_key: string;
+  content_type: VideoContentType;
+  size_bytes: number;
+  part_size: number;
+  upload_id: string | null;
+  upload_expires_at: number | null;
+  error: string | null;
+  source: 'ui' | 'api';
+  created_at: number;
+  updated_at: number;
+  completed_at: number | null;
+}
+
+/** What the API ever returns about a video. The R2 key and the multipart upload id never leave the server. */
+export interface VideoPublic {
+  id: string;
+  title: string;
+  description: string;
+  tags: string[];
+  status: VideoStatus;
+  contentType: VideoContentType;
+  sizeBytes: number;
+  /** why a failed video was rejected */
+  error: string | null;
+  createdAt: number;
+  completedAt: number | null;
+  /** unfinished uploads only: unix seconds after which the upload is thrown away */
+  uploadExpiresAt: number | null;
+  /** dashboard only: where the owner streams it (needs the session cookie). Not set in the public API. */
+  fileUrl: string | null;
+}
+
+export interface StartVideoUploadRequest {
+  /** the file's size in bytes */
+  size: number;
+  contentType: VideoContentType;
+  /** used for the default title */
+  fileName?: string;
+  title?: string;
+  description?: string;
+  tags?: string[];
+}
+
+export type StartVideoUploadResponse =
+  | {
+      ok: true;
+      videoId: string;
+      /** every chunk but the last must be exactly this many bytes */
+      partSize: number;
+      partCount: number;
+      uploadedParts: number[];
+      /** unix seconds */
+      expiresAt: number;
+      video: VideoPublic;
+      /** test keys only: nothing was stored */
+      simulated?: true;
+    }
+  | ApiError;

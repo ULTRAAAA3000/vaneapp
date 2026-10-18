@@ -147,13 +147,14 @@ export type InsertResult =
 
 /**
  * Writes one row per channel (all sharing a group_id) in a single D1 batch: all-or-nothing.
- * `extra` builds statements that must succeed or fail together with the posts (e.g. the usage log row).
+ * `extra` builds statements that must succeed or fail together with the posts (the usage log row, the stored
+ * Idempotency-Key answer); it is given the group id and the posts it will be written next to.
  */
 export async function insertPostGroup(
   env: Env,
   userId: string,
   v: ValidatedPost,
-  extra: (groupId: string) => D1PreparedStatement[] = () => [],
+  extra: (groupId: string, posts: { id: string; channelId: string; status: 'scheduled' }[]) => D1PreparedStatement[] = () => [],
 ): Promise<InsertResult> {
   const groupId = crypto.randomUUID();
   const mediaKeys = JSON.stringify(v.mediaUrl ? [v.mediaUrl] : []);
@@ -166,7 +167,7 @@ export async function insertPostGroup(
   try {
     await env.DB.batch([
       ...posts.map((p) => insert.bind(p.id, groupId, userId, p.channelId, v.content, mediaKeys, v.scheduledAt, v.now)),
-      ...extra(groupId),
+      ...extra(groupId, posts),
     ]);
   } catch (err) {
     console.error('post insert failed', err instanceof Error ? err.message : 'unknown');

@@ -6,8 +6,9 @@ Cloudflare Pages (site + `/api`) · D1 (database) · R2 (images) · a cron Worke
 
 | Path | What it is |
 |---|---|
-| `public/` | Landing, `/login`, `/app` dashboard (static, Tailwind via CDN) |
-| `functions/api/` | Pages Functions: auth, channels, posts, media, waitlist |
+| `public/` | Landing, `/login`, `/app` (Vane Post) and `/studio` (Vane Studio) dashboards (static, Tailwind via CDN) |
+| `functions/_middleware.ts` | Host routing: `post.` and `studio.` each get their own dashboard and their own slice of the API |
+| `functions/api/` | Pages Functions: auth, channels, posts, media, video, waitlist |
 | `worker/` | Cron Worker (name set in `worker/wrangler.toml`): every minute it sends due posts |
 | `schema.sql` | Whole schema. Idempotent: safe to re-run after every update |
 
@@ -48,7 +49,13 @@ Cloudflare Pages (site + `/api`) · D1 (database) · R2 (images) · a cron Worke
    The email has a **Copy code** button: a mail client runs no scripts, so it opens `/copy` (`public/copy.html`, `public/assets/copy.js`), which copies the code with one tap. The code rides in the URL fragment (`/copy#123456`), which browsers never send to a server, and the page removes it from the address bar right away.
    It is enforced only when **both** values are set. **No email arrives?** Open `https://vaneapp.dev/api/auth/config`: `"email": { "enabled": true, … }` must be `true`; `false` says which of `apiKeySet` / `fromSet` the function cannot see (and means sign-up skips the code entirely). `enabled: true` but still nothing → Cloudflare → Pages → vaneapp → Functions → Logs: a line `resend rejected the email` carries Resend's reason (most often the sender domain is not *Verified*), and the sign-up screen shows "We couldn't send the email". Once on, the account of anyone away for more than 3 days asks for a code at the next sign-in and all their old sessions are ended; accounts that already exist start their 3 days from their next visit. Resend's free plan is limited (check their current quota), so watch it if sign-ups spike.
    Tuning: `AWAY_AFTER_SECONDS` in `functions/api/lib/activity.ts` (3 days); `CODE_TTL_SECONDS`, `RESEND_COOLDOWN_SECONDS`, `MAX_WRONG_GUESSES` in `functions/api/lib/emailcode.ts` (10 min, 60 s, 5).
-8. **Check it live:** sign up at `/login`, connect a Telegram channel, press *Send test*, schedule a post 2–3 minutes ahead and watch `npm run cron:logs`.
+8. **Subdomains (Vane Post and Vane Studio).** One Pages project serves three hosts; `functions/_middleware.ts` picks the product by host:
+   - Cloudflare → Workers & Pages → vaneapp → **Custom domains** → add `post.vaneapp.dev` and `studio.vaneapp.dev` (next to `vaneapp.dev`; the DNS records are created for you when the zone is on Cloudflare).
+   - Turnstile: the widget's hostname list must cover both (`vaneapp.dev` covers its subdomains; check it if the widget does not appear on `post.` or `studio.`).
+   - `post.vaneapp.dev` is the posting dashboard, `studio.vaneapp.dev` the video dashboard; on the main site `/app` and `/studio` forward to them. The sign-in cookie is set for the whole `vaneapp.dev` domain, so one sign-in covers both. **Everyone is asked to sign in once more after this release** (the old cookie belonged to `vaneapp.dev` alone).
+   - The main site keeps serving the whole API, so existing integrations (Make, Zapier, scripts) keep working unchanged.
+   - Locally there are no subdomains: `/app` and `/studio` are plain paths. To test the routing without touching DNS: `npm run test:hosts`.
+9. **Check it live:** sign up at `/login`, connect a Telegram channel, press *Send test*, schedule a post 2–3 minutes ahead and watch `npm run cron:logs`.
 
 Never lose `ENCRYPTION_KEY`: without it every stored channel token is unreadable.
 
@@ -108,7 +115,8 @@ Spec: `ECONOMY_AND_FINANCE.md` §2 and §6, `SECURITY_ARCHITECTURE.md` §2-3. Bu
 |---|---|---|
 | 1 | Tables, key generation and hashing, key auth, scopes, test mode, quota engine with 402, `/api/v1/*`, usage | done |
 | 2 | "API access" section in the dashboard: create / revoke keys, quota meter, quick start | done |
-| 3 | OpenAPI spec, `Idempotency-Key` (safe retries from Make / Zapier), webhooks | next |
+| 3a | OpenAPI spec and `Idempotency-Key` (safe retries from Make / Zapier) | done |
+| 3b | Webhooks: signed `post.sent` / `post.failed` / `post.cancelled` events, retries | next |
 | 4 | Payments (Monobank, USDT/USDC) that grant the plan and issue keys automatically | |
 | 5 | AI endpoints on Workers AI (reformat, tone, hooks) with their own metering | |
 
@@ -144,6 +152,7 @@ curl -X POST https://vaneapp.dev/api/keys -H "Authorization: Bearer <jwt>" -H "C
 
 | | |
 |---|---|
+| `GET /api/v1/openapi.json` | the OpenAPI 3.1 description (no key needed) |
 | `GET /api/v1/me` | is the key valid, which plan (the "test connection" call for Make / Zapier) |
 | `GET /api/v1/usage` | plan, quota, what is left, what extra posts cost |
 | `GET /api/v1/channels` | my channels; their `id`s go into `channelIds` |
@@ -153,7 +162,7 @@ curl -X POST https://vaneapp.dev/api/keys -H "Authorization: Bearer <jwt>" -H "C
 | `DELETE /api/v1/posts/:id` | cancel while still `scheduled` |
 
 Every metered response carries `X-Vane-Quota-Limit`, `X-Vane-Quota-Remaining` and `X-Vane-Quota-Reset`. Errors are `{ "ok": false, "error": "…", "code": "…" }`; branch on `code`:
-`invalid_api_key` (401) · `wrong_key_scope` (403) · `api_not_in_plan` (403) · `quota_exceeded` (402) · `rate_limited` (429) · `too_many_keys` (409).
+`invalid_api_key` (401) · `wrong_key_scope` (403) · `api_not_in_plan` (403) · `quota_exceeded` (402) · `rate_limited` (429) · `too_many_keys` (409) · `invalid_idempotency_key` (400) · `idempotency_key_reuse` (422) · `idempotency_in_progress` (409).
 
 **OpenAPI spec:** `https://vaneapp.dev/vane-openapi.json` (OpenAPI 3.0, served from `public/`) describes all of the above, so a tool can import it instead of being set up by hand.
 - *ChatGPT Custom GPT*: Configure → Actions → *Import from URL* with the address above → Authentication *API Key* → *Bearer*, paste a `cpost_…` key. Use a `cpost_test_` key while trying it out.
@@ -163,6 +172,23 @@ Every metered response carries `X-Vane-Quota-Limit`, `X-Vane-Quota-Remaining` an
 **Make custom app:** a ready app definition lives in `integrations/make/` (modules: Schedule / Get / Cancel a Post, List Posts, List Channels; channels come as a dropdown). Setup is in its README; `npm run check:integrations` checks it still matches the spec.
 
 Make.com: *HTTP → Make a request*, URL `https://vaneapp.dev/api/v1/posts`, header `Authorization: Bearer <key>`, body type *Raw / JSON*. A scenario that runs on a key that is out of quota gets `402`, which Make shows as an error you can route.
+
+### Safe retries: `Idempotency-Key`
+
+Make and Zapier retry a request that timed out. Send `Idempotency-Key: <unique value>` on `POST /api/v1/posts` (a UUID, or something that stays the same on a retry, such as the scenario's execution id; 1-255 printable characters) and a retry can never create a second post or take a second unit of quota.
+
+| Request | Answer |
+|---|---|
+| first | runs normally; its 201 answer is remembered for 24 hours |
+| same key, same body | the first answer again (same group and post ids), header `Idempotent-Replayed: true`, **no quota taken** (it works even when the quota is spent) |
+| same key, different body | `422 idempotency_key_reuse` |
+| same key while the first is still running | `409 idempotency_in_progress` (`Retry-After: 1`) |
+
+Only a **successful** answer is remembered: a request that failed (400, 402, 5xx) frees the key, so the retry, after fixing the input or upgrading, simply runs. Key order inside the JSON does not matter. Live and test keys have separate key spaces, and test keys replay too (handy for testing retry logic). The stored answer is written in the same database batch as the post, so there is no moment where the post exists and the key does not know it; a claim abandoned for over a minute (a crashed request) can be taken over. Expired keys are removed by the cron worker. Code: `functions/api/lib/idempotency.ts`.
+
+### OpenAPI / Custom GPT
+
+`GET /api/v1/openapi.json` serves an OpenAPI 3.1 description of this API (public, CORS-enabled, nothing private in it). The dashboard's Quick start shows the URL with a Copy button. In ChatGPT: *Create a GPT → Configure → Actions → Import from URL*, then set Authentication to *API Key / Bearer* and paste a `cpost_live_…` key. Postman and Make read it too. The spec lives in `functions/api/lib/openapi.ts` (the only hand-written description); `npm run test:api` validates its structure and **fails if a route under `functions/api/v1` is not documented or a documented route does not exist** (the Video Engine has its own document, `documentation/VIDEO_ENGINE.md`).
 
 ### How the quota works
 
@@ -191,7 +217,29 @@ npm run plan:set -- me@example.com pro --addon --forever --remote   # production
 
 ### Test it
 
-`npm run db:local && npm run dev` in one terminal, `npm run test:api` in another: 66 checks that walk through keys, scopes, test mode, the Free Trial, every plan, the parallel-request race, overage, revoking and the rate limit. It only schedules posts for a placeholder channel; nothing is sent anywhere.
+`npm run db:local && npm run dev` in one terminal, `npm run test:api` in another: 101 checks that walk through keys, scopes, test mode, the Free Trial, every plan, the parallel-request race, overage, revoking, the rate limit, Idempotency-Key (retries, races, expiry) and the OpenAPI document. It only schedules posts for a placeholder channel; nothing is sent anywhere.
+
+## Vane Studio / Video Engine (a separate dashboard)
+
+Vane Studio ([documentation/VIDEO_ENGINE.md](documentation/VIDEO_ENGINE.md)) is its own product with its own
+access: the posting dashboard (Vane Post) is `post.vaneapp.dev` and uses `/api/*`; the video dashboard is `studio.vaneapp.dev`
+(`public/studio.html`, `public/assets/studio.js`) and uses `/api/video/*`; the public API for `cvid_` keys is `/api/v1/video/*`.
+They share the account and the sign-in, nothing else; each host answers 404 to the other product's API.
+
+- **Setup:** nothing new. Re-run `npm run db:remote` (the schema only adds tables), and the R2 bucket `vane-media` is the one
+  from the uploads step (videos live under a private `videos/` prefix, never served publicly).
+- **Switch it on for an account** (until payments do it): `npm run video:set -- me@example.com [--days 365] [--remote]`;
+  `--off` takes it away again. Without it uploads and live `cvid_live_` keys answer `403 video_engine_required`; `cvid_test_` keys always work.
+- **No terminal?** Do the same in Cloudflare → D1 → `vane-db` → **Console**: paste the whole `schema.sql` and run it (it is idempotent), then grant the account (it must already exist: sign up on the site first):
+  ```sql
+  INSERT INTO video_subscriptions (user_id, status, current_period_end, provider, created_at, updated_at)
+  SELECT id, 'active', NULL, 'manual', unixepoch(), unixepoch() FROM users WHERE email = 'me@example.com'
+  ON CONFLICT(user_id) DO UPDATE SET status = 'active', current_period_end = NULL, updated_at = unixepoch();
+  ```
+  To switch it off again: `UPDATE video_subscriptions SET status = 'canceled' WHERE user_id = (SELECT id FROM users WHERE email = 'me@example.com');`
+- **Sign-in:** the sign-in page has a **Vane Post / Vane Studio** switch (one account works for both); the choice decides where you land. Signing up does not switch Studio on: that is the grant above (until payments exist).
+- **Upload flow** (chunks of 8 MiB, resumable): `POST /api/video/uploads` → `PUT …/uploads/:id/parts/:n` → `POST …/uploads/:id/complete`.
+- **Test it locally:** `npm run db:local && npm run dev`, then `npm run test:video` (API) and `npm run test:hosts` (subdomain routing).
 
 ## Landing video demo
 

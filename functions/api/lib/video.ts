@@ -31,8 +31,11 @@ function hasTopLevelBox(b: Uint8Array, type: string): boolean {
   return false;
 }
 
-/** MP4 or MOV, or null. A file without a `moov` box (truncated upload) is rejected. */
-export function sniffVideo(b: Uint8Array): VideoKind | null {
+/**
+ * MP4 or MOV by the file's first bytes alone (the `ftyp` box), or null.
+ * Enough for the FIRST chunk of a big upload: its `moov` box may sit at the very end of the file.
+ */
+export function sniffVideoBrand(b: Uint8Array): VideoKind | null {
   if (b.length < 24 || ascii(b, 4, 8) !== 'ftyp') return null;
   const boxSize = u32be(b, 0);
   if (boxSize < 16 || boxSize > Math.min(4096, b.length)) return null;
@@ -40,13 +43,32 @@ export function sniffVideo(b: Uint8Array): VideoKind | null {
   const major = ascii(b, 8, 12);
   if (AUDIO_ONLY_BRANDS.has(major)) return null;
 
-  let kind: VideoKind | null = null;
-  if (major === 'qt  ') kind = { ext: 'mov', mime: 'video/quicktime' };
-  else if (MP4_BRANDS.has(major)) kind = { ext: 'mp4', mime: 'video/mp4' };
-  else {
-    for (let i = 16; i + 4 <= boxSize; i += 4) {      // compatible brands
-      if (MP4_BRANDS.has(ascii(b, i, i + 4))) { kind = { ext: 'mp4', mime: 'video/mp4' }; break; }
-    }
+  if (major === 'qt  ') return { ext: 'mov', mime: 'video/quicktime' };
+  if (MP4_BRANDS.has(major)) return { ext: 'mp4', mime: 'video/mp4' };
+  for (let i = 16; i + 4 <= boxSize; i += 4) {      // compatible brands
+    if (MP4_BRANDS.has(ascii(b, i, i + 4))) return { ext: 'mp4', mime: 'video/mp4' };
   }
+  return null;
+}
+
+/** MP4 or MOV, or null. A file without a `moov` box (truncated upload) is rejected. */
+export function sniffVideo(b: Uint8Array): VideoKind | null {
+  const kind = sniffVideoBrand(b);
   return kind && hasTopLevelBox(b, 'moov') ? kind : null;
+}
+
+/**
+ * Type and total size of the box that starts at the beginning of `b` (16 bytes are enough), or null if it is not a box.
+ * size 0 means "runs to the end of the file". Lets a big file in R2 be checked with a few tiny range reads
+ * instead of downloading it (see lib/videoupload.ts).
+ */
+export function readBoxHeader(b: Uint8Array): { type: string; size: number } | null {
+  if (b.length < 8) return null;
+  let size = u32be(b, 0);
+  const type = ascii(b, 4, 8);
+  if (size === 1) {                                  // 64-bit size follows the type
+    if (b.length < 16 || u32be(b, 8) !== 0) return null; // > 4 GB: far beyond our limit
+    size = u32be(b, 12);
+  }
+  return { type, size };
 }
