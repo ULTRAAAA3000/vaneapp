@@ -13,11 +13,15 @@
  *                 but nothing is saved, nothing is posted and nothing is counted
  *
  * Out of quota:  402 { code: "quota_exceeded" }  (or, when the account enabled overage billing, the post goes through and is priced)
+ *
+ * Safe retries: send `Idempotency-Key: <unique value>` on POST. A retry with the same key and the same body gets the first
+ * answer again (header `Idempotent-Replayed: true`) and takes no second unit of quota; see ../../lib/idempotency.ts.
  */
 import type { PagesFunction } from '@cloudflare/workers-types';
-import type { Env } from '../../../../types';
-import { requireApiKey } from '../../lib/apikeys';
+import type { Env, UsageSummary } from '../../../../types';
+import { requireApiKey, type ApiKeyContext } from '../../lib/apikeys';
 import { fail, failCode, json, methodNotAllowed, readJson } from '../../lib/http';
+import { idemBegin, idemCompleteStatement, idemRelease, type IdemClaim } from '../../lib/idempotency';
 import { postUnits } from '../../lib/plans';
 import { insertPostGroup, validateCreatePost } from '../../posts/create';
 import { listPostsForUser } from '../../posts/list';
@@ -29,15 +33,19 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   return listPostsForUser(env, auth.userId, new URL(request.url).searchParams.get('view') ?? 'upcoming');
 };
 
-export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
-  const auth = await requireApiKey(request, env, 'post');
-  if (!auth.ok) return auth.response;
+/** The 201 answer. For a live key the quota snapshot is taken after the units were reserved, so it is already final. */
+const created = (groupId: string, scheduledAt: number, posts: { id: string; channelId: string; status: 'scheduled' }[], overage: boolean, usage: UsageSummary) => ({
+  ok: true as const,
+  groupId,
+  scheduledAt,
+  posts,
+  overage,
+  usage: { api: usage.api, resetsAt: usage.period.resetsAt },
+});
 
-  const parsed = await readJson(request);
-  if (!parsed.ok) return parsed.response;
-
+async function createPost(env: Env, auth: ApiKeyContext, data: unknown, claim: IdemClaim | null): Promise<Response> {
   // Real validation for every key, test keys included: a bad request fails the same way in test and in live.
-  const checked = await validateCreatePost(env, auth.userId, parsed.data);
+  const checked = await validateCreatePost(env, auth.userId, data);
   if (!checked.ok) return checked.response;
   const v = checked.v;
   const units = postUnits(v.channels.length);
@@ -45,18 +53,16 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   // ── test key: answer like a live key would, change nothing
   if (auth.key.mode === 'test') {
     const usage = await usageSummary(env, auth.userId, auth.sub, v.now);
-    return json(
-      {
-        ok: true,
-        test: true,
-        groupId: crypto.randomUUID(),
-        scheduledAt: v.scheduledAt,
-        posts: v.channels.map((ch) => ({ id: crypto.randomUUID(), channelId: ch.id, status: 'scheduled' as const })),
-        usage: { api: usage.api, resetsAt: usage.period.resetsAt },
-      },
-      201,
-      { 'X-Vane-Mode': 'test', ...quotaHeaders(usage) },
-    );
+    const body = {
+      ...created(
+        crypto.randomUUID(), v.scheduledAt,
+        v.channels.map((ch) => ({ id: crypto.randomUUID(), channelId: ch.id, status: 'scheduled' as const })),
+        false, usage,
+      ),
+      test: true,
+    };
+    if (claim) await idemCompleteStatement(env, claim, 201, JSON.stringify(body)).run();
+    return json(body, 201, { 'X-Vane-Mode': 'test', ...quotaHeaders(usage) });
   }
 
   // ── live key: take the quota first, so two parallel requests can't both use the last unit
@@ -72,29 +78,52 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return failCode(402, 'quota_exceeded', message, { usage: { api: usage.api, resetsAt: usage.period.resetsAt, overage: usage.overage } }, quotaHeaders(usage));
   }
 
-  const saved = await insertPostGroup(env, auth.userId, v, (groupId) => [
+  const usage = await usageSummary(env, auth.userId, auth.sub, v.now);
+  const saved = await insertPostGroup(env, auth.userId, v, (groupId, posts) => [
     usageLogStatement(env, {
       userId: auth.userId, keyId: auth.key.id, units, overage: reservation.overage, costMicro: reservation.costMicro, ref: groupId, now: v.now,
     }),
+    // The stored answer is written in the SAME batch as the posts: no moment where the post exists and the key does not know.
+    ...(claim ? [idemCompleteStatement(env, claim, 201, JSON.stringify(created(groupId, v.scheduledAt, posts, reservation.overage, usage)))] : []),
   ]);
   if (!saved.ok) {
     await releaseApiPost(env, auth.userId, reservation, units);
     return fail(500, 'Could not schedule the post. Please try again.');
   }
+  return json(created(saved.groupId, v.scheduledAt, saved.posts, reservation.overage, usage), 201, quotaHeaders(usage));
+}
 
-  const usage = await usageSummary(env, auth.userId, auth.sub, v.now);
-  return json(
-    {
-      ok: true,
-      groupId: saved.groupId,
-      scheduledAt: v.scheduledAt,
-      posts: saved.posts,
-      overage: reservation.overage,
-      usage: { api: usage.api, resetsAt: usage.period.resetsAt },
-    },
-    201,
-    quotaHeaders(usage),
-  );
+export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
+  const auth = await requireApiKey(request, env, 'post');
+  if (!auth.ok) return auth.response;
+
+  const parsed = await readJson(request);
+  if (!parsed.ok) return parsed.response;
+
+  const now = Math.floor(Date.now() / 1000);
+  const idem = await idemBegin(env, request, auth.userId, auth.key.mode, parsed.data, now);
+  if (idem.kind === 'refuse') return idem.response;
+
+  if (idem.kind === 'replay') {
+    // Same answer as the first time (nothing is created, no quota is taken); only the quota headers are current.
+    const usage = await usageSummary(env, auth.userId, auth.sub, now);
+    return new Response(idem.body, {
+      status: idem.status,
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'Idempotent-Replayed': 'true',
+        ...(auth.key.mode === 'test' ? { 'X-Vane-Mode': 'test' } : {}),
+        ...quotaHeaders(usage),
+      },
+    });
+  }
+
+  const claim = idem.kind === 'claimed' ? idem.claim : null;
+  const res = await createPost(env, auth, parsed.data, claim);
+  // Only a success is remembered (it was stored together with the post). Anything else frees the key for the retry.
+  if (claim && res.status !== 201) await idemRelease(env, claim);
+  return res;
 };
 
 export const onRequest: PagesFunction<Env> = async () => methodNotAllowed('GET, POST');

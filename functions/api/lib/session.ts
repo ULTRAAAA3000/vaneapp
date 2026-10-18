@@ -7,6 +7,7 @@
  */
 import type { Env } from '../../../types';
 import { toB64Url } from './encoding';
+import { cookieDomain } from './hosts';
 
 export const SESSION_COOKIE = 'vane_session';
 export const SESSION_TTL_SECONDS = 30 * 24 * 3600;
@@ -30,10 +31,14 @@ export function readSessionToken(request: Request): string | null {
   return null;
 }
 
-/** `Secure` is set whenever the site runs on https (always, in production). */
+/**
+ * `Secure` is set whenever the site runs on https (always, in production). On our own hosts the cookie covers the whole
+ * vaneapp.dev domain, so one sign-in works on post. and studio. alike (clearing it uses the same attributes, so it goes everywhere too).
+ */
 export function sessionCookie(request: Request, token: string, maxAge: number): string {
-  const secure = new URL(request.url).protocol === 'https:' ? '; Secure' : '';
-  return `${SESSION_COOKIE}=${token}; Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secure}`;
+  const url = new URL(request.url);
+  const secure = url.protocol === 'https:' ? '; Secure' : '';
+  return `${SESSION_COOKIE}=${token}; Path=/${cookieDomain(url.hostname)}; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secure}`;
 }
 
 export const clearedSessionCookie = (request: Request): string => sessionCookie(request, '', 0);

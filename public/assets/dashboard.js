@@ -967,7 +967,7 @@
   S.keyMax = 10;
 
   async function loadApi() {
-    var rs = await Promise.all([Vane.api('GET', '/api/usage'), Vane.api('GET', '/api/keys')]);
+    var rs = await Promise.all([Vane.api('GET', '/api/usage'), Vane.api('GET', '/api/keys?scope=post')]);
     if (!rs[0].ok || !rs[1].ok) { if (!S.usage) S.apiFailed = true; return; }   // keep what is on screen on a hiccup
     S.apiFailed = false;
     S.usage = rs[0].data.usage;
@@ -998,7 +998,7 @@
       '<div class="flex items-start justify-between gap-3">' +
         '<div><div class="text-xs font-medium uppercase tracking-widest text-white/40">Your plan</div>' +
         '<div class="mt-1 text-base font-semibold">' + esc(u.plan.label) + '</div></div>' +
-        '<a href="/#pricing" class="shrink-0 text-xs text-white/45 underline underline-offset-4 transition-colors hover:text-white">Compare plans</a>' +
+        '<a href="' + esc(Vane.siteHome()) + '#pricing" class="shrink-0 text-xs text-white/45 underline underline-offset-4 transition-colors hover:text-white">Compare plans</a>' +
       '</div>';
 
     if (u.plan.lapsed) {
@@ -1103,6 +1103,7 @@
       'curl -X POST ' + base + '/posts \\\n' +
       '  -H "Authorization: Bearer $VANE_API_KEY" \\\n' +
       '  -H "Content-Type: application/json" \\\n' +
+      '  -H "Idempotency-Key: $(uuidgen)" \\\n' +
       '  -d \'{"content":"Hello from the API","channelIds":["' + (first ? first.id : '<channel-id>') + '"],"scheduledAt":"' + when + '"}\'';
 
     var chans = S.channels.length
@@ -1118,11 +1119,15 @@
       '<div><span class="mb-2 block text-[0.7rem] font-medium uppercase tracking-widest text-white/40">Base URL</span>' +
         '<div class="flex items-center gap-2.5"><code class="field min-w-0 flex-1 truncate font-mono !text-[13px]">' + esc(base) + '</code>' +
         '<button type="button" data-copy="' + esc(base) + '" data-label="URL" class="btn btn-ghost btn-sm shrink-0">Copy</button></div></div>' +
+      '<div><span class="mb-2 block text-[0.7rem] font-medium uppercase tracking-widest text-white/40">OpenAPI spec</span>' +
+        '<div class="flex items-center gap-2.5"><code class="field min-w-0 flex-1 truncate font-mono !text-[13px]">' + esc(base + '/openapi.json') + '</code>' +
+        '<button type="button" data-copy="' + esc(base + '/openapi.json') + '" data-label="Spec URL" class="btn btn-ghost btn-sm shrink-0">Copy</button></div>' +
+        '<p class="mt-2 text-xs leading-relaxed text-white/45">Paste it into a Custom GPT (Actions → Import from URL), Postman or any tool that reads OpenAPI.</p></div>' +
       '<div><span class="mb-2 block text-[0.7rem] font-medium uppercase tracking-widest text-white/40">Channel IDs <span class="normal-case tracking-normal text-white/30">(use them as channelIds)</span></span><div class="space-y-2">' + chans + '</div></div>' +
       '<div><div class="flex items-center justify-between"><span class="block text-[0.7rem] font-medium uppercase tracking-widest text-white/40">Example request</span>' +
         '<button type="button" data-copy-snippet class="text-xs text-white/45 transition-colors hover:text-white">Copy</button></div>' +
         '<pre class="no-scrollbar mt-2 overflow-x-auto rounded-2xl bg-black/35 p-4 font-mono text-[12px] leading-relaxed text-white/80 ring-1 ring-white/10"><code id="apiSnippet"></code></pre></div>' +
-      '<p class="text-xs leading-relaxed text-white/45">In Make, add an <b class="font-semibold text-white/70">HTTP → Make a request</b> module, paste the URL, add the header <code class="rounded bg-white/10 px-1.5 py-0.5">Authorization: Bearer your-key</code> and send the body as JSON. When a run is out of quota the API answers <code class="rounded bg-white/10 px-1.5 py-0.5">402</code>.</p>';
+      '<p class="text-xs leading-relaxed text-white/45">In Make, add an <b class="font-semibold text-white/70">HTTP → Make a request</b> module, paste the URL, add the header <code class="rounded bg-white/10 px-1.5 py-0.5">Authorization: Bearer your-key</code> and send the body as JSON. Add an <code class="rounded bg-white/10 px-1.5 py-0.5">Idempotency-Key</code> header with a value that stays the same on a retry (for example the execution id), so a retried run never posts twice. When a run is out of quota the API answers <code class="rounded bg-white/10 px-1.5 py-0.5">402</code>.</p>';
     $('apiSnippet').textContent = quickSnippet;   // textContent: nothing from the server is ever parsed as HTML
   }
   $('apiQuickBody').addEventListener('click', function (e) {

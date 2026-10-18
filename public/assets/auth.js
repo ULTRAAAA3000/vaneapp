@@ -7,9 +7,51 @@
   var form = $('form'), email = $('email'), password = $('password'), nameInput = $('name');
   var errBox = $('err'), submit = $('submit'), spin = $('spin'), label = $('submitLabel');
   var mode = 'login';
+  var product = 'post';   // 'post' | 'studio': where the visitor is signing in to
 
   // Already signed in? Skip the form.
-  Vane.api('GET', '/api/auth/me', undefined, { noRedirect: true }).then(function (r) { if (r.ok) Vane.go('/app'); });
+  Vane.api('GET', '/api/auth/me', undefined, { noRedirect: true }).then(function (r) { if (r.ok) Vane.go(Vane.home()); });
+
+  // ── which product: Vane Post or Vane Studio (one account, two dashboards)
+  // On post. / studio. the host already decides, and the switch takes you to the other host's sign-in page.
+  // On the main site (and in local dev) the choice rides in ?product=, which Vane.home() reads after signing in.
+  var OWN_HOST = /^(post|studio)\.vaneapp\.dev$/i;
+  function readProduct() {
+    var h = /^(post|studio)\./i.exec(location.hostname);
+    if (h && OWN_HOST.test(location.hostname)) return h[1].toLowerCase();
+    return new URLSearchParams(location.search).get('product') === 'studio' ? 'studio' : 'post';
+  }
+  function syncUrl() {
+    var q = [];
+    if (mode === 'register') q.push('mode=register');
+    if (!OWN_HOST.test(location.hostname) && product === 'studio') q.push('product=studio');
+    var next = q.length ? '?' + q.join('&') : '';
+    var keep = new URLSearchParams(location.search).get('next');       // dev only: where to return after signing in
+    if (keep && !OWN_HOST.test(location.hostname)) next += (next ? '&' : '?') + 'next=' + encodeURIComponent(keep);
+    history.replaceState(null, '', location.pathname + next);
+  }
+  function paintProduct() {
+    [['post', 'prodPost'], ['studio', 'prodStudio']].forEach(function (p) {
+      var on = product === p[0];
+      $(p[1]).setAttribute('aria-pressed', String(on));
+      $(p[1]).style.background = on ? '#fff' : 'transparent';
+      $(p[1]).style.color = on ? '#010101' : 'rgba(255,255,255,.75)';
+      $(p[1]).lastElementChild.style.color = on ? 'rgba(1,1,1,.55)' : '';
+    });
+  }
+  function setProduct(next) {
+    if (next === product) return;
+    if (OWN_HOST.test(location.hostname)) {
+      location.assign('https://' + next + '.vaneapp.dev/login' + (mode === 'register' ? '?mode=register' : ''));
+      return;
+    }
+    product = next;
+    paintProduct();
+    setMode(mode);
+  }
+  product = readProduct();
+  $('prodPost').addEventListener('click', function () { setProduct('post'); });
+  $('prodStudio').addEventListener('click', function () { setProduct('studio'); });
 
   // ── mode switching
   function setMode(next) {
@@ -20,17 +62,21 @@
     $('tabRegister').setAttribute('aria-selected', String(reg));
     $('tabLogin').style.color = reg ? 'rgba(255,255,255,.65)' : '#010101';
     $('tabRegister').style.color = reg ? '#010101' : 'rgba(255,255,255,.65)';
+    var studio = product === 'studio';
     $('title').textContent = reg ? 'Create your account' : 'Welcome back';
-    $('sub').textContent = reg ? 'Connect a channel and schedule your first post in a minute.' : 'Sign in to schedule your next post.';
+    $('sub').textContent = reg
+      ? (studio ? 'One account for Vane Post and Vane Studio. You will land in Studio.' : 'Connect a channel and schedule your first post in a minute.')
+      : (studio ? 'Sign in to your video library.' : 'Sign in to schedule your next post.');
     $('nameRow').classList.toggle('hidden', !reg);
     $('meter').classList.toggle('hidden', !reg);
     password.setAttribute('autocomplete', reg ? 'new-password' : 'current-password');
     label.textContent = reg ? 'Create account' : 'Sign in';
     hideError();
-    history.replaceState(null, '', reg ? '?mode=register' : location.pathname);
+    syncUrl();
   }
   $('tabLogin').addEventListener('click', function () { setMode('login'); });
   $('tabRegister').addEventListener('click', function () { setMode('register'); });
+  paintProduct();
   setMode(new URLSearchParams(location.search).get('mode') === 'register' ? 'register' : 'login');
 
   // ── show / hide password
@@ -141,7 +187,7 @@
     var r = await Vane.api('POST', mode === 'register' ? '/api/auth/register' : '/api/auth/login', body, { noRedirect: true });
     // 202 + verify = no session yet: a 6-digit code was emailed (new account, or back after more than 3 days away)
     if (r.ok && r.data && r.data.verify) { setLoading(false); tsReset(); showVerify(r.data.verify); return; }
-    if (r.ok) { label.textContent = 'Redirecting…'; Vane.go('/app'); return; }
+    if (r.ok) { label.textContent = 'Redirecting…'; Vane.go(Vane.home()); return; }
     setLoading(false);
     tsReset();
     showError(r.error, r.status === 409 ? email : (r.status === 401 ? password : null));
@@ -211,7 +257,7 @@
     if (code.length !== 6) return showVError('Enter the 6-digit code.');
     setChecking(true);
     var r = await Vane.api('POST', '/api/auth/verify', { email: pending.email, code: code, purpose: pending.purpose }, { noRedirect: true });
-    if (r.ok) { $('vLabel').textContent = 'Redirecting…'; Vane.go('/app'); return; }
+    if (r.ok) { $('vLabel').textContent = 'Redirecting…'; Vane.go(Vane.home()); return; }
     setChecking(false);
     if (r.status === 404 || r.status === 409) return backToForm(r.error);   // nothing is waiting any more, or the account already exists
     showVError(r.error);

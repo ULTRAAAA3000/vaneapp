@@ -10,6 +10,8 @@
  */
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 
 const BASE = process.env.BASE ?? 'http://localhost:8788';
 let passed = 0;
@@ -82,7 +84,9 @@ try {
   section('API keys: creating and listing');
   check('name is required', (await http('POST', '/api/keys', { cookie: u.cookie, body: {} })).status === 400);
   check('bad mode is rejected', (await http('POST', '/api/keys', { cookie: u.cookie, body: { name: 'x', mode: 'prod' } })).status === 400);
-  check('video keys are not available yet (501)', (await http('POST', '/api/keys', { cookie: u.cookie, body: { name: 'x', scope: 'video' } })).status === 501);
+  const vk = await http('POST', '/api/keys', { cookie: u.cookie, body: { name: 'x', scope: 'video' } });
+  check('a live video key needs the Video Engine (403 video_engine_required)', vk.status === 403 && vk.json?.code === 'video_engine_required', `${vk.status}`);
+  check('bad scope is rejected', (await http('POST', '/api/keys', { cookie: u.cookie, body: { name: 'x', scope: 'admin' } })).status === 400);
   check('keys need a session (401 without)', (await http('POST', '/api/keys', { body: { name: 'x' } })).status === 401);
 
   const k1 = await http('POST', '/api/keys', { cookie: u.cookie, body: { name: '  Make.com \u0007 ' } });
@@ -231,6 +235,125 @@ try {
   }
   check('the 101st request in a minute → 429 rate_limited with Retry-After', seen429?.at === 101 && seen429.code === 'rate_limited' && Number(seen429.retry) > 0, JSON.stringify(seen429));
   void fresh;
+
+  // ───────────────────────────────────────────────────────────────
+  section('Idempotency-Key: a retry never creates a second post or takes a second unit of quota');
+  {
+    const v = await signUp(`e2e-idem-${stamp}@example.com`);
+    const ch2 = randomUUID();
+    sql(`INSERT INTO channels (id, user_id, type, name, credentials) VALUES ('${ch2}', '${v.id}', 'telegram', 'idem channel', 'x')`);
+    const live2 = (await http('POST', '/api/keys', { cookie: v.cookie, body: { name: 'idem live' } })).json.secret;
+    const test2 = (await http('POST', '/api/keys', { cookie: v.cookie, body: { name: 'idem test', mode: 'test' } })).json.secret;
+    const when = inHours(5);
+    const body = { content: 'idempotent post', channelIds: [ch2], scheduledAt: when };
+    const idem = (key, k, b = body) => http('POST', '/api/v1/posts', { key, body: b, headers: { 'Idempotency-Key': k } });
+    const posts = () => sql(`SELECT COUNT(*) AS n FROM posts WHERE user_id = '${v.id}'`)[0].n;
+    const used = async () => (await http('GET', '/api/v1/usage', { key: live2 })).json.usage.api.used;
+
+    check('a malformed key (contains a space) → 400 invalid_idempotency_key', (await idem(live2, 'has a space')).json?.code === 'invalid_idempotency_key');
+    check('a key longer than 255 characters → 400', (await idem(live2, 'x'.repeat(256))).status === 400);
+
+    const a = await idem(live2, 'order-1001');
+    check('the first request runs normally (201)', a.status === 201 && !a.headers.get('idempotent-replayed'));
+    const b = await idem(live2, 'order-1001');
+    check('the retry gets the SAME answer (201, same group and post ids)', b.status === 201 && b.json?.groupId === a.json?.groupId && b.json?.posts?.[0]?.id === a.json?.posts?.[0]?.id);
+    check('…flagged Idempotent-Replayed: true', b.headers.get('idempotent-replayed') === 'true');
+    check('…and only ONE post exists, only ONE unit of quota was taken', posts() === 1 && (await used()) === 1);
+
+    const reordered = await idem(live2, 'order-1001', { scheduledAt: when, channelIds: [ch2], content: 'idempotent post' });
+    check('the same body with its keys in another order still counts as the same request', reordered.headers.get('idempotent-replayed') === 'true');
+
+    const reuse = await idem(live2, 'order-1001', { ...body, content: 'a different post' });
+    check('the same key with a DIFFERENT body → 422 idempotency_key_reuse', reuse.status === 422 && reuse.json?.code === 'idempotency_key_reuse');
+    check('…and nothing was created', posts() === 1);
+
+    const c = await idem(live2, 'order-1002');
+    check('a new key is a new request (a second post)', c.status === 201 && c.json.groupId !== a.json.groupId && posts() === 2 && (await used()) === 2);
+
+    // A failed request frees the key
+    const bad = await idem(live2, 'retry-after-fix', { ...body, scheduledAt: '2020-01-01T00:00:00Z' });
+    check('a failed request (400) is not remembered…', bad.status === 400);
+    const fixed = await idem(live2, 'retry-after-fix');
+    check('…so the fixed retry with the same key runs (201)', fixed.status === 201 && !fixed.headers.get('idempotent-replayed'));
+
+    // Out of quota frees the key too
+    sql(`UPDATE usage_counters SET api_posts = 30 WHERE user_id = '${v.id}' AND period = 'lifetime'`);
+    const poor = await idem(live2, 'after-upgrade', { ...body, content: 'needs quota' });
+    check('out of quota → 402…', poor.status === 402);
+    sql(`UPDATE usage_counters SET api_posts = 3 WHERE user_id = '${v.id}' AND period = 'lifetime'`);
+    const rich = await idem(live2, 'after-upgrade', { ...body, content: 'needs quota' });
+    check('…and once there is quota the same key runs (201)', rich.status === 201 && !rich.headers.get('idempotent-replayed'));
+
+    // A replay costs nothing, even when the quota is spent
+    sql(`UPDATE usage_counters SET api_posts = 30 WHERE user_id = '${v.id}' AND period = 'lifetime'`);
+    const free = await idem(live2, 'order-1001');
+    check('a replay still works with the quota fully spent (no 402, nothing taken)', free.status === 201 && free.headers.get('idempotent-replayed') === 'true');
+    sql(`UPDATE usage_counters SET api_posts = 5 WHERE user_id = '${v.id}' AND period = 'lifetime'`);
+
+    // Parallel retries
+    const before = posts(), usedBefore = await used();
+    const par = await Promise.all(Array.from({ length: 8 }, () => idem(live2, 'parallel-1', { ...body, content: 'parallel' })));
+    const statuses = par.map((r) => r.status);
+    check('8 parallel requests with one key: only 201 (first or replay) or 409 in-progress, never an error', statuses.every((x) => x === 201 || x === 409), statuses.join());
+    check('…exactly ONE post was created and ONE unit taken', posts() === before + 1 && (await used()) === usedBefore + 1, `posts ${before}→${posts()}`);
+    check('…the 409s say idempotency_in_progress with Retry-After', par.filter((r) => r.status === 409).every((r) => r.json?.code === 'idempotency_in_progress' && r.headers.get('retry-after') === '1'));
+    check('…and every 201 carries the same group id', new Set(par.filter((r) => r.status === 201).map((r) => r.json.groupId)).size === 1);
+
+    // Abandoned and expired claims
+    sql(`INSERT INTO idempotency_keys (user_id, idem_key, request_hash, state, locked_at, expires_at) VALUES ('${v.id}', 'live:abandoned', 'deadbeef', 'processing', unixepoch() - 120, unixepoch() + 86400)`);
+    check('a claim abandoned for over a minute is taken over (201)', (await idem(live2, 'abandoned', { ...body, content: 'takeover' })).status === 201);
+    sql(`INSERT INTO idempotency_keys (user_id, idem_key, request_hash, state, response_status, response_body, locked_at, expires_at) VALUES ('${v.id}', 'live:expired', 'deadbeef', 'done', 201, '{"ok":true,"old":true}', unixepoch() - 90000, unixepoch() - 3600)`);
+    const exp = await idem(live2, 'expired', { ...body, content: 'after expiry' });
+    check('an expired key (24 h) is forgotten: the request runs fresh', exp.status === 201 && !exp.headers.get('idempotent-replayed') && !exp.json?.old);
+
+    // Test keys: replayed too, and in their own namespace
+    const t1 = await idem(test2, 'same-key-string');
+    const t2 = await idem(test2, 'same-key-string');
+    check('test keys replay as well (same simulated ids, X-Vane-Mode: test)', t1.status === 201 && t2.headers.get('idempotent-replayed') === 'true' && t2.json.posts[0].id === t1.json.posts[0].id && t2.headers.get('x-vane-mode') === 'test' && t2.json.test === true);
+    const real = await idem(live2, 'same-key-string');
+    check('…and a test run never collides with a live one (same key string → a real post)', real.status === 201 && !real.json.test && !real.headers.get('idempotent-replayed'));
+
+    check('requests WITHOUT the header behave exactly as before (two posts)', (await http('POST', '/api/v1/posts', { key: live2, body })).status === 201 && (await http('POST', '/api/v1/posts', { key: live2, body })).status === 201);
+    check('the stored answers contain no key material', !JSON.stringify(sql(`SELECT response_body FROM idempotency_keys WHERE user_id = '${v.id}'`)).includes('cpost_'));
+  }
+
+  // ───────────────────────────────────────────────────────────────
+  section('OpenAPI spec: served, valid-looking, and in sync with the real routes');
+  {
+    const res = await fetch(BASE + '/api/v1/openapi.json');
+    const spec = await res.json().catch(() => null);
+    check('GET /api/v1/openapi.json needs no key (200, JSON)', res.status === 200 && spec !== null);
+    check('it is OpenAPI 3.1 with this server\'s URL', spec?.openapi === '3.1.0' && spec?.servers?.[0]?.url === `${BASE}/api/v1`);
+    check('it is readable from a browser tool (CORS *) and cacheable', res.headers.get('access-control-allow-origin') === '*' && /max-age/.test(res.headers.get('cache-control') ?? ''));
+    check('bearer auth is declared', spec?.components?.securitySchemes?.bearerAuth?.scheme === 'bearer');
+
+    const ops = [];
+    for (const [path, item] of Object.entries(spec?.paths ?? {})) for (const method of ['get', 'post', 'put', 'patch', 'delete']) if (item[method]) ops.push({ path, method, op: item[method] });
+    check('every operation has a unique operationId', ops.every((o) => o.op.operationId) && new Set(ops.map((o) => o.op.operationId)).size === ops.length);
+    check('descriptions fit Custom GPT Actions (≤ 300 characters)', ops.every((o) => (o.op.description ?? '').length <= 300), ops.filter((o) => (o.op.description ?? '').length > 300).map((o) => o.op.operationId).join());
+    // Every $ref must point at something that exists
+    const refs = [...JSON.stringify(spec).matchAll(/"\$ref":"#\/components\/schemas\/([A-Za-z]+)"/g)].map((m) => m[1]);
+    check('every $ref resolves', refs.length > 0 && refs.every((r) => spec.components.schemas[r]));
+
+    // Drift guard 1: every documented operation exists (without a key it answers 401, not 404/405)
+    const missing = [];
+    for (const { path, method } of ops) {
+      const r = await fetch(BASE + '/api/v1' + path.replace('{id}', randomUUID()), { method: method.toUpperCase(), headers: { 'content-type': 'application/json' }, body: method === 'post' ? '{}' : undefined });
+      if (r.status !== 401) missing.push(`${method.toUpperCase()} ${path} → ${r.status}`);
+    }
+    check('every documented operation exists and is protected (401 without a key)', missing.length === 0, missing.join('; '));
+
+    // Drift guard 2: every route on disk is documented (the Video Engine has its own document)
+    const walk = (dir) => readdirSync(dir).flatMap((n) => { const f = join(dir, n); return statSync(f).isDirectory() ? walk(f) : [f]; });
+    const root = 'functions/api/v1';
+    const routes = walk(root)
+      .map((f) => f.slice(root.length).replace(/\\/g, '/'))
+      .filter((f) => !f.startsWith('/video/') && f !== '/openapi.json.ts' && f.endsWith('.ts'))
+      .map((f) => f.replace(/\.ts$/, '').replace(/\/index$/, '').replace(/\[id\]/g, '{id}'))
+      .map((f) => f || '/');
+    const undocumented = routes.filter((r) => !(r in (spec?.paths ?? {})));
+    check('every route under functions/api/v1 is documented', undocumented.length === 0, `undocumented: ${undocumented.join(', ')}`);
+  }
 } catch (err) {
   console.error('\nTest run aborted:', err instanceof Error ? err.message : err);
   process.exit(2);

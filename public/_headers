@@ -7,6 +7,9 @@
 /app
   Cache-Control: no-store
 
+/studio
+  Cache-Control: no-store
+
 /login
   Cache-Control: no-store
 
