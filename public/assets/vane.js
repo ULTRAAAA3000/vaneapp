@@ -33,6 +33,17 @@
   };
 
   /**
+   * "Home" is the main site (the landing page). On post. and studio. the address "/" is that product's own dashboard,
+   * so a logo or "Back to site" link must point at the main site explicitly. Mark such links with data-site-home.
+   */
+  Vane.siteHome = function () { return OWN_HOST.test(location.hostname) ? 'https://vaneapp.dev/' : '/'; };
+  function wireHomeLinks() {
+    var links = document.querySelectorAll('a[data-site-home]');
+    for (var i = 0; i < links.length; i++) links[i].setAttribute('href', Vane.siteHome());
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wireHomeLinks); else wireHomeLinks();
+
+  /**
    * JSON API client. Resolves to { ok, status, data, error } and never throws.
    * A 401 sends the user to the sign-in page unless opts.noRedirect is set.
    */
