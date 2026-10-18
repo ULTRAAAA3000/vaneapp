@@ -82,7 +82,9 @@ try {
   section('API keys: creating and listing');
   check('name is required', (await http('POST', '/api/keys', { cookie: u.cookie, body: {} })).status === 400);
   check('bad mode is rejected', (await http('POST', '/api/keys', { cookie: u.cookie, body: { name: 'x', mode: 'prod' } })).status === 400);
-  check('video keys are not available yet (501)', (await http('POST', '/api/keys', { cookie: u.cookie, body: { name: 'x', scope: 'video' } })).status === 501);
+  const vk = await http('POST', '/api/keys', { cookie: u.cookie, body: { name: 'x', scope: 'video' } });
+  check('a live video key needs the Video Engine (403 video_engine_required)', vk.status === 403 && vk.json?.code === 'video_engine_required', `${vk.status}`);
+  check('bad scope is rejected', (await http('POST', '/api/keys', { cookie: u.cookie, body: { name: 'x', scope: 'admin' } })).status === 400);
   check('keys need a session (401 without)', (await http('POST', '/api/keys', { body: { name: 'x' } })).status === 401);
 
   const k1 = await http('POST', '/api/keys', { cookie: u.cookie, body: { name: '  Make.com \u0007 ' } });

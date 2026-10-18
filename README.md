@@ -170,6 +170,19 @@ npm run plan:set -- me@example.com pro --addon --forever --remote   # production
 
 `npm run db:local && npm run dev` in one terminal, `npm run test:api` in another: 66 checks that walk through keys, scopes, test mode, the Free Trial, every plan, the parallel-request race, overage, revoking and the rate limit. It only schedules posts for a placeholder channel; nothing is sent anywhere.
 
+## Vane Studio / Video Engine (a separate dashboard)
+
+Vane Studio ([documentation/VIDEO_ENGINE.md](documentation/VIDEO_ENGINE.md)) is its own product with its own
+access: the posting dashboard (Vane Post) lives at `/app` and `/api/*`; the video dashboard is `studio.vaneapp.dev` (next stage)
+and its API is `/api/video/*`; the public API for `cvid_` keys is `/api/v1/video/*`. They share the account, nothing else.
+
+- **Setup:** nothing new. Re-run `npm run db:remote` (the schema only adds tables), and the R2 bucket `vane-media` is the one
+  from the uploads step (videos live under a private `videos/` prefix, never served publicly).
+- **Switch it on for an account** (until payments do it): `npm run video:set -- me@example.com [--days 365] [--remote]`;
+  `--off` takes it away again. Without it uploads and live `cvid_live_` keys answer `403 video_engine_required`; `cvid_test_` keys always work.
+- **Upload flow** (chunks of 8 MiB, resumable): `POST /api/video/uploads` → `PUT …/uploads/:id/parts/:n` → `POST …/uploads/:id/complete`.
+- **Test it locally:** `npm run db:local && npm run dev`, then `npm run test:video`.
+
 ## Landing video demo
 
 The "Publish videos like you publish posts" section (`#videos` in `public/index.html`) is an iPad showing a YouTube-style channel feed plus a mini dashboard under it. Typing a title and pressing "Publish video" adds a non-clickable card to the feed (up to 3 uploads, then "Reset demo"). It is a pure front-end simulation: the filler videos are in `YT_OLD` and the upload limit is `YT_MAX` in the page script.

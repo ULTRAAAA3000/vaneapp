@@ -936,7 +936,7 @@
   S.keyMax = 10;
 
   async function loadApi() {
-    var rs = await Promise.all([Vane.api('GET', '/api/usage'), Vane.api('GET', '/api/keys')]);
+    var rs = await Promise.all([Vane.api('GET', '/api/usage'), Vane.api('GET', '/api/keys?scope=post')]);
     if (!rs[0].ok || !rs[1].ok) { if (!S.usage) S.apiFailed = true; return; }   // keep what is on screen on a hiccup
     S.apiFailed = false;
     S.usage = rs[0].data.usage;
