@@ -260,3 +260,24 @@ CREATE TABLE IF NOT EXISTS video_parts (
   size_bytes   INTEGER NOT NULL,
   PRIMARY KEY (video_id, part_number)
 );
+
+-- ───────────────────────── Public API: Idempotency-Key (API part 3) ─────────────────────────
+-- A retried POST /api/v1/posts (Make and Zapier retry on timeouts) carrying the same Idempotency-Key must not create a
+-- second post or take a second unit of quota: the first answer is stored here and replayed.
+--   idem_key      "<live|test>:<the client's key>"  (a test run never collides with a live one)
+--   request_hash  sha256 of the canonical request body: the same key with a DIFFERENT body is refused (422)
+--   state         'processing' while the first request runs, 'done' once its answer is stored
+--   locked_at     when the claim was taken (a claim older than a minute is treated as abandoned)
+--   expires_at    keys are remembered for 24 hours
+CREATE TABLE IF NOT EXISTS idempotency_keys (
+  user_id          TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  idem_key         TEXT    NOT NULL,
+  request_hash     TEXT    NOT NULL,
+  state            TEXT    NOT NULL CHECK (state IN ('processing', 'done')),
+  response_status  INTEGER,
+  response_body    TEXT,
+  locked_at        INTEGER NOT NULL,
+  expires_at       INTEGER NOT NULL,
+  PRIMARY KEY (user_id, idem_key)
+);
+CREATE INDEX IF NOT EXISTS idx_idempotency_expires ON idempotency_keys(expires_at);

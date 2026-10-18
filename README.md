@@ -92,7 +92,8 @@ Spec: `ECONOMY_AND_FINANCE.md` §2 and §6, `SECURITY_ARCHITECTURE.md` §2-3. Bu
 |---|---|---|
 | 1 | Tables, key generation and hashing, key auth, scopes, test mode, quota engine with 402, `/api/v1/*`, usage | done |
 | 2 | "API access" section in the dashboard: create / revoke keys, quota meter, quick start | done |
-| 3 | OpenAPI spec, `Idempotency-Key` (safe retries from Make / Zapier), webhooks | next |
+| 3a | OpenAPI spec and `Idempotency-Key` (safe retries from Make / Zapier) | done |
+| 3b | Webhooks: signed `post.sent` / `post.failed` / `post.cancelled` events, retries | next |
 | 4 | Payments (Monobank, USDT/USDC) that grant the plan and issue keys automatically | |
 | 5 | AI endpoints on Workers AI (reformat, tone, hooks) with their own metering | |
 
@@ -128,6 +129,7 @@ curl -X POST https://vaneapp.dev/api/keys -H "Authorization: Bearer <jwt>" -H "C
 
 | | |
 |---|---|
+| `GET /api/v1/openapi.json` | the OpenAPI 3.1 description (no key needed) |
 | `GET /api/v1/me` | is the key valid, which plan (the "test connection" call for Make / Zapier) |
 | `GET /api/v1/usage` | plan, quota, what is left, what extra posts cost |
 | `GET /api/v1/channels` | my channels; their `id`s go into `channelIds` |
@@ -137,7 +139,7 @@ curl -X POST https://vaneapp.dev/api/keys -H "Authorization: Bearer <jwt>" -H "C
 | `DELETE /api/v1/posts/:id` | cancel while still `scheduled` |
 
 Every metered response carries `X-Vane-Quota-Limit`, `X-Vane-Quota-Remaining` and `X-Vane-Quota-Reset`. Errors are `{ "ok": false, "error": "…", "code": "…" }`; branch on `code`:
-`invalid_api_key` (401) · `wrong_key_scope` (403) · `api_not_in_plan` (403) · `quota_exceeded` (402) · `rate_limited` (429) · `too_many_keys` (409).
+`invalid_api_key` (401) · `wrong_key_scope` (403) · `api_not_in_plan` (403) · `quota_exceeded` (402) · `rate_limited` (429) · `too_many_keys` (409) · `invalid_idempotency_key` (400) · `idempotency_key_reuse` (422) · `idempotency_in_progress` (409).
 
 **OpenAPI spec:** `https://vaneapp.dev/vane-openapi.json` (OpenAPI 3.0, served from `public/`) describes all of the above, so a tool can import it instead of being set up by hand.
 - *ChatGPT Custom GPT*: Configure → Actions → *Import from URL* with the address above → Authentication *API Key* → *Bearer*, paste a `cpost_…` key. Use a `cpost_test_` key while trying it out.
@@ -147,6 +149,23 @@ Every metered response carries `X-Vane-Quota-Limit`, `X-Vane-Quota-Remaining` an
 **Make custom app:** a ready app definition lives in `integrations/make/` (modules: Schedule / Get / Cancel a Post, List Posts, List Channels; channels come as a dropdown). Setup is in its README; `npm run check:integrations` checks it still matches the spec.
 
 Make.com: *HTTP → Make a request*, URL `https://vaneapp.dev/api/v1/posts`, header `Authorization: Bearer <key>`, body type *Raw / JSON*. A scenario that runs on a key that is out of quota gets `402`, which Make shows as an error you can route.
+
+### Safe retries: `Idempotency-Key`
+
+Make and Zapier retry a request that timed out. Send `Idempotency-Key: <unique value>` on `POST /api/v1/posts` (a UUID, or something that stays the same on a retry, such as the scenario's execution id; 1-255 printable characters) and a retry can never create a second post or take a second unit of quota.
+
+| Request | Answer |
+|---|---|
+| first | runs normally; its 201 answer is remembered for 24 hours |
+| same key, same body | the first answer again (same group and post ids), header `Idempotent-Replayed: true`, **no quota taken** (it works even when the quota is spent) |
+| same key, different body | `422 idempotency_key_reuse` |
+| same key while the first is still running | `409 idempotency_in_progress` (`Retry-After: 1`) |
+
+Only a **successful** answer is remembered: a request that failed (400, 402, 5xx) frees the key, so the retry, after fixing the input or upgrading, simply runs. Key order inside the JSON does not matter. Live and test keys have separate key spaces, and test keys replay too (handy for testing retry logic). The stored answer is written in the same database batch as the post, so there is no moment where the post exists and the key does not know it; a claim abandoned for over a minute (a crashed request) can be taken over. Expired keys are removed by the cron worker. Code: `functions/api/lib/idempotency.ts`.
+
+### OpenAPI / Custom GPT
+
+`GET /api/v1/openapi.json` serves an OpenAPI 3.1 description of this API (public, CORS-enabled, nothing private in it). The dashboard's Quick start shows the URL with a Copy button. In ChatGPT: *Create a GPT → Configure → Actions → Import from URL*, then set Authentication to *API Key / Bearer* and paste a `cpost_live_…` key. Postman and Make read it too. The spec lives in `functions/api/lib/openapi.ts` (the only hand-written description); `npm run test:api` validates its structure and **fails if a route under `functions/api/v1` is not documented or a documented route does not exist** (the Video Engine has its own document, `documentation/VIDEO_ENGINE.md`).
 
 ### How the quota works
 
@@ -175,7 +194,7 @@ npm run plan:set -- me@example.com pro --addon --forever --remote   # production
 
 ### Test it
 
-`npm run db:local && npm run dev` in one terminal, `npm run test:api` in another: 66 checks that walk through keys, scopes, test mode, the Free Trial, every plan, the parallel-request race, overage, revoking and the rate limit. It only schedules posts for a placeholder channel; nothing is sent anywhere.
+`npm run db:local && npm run dev` in one terminal, `npm run test:api` in another: 101 checks that walk through keys, scopes, test mode, the Free Trial, every plan, the parallel-request race, overage, revoking, the rate limit, Idempotency-Key (retries, races, expiry) and the OpenAPI document. It only schedules posts for a placeholder channel; nothing is sent anywhere.
 
 ## Vane Studio / Video Engine (a separate dashboard)
 
