@@ -4,6 +4,7 @@ import type { Env } from '../../../types';
 import { requireAdmin } from '../lib/admin';
 import { json, methodNotAllowed } from '../lib/http';
 import { dayLabels, daysParam, fillSeries } from '../lib/range';
+import { listPlans } from '../lib/catalog';
 
 type Row = Record<string, number | string | null>;
 
@@ -27,12 +28,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     /* 6 */ q(`SELECT COUNT(DISTINCT visitor_id) n FROM web_views WHERE started_at >= ?1 AND path = '/login'`, since),
     /* 7 */ q(`SELECT COUNT(*) n FROM users u WHERE u.created_at >= ?1 AND EXISTS (SELECT 1 FROM channels c WHERE c.user_id = u.id)`, since),
     /* 8 */ q(`SELECT COUNT(*) n FROM users u WHERE u.created_at >= ?1 AND EXISTS (SELECT 1 FROM posts p WHERE p.user_id = u.id AND p.status <> 'draft')`, since),
-    /* 9 */ q(`SELECT COUNT(*) n FROM users u WHERE u.created_at >= ?1 AND EXISTS (SELECT 1 FROM subscriptions s WHERE s.user_id = u.id AND s.source <> 'admin' AND s.price_cents > 0)`, since),
+    /* 9 */ q(`SELECT COUNT(*) n FROM users u WHERE u.created_at >= ?1 AND EXISTS (SELECT 1 FROM subscriptions s WHERE s.user_id = u.id AND s.provider <> 'manual' AND s.plan <> 'free' AND s.status = 'active')`, since),
     /*10 */ q(`SELECT COALESCE(ref_host,'(direct)') src, COUNT(DISTINCT visitor_id) visitors FROM web_views WHERE started_at >= ?1 GROUP BY src ORDER BY visitors DESC LIMIT 8`, since),
     /*11 */ q(`SELECT COALESCE(ref_host,'(direct)') src, COUNT(*) n FROM user_attribution WHERE created_at >= ?1 GROUP BY src`, since),
-    /*12 */ q(`SELECT COUNT(*) paid, COALESCE(SUM(CASE interval WHEN 'year' THEN price_cents / 12.0 ELSE price_cents END),0) mrr
-              FROM subscriptions WHERE status = 'active' AND source <> 'admin' AND price_cents > 0 AND (ends_at IS NULL OR ends_at > ?1)`, now),
-    /*13 */ q(`SELECT COUNT(*) n FROM subscriptions WHERE status = 'active' AND source = 'admin' AND (ends_at IS NULL OR ends_at > ?1)`, now),
+    /*12 */ q(`SELECT plan, api_addon, COUNT(*) n FROM subscriptions WHERE status = 'active' AND provider <> 'manual' AND plan <> 'free' AND (current_period_end IS NULL OR current_period_end > ?1) GROUP BY plan, api_addon`, now),
+    /*13 */ q(`SELECT COUNT(*) n FROM subscriptions WHERE status = 'active' AND provider = 'manual' AND plan <> 'free' AND (current_period_end IS NULL OR current_period_end > ?1)`, now),
     /*14 */ q(`SELECT (SELECT COUNT(*) FROM channels) channels, (SELECT COUNT(*) FROM waitlist) waitlist`),
     /*15 */ q(`SELECT status, COUNT(*) n FROM posts GROUP BY status`),
     /*16 */ q(`SELECT kind, ok, COUNT(*) n FROM auth_attempts WHERE ts >= ?1 GROUP BY kind, ok`, now - 86400),
@@ -49,6 +49,15 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
   const signupsBySource = new Map(rows(11).map((x) => [String(x.src), num(x.n)]));
   const sources = rows(10).map((x) => ({ source: String(x.src), visitors: num(x.visitors), signups: signupsBySource.get(String(x.src)) ?? 0 }));
+
+  // MRR: what the paying subscribers cost at today's catalog prices (monthly), plus the add-on where they have it.
+  const catalog = new Map((await listPlans(env)).map((p) => [p.id, p.priceCents]));
+  let paid = 0, mrr = 0;
+  for (const row of rows(12)) {
+    const n = num(row.n);
+    paid += n;
+    mrr += n * ((catalog.get(String(row.plan)) ?? 0) + (num(row.api_addon) ? (catalog.get('api-addon') ?? 0) : 0));
+  }
 
   const att = (kind: string, ok: number) => rows(16).filter((x) => x.kind === kind && x.ok === ok).reduce((a, x) => a + num(x.n), 0);
 
@@ -76,7 +85,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       { key: 'paid', label: 'Paid', count: num(one(9).n) },
     ],
     sources,
-    revenue: { paidSubscribers: num(one(12).paid), mrrCents: Math.round(num(one(12).mrr)), activeGrants: num(one(13).n) },
+    revenue: { paidSubscribers: paid, mrrCents: mrr, activeGrants: num(one(13).n) },
     content: {
       channels: num(one(14).channels), waitlist: num(one(14).waitlist),
       posts: Object.fromEntries(rows(15).map((x) => [String(x.status), num(x.n)])),

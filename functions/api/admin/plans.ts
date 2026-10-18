@@ -11,7 +11,8 @@ import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env } from '../../../types';
 import { audit, requireAdmin } from '../lib/admin';
 import { fail, isRecord, json, methodNotAllowed, readJson } from '../lib/http';
-import { getPlan, listPlans, validatePlanInput, type PlanInput } from '../lib/plans';
+import { invalidatePlanSpecs } from '../lib/plans';
+import { getPlan, listPlans, validatePlanInput, type PlanInput } from '../lib/catalog';
 
 const COLUMN: Record<string, string> = {
   kind: 'kind', name: 'name', tagline: 'tagline', badge: 'badge', priceCents: 'price_cents', comparePriceCents: 'compare_price_cents',
@@ -27,16 +28,18 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const auth = await requireAdmin(request, env);
   if (!auth.ok) return auth.response;
   const now = Math.floor(Date.now() / 1000);
-  const [plans, counts] = await Promise.all([
+  const [plans, counts, total] = await Promise.all([
     listPlans(env),
     env.DB
-      .prepare(`SELECT plan_id, COUNT(*) n, COALESCE(SUM(source <> 'admin' AND price_cents > 0),0) paid FROM subscriptions
-                 WHERE status = 'active' AND (ends_at IS NULL OR ends_at > ?1) GROUP BY plan_id`)
+      .prepare(`SELECT plan AS plan_id, COUNT(*) n, COALESCE(SUM(provider <> 'manual'),0) paid FROM subscriptions
+                 WHERE plan <> 'free' AND status = 'active' AND (current_period_end IS NULL OR current_period_end > ?1) GROUP BY plan`)
       .bind(now)
       .all<{ plan_id: string; n: number; paid: number }>(),
+    env.DB.prepare('SELECT COUNT(*) n FROM users').first<{ n: number }>(),
   ]);
   const by = new Map(counts.results.map((c) => [c.plan_id, c]));
-  return json({ ok: true, plans: plans.map((p) => ({ ...p, activeSubscribers: by.get(p.id)?.n ?? 0, paidSubscribers: by.get(p.id)?.paid ?? 0 })) });
+  const onFree = Math.max(0, (total?.n ?? 0) - counts.results.reduce((a, c) => a + c.n, 0));   // everybody without an active paid plan
+  return json({ ok: true, plans: plans.map((p) => ({ ...p, activeSubscribers: p.id === 'free' ? onFree : by.get(p.id)?.n ?? 0, paidSubscribers: by.get(p.id)?.paid ?? 0 })) });
 };
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
@@ -63,6 +66,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       f.sort ?? 100, JSON.stringify(f.providerRefs ?? {}),
     )
     .run();
+  invalidatePlanSpecs();
   await audit(env, request, 'plan.create', f.id, { name: f.name, priceCents: f.priceCents });
   return json({ ok: true, plan: await getPlan(env, f.id as string) }, 201);
 };
@@ -89,6 +93,7 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env }) => {
     .prepare(`UPDATE plans SET ${sets.join(', ')}, updated_at = unixepoch() WHERE id = ?1`)
     .bind(id, ...fields.map(([k, x]) => dbValue(k, x)))
     .run();
+  invalidatePlanSpecs();
   const changed: Record<string, unknown> = {};
   for (const [k, x] of fields) changed[k] = { from: (current as unknown as Record<string, unknown>)[k], to: x };
   await audit(env, request, 'plan.update', id, changed);
@@ -101,9 +106,10 @@ export const onRequestDelete: PagesFunction<Env> = async ({ request, env }) => {
   const id = new URL(request.url).searchParams.get('id') ?? '';
   if (id === 'free') return fail(400, 'The Free plan cannot be deleted.');
   if (!(await getPlan(env, id))) return fail(404, 'Plan not found.');
-  const used = await env.DB.prepare('SELECT COUNT(*) n FROM subscriptions WHERE plan_id = ?1').bind(id).first<{ n: number }>();
-  if ((used?.n ?? 0) > 0) return fail(409, 'People have had this plan, so it is kept for the history. Switch it off (hide it and stop giving it) instead.');
+  const used = await env.DB.prepare('SELECT COUNT(*) n FROM subscriptions WHERE plan = ?1').bind(id).first<{ n: number }>();
+  if ((used?.n ?? 0) > 0) return fail(409, 'Somebody is (or was) on this plan, so it is kept. Switch it off (hide it and stop giving it) instead.');
   await env.DB.prepare('DELETE FROM plans WHERE id = ?1').bind(id).run();
+  invalidatePlanSpecs();
   await audit(env, request, 'plan.delete', id);
   return json({ ok: true });
 };

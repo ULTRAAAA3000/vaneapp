@@ -14,7 +14,7 @@ import { requireUser } from '../lib/auth';
 import { encryptToken } from '../lib/crypto';
 import { fail, isRecord, json, methodNotAllowed, readJson, UUID_RE } from '../lib/http';
 import { bump, retryAfter } from '../lib/throttle';
-import { checkChannelQuota } from '../lib/plans';
+import { checkChannelQuota } from '../lib/catalog';
 import { CREDS_ERROR, findDuplicateTelegramChannel, loadTelegramCreds } from './credentials';
 import { quickConnectAvailable, VERIFIED_VALID_SECONDS } from './quick';
 import { normalizeChatId, sendTelegramPost, validateTelegramBot } from './telegram';
@@ -31,17 +31,20 @@ const toPublic = (r: Pick<ChannelRow, 'id' | 'type' | 'name' | 'is_active' | 'cr
 });
 
 // ───────────────────────── GET /api/channels ─────────────────────────
-export const handleListChannels: PagesFunction<Env> = async ({ request, env }) => {
-  const auth = await requireUser(request, env);
-  if (!auth.ok) return auth.response;
-
+/** My channels, newest first. Shared by the dashboard route and `GET /api/v1/channels`. */
+export async function channelsForUser(env: Env, userId: string): Promise<ChannelPublic[]> {
   // Explicit column list: `credentials` is deliberately never selected.
   const { results } = await env.DB
     .prepare('SELECT id, type, name, is_active, created_at FROM channels WHERE user_id = ?1 ORDER BY created_at DESC')
-    .bind(auth.userId)
+    .bind(userId)
     .all<Pick<ChannelRow, 'id' | 'type' | 'name' | 'is_active' | 'created_at'>>();
+  return results.map(toPublic);
+}
 
-  return json({ ok: true, channels: results.map(toPublic) });
+export const handleListChannels: PagesFunction<Env> = async ({ request, env }) => {
+  const auth = await requireUser(request, env);
+  if (!auth.ok) return auth.response;
+  return json({ ok: true, channels: await channelsForUser(env, auth.userId) });
 };
 
 // ───────────────────────── POST /api/channels/add ─────────────────────────

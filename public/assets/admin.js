@@ -245,7 +245,7 @@
       var d = r.data, pages = Math.max(1, Math.ceil(d.total / d.pageSize));
       box.innerHTML = table([
         { h: 'User', r: function (u) { return '<div class="font-medium">' + esc(u.email) + '</div><div class="text-xs text-white/40">' + esc(u.name || '—') + '</div>'; } },
-        { h: 'Plan', r: function (u) { return tag(u.plan, u.plan === 'Free' ? '' : 'info'); } },
+        { h: 'Plan', r: function (u) { return tag(u.plan, u.plan_id === 'free' ? '' : 'info'); } },
         { h: 'Channels', cls: 'text-right', r: function (u) { return num(u.channels); } },
         { h: 'Posts', cls: 'text-right', r: function (u) { return num(u.posts); } },
         { h: 'Time on site', cls: 'text-right', r: function (u) { return u.time_on_site ? dur(u.time_on_site) : '—'; } },
@@ -267,12 +267,15 @@
     loadUsers(seq);
   };
 
-  function subRow(s) {
-    var live = s.status === 'active' && (!s.ends_at || s.ends_at > Date.now() / 1000);
-    return '<div class="flex items-center justify-between gap-3 border-t border-white/[0.06] py-2.5 text-sm"><div class="min-w-0"><div class="font-medium">' + esc(s.plan_name) + ' ' +
-      (live ? tag('active', 'ok') : tag(s.status === 'active' ? 'expired' : s.status)) + ' ' + (s.source === 'admin' ? tag('granted') : tag(s.source, 'info')) + '</div>' +
-      '<div class="text-xs text-white/45">' + esc(when(s.started_at)) + ' → ' + (s.ends_at ? esc(when(s.ends_at)) : 'no end date') + (s.note ? ' · ' + esc(s.note) : '') + '</div></div>' +
-      (live ? '<button class="btn btn-danger btn-sm" type="button" data-act="revoke" data-id="' + esc(s.id) + '">End</button>' : '') + '</div>';
+  function usageBars(us) {
+    var rows = [];
+    if (us.shared) rows.push(['Posts in total', us.shared]);
+    else {
+      if (us.ui.limit || us.ui.used) rows.push(['Dashboard posts this month', us.ui]);
+      if (us.api.limit || us.api.used) rows.push(['API posts this month', us.api]);
+    }
+    return rows.map(function (r) { return hbar(esc(r[0]), r[1].used, Math.max(r[1].limit, r[1].used, 1), num(r[1].used) + ' of ' + num(r[1].limit)); }).join('') +
+      (us.overage.posts ? '<p class="mt-1 text-xs text-amber-300">' + num(us.overage.posts) + ' extra posts · $' + esc(String(us.overage.costUsd)) + '</p>' : '');
   }
   function openUser(id) {
     openDrawer('<div class="skeleton h-8 w-48"></div><div class="skeleton mt-4 h-64"></div>');
@@ -280,21 +283,25 @@
       var r = rs[0];
       if (!r.ok) return openDrawer(errorBox(r.error));
       var d = r.data, u = d.user, a = d.attribution, tos = d.timeOnSite || {};
-      var grantable = rs[1].ok ? rs[1].data.plans.filter(function (p) { return p.kind === 'plan' && p.isActive; }) : [];
+      var grantable = rs[1].ok ? rs[1].data.plans.filter(function (p) { return p.kind === 'plan' && p.isActive && p.id !== 'free'; }) : [];
       var postTotal = Object.keys(d.posts).reduce(function (x, k) { return x + d.posts[k]; }, 0);
       openDrawer(
         '<div class="flex items-start justify-between gap-3"><div class="min-w-0"><h2 class="truncate text-xl font-semibold">' + esc(u.email) + '</h2>' +
         '<p class="mt-0.5 text-sm text-white/50">' + esc(u.name || 'No name') + ' · joined ' + esc(when(u.created_at)) + ' · ' + esc(u.timezone) + '</p></div>' +
         '<button class="btn btn-ghost btn-sm" type="button" data-act="drawer-close">Close</button></div>' +
         (u.disabled ? '<div class="mt-4 rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300">Account disabled' + (u.disabled_reason ? ': ' + esc(u.disabled_reason) : '') + '</div>' : '') +
-        '<div class="mt-5 grid grid-cols-3 gap-3">' + stat('Plan', esc(d.plan.name), d.plan.subscription ? (d.plan.subscription.source === 'admin' ? 'given by hand' : 'paid') : 'default') +
+        '<div class="mt-5 grid grid-cols-3 gap-3">' + stat('Plan', esc(d.plan.name) + (d.plan.apiAddon ? ' + API' : ''), d.plan.lapsed ? 'lapsed, on Free limits' : d.plan.provider === 'manual' ? 'given by hand' : d.plan.provider ? 'paid · ' + esc(d.plan.provider) : 'default') +
           stat('Time on site', tos.total ? dur(tos.total) : '—', num(tos.visits) + ' visits · ' + num(tos.views) + ' pages') + stat('Posts', num(postTotal), num(d.posts.sent || 0) + ' sent') + '</div>' +
+        '<h3 class="mt-7 text-sm font-semibold">Plan and usage</h3><div class="glass-d mt-3 rounded-2xl p-4 text-sm"><div class="flex items-center justify-between gap-3"><div><div class="font-medium">' + esc(d.plan.name) + (d.plan.apiAddon ? ' + API add-on' : '') + ' ' + (d.plan.lapsed ? tag('lapsed', 'warn') : d.plan.id === 'free' ? tag('default') : tag(d.plan.status, 'ok')) + (d.plan.overageEnabled ? ' ' + tag('bills extra posts', 'info') : '') + '</div>' +
+          '<div class="mt-0.5 text-xs text-white/45">' + (d.plan.id === 'free' ? 'No paid or granted plan.' : (d.plan.endsAt ? 'until ' + esc(when(d.plan.endsAt)) : 'no end date')) + '</div></div>' +
+          (d.plan.id !== 'free' && !d.plan.lapsed ? '<button class="btn btn-danger btn-sm" type="button" data-act="revoke" data-id="' + esc(u.id) + '">End plan</button>' : '') + '</div>' +
+          '<div class="mt-3">' + (d.usage ? usageBars(d.usage) : '') + '</div></div>' +
         '<h3 class="mt-7 text-sm font-semibold">Give a plan</h3>' +
         '<form id="grantForm" class="mt-3 grid grid-cols-2 gap-3" data-id="' + esc(u.id) + '"><div class="col-span-2"><label class="lbl" for="gPlan">Plan</label><select id="gPlan" class="field">' +
           grantable.map(function (p) { return '<option value="' + esc(p.id) + '">' + esc(p.name) + ' · ' + money0(p.priceCents) + '</option>'; }).join('') + '</select></div>' +
-          field('gDays', 'For (days)', '', { ph: 'empty = no end date', type: 'number', attrs: 'min="1" max="3650"' }) + field('gNote', 'Note', '', { ph: 'e.g. beta tester' }) +
-          '<div class="col-span-2 flex items-center justify-between gap-3"><p class="text-xs text-white/40">Granted plans are free and never counted as revenue.</p><button class="btn btn-white btn-sm" type="submit">Give plan</button></div></form>' +
-        '<h3 class="mt-7 text-sm font-semibold">Subscriptions</h3><div class="mt-2">' + (d.subscriptions.length ? d.subscriptions.map(subRow).join('') : '<p class="text-sm text-white/40">None yet. They are on Free.</p>') + '</div>' +
+          field('gDays', 'For (days)', '', { ph: 'empty = no end date', type: 'number', attrs: 'min="1" max="3650"' }) + field('gNote', 'Note (kept in Activity)', '', { ph: 'e.g. beta tester' }) +
+          '<div id="gAddonRow" class="col-span-2 flex flex-wrap gap-x-5 gap-y-2">' + check('gAddon', 'Add the API add-on (Pro only)', false) + check('gOver', 'Bill posts over the quota instead of stopping', false) + '</div>' +
+          '<div class="col-span-2 flex items-center justify-between gap-3"><p class="text-xs text-white/40">Same as <code>npm run plan:set</code>. A granted plan is free and never counted as revenue; it replaces the current plan.</p><button class="btn btn-white btn-sm" type="submit">Give plan</button></div></form>' +
         '<h3 class="mt-7 text-sm font-semibold">Where they came from</h3><p class="mt-2 text-sm text-white/70">' + (a ? esc((a.ref_host || 'direct') + (a.utm_source ? ' · utm ' + a.utm_source : '') + ' · landed on ' + (a.landing_path || '?')) + ' · ' + flag(a.country) + ' ' + esc(a.country || '??') : 'Unknown.') + '</p>' +
         '<h3 class="mt-7 text-sm font-semibold">Channels (' + d.channels.length + ')</h3><div class="mt-2 flex flex-wrap gap-2">' + (d.channels.length ? d.channels.map(function (c) { return tag(c.type + ' · ' + c.name, c.is_active ? '' : 'warn'); }).join('') : '<span class="text-sm text-white/40">No channels.</span>') + '</div>' +
         '<h3 class="mt-7 text-sm font-semibold">Pages they open</h3>' + (d.pages.length ? d.pages.map(function (p) { return hbar(esc(p.path), p.views, d.pages[0].views, num(p.views) + ' views · ' + dur(p.avg_time) + ' avg'); }).join('') : '<p class="mt-2 text-sm text-white/40">No tracked visits.</p>') +
@@ -304,10 +311,12 @@
         '<div class="mt-8 border-t border-white/[0.08] pt-5">' + (u.disabled
           ? '<button class="btn btn-white" type="button" data-act="enable" data-id="' + esc(u.id) + '">Enable account</button>'
           : '<button class="btn btn-danger" type="button" data-act="disable" data-id="' + esc(u.id) + '" data-email="' + esc(u.email) + '">Disable account…</button><p class="mt-2 text-xs text-white/40">Signs them out everywhere and refuses their sign-in. Their data is kept.</p>') + '</div>');
+      var syncAddon = function () { $('gAddon').closest('label').style.display = $('gPlan').value === 'pro' ? '' : 'none'; };
+      $('gPlan').addEventListener('change', syncAddon); syncAddon();
       $('grantForm').addEventListener('submit', function (e) {
         e.preventDefault();
         var days = $('gDays').value.trim();
-        call('POST', '/api/admin/users', { action: 'grant', userId: e.target.dataset.id, planId: $('gPlan').value, days: days ? Number(days) : null, note: $('gNote').value.trim() }).then(function (g) {
+        call('POST', '/api/admin/users', { action: 'grant', userId: e.target.dataset.id, planId: $('gPlan').value, days: days ? Number(days) : null, note: $('gNote').value.trim(), addon: $('gPlan').value === 'pro' && $('gAddon').checked, overage: $('gOver').checked }).then(function (g) {
           if (g.ok) { Vane.toast('ok', 'Plan given.'); openUser(id); if (location.hash === '#users') loadUsers(S.seq); } else Vane.toast('err', g.error);
         });
       });
@@ -316,9 +325,15 @@
 
   // ── Plans
   var LIMITS = [
-    ['channels', 'Connected channels', 'int'], ['postsPerMonth', 'Posts per month', 'int'], ['postsLifetime', 'Posts in total (lifetime)', 'int'],
-    ['aiCredits', 'AI credits', 'int'], ['apiPostsPerMonth', 'API posts per month', 'int'], ['seats', 'Team seats', 'int'],
-    ['overagePostUsd', 'Extra post price, USD', 'float'], ['overageAiPostUsd', 'Extra AI post price, USD', 'float']
+    ['postsPerMonth', 'Dashboard posts per month', 'int', 'empty = none'],
+    ['apiPostsPerMonth', 'API posts per month', 'int', 'empty = none'],
+    ['postsLifetime', 'Posts in total (trial style)', 'int', 'empty = not a trial'],
+    ['channels', 'Connected channels', 'int', 'empty = unlimited'],
+    ['aiCredits', 'AI credits', 'int', 'empty = unlimited'],
+    ['apiAccess', 'API access (1 yes, 0 no)', 'int', 'empty = yes if it has API posts'],
+    ['overagePostUsd', 'Extra post price, USD', 'float', 'empty = the plan just stops'],
+    ['overageAiPostUsd', 'Extra AI post price, USD', 'float', 'empty = same as an extra post'],
+    ['seats', 'Team seats', 'int', 'stored, not enforced yet']
   ];
   var PROVIDERS = [['monobank', 'Monobank Acquiring'], ['crypto', 'Crypto (Solana / USDT)'], ['stripe', 'Stripe']];
 
@@ -348,8 +363,8 @@
         '<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">' + cards + '</div>' +
         card('How this connects to payments', '<ul class="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-white/60"><li>Prices are stored as integer cents with a currency, plus an optional yearly price and a "was" price, so a checkout can charge exactly what the card shows.</li>' +
           '<li>Every plan has a slot for the provider reference (Monobank, crypto, Stripe). When the payment system is added it only has to create a subscription row; limits and the admin already read them.</li>' +
-          '<li>A "2 in 1" or "Ultra" plan is just a new plan with its own price and limits. Give it to a user from the Users tab, or sell it once checkout exists.</li>' +
-          '<li>Limits are only applied to users while <b>Enforce plan limits</b> is on in Settings (it is off by default).</li></ul>', '', 'mt-4'));
+          '<li>A "2 in 1" or "Ultra" plan is just a new plan with its own price and limits. Give it to a user from the Users tab (a database created before the admin needs <code>scripts/migrations/001-subscriptions-any-plan.sql</code> run once for custom plans), or sell it once checkout exists.</li>' +
+          '<li>The limits are what the API engine enforces (API keys, quotas, extra-post billing), so editing them here changes it within seconds. The connected-channels limit is applied only while <b>Enforce the channel limit</b> is on in Settings (off by default).</li></ul>', '', 'mt-4'));
     });
   };
 
@@ -373,8 +388,8 @@
         '<div class="grid grid-cols-2 content-center gap-2.5">' + check('pPublic', 'Show on the landing page', p.isPublic) + check('pActive', 'Can be given / bought', p.isActive) + check('pHighlight', 'Highlight the card', p.highlight) + check('pSoon', 'Coming soon', p.comingSoon) + '</div>' +
         '<div class="sm:col-span-2"><label class="lbl" for="pFeatures">Features (one per line)</label><textarea id="pFeatures" class="field" rows="6">' + esc(p.features.join('\n')) + '</textarea></div>' +
       '</div>' +
-      '<h4 class="mt-6 text-sm font-semibold">Limits <span class="font-normal text-white/40">(leave empty = unlimited)</span></h4><div class="mt-3 grid gap-4 sm:grid-cols-2">' +
-        LIMITS.map(function (l) { return field('pL_' + l[0], l[1], typeof p.limits[l[0]] === 'number' ? p.limits[l[0]] : '', { type: 'number', attrs: 'min="0"' + (l[2] === 'float' ? ' step="0.001"' : ' step="1"') }); }).join('') + '</div>' +
+      '<h4 class="mt-6 text-sm font-semibold">Limits <span class="font-normal text-white/40">(enforced by the API engine, live within seconds)</span></h4><div class="mt-3 grid gap-4 sm:grid-cols-2">' +
+        LIMITS.map(function (l) { return field('pL_' + l[0], l[1], typeof p.limits[l[0]] === 'number' ? p.limits[l[0]] : '', { type: 'number', ph: l[3], attrs: 'min="0"' + (l[2] === 'float' ? ' step="0.001"' : ' step="1"') }); }).join('') + '</div>' +
       '<h4 class="mt-6 text-sm font-semibold">Payment provider references <span class="font-normal text-white/40">(filled in when checkout exists)</span></h4><div class="mt-3 grid gap-4 sm:grid-cols-3">' +
         PROVIDERS.map(function (x) { return field('pR_' + x[0], x[1], p.providerRefs[x[0]] || '', { ph: 'product / price id' }); }).join('') + '</div>' +
       '<div id="planErr" role="alert" class="mt-5 hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>' +
@@ -604,7 +619,7 @@
       ['auto_ban_registers', 'Sign-up attempts within 1 hour', 'Ban threshold per address.', 'int'],
       ['auto_ban_hours', 'Ban lasts (hours)', 'Automatic bans lift themselves after this long.', 'int']]],
     ['Product', [
-      ['enforce_limits', 'Enforce plan limits', 'When on, users are stopped at their plan limits (connected channels, posts per month, lifetime posts). Off by default so you can test freely; switch it on at launch.', 'bool'],
+      ['enforce_limits', 'Enforce the channel limit', 'When on, users cannot connect more channels than their plan allows (the Free Trial: 2). Posts are always metered by the API engine. Off by default so you can test freely; switch it on at launch.', 'bool'],
       ['track_visits', 'Record page views', 'Feeds the Traffic tab and the conversion funnel. Respects the browser Do-Not-Track setting.', 'bool']]]
   ];
   VIEWS.settings = function (seq) {
@@ -666,8 +681,8 @@
     else if (a === 'plan-delete') confirmBox('Delete the plan <b>' + esc(el.dataset.id) + '</b>? This only works if nobody ever had it.', 'Delete plan', function () {
       call('DELETE', '/api/admin/plans?id=' + encodeURIComponent(el.dataset.id)).then(function (r) { if (r.ok) { Vane.toast('ok', 'Plan deleted.'); route(); } else Vane.toast('err', r.error); });
     }, true);
-    else if (a === 'revoke') confirmBox('End this subscription now? The user falls back to their next best plan, or Free.', 'End it', function () {
-      call('POST', '/api/admin/users', { action: 'revoke', subscriptionId: el.dataset.id }).then(function (r) { if (r.ok) { Vane.toast('ok', 'Subscription ended.'); var id = ($('grantForm') || {}).dataset ? $('grantForm').dataset.id : null; if (id) openUser(id); } else Vane.toast('err', r.error); });
+    else if (a === 'revoke') confirmBox('End this plan now? The user falls back to the Free Trial limits.', 'End plan', function () {
+      call('POST', '/api/admin/users', { action: 'revoke', userId: el.dataset.id }).then(function (r) { if (r.ok) { Vane.toast('ok', 'Plan ended.'); openUser(el.dataset.id); if (location.hash === '#users') loadUsers(S.seq); } else Vane.toast('err', r.error); });
     }, true);
     else if (a === 'disable') {
       openModal('<form id="disableForm"><h3 class="text-lg font-semibold">Disable ' + esc(el.dataset.email) + '</h3><p class="mt-1 text-sm text-white/55">They are signed out everywhere and cannot sign in until you enable the account again.</p>' +

@@ -2,8 +2,9 @@
  * GET  /api/admin/users?q=&page=1            → list (e-mail / name search, 25 per page)
  * GET  /api/admin/users?id=<uuid>            → everything about one user
  * POST /api/admin/users  { action, … }
- *        grant   { userId, planId, days?, note? }   give a plan (days empty = no end date); never counted as revenue
- *        revoke  { subscriptionId }                 end a subscription / grant now
+ *        grant   { userId, planId, days?, addon?, overage?, note? }   give a plan by hand (same as `npm run plan:set`):
+ *                                                   days empty = no end date, addon = Pro + API add-on; never counted as revenue
+ *        revoke  { userId }                         end their plan now (they fall back to the Free Trial)
  *        disable { userId, reason? }                switch the account off and sign it out everywhere
  *        enable  { userId }
  */
@@ -11,7 +12,9 @@ import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env } from '../../../types';
 import { audit, requireAdmin } from '../lib/admin';
 import { fail, isRecord, json, methodNotAllowed, readJson, UUID_RE } from '../lib/http';
-import { effectivePlan, getPlan } from '../lib/plans';
+import { getPlan, listPlans } from '../lib/catalog';
+import { specOf } from '../lib/plans';
+import { loadSubscription, usageSummary } from '../lib/usage';
 import { likeEscape } from '../lib/range';
 
 const PAGE = 25;
@@ -33,8 +36,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     if (!user) return fail(404, 'User not found.');
     const email = String(user.email);
     const d = await env.DB.batch([
-      env.DB.prepare(`SELECT s.id, s.plan_id, p.name plan_name, s.status, s.source, s.price_cents, s.currency, s.interval, s.started_at, s.ends_at, s.canceled_at, s.note, s.granted_by
-                        FROM subscriptions s JOIN plans p ON p.id = s.plan_id WHERE s.user_id = ?1 ORDER BY s.started_at DESC LIMIT 50`).bind(id),
+      env.DB.prepare(`SELECT plan, api_addon, status, current_period_end, overage_enabled, provider, provider_ref, created_at, updated_at FROM subscriptions WHERE user_id = ?1`).bind(id),
       env.DB.prepare(`SELECT id, type, name, is_active, created_at FROM channels WHERE user_id = ?1 ORDER BY created_at DESC LIMIT 50`).bind(id),
       env.DB.prepare(`SELECT status, COUNT(*) n FROM posts WHERE user_id = ?1 GROUP BY status`).bind(id),
       env.DB.prepare(`SELECT created_at, user_agent, expires_at FROM sessions WHERE user_id = ?1 ORDER BY created_at DESC LIMIT 10`).bind(id),
@@ -44,12 +46,13 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       env.DB.prepare(`SELECT path, COUNT(*) views, ROUND(AVG(last_at - started_at)) avg_time FROM web_views WHERE user_id = ?1 GROUP BY path ORDER BY views DESC LIMIT 8`).bind(id),
       env.DB.prepare(`SELECT ts, kind, ok, reason, ip, country, city, as_org FROM auth_attempts WHERE email = ?1 ORDER BY ts DESC LIMIT 15`).bind(email),
     ]);
-    const ep = await effectivePlan(env, id);
+    const sub = await loadSubscription(env, id);
+    const spec = specOf(sub.plan);
     return json({
       ok: true,
       user,
-      plan: { id: ep.plan.id, name: ep.plan.name, subscription: ep.subscription },
-      subscriptions: d[0].results, channels: d[1].results,
+      plan: { id: sub.plan, name: spec.label, apiAddon: sub.apiAddon, overageEnabled: sub.overageEnabled, status: sub.status, lapsed: sub.lapsed, endsAt: sub.currentPeriodEnd, provider: (d[0].results[0] as { provider?: string } | undefined)?.provider ?? null },
+      subscription: d[0].results[0] ?? null, usage: await usageSummary(env, id, sub), channels: d[1].results,
       posts: Object.fromEntries((d[2].results as { status: string; n: number }[]).map((x) => [x.status, x.n])),
       sessions: d[3].results, attribution: d[4].results[0] ?? null, timeOnSite: d[5].results[0], pages: d[6].results, attempts: d[7].results,
     });
@@ -67,16 +70,21 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
                 (SELECT COUNT(DISTINCT group_id) FROM posts p WHERE p.user_id = u.id AND p.status NOT IN ('draft','cancelled')) posts,
                 (SELECT MAX(created_at) FROM sessions s WHERE s.user_id = u.id) last_login,
                 COALESCE((SELECT SUM(dur) FROM (SELECT MAX(last_at) - MIN(started_at) dur FROM web_views w WHERE w.user_id = u.id GROUP BY sid)), 0) time_on_site,
-                COALESCE((SELECT p.name FROM subscriptions s JOIN plans p ON p.id = s.plan_id
-                           WHERE s.user_id = u.id AND s.status = 'active' AND (s.ends_at IS NULL OR s.ends_at > ?3) AND p.kind = 'plan'
-                           ORDER BY p.price_cents DESC, s.started_at DESC LIMIT 1), 'Free') plan
-           FROM users u LEFT JOIN user_flags f ON f.user_id = u.id
+                CASE WHEN sb.plan IS NULL OR sb.plan = 'free' OR sb.status <> 'active' OR (sb.current_period_end IS NOT NULL AND sb.current_period_end <= ?3)
+                     THEN 'free' ELSE sb.plan END plan_id,
+                COALESCE(sb.api_addon, 0) api_addon
+           FROM users u LEFT JOIN user_flags f ON f.user_id = u.id LEFT JOIN subscriptions sb ON sb.user_id = u.id
           WHERE ${where} ORDER BY u.created_at DESC LIMIT ?4 OFFSET ?5`,
       )
       .bind(search, like, now, PAGE, (page - 1) * PAGE),
     env.DB.prepare(`SELECT COUNT(*) n FROM users u WHERE ${where}`).bind(search, like),
   ]);
-  return json({ ok: true, page, pageSize: PAGE, total: (count.results[0] as { n: number }).n, users: list.results });
+  const names = new Map((await listPlans(env)).map((p) => [p.id, p.name]));
+  const users = (list.results as { plan_id: string; api_addon: number }[]).map((u) => ({
+    ...u,
+    plan: (names.get(u.plan_id) ?? u.plan_id) + (u.plan_id === 'pro' && u.api_addon ? ' + API' : ''),
+  }));
+  return json({ ok: true, page, pageSize: PAGE, total: (count.results[0] as { n: number }).n, users });
 };
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
@@ -94,32 +102,51 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const days = b.days === undefined || b.days === null || b.days === '' ? null : Number(b.days);
     if (days !== null && (!Number.isInteger(days) || days < 1 || days > 3650)) return fail(400, 'days must be 1-3650, or empty for no end date.');
     const note = typeof b.note === 'string' ? b.note.trim().slice(0, 200) : null;
+    const addon = b.addon === true;
+    const overage = b.overage === true;
     const user = await env.DB.prepare('SELECT id, email FROM users WHERE id = ?1').bind(b.userId).first<{ id: string; email: string }>();
     if (!user) return fail(404, 'User not found.');
+    if (b.planId === 'free') return fail(400, 'Use "End plan" to move a user back to the Free Trial.');
     const plan = await getPlan(env, b.planId);
     if (!plan) return fail(404, 'Plan not found.');
     if (plan.kind !== 'plan' || !plan.isActive) return fail(400, 'This plan cannot be given to users (it is an add-on or switched off).');
+    if (addon && plan.id !== 'pro') return fail(400, 'The API add-on only goes with the Pro plan.');
 
-    const subId = crypto.randomUUID();
-    await env.DB
-      .prepare(
-        `INSERT INTO subscriptions (id, user_id, plan_id, status, source, price_cents, currency, interval, started_at, ends_at, note, granted_by)
-         VALUES (?1, ?2, ?3, 'active', 'admin', 0, ?4, ?5, ?6, ?7, ?8, ?9)`,
-      )
-      .bind(subId, user.id, plan.id, plan.currency, plan.interval, now, days === null ? null : now + days * 86400, note || null, env.ADMIN_EMAIL ?? 'admin')
-      .run();
-    await audit(env, request, 'user.grant_plan', user.email, { plan: plan.id, days, note });
-    return json({ ok: true, subscriptionId: subId }, 201);
+    const current = await env.DB.prepare('SELECT plan, status, provider, current_period_end FROM subscriptions WHERE user_id = ?1').bind(user.id)
+      .first<{ plan: string; status: string; provider: string; current_period_end: number | null }>();
+    if (current && current.provider !== 'manual' && current.plan !== 'free' && current.status === 'active' && (current.current_period_end === null || current.current_period_end > now)) {
+      return fail(409, `This user pays for ${current.plan} through ${current.provider}. End that plan first if you really want to replace it.`);
+    }
+    try {
+      await env.DB
+        .prepare(
+          `INSERT INTO subscriptions (user_id, plan, api_addon, status, current_period_end, overage_enabled, provider, created_at, updated_at)
+           VALUES (?1, ?2, ?3, 'active', ?4, ?5, 'manual', ?6, ?6)
+           ON CONFLICT(user_id) DO UPDATE SET plan = excluded.plan, api_addon = excluded.api_addon, status = 'active',
+             current_period_end = excluded.current_period_end, overage_enabled = excluded.overage_enabled, provider = 'manual', provider_ref = NULL, updated_at = excluded.updated_at`,
+        )
+        .bind(user.id, plan.id, addon ? 1 : 0, days === null ? null : now + days * 86400, overage ? 1 : 0, now)
+        .run();
+    } catch (err) {
+      if (/CHECK constraint/i.test(err instanceof Error ? err.message : '')) {
+        return fail(409, 'This database only accepts the built-in plans (free / api / pro). Run scripts/migrations/001-subscriptions-any-plan.sql once to allow custom plans.');
+      }
+      throw err;
+    }
+    await audit(env, request, 'user.grant_plan', user.email, { plan: plan.id, addon, overage, days, note });
+    return json({ ok: true }, 201);
   }
 
   if (b.action === 'revoke') {
-    if (typeof b.subscriptionId !== 'string' || !UUID_RE.test(b.subscriptionId)) return fail(400, 'subscriptionId is invalid.');
+    if (typeof b.userId !== 'string' || !UUID_RE.test(b.userId)) return fail(400, 'userId is invalid.');
+    const user = await env.DB.prepare('SELECT email FROM users WHERE id = ?1').bind(b.userId).first<{ email: string }>();
+    if (!user) return fail(404, 'User not found.');
     const res = await env.DB
-      .prepare(`UPDATE subscriptions SET status = 'canceled', canceled_at = ?2 WHERE id = ?1 AND status = 'active'`)
-      .bind(b.subscriptionId, now)
+      .prepare(`UPDATE subscriptions SET status = 'canceled', current_period_end = ?2, updated_at = ?2 WHERE user_id = ?1 AND plan <> 'free' AND status = 'active'`)
+      .bind(b.userId, now)
       .run();
-    if (!res.meta.changes) return fail(404, 'No active subscription with this id.');
-    await audit(env, request, 'user.revoke_plan', b.subscriptionId);
+    if (!res.meta.changes) return fail(404, 'This user has no active paid plan.');
+    await audit(env, request, 'user.revoke_plan', user.email);
     return json({ ok: true });
   }
 

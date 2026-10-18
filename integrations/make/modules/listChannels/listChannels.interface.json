@@ -1,0 +1,27 @@
+[
+  {
+    "name": "id",
+    "type": "text",
+    "label": "Channel ID"
+  },
+  {
+    "name": "platform",
+    "type": "text",
+    "label": "Network"
+  },
+  {
+    "name": "name",
+    "type": "text",
+    "label": "Name"
+  },
+  {
+    "name": "isActive",
+    "type": "boolean",
+    "label": "Active"
+  },
+  {
+    "name": "createdAt",
+    "type": "number",
+    "label": "Connected at (unix seconds)"
+  }
+]

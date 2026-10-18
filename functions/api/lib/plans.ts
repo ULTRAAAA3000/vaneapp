@@ -1,216 +1,203 @@
-/** Plans, subscriptions and plan limits. Money amounts are integer cents. */
-import type { Env } from '../../../types';
-import { fail } from './http';
-import { getSettings } from './settings';
+import type { D1Database } from '@cloudflare/workers-types';
 
-export interface PlanLimits {
-  channels?: number | null;
-  postsPerMonth?: number | null;
-  postsLifetime?: number | null;
-  aiCredits?: number | null;
-  apiPostsPerMonth?: number | null;
-  seats?: number | null;
-  overagePostUsd?: number | null;
-  overageAiPostUsd?: number | null;
-}
-const LIMIT_KEYS: (keyof PlanLimits)[] = ['channels', 'postsPerMonth', 'postsLifetime', 'aiCredits', 'apiPostsPerMonth', 'seats', 'overagePostUsd', 'overageAiPostUsd'];
-const FRACTIONAL = new Set<string>(['overagePostUsd', 'overageAiPostUsd']);
+/**
+ * Plans and quotas: the ONE place that knows what each subscription includes.
+ * Source of truth: ECONOMY_AND_FINANCE.md §2. Change a number there, change it here, nowhere else.
+ *
+ * Money is kept in micro-dollars (1 USD = 1_000_000) so $0.015 stays an exact integer.
+ */
 
-export interface Plan {
-  id: string;
-  kind: 'plan' | 'addon';
-  name: string;
-  tagline: string;
-  badge: string;
-  priceCents: number;
-  comparePriceCents: number | null;
-  yearlyPriceCents: number | null;
-  currency: string;
-  interval: 'month' | 'year' | 'once';
-  trialDays: number;
-  features: string[];
-  limits: PlanLimits;
-  ctaLabel: string;
-  highlight: boolean;
-  comingSoon: boolean;
-  isPublic: boolean;
-  isActive: boolean;
-  sort: number;
-  providerRefs: Record<string, string>;
-  createdAt: number;
-  updatedAt: number;
+/** 'free' | 'api' | 'pro' are built in; plans made in /admin → Plans add their own ids. */
+export type PlanId = string;
+export type SubscriptionStatus = 'active' | 'past_due' | 'canceled';
+
+const USD = 1_000_000;
+
+export interface PlanSpec {
+  id: PlanId;
+  label: string;
+  /** true: the quota is for the whole life of the account (Free Trial), false: it resets every month */
+  lifetime: boolean;
+  /** posts a month made in the dashboard (UI) */
+  ui: number;
+  /** API posts a month */
+  api: number;
+  /** when set, UI and API posts share ONE total (Free Trial: "30 posts in total") */
+  shared: number | null;
+  /** can this plan send live API requests on its own? (Pro needs the API Add-on) */
+  apiIncluded: boolean;
+  /** price per post beyond the quota, in micro-USD; null = never billed, the plan simply stops */
+  overage: { post: number; aiPost: number } | null;
+  /** connected channels in the dashboard; null = unlimited */
+  channels: number | null;
+  /** AI credits the plan includes (free utilities are not counted) */
+  aiCredits: number | null;
 }
 
-export interface PlanRow {
-  id: string; kind: 'plan' | 'addon'; name: string; tagline: string; badge: string; price_cents: number;
-  compare_price_cents: number | null; yearly_price_cents: number | null; currency: string;
-  interval: 'month' | 'year' | 'once'; trial_days: number; features: string; limits: string; cta_label: string;
-  highlight: number; coming_soon: number; is_public: number; is_active: number; sort: number;
-  provider_refs: string; created_at: number; updated_at: number;
-}
-
-const parseJson = <T>(s: string, fallback: T): T => {
-  try {
-    const v: unknown = JSON.parse(s);
-    return v === null || typeof v !== 'object' ? fallback : (v as T);
-  } catch {
-    return fallback;
-  }
+/**
+ * The plans the engine knows. These built-in numbers are the defaults; the `plans` table (edited in /admin → Plans)
+ * overrides and extends them at runtime, see refreshPlanSpecs() below. Always read it through specOf().
+ */
+export const PLANS: Record<string, PlanSpec> = {
+  // §2.1 — 30 posts in total, 2 channels, 10 AI credits, hard stop (never charged)
+  free: { id: 'free', label: 'Free Trial', lifetime: true, ui: 0, api: 0, shared: 30, apiIncluded: true, overage: null, channels: 2, aiCredits: 10 },
+  // §2.2 — $5.99: 180 API posts a month; overage $0.03 / $0.09 per AI post
+  api: { id: 'api', label: 'Developer API', lifetime: false, ui: 0, api: 180, shared: null, apiIncluded: true, overage: { post: 0.03 * USD, aiPost: 0.09 * USD }, channels: null, aiCredits: null },
+  // §2.4 — $9.99 Early Bird / $12: 1,000 dashboard posts a month; overage $0.015 / $0.045 per AI post
+  pro: { id: 'pro', label: 'Pro Dashboard', lifetime: false, ui: 1000, api: 0, shared: null, apiIncluded: false, overage: { post: 0.015 * USD, aiPost: 0.045 * USD }, channels: null, aiCredits: 250 },
 };
 
-export function rowToPlan(r: PlanRow): Plan {
+/** §2.5 — Pro + API Add-on: +180 API posts a month, with Pro's overage rates. */
+export const API_ADDON_POSTS = 180;
+let addonPosts = API_ADDON_POSTS;
+
+/** The spec of a plan id; an unknown id (a plan that was removed) is served the Free Trial limits. */
+export const specOf = (id: string): PlanSpec => PLANS[id] ?? PLANS.free;
+
+/**
+ * How many quota units one accepted API request costs.
+ * One request = one post, however many channels it targets (a multi-channel post is still "one post").
+ * If that ever changes to "per delivery", this is the only line to touch.
+ */
+export const postUnits = (_channelCount: number): number => 1;
+
+// ───────────────────────── subscription ─────────────────────────
+
+/** The columns of `subscriptions`, as they come out of D1 (all nullable here: a user may have no row). */
+export interface SubscriptionRow {
+  plan: PlanId | null;
+  api_addon: number | null;
+  status: SubscriptionStatus | null;
+  current_period_end: number | null;
+  overage_enabled: number | null;
+}
+
+export interface Subscription {
+  /** the plan that applies RIGHT NOW (a lapsed paid plan has already fallen back to 'free') */
+  plan: PlanId;
+  apiAddon: boolean;
+  overageEnabled: boolean;
+  status: SubscriptionStatus;
+  currentPeriodEnd: number | null;
+  /** a paid plan that stopped being active: we serve the Free Trial limits until a payment renews it */
+  lapsed: boolean;
+}
+
+export const FREE_SUBSCRIPTION: Subscription = {
+  plan: 'free', apiAddon: false, overageEnabled: false, status: 'active', currentPeriodEnd: null, lapsed: false,
+};
+
+/** Turns a stored row (or none) into the plan that applies at `now`. */
+export function resolveSubscription(row: SubscriptionRow | null | undefined, now: number): Subscription {
+  if (!row || !row.plan) return FREE_SUBSCRIPTION;
+  const status = row.status ?? 'active';
+  const expired = row.current_period_end !== null && row.current_period_end <= now;
+  if (!PLANS[row.plan] || (row.plan !== 'free' && (status !== 'active' || expired))) {
+    return { ...FREE_SUBSCRIPTION, status, currentPeriodEnd: row.current_period_end, lapsed: true };
+  }
   return {
-    id: r.id, kind: r.kind, name: r.name, tagline: r.tagline, badge: r.badge,
-    priceCents: r.price_cents, comparePriceCents: r.compare_price_cents, yearlyPriceCents: r.yearly_price_cents,
-    currency: r.currency, interval: r.interval, trialDays: r.trial_days,
-    features: parseJson<string[]>(r.features, []), limits: parseJson<PlanLimits>(r.limits, {}),
-    ctaLabel: r.cta_label, highlight: r.highlight === 1, comingSoon: r.coming_soon === 1,
-    isPublic: r.is_public === 1, isActive: r.is_active === 1, sort: r.sort,
-    providerRefs: parseJson<Record<string, string>>(r.provider_refs, {}),
-    createdAt: r.created_at, updatedAt: r.updated_at,
+    plan: row.plan,
+    apiAddon: row.api_addon === 1,
+    overageEnabled: row.overage_enabled === 1,
+    status,
+    currentPeriodEnd: row.current_period_end,
+    lapsed: false,
   };
 }
 
-export async function listPlans(env: Env, opts: { publicOnly?: boolean } = {}): Promise<Plan[]> {
-  const { results } = await env.DB
-    .prepare(`SELECT * FROM plans ${opts.publicOnly ? 'WHERE is_public = 1' : ''} ORDER BY sort ASC, price_cents ASC`)
-    .all<PlanRow>();
-  return results.map(rowToPlan);
+/** Quota limits for the subscription. `shared` is set only on the Free Trial. */
+export function limitsFor(sub: Subscription): { ui: number; api: number; shared: number | null } {
+  const spec = specOf(sub.plan);
+  const addon = sub.plan === 'pro' && sub.apiAddon ? addonPosts : 0;
+  return { ui: spec.ui, api: spec.api + addon, shared: spec.shared };
 }
 
-export async function getPlan(env: Env, id: string): Promise<Plan | null> {
-  const r = await env.DB.prepare('SELECT * FROM plans WHERE id = ?1').bind(id).first<PlanRow>();
-  return r ? rowToPlan(r) : null;
+/** May this subscription send LIVE API requests? (Test-mode keys are always allowed.) */
+export function apiAllowed(sub: Subscription): boolean {
+  return specOf(sub.plan).apiIncluded || (sub.plan === 'pro' && sub.apiAddon);
 }
 
-// ───────────────────────── validation (admin create / edit) ─────────────────────────
-export interface PlanInput {
-  id?: string; kind?: 'plan' | 'addon'; name?: string; tagline?: string; badge?: string;
-  priceCents?: number; comparePriceCents?: number | null; yearlyPriceCents?: number | null;
-  currency?: string; interval?: 'month' | 'year' | 'once'; trialDays?: number;
-  features?: string[]; limits?: PlanLimits; ctaLabel?: string;
-  highlight?: boolean; comingSoon?: boolean; isPublic?: boolean; isActive?: boolean; sort?: number;
-  providerRefs?: Record<string, string>;
+/** Overage rates that apply to this subscription, or null when it can never go over (it just stops). */
+export function overageRates(sub: Subscription): { post: number; aiPost: number } | null {
+  return sub.overageEnabled ? specOf(sub.plan).overage : null;
 }
 
-const isInt = (v: unknown, min: number, max: number): v is number => typeof v === 'number' && Number.isInteger(v) && v >= min && v <= max;
-const isStr = (v: unknown, max: number, min = 0): v is string => typeof v === 'string' && v.length >= min && v.length <= max;
-const MAX_CENTS = 10_000_000;
+// ───────────────────────── billing period ─────────────────────────
 
-export function validatePlanInput(body: Record<string, unknown>, creating: boolean): { ok: true; value: PlanInput } | { ok: false; error: string } {
-  const v: PlanInput = {};
-  const bad = (m: string) => ({ ok: false as const, error: m });
-
-  if (creating) {
-    if (typeof body.id !== 'string' || !/^[a-z0-9][a-z0-9-]{1,30}$/.test(body.id)) return bad('id must be 2-31 characters: a-z, 0-9 and "-".');
-    v.id = body.id;
-  }
-  if (body.kind !== undefined) { if (body.kind !== 'plan' && body.kind !== 'addon') return bad('kind must be "plan" or "addon".'); v.kind = body.kind; }
-  if (body.name !== undefined || creating) { if (!isStr(body.name, 60, 1)) return bad('name is required (max 60 characters).'); v.name = body.name.trim(); if (!v.name) return bad('name is required.'); }
-  if (body.tagline !== undefined) { if (!isStr(body.tagline, 240)) return bad('tagline is too long (max 240).'); v.tagline = body.tagline; }
-  if (body.badge !== undefined) { if (!isStr(body.badge, 24)) return bad('badge is too long (max 24).'); v.badge = body.badge; }
-  if (body.ctaLabel !== undefined) { if (!isStr(body.ctaLabel, 40, 1)) return bad('ctaLabel must be 1-40 characters.'); v.ctaLabel = body.ctaLabel; }
-  if (body.priceCents !== undefined || creating) { if (!isInt(body.priceCents, 0, MAX_CENTS)) return bad('priceCents must be a whole number of cents (0 or more).'); v.priceCents = body.priceCents; }
-  for (const k of ['comparePriceCents', 'yearlyPriceCents'] as const) {
-    if (body[k] !== undefined) {
-      if (body[k] !== null && !isInt(body[k], 0, MAX_CENTS)) return bad(`${k} must be cents or null.`);
-      v[k] = body[k] as number | null;
-    }
-  }
-  if (body.currency !== undefined) { if (typeof body.currency !== 'string' || !/^[A-Z]{3}$/.test(body.currency)) return bad('currency must be a 3-letter code like USD.'); v.currency = body.currency; }
-  if (body.interval !== undefined) { if (body.interval !== 'month' && body.interval !== 'year' && body.interval !== 'once') return bad('interval must be month, year or once.'); v.interval = body.interval; }
-  if (body.trialDays !== undefined) { if (!isInt(body.trialDays, 0, 365)) return bad('trialDays must be 0-365.'); v.trialDays = body.trialDays; }
-  if (body.sort !== undefined) { if (!isInt(body.sort, -1000, 100000)) return bad('sort must be a whole number.'); v.sort = body.sort; }
-  for (const k of ['highlight', 'comingSoon', 'isPublic', 'isActive'] as const) {
-    if (body[k] !== undefined) { if (typeof body[k] !== 'boolean') return bad(`${k} must be true or false.`); v[k] = body[k] as boolean; }
-  }
-  if (body.features !== undefined) {
-    if (!Array.isArray(body.features) || body.features.length > 20 || !body.features.every((f) => isStr(f, 160, 1))) return bad('features must be up to 20 lines of text (max 160 characters each).');
-    v.features = (body.features as string[]).map((f) => f.trim()).filter(Boolean);
-  }
-  if (body.limits !== undefined) {
-    if (typeof body.limits !== 'object' || body.limits === null || Array.isArray(body.limits)) return bad('limits must be an object.');
-    const out: PlanLimits = {};
-    for (const [k, val] of Object.entries(body.limits)) {
-      if (!LIMIT_KEYS.includes(k as keyof PlanLimits)) return bad(`Unknown limit "${k}". Allowed: ${LIMIT_KEYS.join(', ')}.`);
-      if (val === null) { (out as Record<string, unknown>)[k] = null; continue; }
-      const ok = FRACTIONAL.has(k) ? typeof val === 'number' && Number.isFinite(val) && val >= 0 && val <= 1000 : isInt(val, 0, 100_000_000);
-      if (!ok) return bad(`Limit "${k}" must be ${FRACTIONAL.has(k) ? 'a number' : 'a whole number'} (or empty for unlimited).`);
-      (out as Record<string, unknown>)[k] = val;
-    }
-    v.limits = out;
-  }
-  if (body.providerRefs !== undefined) {
-    const r = body.providerRefs;
-    if (typeof r !== 'object' || r === null || Array.isArray(r) || Object.keys(r).length > 10 || !Object.values(r).every((x) => isStr(x, 120))) return bad('providerRefs must be a map of up to 10 short strings.');
-    v.providerRefs = r as Record<string, string>;
-  }
-  return { ok: true, value: v };
+/** 'lifetime' for the Free Trial, otherwise the UTC month: '2026-10'. */
+export function periodKey(plan: PlanId, nowSeconds: number): string {
+  if (specOf(plan).lifetime) return 'lifetime';
+  const d = new Date(nowSeconds * 1000);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
-// ───────────────────────── what a user is entitled to ─────────────────────────
-interface SubJoin { sub_id: string; plan_id: string; ends_at: number | null; source: string }
-
-export interface Effective {
-  plan: Plan;
-  subscription: { id: string; source: string; endsAt: number | null } | null;
+/** Unix seconds when the quota resets, or null for a lifetime quota. */
+export function periodResetsAt(plan: PlanId, nowSeconds: number): number | null {
+  if (specOf(plan).lifetime) return null;
+  const d = new Date(nowSeconds * 1000);
+  return Math.floor(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1) / 1000);
 }
 
-const FALLBACK_FREE: Plan = {
-  id: 'free', kind: 'plan', name: 'Free Trial', tagline: '', badge: '', priceCents: 0, comparePriceCents: null, yearlyPriceCents: null,
-  currency: 'USD', interval: 'month', trialDays: 0, features: [], limits: { channels: 2, postsLifetime: 30, aiCredits: 10 },
-  ctaLabel: 'Join the waitlist', highlight: false, comingSoon: false, isPublic: true, isActive: true, sort: 10, providerRefs: {}, createdAt: 0, updatedAt: 0,
-};
+export const microToUsd = (micro: number): number => Math.round(micro) / USD;
 
-/** The best active, unexpired plan wins (highest price); no subscription = Free. */
-export async function effectivePlan(env: Env, userId: string): Promise<Effective> {
-  const now = Math.floor(Date.now() / 1000);
-  const s = await env.DB
-    .prepare(
-      `SELECT s.id AS sub_id, s.plan_id, s.ends_at, s.source
-         FROM subscriptions s JOIN plans p ON p.id = s.plan_id
-        WHERE s.user_id = ?1 AND s.status = 'active' AND (s.ends_at IS NULL OR s.ends_at > ?2) AND p.kind = 'plan'
-        ORDER BY p.price_cents DESC, s.started_at DESC LIMIT 1`,
-    )
-    .bind(userId, now)
-    .first<SubJoin>();
-  if (s) {
-    const plan = await getPlan(env, s.plan_id);
-    if (plan) return { plan, subscription: { id: s.sub_id, source: s.source, endsAt: s.ends_at } };
-  }
-  return { plan: (await getPlan(env, 'free')) ?? FALLBACK_FREE, subscription: null };
-}
+// ───────────────────────── catalog (edited in /admin → Plans) ─────────────────────────
+// A plan's `limits` JSON is turned into a PlanSpec, so a price-list edit in the admin changes what the engine enforces.
+//   postsLifetime  → a trial-style quota for the whole life of the account (UI + API share it)
+//   postsPerMonth  → dashboard posts a month        apiPostsPerMonth → API posts a month   (missing = 0, i.e. none)
+//   channels, aiCredits → missing = unlimited       apiAccess 1/0 → may use live API keys (default: yes when it has API posts)
+//   overagePostUsd / overageAiPostUsd → price per extra post (missing = the plan simply stops)
+// The row with kind 'addon' and id 'api-addon' sets the add-on's extra API posts.
+const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
-const monthStart = (): number => {
-  const d = new Date();
-  return Math.floor(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 1000);
-};
-
-const over = (plan: Plan, what: string): Response => fail(402, `Your ${plan.name} plan ${what}. Upgrade to continue.`);
-
-/** null = allowed. Does nothing while the "enforce_limits" switch is off. */
-export async function checkChannelQuota(env: Env, userId: string): Promise<Response | null> {
-  if (!(await getSettings(env)).enforce_limits) return null;
-  const { plan } = await effectivePlan(env, userId);
-  const max = plan.limits.channels;
-  if (typeof max !== 'number') return null;
-  const r = await env.DB.prepare('SELECT COUNT(*) AS n FROM channels WHERE user_id = ?1').bind(userId).first<{ n: number }>();
-  return (r?.n ?? 0) >= max ? over(plan, `allows ${max} connected channel${max === 1 ? '' : 's'}`) : null;
-}
-
-/** One request creates ONE post group (however many channels it targets). */
-export async function checkPostQuota(env: Env, userId: string): Promise<Response | null> {
-  if (!(await getSettings(env)).enforce_limits) return null;
-  const { plan } = await effectivePlan(env, userId);
-  const { postsLifetime, postsPerMonth } = plan.limits;
-  const count = async (since: number): Promise<number> => {
-    const r = await env.DB
-      .prepare(`SELECT COUNT(DISTINCT group_id) AS n FROM posts WHERE user_id = ?1 AND created_at >= ?2 AND status NOT IN ('cancelled', 'draft')`)
-      .bind(userId, since)
-      .first<{ n: number }>();
-    return r?.n ?? 0;
+export function specFromCatalog(id: string, label: string, limits: Record<string, unknown>): PlanSpec {
+  const life = num(limits.postsLifetime);
+  const api = num(limits.apiPostsPerMonth) ?? 0;
+  const ui = num(limits.postsPerMonth) ?? 0;
+  const op = num(limits.overagePostUsd);
+  const oa = num(limits.overageAiPostUsd);
+  const access = num(limits.apiAccess);
+  return {
+    id, label,
+    lifetime: life !== null,
+    ui: life !== null ? 0 : ui,
+    api: life !== null ? 0 : api,
+    shared: life,
+    apiIncluded: access !== null ? access === 1 : life !== null || api > 0,
+    overage: op !== null || oa !== null ? { post: Math.round((op ?? oa ?? 0) * USD), aiPost: Math.round((oa ?? op ?? 0) * USD) } : null,
+    channels: num(limits.channels),
+    aiCredits: num(limits.aiCredits),
   };
-  if (typeof postsLifetime === 'number' && (await count(0)) >= postsLifetime) return over(plan, `includes ${postsLifetime} posts in total, and you have used them all`);
-  if (typeof postsPerMonth === 'number' && (await count(monthStart())) >= postsPerMonth) return over(plan, `includes ${postsPerMonth} posts a month, and you have used them all`);
-  return null;
 }
+
+const BUILTIN: Record<string, PlanSpec> = { ...PLANS };
+let loadedAt = 0;
+
+/** Reloads the specs from the plans table (cached 15 s per isolate). Call before reading PLANS in a request. */
+export async function refreshPlanSpecs(env: { DB: D1Database }): Promise<void> {
+  if (Date.now() - loadedAt < 15_000) return;
+  loadedAt = Date.now(); // set first: a failing query is not retried on every request
+  try {
+    const { results } = await env.DB.prepare('SELECT id, kind, name, limits FROM plans').all<{ id: string; kind: string; name: string; limits: string }>();
+    const next: Record<string, PlanSpec> = { ...BUILTIN };
+    let addon = API_ADDON_POSTS;
+    for (const r of results) {
+      let limits: Record<string, unknown> = {};
+      try { limits = JSON.parse(r.limits) as Record<string, unknown>; } catch { /* corrupt row: no limits */ }
+      if (r.kind === 'addon') {
+        if (r.id === 'api-addon') addon = num(limits.apiPostsPerMonth) ?? addon;
+        continue;
+      }
+      next[r.id] = specFromCatalog(r.id, r.name, limits);
+    }
+    for (const k of Object.keys(PLANS)) delete PLANS[k];
+    Object.assign(PLANS, next);
+    addonPosts = addon;
+  } catch {
+    /* plans table missing (schema not applied yet): the built-in numbers stay */
+  }
+}
+
+/** After an admin edit: the next request in this isolate reloads immediately. */
+export const invalidatePlanSpecs = (): void => {
+  loadedAt = 0;
+};

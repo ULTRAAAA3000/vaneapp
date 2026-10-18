@@ -1,14 +1,23 @@
-/** POST /api/auth/register  { email, password, name?, timezone?, turnstileToken? } → 201 + session cookie */
+/**
+ * POST /api/auth/register  { email, password, name?, timezone?, turnstileToken? }
+ *   → 201 + session cookie                         emailed codes off: the account is created right away
+ *   → 202 { ok, verify }, NO account yet           emailed codes on: a 6-digit code was mailed; the account is
+ *                                                  created by POST /api/auth/verify once the code is entered
+ */
 import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env, UserPublic } from '../../../types';
+import { issueCode } from '../lib/emailcode';
+import { emailConfigured } from '../lib/mail';
 import { hashPassword } from '../lib/password';
 import { createSession, SESSION_TTL_SECONDS, sessionCookie } from '../lib/session';
 import { bump, clientIp, retryAfter } from '../lib/throttle';
 import { crossOriginViolation, EMAIL_RE, fail, isRecord, json, methodNotAllowed, readJson } from '../lib/http';
 import { requireHuman } from '../lib/turnstile';
-import { guard, clientOf } from '../lib/guard';
+import { guard } from '../lib/guard';
+import { recordAttribution } from '../lib/attribution';
 import { logAttempt, maybeAutoBan } from '../lib/attempts';
 import { getSettings } from '../lib/settings';
+import { createUser } from '../lib/users';
 
 const MIN_PASSWORD = 8;
 const MAX_PASSWORD = 128; // also caps the CPU an attacker can make us spend hashing
@@ -20,27 +29,6 @@ function validTimezone(tz: unknown): string {
     return tz;
   } catch {
     return 'UTC';
-  }
-}
-
-/** First-touch source of the new user (from the browser's anonymous visitor id); best effort. */
-async function recordAttribution(env: Env, request: Request, userId: string, visitorId: unknown): Promise<void> {
-  const vid = typeof visitorId === 'string' && /^[A-Za-z0-9-]{8,64}$/.test(visitorId) ? visitorId : null;
-  const country = clientOf(request).country || null;
-  try {
-    const stmts = [
-      env.DB
-        .prepare(
-          `INSERT OR IGNORE INTO user_attribution (user_id, visitor_id, ref_host, utm_source, landing_path, country)
-           SELECT ?1, ?2, ref_host, utm_source, path, COALESCE(country, ?3) FROM web_views WHERE visitor_id = ?2 ORDER BY started_at ASC LIMIT 1`,
-        )
-        .bind(userId, vid, country),
-      env.DB.prepare('INSERT OR IGNORE INTO user_attribution (user_id, visitor_id, country) VALUES (?1, ?2, ?3)').bind(userId, vid, country),
-    ];
-    if (vid) stmts.push(env.DB.prepare('UPDATE web_views SET user_id = ?1 WHERE visitor_id = ?2 AND user_id IS NULL').bind(userId, vid));
-    await env.DB.batch(stmts);
-  } catch (err) {
-    console.error('attribution failed', err instanceof Error ? err.message : 'unknown');
   }
 }
 
@@ -91,20 +79,27 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return fail(409, 'An account with this email already exists. Try signing in.');
   }
 
-  const id = crypto.randomUUID();
   const passwordHash = await hashPassword(password);
-  try {
-    await env.DB
-      .prepare('INSERT INTO users (id, email, password_hash, name, timezone) VALUES (?1, ?2, ?3, ?4, ?5)')
-      .bind(id, email, passwordHash, name || null, timezone)
-      .run();
-  } catch (err) {
-    // Lost a race with a parallel sign-up for the same email.
-    if (err instanceof Error && /UNIQUE/i.test(err.message)) {
-      return fail(409, 'An account with this email already exists. Try signing in.');
-    }
-    console.error('register insert failed', err instanceof Error ? err.message : 'unknown');
-    return fail(500, 'Could not create the account. Please try again.');
+
+  // Nothing is created yet: the sign-up waits for the code from the email. Mistyped or made-up addresses
+  // therefore never become accounts (see verify.ts for the second half).
+  if (emailConfigured(env)) {
+    const visitorId = typeof body.visitorId === 'string' && /^[A-Za-z0-9-]{8,64}$/.test(body.visitorId) ? body.visitorId : null;
+    const issued = await issueCode(env, request, email, 'signup', {
+      payload: JSON.stringify({ passwordHash, name: name || null, timezone, visitorId }),
+    });
+    if (!issued.ok) return issued.response;
+    await logAttempt(env, request, { kind: 'register', ok: false, reason: 'code_sent', email });   // counts toward the sign-up ban
+    await maybeAutoBan(env, request, 'register');
+    return json({ ok: true, verify: issued.challenge }, 202);
+  }
+
+  const id = crypto.randomUUID();
+  const created = await createUser(env, { id, email, passwordHash, name: name || null, timezone });
+  if (!created.ok) {
+    return created.taken
+      ? fail(409, 'An account with this email already exists. Try signing in.')
+      : fail(500, 'Could not create the account. Please try again.');
   }
 
   await logAttempt(env, request, { kind: 'register', ok: true, email });

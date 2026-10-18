@@ -22,14 +22,16 @@ export interface Env {
   GSC_SERVICE_ACCOUNT?: string;     // Google service-account JSON key (Search Console tab in /admin)
   PROXYCHECK_KEY?: string;          // optional: proxycheck.io key, enables the VPN / proxy lookup
   TURNSTILE_SECRET_KEY?: string;    // Cloudflare Turnstile secret; bot check on sign-in / sign-up is enforced when set together with the site key
+  RESEND_API_KEY?: string;          // Resend API key; emailed 6-digit codes are enforced when set together with EMAIL_FROM
 
   /** Plain vars */
   APP_URL?: string;             // e.g. https://vaneapp.dev
-  TURNSTILE_SITE_KEY?: string;
   ADMIN_EMAIL?: string;         // /admin login (e-mail)
   ADMIN_USERNAME?: string;      // optional second login name for /admin
   ADMIN_ALLOW_IPS?: string;     // optional: comma list of addresses / CIDR ranges allowed to use /admin
-  GSC_SITE_URL?: string;        // Search Console property, e.g. sc-domain:vaneapp.dev  // Cloudflare Turnstile site key (public, rendered on /login)
+  GSC_SITE_URL?: string;        // Search Console property, e.g. sc-domain:vaneapp.dev
+  TURNSTILE_SITE_KEY?: string;  // Cloudflare Turnstile site key (public, rendered on /login)
+  EMAIL_FROM?: string;          // sender on a domain verified in Resend, e.g. "Vane <noreply@vaneapp.dev>"
   SYSTEM_BOT_USERNAME?: string; // shared bot username without @ (default: VanePublishBot)
 }
 
@@ -200,6 +202,23 @@ export interface UserFeatures {
 }
 export type MeResponse = { ok: true; user: UserPublic; features: UserFeatures } | ApiError;
 
+// ───────────────────────── Email verification (6-digit codes) ─────────────────────────
+export type VerifyPurpose = 'signup' | 'login';
+
+/** Sent with HTTP 202 by register / login / resend once a code was emailed. No session exists yet. */
+export interface VerifyChallenge {
+  email: string;
+  purpose: VerifyPurpose;
+  /** seconds from now until the code stops working */
+  expiresIn: number;
+  /** seconds from now until a new code can be requested (relative, so a wrong clock on the device can't break the timer) */
+  resendIn: number;
+}
+
+export interface VerifyRequest { email: string; code: string; purpose: VerifyPurpose }
+
+export type VerifyStartResponse = { ok: true; verify: VerifyChallenge } | ApiError;
+
 // ───────────────────────── Posts list (stage 3) ─────────────────────────
 export interface PostPublic {
   id: string;
@@ -249,3 +268,84 @@ export type QuickStartResponse =
   | ApiError;
 
 export type QuickStatusResponse = { ok: true; verified: boolean; expired: boolean; expiresAt: number } | ApiError;
+
+// ───────────────────────── Public API: keys, plans, usage (API part 1) ─────────────────────────
+export type { PlanId, SubscriptionStatus } from './functions/api/lib/plans';
+import type { PlanId, SubscriptionStatus } from './functions/api/lib/plans';
+
+/** cpost_… keys use the text/media endpoints; cvid_… keys will use the Video Engine (not available yet). */
+export type KeyScope = 'post' | 'video';
+/** live: real posts, counted · test: answers are simulated, nothing is posted and nothing is counted */
+export type KeyMode = 'live' | 'test';
+
+/** What the API ever returns about a key. The secret is shown once, on creation, and the hash never leaves the database. */
+export interface ApiKeyPublic {
+  id: string;
+  name: string;
+  scope: KeyScope;
+  mode: KeyMode;
+  /** masked for display, e.g. "cpost_live_••••ab12" */
+  display: string;
+  createdAt: number;
+  lastUsedAt: number | null;
+}
+
+export interface CreateApiKeyRequest {
+  name: string;
+  mode?: KeyMode;
+  scope?: KeyScope;
+}
+
+export type CreateApiKeyResponse =
+  | {
+      ok: true;
+      key: ApiKeyPublic;
+      /** the full key. Shown ONCE: only its SHA-256 is stored, so it can never be shown again */
+      secret: string;
+    }
+  | ApiError;
+
+export type ListApiKeysResponse = { ok: true; keys: ApiKeyPublic[]; max: number } | ApiError;
+
+/** limit − used = remaining. On the Free Trial UI and API posts share one total, so both buckets show that total. */
+export interface UsageBucket {
+  limit: number;
+  used: number;
+  remaining: number;
+}
+
+export interface UsageSummary {
+  plan: {
+    id: PlanId;
+    label: string;
+    status: SubscriptionStatus;
+    /** a paid plan that is not active any more: the Free Trial limits apply until a payment renews it */
+    lapsed: boolean;
+    apiAddon: boolean;
+    /** unix seconds, null = no expiry */
+    currentPeriodEnd: number | null;
+  };
+  period: {
+    /** 'lifetime' or 'YYYY-MM' (UTC) */
+    key: string;
+    /** unix seconds when the monthly quota resets, null for a lifetime quota */
+    resetsAt: number | null;
+  };
+  /** how many more API posts this account can send */
+  api: UsageBucket;
+  ui: UsageBucket;
+  /** Free Trial only */
+  shared: UsageBucket | null;
+  /** may this account send live API requests? */
+  apiAccess: boolean;
+  overage: {
+    enabled: boolean;
+    /** price per post beyond the quota (USD), null when this plan is never billed for extras */
+    postUsd: number | null;
+    aiPostUsd: number | null;
+    posts: number;
+    costUsd: number;
+  };
+}
+
+export type UsageResponse = { ok: true; usage: UsageSummary } | ApiError;

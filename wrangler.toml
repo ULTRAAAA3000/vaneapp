@@ -13,3 +13,9 @@ database_id = "9e560592-ec8e-451d-97d3-c2d8082c527e"   # npx wrangler d1 create 
 [[r2_buckets]]
 binding = "MEDIA"
 bucket_name = "vane-media"
+
+[vars]
+TURNSTILE_SITE_KEY = "0x4AAAAAAFYNiz-h1o5Y-W8u"
+# Sender of the emailed 6-digit codes: a domain verified in Resend. A plain value, so it lives HERE (not in the
+# Pages dashboard, and not in worker/wrangler.toml: the cron worker sends no email). RESEND_API_KEY is a Pages secret.
+EMAIL_FROM = "Vane <noreply@vaneapp.dev>"

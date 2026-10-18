@@ -1,0 +1,18 @@
+{
+  "baseUrl": "https://vaneapp.dev/api/v1",
+  "headers": {
+    "Authorization": "Bearer {{connection.apiKey}}",
+    "Content-Type": "application/json",
+    "Accept": "application/json"
+  },
+  "response": {
+    "error": {
+      "message": "[{{statusCode}}] {{body.error}}{{if(body.code; \" (\" + body.code + \")\"; \"\")}}"
+    }
+  },
+  "log": {
+    "sanitize": [
+      "request.headers.authorization"
+    ]
+  }
+}

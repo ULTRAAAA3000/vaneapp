@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/assets/vane.css?v=20261015" />
+  <link rel="stylesheet" href="/assets/vane.css?v=20261017b" />
 </head>
 
 <body class="min-h-screen overflow-x-hidden bg-[#070708]">
@@ -38,6 +38,7 @@
           <span id="avatar" class="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-sky-400 text-xs font-bold">·</span>
           <span id="userEmail" class="max-w-[14rem] truncate text-sm text-white/70"></span>
         </div>
+        <a href="#api" class="btn btn-ghost btn-sm hidden sm:inline-flex">API</a>
         <button id="logoutBtn" type="button" class="btn btn-ghost btn-sm">Sign out</button>
       </div>
     </div>
@@ -80,10 +81,13 @@
         <label for="text" class="sr-only">Post text</label>
         <textarea id="text" rows="7" maxlength="10000" spellcheck="true" placeholder="What do you want to share?" class="field mt-4 resize-none !rounded-2xl !p-4 !text-[15px] leading-relaxed"></textarea>
 
+        <!-- hashtag memory: suggestions from your past posts (assets/insights.js) -->
+        <div id="tagBar" class="mt-3 hidden" aria-live="polite"></div>
+
         <!-- channels -->
         <div class="mt-6">
           <span class="lbl">Publish to</span>
-          <div id="chipsBox" class="flex flex-wrap gap-2.5"></div>
+          <div id="chipsBox" class="space-y-4"></div>
         </div>
 
         <!-- media -->
@@ -140,6 +144,12 @@
       </div>
     </div>
 
+    <!-- ═══════════ INSIGHTS ═══════════ -->
+    <section class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" style="animation-delay:.2s" aria-labelledby="insightsTitle">
+      <h2 id="insightsTitle" class="text-lg font-semibold tracking-tight">Insights</h2>
+      <div id="insights" class="mt-5"><div class="skeleton h-40"></div></div>
+    </section>
+
     <!-- ═══════════ POSTS ═══════════ -->
     <section class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" style="animation-delay:.22s" aria-labelledby="postsTitle">
       <div class="flex flex-wrap items-center justify-between gap-3">
@@ -154,144 +164,237 @@
         <div class="skeleton h-24"></div>
       </div>
     </section>
+
+    <!-- ═══════════ API ACCESS ═══════════ -->
+    <section id="api" class="fade-up glass-d mt-5 scroll-mt-20 rounded-3xl p-5 sm:p-7" style="animation-delay:.26s" aria-labelledby="apiTitle">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 id="apiTitle" class="text-lg font-semibold tracking-tight">API access</h2>
+          <p class="mt-1 text-xs text-white/45">Post from Make, Zapier, your own scripts or a Custom GPT.</p>
+        </div>
+        <button id="keyNewBtn" type="button" class="btn btn-white btn-sm">
+          <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Create key
+        </button>
+      </div>
+
+      <div class="mt-5 grid items-start gap-5 lg:grid-cols-[minmax(0,.9fr)_minmax(0,1.1fr)]">
+        <div id="apiQuota" class="rounded-2xl bg-white/[0.04] p-5 ring-1 ring-white/5" aria-live="polite"><div class="skeleton h-28"></div></div>
+        <div id="apiKeys" class="space-y-2.5"><div class="skeleton h-16"></div></div>
+      </div>
+
+      <details id="apiQuick" class="mt-5 rounded-2xl bg-white/[0.03] ring-1 ring-white/5">
+        <summary class="api-sum flex items-center justify-between gap-3 px-5 py-4 text-sm font-medium">
+          Quick start
+          <span class="api-plus text-xl leading-none text-white/40 transition-transform duration-300" aria-hidden="true">+</span>
+        </summary>
+        <div id="apiQuickBody" class="space-y-5 px-5 pb-5"></div>
+      </details>
+    </section>
   </main>
 
-  <!-- ═══════════ CONNECT TELEGRAM ═══════════ -->
+  <!-- ═══════════ CONNECT A CHANNEL ═══════════ -->
   <dialog id="connectDialog" class="vane-dialog" aria-labelledby="connectTitle">
     <div class="glass-d-strong max-h-[calc(100vh-2rem)] overflow-y-auto rounded-3xl p-6 shadow-2xl sm:p-8">
       <div class="flex items-start justify-between gap-4">
         <div class="flex items-center gap-3">
-          <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-500/15 text-sky-300">
-            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 3.5L2.8 10.7l5.9 2.2 2.3 6.6 3.1-4.2 4.6 3.4z"/><path d="M8.7 12.9l12-8.6"/></svg>
-          </div>
+          <button id="connectBack" type="button" class="icon-btn -ml-2 hidden" aria-label="Back to networks"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <div id="connIcon" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"></div>
           <div>
-            <h2 id="connectTitle" class="text-xl font-semibold tracking-tight">Connect Telegram</h2>
-            <p class="text-xs text-white/45">Choose how Vane should publish to your channel.</p>
+            <h2 id="connectTitle" class="text-xl font-semibold tracking-tight">Connect a channel</h2>
+            <p id="connectSub" class="text-xs text-white/45">Choose a social network.</p>
           </div>
         </div>
         <button id="connectClose" type="button" class="icon-btn" aria-label="Close"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
 
-      <!-- method tabs -->
-      <div class="relative mt-6 grid grid-cols-2 rounded-full bg-white/[0.06] p-1 text-sm" role="tablist" aria-label="Connection method">
-        <span id="connSeg" class="absolute bottom-1 left-1 top-1 w-[calc(50%-0.25rem)] rounded-full bg-white transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]" aria-hidden="true"></span>
-        <button id="tabQuick" type="button" role="tab" aria-selected="true" aria-controls="panelQuick" class="relative z-10 flex items-center justify-center gap-2 rounded-full py-2 font-semibold transition-colors">
-          Quick Connect <span id="tabQuickBadge" class="rounded-full bg-emerald-500/25 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">Best</span>
-        </button>
-        <button id="tabCustom" type="button" role="tab" aria-selected="false" aria-controls="panelCustom" class="relative z-10 rounded-full py-2 font-semibold transition-colors">Custom bot</button>
+      <!-- ───── STEP 1: PICK A NETWORK ───── -->
+      <div data-step="pick" class="mt-6">
+        <div id="netGrid" class="grid gap-2.5 sm:grid-cols-2"></div>
+        <p class="mt-5 text-center text-xs text-white/30">More networks are on the way.</p>
       </div>
 
-      <!-- ───── QUICK CONNECT ───── -->
-      <section id="panelQuick" role="tabpanel" aria-labelledby="tabQuick" class="mt-6">
-        <p class="text-sm leading-relaxed text-white/55">Recommended. Vane publishes through its own bot, so you don't need to create one. About a minute.</p>
-
-        <div id="qOff" class="mt-5 hidden rounded-2xl border border-amber-300/20 bg-amber-400/10 p-4 text-sm leading-relaxed text-amber-200">
-          Quick Connect isn't available on this server yet. Use <button type="button" id="qOffSwitch" class="font-semibold underline underline-offset-4">Custom bot</button> instead.
+      <!-- ───── STEP 2: SET UP THE NETWORK (one block per network, shown by data-step) ───── -->
+      <div data-step="telegram" class="hidden">
+        <!-- method tabs -->
+        <div class="relative mt-6 grid grid-cols-2 rounded-full bg-white/[0.06] p-1 text-sm" role="tablist" aria-label="Connection method">
+          <span id="connSeg" class="absolute bottom-1 left-1 top-1 w-[calc(50%-0.25rem)] rounded-full bg-white transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]" aria-hidden="true"></span>
+          <button id="tabQuick" type="button" role="tab" aria-selected="true" aria-controls="panelQuick" class="relative z-10 flex items-center justify-center gap-2 rounded-full py-2 font-semibold transition-colors">
+            Quick Connect <span id="tabQuickBadge" class="rounded-full bg-emerald-500/25 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">Best</span>
+          </button>
+          <button id="tabCustom" type="button" role="tab" aria-selected="false" aria-controls="panelCustom" class="relative z-10 rounded-full py-2 font-semibold transition-colors">Custom bot</button>
         </div>
 
-        <ol id="qOn" class="mt-5 space-y-5 text-sm text-white/65">
-          <li class="flex gap-3">
-            <span class="pixel mt-0.5 w-4 shrink-0 text-white/90">1</span>
-            <div class="min-w-0 flex-1">
-              <p>Add <button type="button" id="qBotCopy" class="rounded-md bg-white/10 px-1.5 py-0.5 font-mono text-xs text-white transition-colors hover:bg-white/15" title="Click to copy"><span id="qBot">@VanePublishBot</span></button> to your channel as an <b class="font-semibold text-white">administrator</b> with the <b class="font-semibold text-white">Post messages</b> permission.</p>
-              <p class="mt-1 text-xs text-white/40">Channel settings → Administrators → Add administrator.</p>
-            </div>
-          </li>
+        <!-- ───── QUICK CONNECT ───── -->
+        <section id="panelQuick" role="tabpanel" aria-labelledby="tabQuick" class="mt-6">
+          <p class="text-sm leading-relaxed text-white/55">Recommended. Vane publishes through its own bot, so you don't need to create one. About a minute.</p>
 
-          <li class="flex gap-3">
-            <span class="pixel mt-0.5 w-4 shrink-0 text-white/90">2</span>
-            <div class="min-w-0 flex-1">
-              <form id="qForm" novalidate autocomplete="off">
-                <label for="qChat" class="lbl">Your channel</label>
-                <div class="flex gap-2.5">
-                  <input id="qChat" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="@mychannel or t.me/mychannel" class="field min-w-0 flex-1 font-mono !text-[13px]" />
-                  <button id="qCheck" type="submit" class="btn btn-white shrink-0"><span id="qCheckSpin" class="spinner spinner-dark hidden"></span><span id="qCheckLabel">Check access</span></button>
+          <div id="qOff" class="mt-5 hidden rounded-2xl border border-amber-300/20 bg-amber-400/10 p-4 text-sm leading-relaxed text-amber-200">
+            Quick Connect isn't available on this server yet. Use <button type="button" id="qOffSwitch" class="font-semibold underline underline-offset-4">Custom bot</button> instead.
+          </div>
+
+          <ol id="qOn" class="mt-5 space-y-5 text-sm text-white/65">
+            <li class="flex gap-3">
+              <span class="pixel mt-0.5 w-4 shrink-0 text-white/90">1</span>
+              <div class="min-w-0 flex-1">
+                <p>Add <button type="button" id="qBotCopy" class="rounded-md bg-white/10 px-1.5 py-0.5 font-mono text-xs text-white transition-colors hover:bg-white/15" title="Click to copy"><span id="qBot">@VanePublishBot</span></button> to your channel as an <b class="font-semibold text-white">administrator</b> with the <b class="font-semibold text-white">Post messages</b> permission.</p>
+                <p class="mt-1 text-xs text-white/40">Channel settings → Administrators → Add administrator.</p>
+              </div>
+            </li>
+
+            <li class="flex gap-3">
+              <span class="pixel mt-0.5 w-4 shrink-0 text-white/90">2</span>
+              <div class="min-w-0 flex-1">
+                <form id="qForm" novalidate autocomplete="off">
+                  <label for="qChat" class="lbl">Your channel</label>
+                  <div class="flex gap-2.5">
+                    <input id="qChat" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="@mychannel or t.me/mychannel" class="field min-w-0 flex-1 font-mono !text-[13px]" />
+                    <button id="qCheck" type="submit" class="btn btn-white shrink-0"><span id="qCheckSpin" class="spinner spinner-dark hidden"></span><span id="qCheckLabel">Check access</span></button>
+                  </div>
+                </form>
+              </div>
+            </li>
+
+            <li id="qS3" class="hidden gap-3">
+              <span class="pixel mt-0.5 w-4 shrink-0 text-white/90">3</span>
+              <div class="min-w-0 flex-1">
+                <p>Post this code as a message in <b id="qChatTitle" class="font-semibold text-white"></b> to prove the channel is yours. You can delete the message afterwards.</p>
+                <div class="mt-3 flex items-center gap-3 rounded-2xl bg-black/35 p-3 ring-1 ring-white/10">
+                  <code id="qCode" class="pixel min-w-0 flex-1 select-all truncate text-lg tracking-wider text-white sm:text-xl"></code>
+                  <button id="qCodeCopy" type="button" class="btn btn-ghost btn-sm shrink-0">Copy</button>
                 </div>
-              </form>
+                <div id="qWait" class="mt-3 flex items-center gap-2.5 text-xs text-white/55">
+                  <span id="qWaitSpin" class="spinner shrink-0"></span>
+                  <span id="qWaitText">Waiting for your message…</span>
+                  <span id="qTimer" class="ml-auto font-mono text-white/40"></span>
+                </div>
+                <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <button id="qRetry" type="button" class="btn btn-white btn-sm hidden">Get a new code</button>
+                  <button id="qReset" type="button" class="text-xs text-white/45 underline underline-offset-4 transition-colors hover:text-white">Use a different channel</button>
+                </div>
+              </div>
+            </li>
+
+            <li id="qS4" class="hidden gap-3">
+              <span class="pixel mt-0.5 w-4 shrink-0 text-white/90">4</span>
+              <div class="min-w-0 flex-1">
+                <label for="qName" class="lbl">Display name</label>
+                <div class="flex gap-2.5">
+                  <input id="qName" type="text" maxlength="80" class="field min-w-0 flex-1" />
+                  <button id="qConnect" type="button" class="btn btn-white shrink-0"><span id="qConnectSpin" class="spinner spinner-dark hidden"></span><span id="qConnectLabel">Connect channel</span></button>
+                </div>
+              </div>
+            </li>
+          </ol>
+
+          <div id="qErr" role="alert" class="mt-5 hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
+        </section>
+
+        <!-- ───── CUSTOM BOT ───── -->
+        <section id="panelCustom" role="tabpanel" aria-labelledby="tabCustom" class="mt-6 hidden">
+          <p class="text-sm leading-relaxed text-white/55">For advanced users: posts go out through a bot you created yourself.</p>
+          <ol class="mt-5 space-y-3 text-sm text-white/65">
+            <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>In Telegram, open <b class="font-semibold text-white">@BotFather</b>, send <code class="rounded bg-white/10 px-1.5 py-0.5 text-xs">/newbot</code> and copy the bot token.</span></li>
+            <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Add the bot to your channel as an <b class="font-semibold text-white">administrator</b> with the <b class="font-semibold text-white">Post messages</b> permission.</span></li>
+            <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">3</span><span>Paste the token and the channel below. We check access before saving.</span></li>
+          </ol>
+
+          <form id="connectForm" class="mt-6 space-y-4" novalidate autocomplete="off">
+            <div>
+              <label for="cName" class="lbl">Display name</label>
+              <input id="cName" type="text" maxlength="80" placeholder="My Telegram channel" class="field" />
             </div>
-          </li>
-
-          <li id="qS3" class="hidden gap-3">
-            <span class="pixel mt-0.5 w-4 shrink-0 text-white/90">3</span>
-            <div class="min-w-0 flex-1">
-              <p>Post this code as a message in <b id="qChatTitle" class="font-semibold text-white"></b> to prove the channel is yours. You can delete the message afterwards.</p>
-              <div class="mt-3 flex items-center gap-3 rounded-2xl bg-black/35 p-3 ring-1 ring-white/10">
-                <code id="qCode" class="pixel min-w-0 flex-1 select-all truncate text-lg tracking-wider text-white sm:text-xl"></code>
-                <button id="qCodeCopy" type="button" class="btn btn-ghost btn-sm shrink-0">Copy</button>
+            <div>
+              <div class="flex items-center justify-between">
+                <label for="cToken" class="lbl !mb-0">Bot token</label>
+                <button type="button" id="cTokenToggle" class="text-xs text-white/45 transition-colors hover:text-white">Show</button>
               </div>
-              <div id="qWait" class="mt-3 flex items-center gap-2.5 text-xs text-white/55">
-                <span id="qWaitSpin" class="spinner shrink-0"></span>
-                <span id="qWaitText">Waiting for your message…</span>
-                <span id="qTimer" class="ml-auto font-mono text-white/40"></span>
-              </div>
-              <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-                <button id="qRetry" type="button" class="btn btn-white btn-sm hidden">Get a new code</button>
-                <button id="qReset" type="button" class="text-xs text-white/45 underline underline-offset-4 transition-colors hover:text-white">Use a different channel</button>
-              </div>
+              <input id="cToken" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="123456789:AAExampleTokenFromBotFather" class="field mt-2 font-mono !text-[13px]" />
             </div>
-          </li>
-
-          <li id="qS4" class="hidden gap-3">
-            <span class="pixel mt-0.5 w-4 shrink-0 text-white/90">4</span>
-            <div class="min-w-0 flex-1">
-              <label for="qName" class="lbl">Display name</label>
-              <div class="flex gap-2.5">
-                <input id="qName" type="text" maxlength="80" class="field min-w-0 flex-1" />
-                <button id="qConnect" type="button" class="btn btn-white shrink-0"><span id="qConnectSpin" class="spinner spinner-dark hidden"></span><span id="qConnectLabel">Connect channel</span></button>
-              </div>
+            <div>
+              <label for="cChat" class="lbl">Channel</label>
+              <input id="cChat" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="@mychannel or -1001234567890" class="field font-mono !text-[13px]" />
+              <p class="mt-2 text-xs text-white/35">Public channel: its @username. Private channel: its numeric id (starts with -100).</p>
             </div>
-          </li>
-        </ol>
 
-        <div id="qErr" role="alert" class="mt-5 hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
-      </section>
+            <div id="cErr" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
 
-      <!-- ───── CUSTOM BOT ───── -->
-      <section id="panelCustom" role="tabpanel" aria-labelledby="tabCustom" class="mt-6 hidden">
-        <p class="text-sm leading-relaxed text-white/55">For advanced users: posts go out through a bot you created yourself.</p>
-        <ol class="mt-5 space-y-3 text-sm text-white/65">
-          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>In Telegram, open <b class="font-semibold text-white">@BotFather</b>, send <code class="rounded bg-white/10 px-1.5 py-0.5 text-xs">/newbot</code> and copy the bot token.</span></li>
-          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Add the bot to your channel as an <b class="font-semibold text-white">administrator</b> with the <b class="font-semibold text-white">Post messages</b> permission.</span></li>
-          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">3</span><span>Paste the token and the channel below. We check access before saving.</span></li>
-        </ol>
+            <div class="flex items-center justify-end gap-3 pt-1">
+              <button type="button" id="cCancel" class="btn btn-ghost">Cancel</button>
+              <button type="submit" id="cSubmit" class="btn btn-white">
+                <span id="cSpin" class="spinner spinner-dark hidden"></span>
+                <span id="cLabel">Verify &amp; connect</span>
+              </button>
+            </div>
+          </form>
+        </section>
 
-        <form id="connectForm" class="mt-6 space-y-4" novalidate autocomplete="off">
-          <div>
-            <label for="cName" class="lbl">Display name</label>
-            <input id="cName" type="text" maxlength="80" placeholder="My Telegram channel" class="field" />
+        <p id="connNote" class="mt-5 text-center text-xs text-white/30"></p>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ═══════════ CREATE AN API KEY ═══════════ -->
+  <dialog id="keyDialog" class="vane-dialog" aria-labelledby="keyTitle">
+    <div class="glass-d-strong max-h-[calc(100vh-2rem)] overflow-y-auto rounded-3xl p-6 shadow-2xl sm:p-8">
+      <div class="flex items-start justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2M17 6l3 3M14 9l2 2"/></svg>
           </div>
           <div>
-            <div class="flex items-center justify-between">
-              <label for="cToken" class="lbl !mb-0">Bot token</label>
-              <button type="button" id="cTokenToggle" class="text-xs text-white/45 transition-colors hover:text-white">Show</button>
-            </div>
-            <input id="cToken" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="123456789:AAExampleTokenFromBotFather" class="field mt-2 font-mono !text-[13px]" />
+            <h2 id="keyTitle" class="text-xl font-semibold tracking-tight">Create an API key</h2>
+            <p id="keySub" class="text-xs text-white/45">Name it after the place you will use it.</p>
           </div>
-          <div>
-            <label for="cChat" class="lbl">Channel</label>
-            <input id="cChat" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="@mychannel or -1001234567890" class="field font-mono !text-[13px]" />
-            <p class="mt-2 text-xs text-white/35">Public channel: its @username. Private channel: its numeric id (starts with -100).</p>
-          </div>
+        </div>
+        <button id="keyClose" type="button" class="icon-btn" aria-label="Close"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
 
-          <div id="cErr" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
-
-          <div class="flex items-center justify-end gap-3 pt-1">
-            <button type="button" id="cCancel" class="btn btn-ghost">Cancel</button>
-            <button type="submit" id="cSubmit" class="btn btn-white">
-              <span id="cSpin" class="spinner spinner-dark hidden"></span>
-              <span id="cLabel">Verify &amp; connect</span>
+      <!-- step 1: name + type -->
+      <form id="keyForm" class="mt-6 space-y-5" novalidate autocomplete="off">
+        <div>
+          <label for="keyName" class="lbl">Name</label>
+          <input id="keyName" type="text" maxlength="60" placeholder="Make.com" class="field" />
+        </div>
+        <div>
+          <span class="mb-2 block text-[0.7rem] font-medium uppercase tracking-widest text-white/40">Type</span>
+          <div class="grid gap-2.5 sm:grid-cols-2" role="group" aria-label="Key type">
+            <button type="button" id="modeLive" data-mode="live" aria-pressed="true" class="mode-btn">
+              <span class="block text-sm font-semibold">Live</span>
+              <span class="mt-1 block text-xs leading-relaxed text-white/55">Posts for real and counts toward your quota.</span>
+            </button>
+            <button type="button" id="modeTest" data-mode="test" aria-pressed="false" class="mode-btn">
+              <span class="block text-sm font-semibold">Test</span>
+              <span class="mt-1 block text-xs leading-relaxed text-white/55">Simulated: nothing is posted or counted. Perfect while you build.</span>
             </button>
           </div>
-        </form>
-      </section>
+          <p id="keyModeNote" class="mt-2 hidden text-xs leading-relaxed text-amber-200/90"></p>
+        </div>
+        <div id="keyErr" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
+        <div class="flex items-center justify-end gap-3 pt-1">
+          <button type="button" id="keyCancel" class="btn btn-ghost">Cancel</button>
+          <button type="submit" id="keySubmit" class="btn btn-white"><span id="keySpin" class="spinner spinner-dark hidden"></span><span id="keyLabel">Create key</span></button>
+        </div>
+      </form>
 
-      <p id="connNote" class="mt-5 text-center text-xs text-white/30"></p>
+      <!-- step 2: the secret, shown once -->
+      <div id="keyDone" class="mt-6 hidden">
+        <div id="keyWarn" class="rounded-2xl border border-amber-300/20 bg-amber-400/10 p-4 text-sm leading-relaxed text-amber-200">
+          Copy your key now. For your safety it is shown only once. If you lose it, create a new one.
+        </div>
+        <div class="mt-4 flex items-center gap-3 rounded-2xl bg-black/35 p-3 ring-1 ring-white/10">
+          <code id="keySecret" class="min-w-0 flex-1 select-all break-all font-mono text-[13px] leading-relaxed text-white"></code>
+          <button id="keyCopy" type="button" class="btn btn-white btn-sm shrink-0">Copy</button>
+        </div>
+        <p class="mt-4 text-xs leading-relaxed text-white/45">Send it with every request as <code class="rounded bg-white/10 px-1.5 py-0.5">Authorization: Bearer &lt;key&gt;</code>. Anyone who has it can post as you, so keep it out of public code.</p>
+        <div class="mt-6 flex justify-end"><button id="keyFinish" type="button" class="btn btn-white">I've saved it</button></div>
+      </div>
     </div>
   </dialog>
 
   <script src="/assets/vane.js?v=20261015"></script>
   <script src="/assets/media-picker.js?v=20261015"></script>
-  <script src="/assets/dashboard.js?v=20261015"></script>
+  <script src="/assets/insights.js?v=20261017"></script>
+  <script src="/assets/dashboard.js?v=20261017b"></script>
   <script src="/assets/track.js?v=20261016" defer></script>
 </body>
 </html>

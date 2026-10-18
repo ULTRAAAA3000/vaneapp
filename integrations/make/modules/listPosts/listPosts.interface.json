@@ -1,0 +1,57 @@
+[
+  {
+    "name": "id",
+    "type": "text",
+    "label": "Post ID"
+  },
+  {
+    "name": "groupId",
+    "type": "text",
+    "label": "Group ID"
+  },
+  {
+    "name": "channelId",
+    "type": "text",
+    "label": "Channel ID"
+  },
+  {
+    "name": "channelName",
+    "type": "text",
+    "label": "Channel name"
+  },
+  {
+    "name": "platform",
+    "type": "text",
+    "label": "Network"
+  },
+  {
+    "name": "content",
+    "type": "text",
+    "label": "Text"
+  },
+  {
+    "name": "mediaUrl",
+    "type": "text",
+    "label": "Media URL"
+  },
+  {
+    "name": "status",
+    "type": "text",
+    "label": "Status"
+  },
+  {
+    "name": "scheduledAt",
+    "type": "number",
+    "label": "Scheduled at (unix seconds)"
+  },
+  {
+    "name": "sentAt",
+    "type": "number",
+    "label": "Sent at (unix seconds)"
+  },
+  {
+    "name": "error",
+    "type": "text",
+    "label": "Error"
+  }
+]

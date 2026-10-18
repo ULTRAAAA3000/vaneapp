@@ -21,3 +21,8 @@ TELEGRAM_WEBHOOK_SECRET=random-16+-chars-A-Za-z0-9_-   # e.g. openssl rand -hex 
 #GSC_SITE_URL=sc-domain:vaneapp.dev
 # Optional VPN / proxy lookup (proxycheck.io)
 #PROXYCHECK_KEY=
+
+# Emailed 6-digit codes (sign-up, and sign-in after 3+ days away). Optional: enforced only when BOTH are set.
+# Without them sign-up and sign-in work as before. Needs a sender on a domain verified in Resend (resend.com → Domains).
+#RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxx
+#EMAIL_FROM=Vane <noreply@vaneapp.dev>

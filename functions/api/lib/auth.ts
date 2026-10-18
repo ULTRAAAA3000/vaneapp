@@ -14,7 +14,9 @@
  */
 import type { Env } from '../../../types';
 import { fromB64Url, toB64Url } from './encoding';
+import { stillActive } from './activity';
 import { crossOriginViolation, fail } from './http';
+import { emailConfigured } from './mail';
 import { readSessionToken, userIdFromSession } from './session';
 
 const enc = new TextEncoder();
@@ -106,5 +108,10 @@ export async function requireUser(request: Request, env: Env): Promise<AuthResul
 
   const userId = await userIdFromSession(env, token);
   if (!userId) return unauthorized('Session expired. Please sign in again.');
+
+  // Emailed codes on: a session that sat idle for more than 3 days ends here, and signing in again asks for a code.
+  if (emailConfigured(env) && !(await stillActive(env, userId))) {
+    return unauthorized('It has been a while. Please sign in again.');
+  }
   return { ok: true, userId, via: 'session' };
 }

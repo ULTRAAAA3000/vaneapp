@@ -120,6 +120,98 @@ CREATE TABLE IF NOT EXISTS telegram_verifications (
 CREATE INDEX IF NOT EXISTS idx_tgv_user ON telegram_verifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_tgv_lookup ON telegram_verifications(chat_id, code);
 
+-- ───────────────────────── Email verification (6-digit codes) ─────────────────────────
+-- A code is needed (a) to finish signing up and (b) to sign in after more than 3 days away.
+-- It is enforced only when RESEND_API_KEY + EMAIL_FROM are set (see README), and it lives in NEW
+-- tables: SQLite has no "ADD COLUMN IF NOT EXISTS", so touching `users` would break re-running this file.
+--   signup : the account does not exist yet. `payload` holds the pending sign-up and the users row is
+--            created only once the right code is entered.
+--   login  : the password was already right; the code is the second step.
+CREATE TABLE IF NOT EXISTS email_verifications (
+  email       TEXT    NOT NULL COLLATE NOCASE,
+  purpose     TEXT    NOT NULL CHECK (purpose IN ('signup', 'login')),
+  code_hash   TEXT    NOT NULL,                             -- HMAC of the code; the code itself is never stored
+  payload     TEXT,                                         -- signup only: JSON { passwordHash, name, timezone }
+  attempts    INTEGER NOT NULL DEFAULT 0,                   -- wrong guesses against the current code
+  created_at  INTEGER NOT NULL,                             -- when the current code was sent (resend cooldown)
+  expires_at  INTEGER NOT NULL,                             -- the code stops working here
+  PRIMARY KEY (email, purpose)
+);
+CREATE INDEX IF NOT EXISTS idx_email_ver_exp ON email_verifications(expires_at);
+
+-- When each user was last active, to spot accounts nobody has opened for more than 3 days.
+CREATE TABLE IF NOT EXISTS user_activity (
+  user_id       TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  last_seen_at  INTEGER NOT NULL
+);
+
+-- ───────────────────────── Public API: subscriptions, keys, metering (API part 1) ─────────────────────────
+-- documentation/ECONOMY_AND_FINANCE.md §2 (plans) and §6 (key scoping). Only NEW tables: `users` is never altered (see the note above).
+
+-- One row per user: what they pay for. No row = the Free Trial. (An existing database still has the old
+-- CHECK on `plan`: run scripts/migrations/001-subscriptions-any-plan.sql once to allow custom plans.)
+-- A paid row whose period has ended (or that is not 'active') is treated as the Free Trial until a payment renews it.
+CREATE TABLE IF NOT EXISTS subscriptions (
+  user_id             TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  plan                TEXT    NOT NULL DEFAULT 'free',                                  -- a plans.id (free / api / pro / any plan made in /admin)
+  api_addon           INTEGER NOT NULL DEFAULT 0 CHECK (api_addon IN (0, 1)),   -- Pro + API Add-on (+180 API posts)
+  status              TEXT    NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'past_due', 'canceled')),
+  current_period_end  INTEGER,                                                  -- NULL = no expiry (granted by hand)
+  overage_enabled     INTEGER NOT NULL DEFAULT 0 CHECK (overage_enabled IN (0, 1)),  -- 0: over quota -> 402; 1: bill per post
+  provider            TEXT    NOT NULL DEFAULT 'manual',                        -- 'manual' | 'monobank' | 'crypto'
+  provider_ref        TEXT,
+  created_at          INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at          INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+-- API keys. Only the SHA-256 of a key is stored; the key itself is shown once, when it is created.
+--   scope: 'post' -> cpost_… keys (text/media endpoints)   'video' -> cvid_… keys (Video Engine, later)
+--   mode:  'live' -> real posts, counted against the quota   'test' -> answers are simulated, nothing is posted or counted
+CREATE TABLE IF NOT EXISTS api_keys (
+  id            TEXT    PRIMARY KEY,                                            -- uuid
+  user_id       TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name          TEXT    NOT NULL,                                               -- label, e.g. "Make.com"
+  scope         TEXT    NOT NULL CHECK (scope IN ('post', 'video')),
+  mode          TEXT    NOT NULL CHECK (mode IN ('live', 'test')),
+  key_hash      TEXT    NOT NULL UNIQUE,                                        -- sha256 hex of the whole key
+  hint          TEXT    NOT NULL,                                               -- last 4 characters, to recognise a key in the list
+  created_at    INTEGER NOT NULL DEFAULT (unixepoch()),
+  last_used_at  INTEGER,
+  revoked_at    INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_id);
+
+-- Metered usage per user and period ('lifetime' for the Free Trial, 'YYYY-MM' (UTC) for paid plans).
+-- Quota checks are ONE conditional upsert on this row, so two parallel requests can never both take the last unit.
+-- ai_* columns are used by the AI endpoints (a later part).
+CREATE TABLE IF NOT EXISTS usage_counters (
+  user_id            TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  period             TEXT    NOT NULL,
+  api_posts          INTEGER NOT NULL DEFAULT 0,
+  ui_posts           INTEGER NOT NULL DEFAULT 0,
+  ai_posts           INTEGER NOT NULL DEFAULT 0,       -- how many of the API posts were AI-generated
+  ai_generations     INTEGER NOT NULL DEFAULT 0,
+  overage_posts      INTEGER NOT NULL DEFAULT 0,       -- posts beyond the quota (only when overage_enabled)
+  overage_micro_usd  INTEGER NOT NULL DEFAULT 0,       -- what those cost, in millionths of a dollar ($0.03 = 30000)
+  updated_at         INTEGER NOT NULL DEFAULT (unixepoch()),
+  PRIMARY KEY (user_id, period)
+);
+
+-- Audit trail of every metered API call (also what an invoice is built from).
+CREATE TABLE IF NOT EXISTS usage_logs (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id         TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  api_key_id      TEXT    REFERENCES api_keys(id) ON DELETE SET NULL,
+  source          TEXT    NOT NULL CHECK (source IN ('api', 'ui')),
+  kind            TEXT    NOT NULL CHECK (kind IN ('post', 'ai_post')),
+  units           INTEGER NOT NULL DEFAULT 1,
+  overage         INTEGER NOT NULL DEFAULT 0 CHECK (overage IN (0, 1)),
+  cost_micro_usd  INTEGER NOT NULL DEFAULT 0,
+  ref             TEXT,                                                         -- e.g. the post group id
+  created_at      INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_usage_logs_user ON usage_logs(user_id, created_at);
+
 -- ═════════════════════════════ Admin panel (/admin) ═════════════════════════════
 
 -- ───────────────────────── Settings ─────────────────────────
@@ -135,8 +227,9 @@ CREATE TABLE IF NOT EXISTS settings (
 -- limit checks both read this table. Amounts are integer minor units (cents).
 --   kind    'plan'  → a card in the pricing grid
 --           'addon' → the strip under the grid ({price} in tagline is replaced by the price)
---   limits  JSON, e.g. {"channels":2,"postsPerMonth":1000,"postsLifetime":30,"aiCredits":10,"apiPostsPerMonth":180,
---                       "overagePostUsd":0.03,"overageAiPostUsd":0.09}; a missing key or null = unlimited
+--   limits  JSON the API engine enforces (lib/plans.ts reads it): channels, postsPerMonth (dashboard), postsLifetime (Free-style
+--           trial), apiPostsPerMonth, aiCredits, apiAccess (1/0), overagePostUsd, overageAiPostUsd, seats;
+--           a missing key or null = unlimited
 --   is_public  shown on the landing page        is_active  can be given to users / bought
 --   provider_refs  JSON map for the payment provider(s), e.g. {"monobank":"…","crypto":"…"}
 CREATE TABLE IF NOT EXISTS plans (
@@ -164,20 +257,20 @@ CREATE TABLE IF NOT EXISTS plans (
   updated_at           INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
--- Seed = the plans from ECONOMY_AND_FINANCE.md. INSERT OR IGNORE: re-running this file never
+-- Seed = the plans from documentation/ECONOMY_AND_FINANCE.md. INSERT OR IGNORE: re-running this file never
 -- overwrites what the admin has edited since.
 INSERT OR IGNORE INTO plans (id, name, tagline, price_cents, features, limits, sort) VALUES
   ('free', 'Free Trial', 'No card required.', 0,
    '["30 posts in total","Up to 2 connected channels","10 free AI credits","Free AI utilities","Try the dashboard and the API"]',
-   '{"channels":2,"postsLifetime":30,"aiCredits":10}', 10);
+   '{"channels":2,"postsLifetime":30,"aiCredits":10,"apiAccess":1}', 10);
 INSERT OR IGNORE INTO plans (id, name, tagline, price_cents, features, limits, sort) VALUES
   ('api', 'Developer API', 'A headless gateway for scripts and bots.', 599,
    '["REST API with Bearer auth, webhooks and an OpenAPI spec","180 API posts a month (about 6 a day)","Custom GPT and Claude MCP access when they launch","Extra posts: $0.03 each, $0.09 for AI posts"]',
-   '{"postsPerMonth":180,"overagePostUsd":0.03,"overageAiPostUsd":0.09}', 20);
+   '{"apiPostsPerMonth":180,"apiAccess":1,"overagePostUsd":0.03,"overageAiPostUsd":0.09}', 20);
 INSERT OR IGNORE INTO plans (id, name, tagline, badge, price_cents, compare_price_cents, yearly_price_cents, features, limits, highlight, sort) VALUES
   ('pro', 'Pro Dashboard', 'standard, or $99 a year.', 'Early Bird', 999, 1200, 9900,
    '["Full dashboard with calendar and Kanban","Unlimited workspaces and channels","1,000 posts a month","Telegram inline buttons, spoilers and polls","Media library on Cloudflare R2","Vane AI Pass included","Extra posts: $0.015 each, $0.045 for AI posts"]',
-   '{"postsPerMonth":1000,"aiCredits":250,"overagePostUsd":0.015,"overageAiPostUsd":0.045}', 1, 30);
+   '{"postsPerMonth":1000,"aiCredits":250,"apiAccess":0,"overagePostUsd":0.015,"overageAiPostUsd":0.045}', 1, 30);
 INSERT OR IGNORE INTO plans (id, name, tagline, price_cents, features, limits, cta_label, coming_soon, is_active, sort) VALUES
   ('video', 'Video Engine', 'Video publishing, end to end.', 899,
    '["YouTube Shorts, TikTok and Instagram Reels","YouTube long-form with custom thumbnails, playlists and tags","Resumable uploads on Cloudflare R2","AI hooks, scripts, descriptions, tags and timestamps"]',
@@ -185,32 +278,6 @@ INSERT OR IGNORE INTO plans (id, name, tagline, price_cents, features, limits, c
 INSERT OR IGNORE INTO plans (id, kind, name, tagline, price_cents, limits, is_active, sort) VALUES
   ('api-addon', 'addon', 'Need the dashboard and the API?', 'Add the API to Pro for {price} a month. It adds 180 API posts and keeps Pro’s low overage rates.', 299,
    '{"apiPostsPerMonth":180}', 0, 50);
-
--- ───────────────────────── Subscriptions ─────────────────────────
--- Source of truth for "what plan does this user have". (users.plan is legacy: its CHECK only allows
--- free/pro, so it cannot hold new plans.) A user's effective plan = best active, unexpired row
--- here, else 'free'. price_cents is a snapshot, so later price edits never rewrite history.
---   source  'admin' = given by hand (never counted as revenue) · 'monobank' | 'crypto' | 'stripe' … = paid
-CREATE TABLE IF NOT EXISTS subscriptions (
-  id                    TEXT    PRIMARY KEY,                -- uuid
-  user_id               TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  plan_id               TEXT    NOT NULL REFERENCES plans(id),
-  status                TEXT    NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'canceled', 'expired', 'past_due')),
-  source                TEXT    NOT NULL DEFAULT 'admin',
-  price_cents           INTEGER NOT NULL DEFAULT 0,
-  currency              TEXT    NOT NULL DEFAULT 'USD',
-  interval              TEXT    NOT NULL DEFAULT 'month',
-  started_at            INTEGER NOT NULL DEFAULT (unixepoch()),
-  ends_at               INTEGER,                            -- null = no end date
-  canceled_at           INTEGER,
-  note                  TEXT,
-  granted_by            TEXT,
-  provider_customer_id  TEXT,
-  provider_ref          TEXT,                               -- provider's subscription / invoice id
-  created_at            INTEGER NOT NULL DEFAULT (unixepoch())
-);
-CREATE INDEX IF NOT EXISTS idx_subs_user   ON subscriptions(user_id, status);
-CREATE INDEX IF NOT EXISTS idx_subs_status ON subscriptions(status, ends_at);
 
 -- Accounts the admin switched off (login and every API call are refused; sessions are deleted).
 CREATE TABLE IF NOT EXISTS user_flags (

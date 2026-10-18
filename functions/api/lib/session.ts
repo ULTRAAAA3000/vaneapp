@@ -53,6 +53,11 @@ export async function destroySession(env: Env, token: string): Promise<void> {
   await env.DB.prepare('DELETE FROM sessions WHERE id = ?1').bind(await sha256Hex(token)).run();
 }
 
+/** Ends every session of a user, on every device (used when they come back after being away). */
+export async function revokeSessions(env: Env, userId: string): Promise<void> {
+  await env.DB.prepare('DELETE FROM sessions WHERE user_id = ?1').bind(userId).run();
+}
+
 /** Returns the user id for a live session, or null. */
 export async function userIdFromSession(env: Env, token: string): Promise<string | null> {
   const now = Math.floor(Date.now() / 1000);

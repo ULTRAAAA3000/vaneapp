@@ -1,0 +1,773 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Vane API",
+    "version": "1.0.0",
+    "description": "Schedule social posts from your own tools. Use it from a ChatGPT Custom GPT (Actions), Claude, Make, Zapier or plain HTTP.\n\nAuthentication: `Authorization: Bearer cpost_live_…`. Create a key in the Vane dashboard. A `cpost_test_…` key validates and answers like a live one but posts nothing and counts nothing.\n\nErrors are `{ \"ok\": false, \"error\": \"…\", \"code\": \"…\" }`; branch on `code`.",
+    "contact": {
+      "url": "https://vaneapp.dev"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://vaneapp.dev"
+    }
+  ],
+  "security": [
+    {
+      "ApiKey": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Account",
+      "description": "Check the key, plan and quota"
+    },
+    {
+      "name": "Channels",
+      "description": "Where posts can go"
+    },
+    {
+      "name": "Posts",
+      "description": "Schedule, read and cancel posts"
+    }
+  ],
+  "paths": {
+    "/api/v1/me": {
+      "get": {
+        "operationId": "getMe",
+        "tags": [
+          "Account"
+        ],
+        "summary": "Check that the key works and see its plan",
+        "responses": {
+          "200": {
+            "description": "The key is valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/usage": {
+      "get": {
+        "operationId": "getUsage",
+        "tags": [
+          "Account"
+        ],
+        "summary": "Plan, quota and what is left this period",
+        "responses": {
+          "200": {
+            "description": "Usage summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "usage"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "usage": {
+                      "$ref": "#/components/schemas/Usage"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/channels": {
+      "get": {
+        "operationId": "listChannels",
+        "tags": [
+          "Channels"
+        ],
+        "summary": "List my connected channels",
+        "description": "The `id` of a channel is what `channelIds` in createPost expects. Call this first when the user names a network or channel.",
+        "responses": {
+          "200": {
+            "description": "Connected channels",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "channels"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "channels": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Channel"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/posts": {
+      "get": {
+        "operationId": "listPosts",
+        "tags": [
+          "Posts"
+        ],
+        "summary": "List posts",
+        "parameters": [
+          {
+            "name": "view",
+            "in": "query",
+            "description": "`upcoming` = still to be sent, `history` = already sent, failed or cancelled",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "upcoming",
+                "history"
+              ],
+              "default": "upcoming"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Posts, one entry per channel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "posts"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "posts": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Post"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createPost",
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Schedule a post to one or more channels",
+        "description": "One request is one post against the quota, however many channels it goes to. `scheduledAt` must be in the future. With a `cpost_test_` key nothing is saved or counted and the answer has `test: true`.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePost"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Scheduled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedPost"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "description": "The plan's quota is used up (`code: quota_exceeded`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "This plan has no API access (`api_not_in_plan`) or the key has the wrong scope (`wrong_key_scope`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/posts/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "A post id from createPost or listPosts"
+        }
+      ],
+      "get": {
+        "operationId": "getPost",
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Status of one post",
+        "description": "Status moves scheduled → processing → sent | failed | cancelled.",
+        "responses": {
+          "200": {
+            "description": "The post",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "post"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "post": {
+                      "$ref": "#/components/schemas/Post"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "cancelPost",
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Cancel a post that has not been sent yet",
+        "description": "Only a post that is still `scheduled` can be cancelled. The quota unit is not given back.",
+        "responses": {
+          "200": {
+            "description": "Cancelled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Already processing or sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "cpost_live_… | cpost_test_…",
+        "description": "Your Vane API key from the dashboard."
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "The request is not valid; `error` says what to fix",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Missing or invalid key (`invalid_api_key`)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "No such post",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "Too many requests for this key (`rate_limited`); wait `retryAfter` seconds",
+        "headers": {
+          "Retry-After": {
+            "schema": {
+              "type": "integer"
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Ok": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "example": true
+          },
+          "test": {
+            "type": "boolean",
+            "description": "Present with a test key: nothing was changed"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "ok",
+          "error"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "example": false
+          },
+          "error": {
+            "type": "string",
+            "description": "A message a person can read"
+          },
+          "code": {
+            "type": "string",
+            "description": "Stable machine-readable reason, e.g. invalid_api_key, quota_exceeded, rate_limited"
+          },
+          "retryAfter": {
+            "type": "integer",
+            "description": "Seconds to wait (rate_limited)"
+          }
+        }
+      },
+      "Me": {
+        "type": "object",
+        "required": [
+          "ok",
+          "key",
+          "plan",
+          "apiAccess"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "example": true
+          },
+          "key": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "post",
+                  "video"
+                ]
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "live",
+                  "test"
+                ]
+              }
+            }
+          },
+          "plan": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "lapsed": {
+                "type": "boolean"
+              },
+              "apiAddon": {
+                "type": "boolean"
+              },
+              "currentPeriodEnd": {
+                "type": "integer",
+                "nullable": true,
+                "description": "Unix seconds"
+              }
+            }
+          },
+          "apiAccess": {
+            "type": "boolean",
+            "description": "May this account send live API requests?"
+          }
+        }
+      },
+      "Bucket": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer"
+          },
+          "used": {
+            "type": "integer"
+          },
+          "remaining": {
+            "type": "integer"
+          }
+        }
+      },
+      "Usage": {
+        "type": "object",
+        "properties": {
+          "plan": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "period": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "description": "`lifetime` or `YYYY-MM` (UTC)"
+              },
+              "resetsAt": {
+                "type": "integer",
+                "nullable": true,
+                "description": "Unix seconds"
+              }
+            }
+          },
+          "api": {
+            "$ref": "#/components/schemas/Bucket"
+          },
+          "ui": {
+            "$ref": "#/components/schemas/Bucket"
+          },
+          "shared": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Bucket"
+              }
+            ],
+            "nullable": true
+          },
+          "apiAccess": {
+            "type": "boolean"
+          },
+          "overage": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "Channel": {
+        "type": "object",
+        "required": [
+          "id",
+          "platform",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string",
+            "example": "telegram",
+            "description": "The network the channel belongs to"
+          },
+          "name": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "integer",
+            "description": "Unix seconds"
+          }
+        }
+      },
+      "CreatePost": {
+        "type": "object",
+        "required": [
+          "content",
+          "channelIds",
+          "scheduledAt"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "The post text",
+            "example": "Hello from Vane"
+          },
+          "channelIds": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            },
+            "description": "Channel ids from listChannels"
+          },
+          "scheduledAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO-8601 with a timezone, in the future",
+            "example": "2026-10-20T09:00:00Z"
+          },
+          "mediaUrl": {
+            "type": "string",
+            "format": "uri",
+            "nullable": true,
+            "description": "Public https URL of an image (optional)"
+          }
+        }
+      },
+      "CreatedPost": {
+        "type": "object",
+        "required": [
+          "ok",
+          "groupId",
+          "scheduledAt",
+          "posts"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "example": true
+          },
+          "test": {
+            "type": "boolean",
+            "description": "Present with a test key: nothing was saved or posted"
+          },
+          "groupId": {
+            "type": "string"
+          },
+          "scheduledAt": {
+            "type": "integer",
+            "description": "Unix seconds"
+          },
+          "posts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "channelId": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "example": "scheduled"
+                }
+              }
+            }
+          },
+          "overage": {
+            "type": "boolean",
+            "description": "This post went beyond the quota and is billed"
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "api": {
+                "$ref": "#/components/schemas/Bucket"
+              },
+              "resetsAt": {
+                "type": "integer",
+                "nullable": true
+              }
+            }
+          }
+        }
+      },
+      "Post": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "groupId": {
+            "type": "string",
+            "description": "Posts created together share a groupId"
+          },
+          "channelId": {
+            "type": "string"
+          },
+          "channelName": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "mediaUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "mediaKind": {
+            "type": "string",
+            "enum": [
+              "image",
+              "video"
+            ],
+            "nullable": true
+          },
+          "scheduledAt": {
+            "type": "integer",
+            "description": "Unix seconds"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "scheduled",
+              "processing",
+              "sent",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "attempts": {
+            "type": "integer"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "sentAt": {
+            "type": "integer",
+            "nullable": true
+          }
+        }
+      }
+    }
+  }
+}

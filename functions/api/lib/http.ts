@@ -13,6 +13,15 @@ export const json = (body: unknown, status = 200, extra: HeadersInit = {}): Resp
 export const fail = (status: number, error: string, extra: HeadersInit = {}): Response =>
   json({ ok: false, error }, status, extra);
 
+/** An error with a machine-readable `code` (the public API: clients branch on the code, people read `error`). */
+export const failCode = (
+  status: number,
+  code: string,
+  error: string,
+  extra: Record<string, unknown> = {},
+  headers: HeadersInit = {},
+): Response => json({ ok: false, error, code, ...extra }, status, headers);
+
 export const methodNotAllowed = (allow: string): Response =>
   fail(405, 'Method not allowed', { Allow: allow });
 
