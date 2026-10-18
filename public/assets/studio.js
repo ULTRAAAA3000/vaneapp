@@ -30,7 +30,6 @@
   function fmtDate(sec) { return new Date(sec * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); }
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
   function parseTags(text) { return text.split(',').map(function (t) { return t.trim(); }).filter(Boolean); }
-  function postHome() { return /^studio\.vaneapp\.dev$/i.test(location.hostname) ? 'https://post.vaneapp.dev/' : '/app'; }
 
   function loadResume() { try { return JSON.parse(localStorage.getItem(RESUME_KEY) || '{}') || {}; } catch (e) { return {}; } }
   function saveResume(map) { try { localStorage.setItem(RESUME_KEY, JSON.stringify(map)); } catch (e) { /* storage blocked: uploads still work, they just cannot be resumed */ } }
@@ -409,7 +408,6 @@
     S.user = me.data.user;
     $('userEmail').textContent = S.user.email;
     $('avatar').textContent = (S.user.name || S.user.email).charAt(0).toUpperCase();
-    $('postLink').href = postHome();
     await Promise.all([refreshOverview(), loadLibrary(), loadKeys()]);
     $('app').classList.remove('opacity-0');
   })();

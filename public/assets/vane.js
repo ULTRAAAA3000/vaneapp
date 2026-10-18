@@ -33,6 +33,37 @@
   };
 
   /**
+   * Address of a product's dashboard: its own host in production, the plain /app and /studio paths in local dev.
+   */
+  Vane.productUrl = function (product) {
+    if (OWN_HOST.test(location.hostname) || /^(www\.)?vaneapp\.dev$/i.test(location.hostname)) return 'https://' + product + '.vaneapp.dev/';
+    return product === 'studio' ? '/studio' : '/app';
+  };
+
+  /**
+   * The Vane Post | Vane Studio switch in a dashboard's header. The page holds
+   *   <nav id="productSwitch" data-current="post|studio"></nav>
+   * and this fills it: the product you are in is marked, the other one is a link to its dashboard (one account, one sign-in).
+   */
+  var PRODUCTS = [
+    { id: 'post', name: 'Vane Post', short: 'Post', hint: 'Schedule posts',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>' },
+    { id: 'studio', name: 'Vane Studio', short: 'Studio', hint: 'Your videos',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M10 9l5 3-5 3z"/></svg>' }
+  ];
+  function mountProductSwitch() {
+    var nav = document.getElementById('productSwitch');
+    if (!nav) return;
+    var current = nav.getAttribute('data-current');
+    nav.innerHTML = '<div class="pswitch">' + PRODUCTS.map(function (p) {
+      var inner = p.icon + '<span class="pswitch-name">' + p.short + '</span>';
+      return p.id === current
+        ? '<span aria-current="page" title="' + p.name + '">' + inner + '</span>'
+        : '<a href="' + Vane.productUrl(p.id) + '" title="Open ' + p.name + ': ' + p.hint + '" aria-label="Open ' + p.name + '">' + inner + '</a>';
+    }).join('') + '</div>';
+  }
+
+  /**
    * "Home" is the main site (the landing page). On post. and studio. the address "/" is that product's own dashboard,
    * so a logo or "Back to site" link must point at the main site explicitly. Mark such links with data-site-home.
    */
@@ -41,7 +72,8 @@
     var links = document.querySelectorAll('a[data-site-home]');
     for (var i = 0; i < links.length; i++) links[i].setAttribute('href', Vane.siteHome());
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wireHomeLinks); else wireHomeLinks();
+  function onReady() { wireHomeLinks(); mountProductSwitch(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', onReady); else onReady();
 
   /**
    * JSON API client. Resolves to { ok, status, data, error } and never throws.

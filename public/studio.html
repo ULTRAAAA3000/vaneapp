@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/assets/vane.css?v=20261018a" />
+  <link rel="stylesheet" href="/assets/vane.css?v=20261019a" />
 </head>
 
 <body class="min-h-screen overflow-x-hidden bg-[#070708]">
@@ -26,18 +26,18 @@
 
   <!-- ═══════════ HEADER ═══════════ -->
   <header class="sticky top-0 z-30 border-b border-white/5 bg-[#070708]/70 backdrop-blur-xl">
-    <div class="mx-auto flex max-w-6xl items-center justify-between px-5 py-3 sm:px-8">
+    <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-y-2.5 px-5 py-3 sm:px-8">
       <a href="/" data-site-home class="flex items-center gap-2" aria-label="Vane home">
         <img src="/assets/logo.svg" alt="" width="31" height="22" />
         <span class="text-lg font-semibold">vane</span>
         <span class="pixel rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-widest text-white/70">studio</span>
       </a>
+      <nav id="productSwitch" data-current="studio" class="order-last flex w-full justify-center sm:order-none sm:w-auto" aria-label="Switch product"></nav>
       <div class="flex items-center gap-2.5">
         <div class="glass-d hidden items-center gap-2 rounded-full py-1 pl-1 pr-4 sm:flex">
           <span id="avatar" class="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-400 text-xs font-bold">·</span>
           <span id="userEmail" class="max-w-[14rem] truncate text-sm text-white/70"></span>
         </div>
-        <a id="postLink" href="/app" class="btn btn-ghost btn-sm hidden sm:inline-flex">Vane Post</a>
         <button id="logoutBtn" type="button" class="btn btn-ghost btn-sm">Sign out</button>
       </div>
     </div>
@@ -155,7 +155,7 @@
     </div>
   </div>
 
-  <script src="/assets/vane.js?v=20261018a"></script>
-  <script src="/assets/studio.js?v=20261018a"></script>
+  <script src="/assets/vane.js?v=20261019a"></script>
+  <script src="/assets/studio.js?v=20261019a"></script>
 </body>
 </html>
