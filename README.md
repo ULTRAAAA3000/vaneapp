@@ -80,6 +80,18 @@ Connect it in the dashboard: *Connect → Bluesky*, then handle + **app password
 - The worker signs in once per channel per run. A revoked app password fails the post with "Reconnect the account"; Bluesky 429/5xx are retried like Telegram's.
 - `external_id` of a sent post is its `at://` address. "Send test" is Telegram-only: a test would be a public post.
 
+## Mastodon connection
+
+Connect it in the dashboard: *Connect → Mastodon*, type your server (`mastodon.social`; a pasted profile link or `@me@server` works too), press **Authorize** on your server, and you land back in Vane. There is nothing to create or approve in advance: Vane registers itself on each server the first time someone uses it (`POST /api/v1/apps`) and remembers that registration.
+
+- **Deploy order:** the flow needs two new tables (`mastodon_apps`, `oauth_states`): run `npm run db:remote` (safe to repeat). It also needs the `channels` CHECK from the Bluesky update (`npm run db:migrate:networks`, once). Without them the dashboard says what is missing; nothing else is affected.
+- **Callback address:** `<APP_URL>/api/channels/mastodon/callback` (falls back to the address the request came to). It is registered on each server together with the app, so change `APP_URL` only on purpose: a new address means a fresh registration.
+- **Permissions asked for:** `read:accounts write:statuses write:media` only. Vane cannot read the timeline, follow, block or edit the account. The person can withdraw access any time in their server's *Preferences → Account → Authorized apps*.
+- **Safety:** the server name is checked before anything is fetched (public DNS name only: no IP addresses, ports, `localhost`, `.local`/`.internal` names, or Vane itself) and redirects are never followed. The `state` is random, single use, valid 10 minutes, stored only as a hash and tied to the user who started it. Access token and per-server client secret are encrypted like every channel secret. 10 starts per user and 30 per IP per hour.
+- **Posting:** public posts, text up to **500 characters with every link counted as 23** (the real limit of a server can be higher; we use the common default). One image per post (JPEG, PNG, WebP or GIF, up to 8 MB); video is not supported yet and is refused when scheduling. Each post is sent with an `Idempotency-Key` equal to its id, so a retry after a lost answer can't publish twice. `external_id` is the status URL.
+- **Servers whose web address differs from the account domain** (a `WEB_DOMAIN` redirect) are not followed: use the address of the server's web site.
+- "Send test" is Telegram-only (a test would be a public post).
+
 ## Local development
 
 ```

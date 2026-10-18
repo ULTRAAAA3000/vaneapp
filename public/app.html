@@ -332,6 +332,35 @@
         <p id="connNote" class="mt-5 text-center text-xs text-white/30"></p>
       </div>
 
+      <div data-step="mastodon" class="hidden">
+        <ol class="mt-6 space-y-3 text-sm text-white/65">
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>Type the address of the server your account is on, for example <code class="rounded bg-white/10 px-1.5 py-0.5 text-xs">mastodon.social</code>.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Your server opens and asks you to <b class="font-semibold text-white">Authorize</b> Vane. Sign in there if it asks.</span></li>
+        </ol>
+        <p class="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-xs leading-relaxed text-white/50">Vane may only post and upload pictures for you and read which account this is. It cannot read your timeline, follow or block anyone. You can take the access away any time in your server's <b class="font-semibold text-white/70">Preferences → Account → Authorized apps</b>.</p>
+
+        <form id="mForm" class="mt-6 space-y-4" novalidate autocomplete="off">
+          <div>
+            <label for="mInstance" class="lbl">Your server</label>
+            <input id="mInstance" type="text" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="mastodon.social" class="field font-mono !text-[13px]" />
+          </div>
+          <div>
+            <label for="mName" class="lbl">Display name</label>
+            <input id="mName" type="text" maxlength="80" placeholder="Same as your account" class="field" />
+          </div>
+
+          <div id="mErr" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
+
+          <div class="flex items-center justify-end gap-3 pt-1">
+            <button type="button" id="mCancel" class="btn btn-ghost">Cancel</button>
+            <button type="submit" id="mSubmit" class="btn btn-white">
+              <span id="mSpin" class="spinner spinner-dark hidden"></span>
+              <span id="mLabel">Continue</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
       <div data-step="bluesky" class="hidden">
         <ol class="mt-6 space-y-3 text-sm text-white/65">
           <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>In Bluesky open <b class="font-semibold text-white">Settings → Privacy and security → App passwords</b> and add a new one (for example “Vane”).</span></li>
@@ -431,6 +460,6 @@
   <script src="/assets/vane.js?v=20261019a"></script>
   <script src="/assets/media-picker.js?v=20261015"></script>
   <script src="/assets/insights.js?v=20261017"></script>
-  <script src="/assets/dashboard.js?v=20261017c"></script>
+  <script src="/assets/dashboard.js?v=20261019b"></script>
 </body>
 </html>

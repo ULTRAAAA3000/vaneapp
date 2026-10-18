@@ -15,11 +15,12 @@
  *
  * No schema change needed: backoff reuses `updated_at` (a requeued post becomes due again at
  * updated_at + backoff). `sent_at` is the "published at" timestamp, `external_id` the id of the post
- * on the network (Telegram message id, Bluesky at:// uri).
+ * on the network (Telegram message id, Bluesky at:// uri, Mastodon status url).
  */
 import type { ChannelRow, CronEnv } from '../../types';
 import { CREDS_ERROR, loadTelegramCreds, type TelegramCreds } from '../../functions/api/channels/credentials';
 import { loadBlueskyCreds, openBlueskySession, sendBlueskyPost, type BlueskySession } from '../../functions/api/channels/bluesky';
+import { loadMastodonCreds, sendMastodonPost } from '../../functions/api/channels/mastodon';
 import { isValidMediaUrl, sendTelegramPost } from '../../functions/api/channels/telegram';
 
 export const BATCH_SIZE = 20;               // per run: keeps us inside Workers' subrequest limits
@@ -168,6 +169,7 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
     if (!ch) return finish(post, 'failed', 'The channel no longer exists.');
     if (!ch.is_active) return finish(post, 'failed', 'The channel is disabled.');
     if (ch.type === 'bluesky') return deliverBluesky(post, ch);
+    if (ch.type === 'mastodon') return deliverMastodon(post, ch);
     if (ch.type !== 'telegram') return finish(post, 'failed', `Publishing to ${ch.type} is not supported yet.`);
 
     const resolved = await credsFor(ch);
@@ -237,6 +239,32 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
 
     const res = await sendBlueskyPost(opened.session, post.content, mediaUrl);
     if (res.ok) return finish(post, 'sent', null, { externalId: res.uri, network: 'Bluesky' });
+    if (res.retryable && post.attempts < MAX_ATTEMPTS) return finish(post, 'retry', res.error, { retryAfter: res.retryAfter });
+    return finish(post, 'failed', res.retryable ? `${res.error} (gave up after ${post.attempts} attempts)` : res.error);
+  }
+
+  async function deliverMastodon(post: Claimed, ch: ChannelInfo): Promise<void> {
+    const creds = await loadMastodonCreds(ch.credentials, env.ENCRYPTION_KEY);
+    if (!creds) {
+      console.error(`vane-cron: could not read credentials of channel ${ch.id} (wrong ENCRYPTION_KEY or corrupt data)`);
+      return finish(post, post.attempts < MAX_ATTEMPTS ? 'retry' : 'failed', CREDS_ERROR.unreadable);
+    }
+
+    let mediaUrl: string | undefined;
+    try {
+      const first = (JSON.parse(post.media_keys) as unknown[])[0];
+      if (first !== undefined) {
+        const url = resolveMediaUrl(first, env.APP_URL);
+        if (!url) return finish(post, 'failed', 'The attached image reference is invalid.');
+        mediaUrl = url;
+      }
+    } catch {
+      return finish(post, 'failed', 'The attached image reference is invalid.');
+    }
+
+    // The post id is the Idempotency-Key: if a try times out after Mastodon already posted, the next try gets the same status back instead of a duplicate.
+    const res = await sendMastodonPost(creds, post.content, mediaUrl, post.id);
+    if (res.ok) return finish(post, 'sent', null, { externalId: res.url, network: 'Mastodon' });
     if (res.retryable && post.attempts < MAX_ATTEMPTS) return finish(post, 'retry', res.error, { retryAfter: res.retryAfter });
     return finish(post, 'failed', res.retryable ? `${res.error} (gave up after ${post.attempts} attempts)` : res.error);
   }

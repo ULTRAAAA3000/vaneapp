@@ -36,7 +36,7 @@
   // ───────────────────────── networks ─────────────────────────
   // One entry per social network: icon, tile colour, text limit, preview background and the card in the connect dialog.
   // To open a network for connecting: set ready: true and add a <div data-step="<key>"> setup block to the dialog in app.html.
-  // Limits: Telegram 4096 (1024 under an image or video), LinkedIn 3000, Threads 500, Bluesky 300 (graphemes).
+  // Limits: Telegram 4096 (1024 under an image or video), LinkedIn 3000, Threads 500, Bluesky 300 (graphemes), Mastodon 500 (a link counts as 23).
   var NET = {
     telegram: {
       name: 'Telegram', ready: true, blurb: 'Channels and groups', setup: 'Choose how Vane should publish to your channel.',
@@ -57,9 +57,14 @@
       name: 'Bluesky', ready: true, blurb: 'Your Bluesky account', setup: 'Sign in with an app password. It never opens your main account.',
       tile: 'bg-cyan-400/15 text-cyan-300', limit: 300, bg: '#161e27', hint: 'Bluesky counts graphemes, so an emoji is one character.',
       icon: { fill: true, d: 'M12 10.8c-1.087-2.114-4.046-6.053-6.798-7.995C2.566.944 1.561 1.266.902 1.565.139 1.908 0 3.08 0 3.768c0 .69.378 5.65.624 6.479.815 2.736 3.713 3.66 6.383 3.364.136-.02.275-.039.415-.056-.138.022-.276.04-.415.056-3.912.58-7.387 2.005-2.83 7.078 5.013 5.19 6.87-1.113 7.823-4.308.953 3.195 2.05 9.271 7.733 4.308 4.267-4.308 1.172-6.498-2.74-7.078a8.741 8.741 0 0 1-.415-.056c.14.017.279.036.415.056 2.67.297 5.568-.628 6.383-3.364.246-.828.624-5.79.624-6.478 0-.69-.139-1.861-.902-2.206-.659-.298-1.664-.62-4.3 1.24C16.046 4.748 13.087 8.687 12 10.8z' }
+    },
+    mastodon: {
+      name: 'Mastodon', ready: true, blurb: 'Any Mastodon server', setup: 'Enter your server, then allow Vane to post on your server.',
+      tile: 'bg-indigo-500/15 text-indigo-300', limit: 500, bg: '#191b22', hint: 'Mastodon counts every link as 23 characters, however long it is.',
+      icon: { fill: true, d: 'M23.268 5.313c-.35-2.578-2.617-4.61-5.304-5.004C17.51.242 15.792 0 11.813 0h-.03c-3.98 0-4.835.242-5.288.309C3.882.692 1.496 2.518.917 5.127.64 6.412.61 7.837.661 9.143c.074 1.874.088 3.745.26 5.611.118 1.24.325 2.47.62 3.68.55 2.237 2.777 4.098 4.96 4.857 2.336.792 4.849.923 7.256.38.265-.061.527-.132.786-.213.585-.184 1.27-.39 1.774-.753a.057.057 0 0 0 .023-.043v-1.809a.052.052 0 0 0-.02-.041.053.053 0 0 0-.046-.01 20.282 20.282 0 0 1-4.709.545c-2.73 0-3.463-1.284-3.674-1.818a5.593 5.593 0 0 1-.319-1.433.053.053 0 0 1 .066-.054c1.517.363 3.072.546 4.632.546.376 0 .75 0 1.125-.01 1.57-.044 3.224-.124 4.768-.422.038-.008.077-.015.11-.024 2.435-.464 4.753-1.92 4.989-5.604.008-.145.03-1.52.03-1.67.002-.512.167-3.63-.024-5.545zm-3.748 9.195h-2.561V8.29c0-1.309-.55-1.976-1.67-1.976-1.23 0-1.846.79-1.846 2.35v3.403h-2.546V8.663c0-1.56-.617-2.35-1.848-2.35-1.112 0-1.668.668-1.67 1.977v6.218H4.822V8.102c0-1.31.337-2.35 1.011-3.12.696-.77 1.608-1.164 2.74-1.164 1.311 0 2.302.5 2.962 1.498l.638 1.06.638-1.06c.66-.999 1.65-1.498 2.96-1.498 1.13 0 2.043.395 2.74 1.164.675.77 1.012 1.81 1.012 3.12z' }
     }
   };
-  var NET_ORDER = ['telegram', 'linkedin', 'threads', 'bluesky'];
+  var NET_ORDER = ['telegram', 'linkedin', 'threads', 'bluesky', 'mastodon'];
   // channels of a network this dashboard has no entry for (for example "x" or "webhook") get the generic link icon
   var NET_OTHER = { tile: 'bg-white/[0.08] text-white/70', icon: { d: 'M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7' } };
 
@@ -108,6 +113,23 @@
     return diff >= 0 ? 'in ' + dur(diff) : (Math.abs(diff) < 60000 ? 'just now' : dur(-diff) + ' ago');
   }
 
+  // The server's "Authorize" page sends the browser back to /app?connect=mastodon&status=…: say what happened, then tidy the address bar.
+  var MASTODON_RESULT = {
+    ok: ['ok', 'Mastodon connected.'],
+    denied: ['err', 'Mastodon was not connected: access was not allowed.'],
+    expired: ['err', 'That sign-in took too long or was already used. Start again.'],
+    duplicate: ['err', 'This Mastodon account is already connected.'],
+    migrate: ['err', 'Mastodon is not enabled on this server yet. The database needs one update.'],
+    failed: ['err', 'Could not finish connecting Mastodon. Try again.']
+  };
+  function reportMastodonReturn() {
+    var q = new URLSearchParams(location.search);
+    if (q.get('connect') !== 'mastodon') return;
+    var res = MASTODON_RESULT[q.get('status')] || MASTODON_RESULT.failed;
+    Vane.toast(res[0], res[1]);
+    try { history.replaceState(null, '', location.pathname); } catch (e) { /* address bar left as it is */ }
+  }
+
   // ───────────────────────── boot ─────────────────────────
   async function boot() {
     var me = await Vane.api('GET', '/api/auth/me'); // 401 → /login
@@ -134,6 +156,7 @@
     setTab('upcoming');
     renderAll();
     if (restored) Vane.toast('info', 'Your unsent draft is back.');
+    reportMastodonReturn();
 
     setInterval(function () { renderStats(); renderPosts(); }, 30000);
     // live posts: poll while the tab is visible, and catch up the moment it is back in front
@@ -486,6 +509,25 @@
     renderAll();
   });
 
+  // ---- Mastodon: the server address, then the server's own "Authorize" page
+  $('mForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var btn = $('mSubmit');
+    hideErr($('mErr'));
+
+    var instance = $('mInstance').value.trim();
+    if (!instance) return showErr($('mErr'), $('mForm'), 'Enter the address of your Mastodon server, like mastodon.social.');
+
+    btn.disabled = true; $('mSpin').classList.remove('hidden'); $('mLabel').textContent = 'Contacting your server…';
+    var r = await Vane.api('POST', '/api/channels/mastodon/start', { instance: instance, name: $('mName').value.trim() });
+    if (!r.ok) {
+      btn.disabled = false; $('mSpin').classList.add('hidden'); $('mLabel').textContent = 'Continue';
+      return showErr($('mErr'), $('mForm'), r.error);
+    }
+    $('mLabel').textContent = 'Opening ' + r.data.instance + '…';
+    Vane.go(r.data.authorizeUrl);
+  });
+
   // ---- steps: pick a network, then set it up (each network's setup is the block with its data-step)
   function renderNetGrid() {
     $('netGrid').innerHTML = NET_ORDER.map(function (k) {
@@ -512,7 +554,7 @@
   function openStep(step) {
     showStep(step);
     setTimeout(function () {
-      var first = step === 'telegram' ? ($('panelQuick').classList.contains('hidden') ? $('cName') : $('qChat')) : step === 'bluesky' ? $('bHandle') : dlg.querySelector('.net-card:not(:disabled)');
+      var first = step === 'telegram' ? ($('panelQuick').classList.contains('hidden') ? $('cName') : $('qChat')) : step === 'bluesky' ? $('bHandle') : step === 'mastodon' ? $('mInstance') : dlg.querySelector('.net-card:not(:disabled)');
       if (first) first.focus();
     }, 60);
   }
@@ -526,6 +568,7 @@
   function openConnect(net) {
     $('connectForm').reset(); hideErr($('cErr'));
     $('cToken').type = 'password'; $('cTokenToggle').textContent = 'Show';
+    $('mForm').reset(); hideErr($('mErr')); $('mSubmit').disabled = false; $('mSpin').classList.add('hidden'); $('mLabel').textContent = 'Continue';
     $('bForm').reset(); hideErr($('bErr')); $('bPass').type = 'password'; $('bPassToggle').textContent = 'Show';
     qReset(); $('qChat').value = '';
 
@@ -548,6 +591,7 @@
   $('connectClose').addEventListener('click', closeConnect);
   $('cCancel').addEventListener('click', closeConnect);
   $('bCancel').addEventListener('click', closeConnect);
+  $('mCancel').addEventListener('click', closeConnect);
   dlg.addEventListener('click', function (e) { if (e.target === dlg) closeConnect(); });
   dlg.addEventListener('close', function () { $('cToken').value = ''; $('bPass').value = ''; qStopTimers(); });
 
@@ -697,6 +741,7 @@
   var segmenter = window.Intl && Intl.Segmenter ? new Intl.Segmenter(undefined, { granularity: 'grapheme' }) : null;
 
   function netLen(net, text) {
+    if (net === 'mastodon') return Array.from(text.replace(/https?:\/\/[^\s]+/g, 'x'.repeat(23))).length;
     return net === 'bluesky' && segmenter ? Array.from(segmenter.segment(text)).length : text.length;
   }
   function netLimit(net, hasMedia) {
@@ -765,7 +810,16 @@
         '<div class="mt-3 flex justify-between pr-6 text-white/40">' + PV_ACTIONS + '</div>' +
       '</div></div></div>';
   }
-  var PV_VIEW = { telegram: viewTelegram, linkedin: viewLinkedin, threads: viewThreads, bluesky: viewBluesky };
+  function viewMastodon(c) {
+    return '<div class="p-3.5"><div class="overflow-hidden rounded-xl bg-[#282c37] ring-1 ring-white/10"><div class="flex gap-2.5 p-3">' + pvAvatar(40, c.name) +
+      '<div class="min-w-0 flex-1">' +
+        '<div class="leading-tight"><div class="truncate text-[13px] font-semibold">' + esc(c.name) + '</div><div class="truncate text-[11.5px] text-white/45">@' + esc(c.handle) + (c.when ? ' · ' + esc(c.when) : '') + '</div></div>' +
+        '<div class="mt-2 break-words text-[13.5px] leading-snug">' + (c.text ? Vane.rich(c.text) : EMPTY) + '</div>' +
+        pvMedia(c.m, 'mt-2.5 max-h-56 w-full rounded-lg') +
+        '<div class="mt-3 flex justify-between pr-6 text-white/40">' + PV_ACTIONS + '</div>' +
+      '</div></div></div></div>';
+  }
+  var PV_VIEW = { telegram: viewTelegram, linkedin: viewLinkedin, threads: viewThreads, bluesky: viewBluesky, mastodon: viewMastodon };
 
   // tabs are built once, then only their pressed state changes (keeps keyboard focus)
   function syncPvTabs() {

@@ -74,6 +74,7 @@ export const handleAddChannel: PagesFunction<Env> = async ({ request, env }) => 
   if (typeof platform !== 'string' || !CHANNEL_TYPES.includes(platform as ChannelType)) {
     return fail(400, `platform must be one of: ${CHANNEL_TYPES.join(', ')}`);
   }
+  if (platform === 'mastodon') return fail(400, 'Mastodon connects through a sign-in on your server: POST /api/channels/mastodon/start { instance }.');
   if (!CONNECTABLE.includes(platform as ChannelType)) {
     return fail(501, `Platform "${platform}" is not supported yet. Available: ${CONNECTABLE.join(', ')}.`);
   }

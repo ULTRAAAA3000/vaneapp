@@ -11,3 +11,12 @@ export function graphemeLength(text: string): number {
 }
 
 export const utf8Length = (text: string): number => new TextEncoder().encode(text).length;
+
+/**
+ * Mastodon counts every link as 23 characters, whatever its length, so a post with a long link has more room than `.length` says.
+ * (Mastodon's own rule; the real limit of a server is usually 500.)
+ */
+export const MASTODON_URL_COST = 23;
+export function mastodonLength(text: string): number {
+  return Array.from(text.replace(/https?:\/\/[^\s]+/g, 'x'.repeat(MASTODON_URL_COST))).length;
+}

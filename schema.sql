@@ -282,3 +282,27 @@ CREATE TABLE IF NOT EXISTS idempotency_keys (
   PRIMARY KEY (user_id, idem_key)
 );
 CREATE INDEX IF NOT EXISTS idx_idempotency_expires ON idempotency_keys(expires_at);
+
+-- ───────────────────────── Mastodon: the app Vane registered on each server, and sign-in attempts ─────────────────────────
+-- Every Mastodon server hands out its own client_id / client_secret: Vane registers itself once per server (and per callback address) and reuses it.
+CREATE TABLE IF NOT EXISTS mastodon_apps (
+  instance      TEXT    NOT NULL,                           -- host, lowercase, e.g. "mastodon.social"
+  redirect_uri  TEXT    NOT NULL,
+  client_id     TEXT    NOT NULL,
+  client_secret TEXT    NOT NULL,                           -- encrypted at app level, like channel credentials
+  created_at    INTEGER NOT NULL DEFAULT (unixepoch()),
+  PRIMARY KEY (instance, redirect_uri)
+);
+
+-- One row = a person who was sent to a server's "Allow access" page and has not come back yet. Single use, 10 minutes.
+-- Only the SHA-256 of the `state` is stored; the callback must come from the SAME signed-in user who started it.
+CREATE TABLE IF NOT EXISTS oauth_states (
+  state_hash  TEXT    PRIMARY KEY,
+  user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  provider    TEXT    NOT NULL,                             -- 'mastodon'
+  instance    TEXT    NOT NULL,
+  name        TEXT    NOT NULL DEFAULT '',                  -- display name chosen in the dashboard ('' = use the account name)
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+  expires_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_states_expiry ON oauth_states(expires_at);
