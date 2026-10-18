@@ -26,12 +26,13 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- ───────────────────────── Channels ─────────────────────────
--- One row = one connected destination (Telegram chat, X account, LinkedIn profile, webhook URL)
+-- One row = one connected destination (Telegram chat, Bluesky / Mastodon / Threads account, X account, LinkedIn profile, webhook URL)
+-- A database created before 'bluesky' existed has the older CHECK: run `npm run db:migrate:networks` once (see migrations/).
 CREATE TABLE IF NOT EXISTS channels (
   id           TEXT    PRIMARY KEY,                         -- uuid
   user_id      TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   type         TEXT    NOT NULL
-               CHECK (type IN ('telegram', 'x', 'linkedin', 'webhook')),
+               CHECK (type IN ('telegram', 'x', 'linkedin', 'webhook', 'bluesky', 'mastodon', 'threads')),
   name         TEXT    NOT NULL,                            -- display label, e.g. "@vane_dev"
   credentials  TEXT    NOT NULL,                            -- JSON, encrypted at app level (tokens, chat_id, url, secret)
   is_active    INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),

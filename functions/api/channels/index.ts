@@ -14,11 +14,13 @@ import { requireUser } from '../lib/auth';
 import { encryptToken } from '../lib/crypto';
 import { fail, isRecord, json, methodNotAllowed, readJson, UUID_RE } from '../lib/http';
 import { bump, retryAfter } from '../lib/throttle';
+import { handleAddBluesky } from './bluesky-add';
 import { CREDS_ERROR, findDuplicateTelegramChannel, loadTelegramCreds } from './credentials';
 import { quickConnectAvailable, VERIFIED_VALID_SECONDS } from './quick';
 import { normalizeChatId, sendTelegramPost, validateTelegramBot } from './telegram';
 
-const CHANNEL_TYPES: readonly ChannelType[] = ['telegram', 'x', 'linkedin', 'webhook'];
+const CHANNEL_TYPES: readonly ChannelType[] = ['telegram', 'x', 'linkedin', 'webhook', 'bluesky', 'mastodon', 'threads'];
+const CONNECTABLE: readonly ChannelType[] = ['telegram', 'bluesky'];
 const MAX_NAME_LEN = 80;
 
 const toPublic = (r: Pick<ChannelRow, 'id' | 'type' | 'name' | 'is_active' | 'created_at'>): ChannelPublic => ({
@@ -72,13 +74,15 @@ export const handleAddChannel: PagesFunction<Env> = async ({ request, env }) => 
   if (typeof platform !== 'string' || !CHANNEL_TYPES.includes(platform as ChannelType)) {
     return fail(400, `platform must be one of: ${CHANNEL_TYPES.join(', ')}`);
   }
-  if (platform !== 'telegram') {
-    return fail(501, `Platform "${platform}" is not supported yet. Only "telegram" is available.`);
+  if (!CONNECTABLE.includes(platform as ChannelType)) {
+    return fail(501, `Platform "${platform}" is not supported yet. Available: ${CONNECTABLE.join(', ')}.`);
   }
 
   // name
   const name = typeof body.name === 'string' ? body.name.replace(/[\u0000-\u001f\u007f]/g, '').trim() : '';
   if (!name || name.length > MAX_NAME_LEN) return fail(400, `name is required (max ${MAX_NAME_LEN} characters)`);
+
+  if (platform === 'bluesky') return handleAddBluesky(env, auth.userId, name, body.credentials);
 
   // method
   const method = body.method === undefined ? 'custom' : body.method;

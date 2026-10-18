@@ -32,7 +32,7 @@ export interface Env {
 
 // ───────────────────────── Enums ─────────────────────────
 export type Plan = 'free' | 'pro';
-export type ChannelType = 'telegram' | 'x' | 'linkedin' | 'webhook';
+export type ChannelType = 'telegram' | 'x' | 'linkedin' | 'webhook' | 'bluesky' | 'mastodon' | 'threads';
 export type PostStatus =
   | 'draft'
   | 'scheduled'
@@ -110,6 +110,7 @@ export type ChannelCredentials =
   | { type: 'telegram'; botToken: string; chatId: string }
   | { type: 'x'; accessToken: string; refreshToken?: string; expiresAt?: number }
   | { type: 'linkedin'; accessToken: string; refreshToken?: string; urn: string; expiresAt?: number }
+  | { type: 'bluesky'; service: string; identifier: string; did: string; appPassword: string }
   | { type: 'webhook'; url: string; secret?: string };
 
 // ───────────────────────── API contracts ─────────────────────────
@@ -138,8 +139,8 @@ export interface AddChannelRequest {
   name: string;
   /** 'custom' (default): the user's own bot · 'quick': the shared Vane bot after ownership proof */
   method?: 'custom' | 'quick';
-  /** custom: { botToken, chatId }  (chatId: "@channel", "-100…" or a number) · quick: { verificationId } */
-  credentials: { botToken: string; chatId: string | number } | { verificationId: string };
+  /** telegram custom: { botToken, chatId }  (chatId: "@channel", "-100…" or a number) · telegram quick: { verificationId } · bluesky: { identifier, appPassword } */
+  credentials: { botToken: string; chatId: string | number } | { verificationId: string } | { identifier: string; appPassword: string };
 }
 
 export type ApiError = { ok: false; error: string };

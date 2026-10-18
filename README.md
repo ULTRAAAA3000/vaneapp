@@ -69,6 +69,17 @@ Never lose `ENCRYPTION_KEY`: without it every stored channel token is unreadable
 
 **Why the one-time code?** The shared bot is an admin in many channels, so "the bot can post there" says nothing about who owns the channel. Only an admin can post the code, and the bot sees it through the webhook, so ownership is proven before the channel is connected.
 
+## Bluesky connection
+
+Connect it in the dashboard: *Connect → Bluesky*, then handle + **app password** (Bluesky → Settings → Privacy and security → App passwords). A normal password is refused on purpose; an app password can only post, and deleting it in Bluesky disconnects Vane.
+
+- **Deploy order:** a database made before Bluesky existed refuses the new channel type. Run **`npm run db:migrate:networks` once** (it rebuilds `channels` with the wider CHECK and puts every post and log back; safe to repeat). Until then connecting Bluesky answers `503` with that command, nothing else is affected. A fresh `npm run db:remote` already has the new CHECK.
+- Deploy the Pages project **and** the cron Worker (`npm run cron:deploy`): the Worker does the publishing. `ENCRYPTION_KEY` must be the same on both, as for Telegram.
+- Text: 300 graphemes (an emoji counts as 1) and at most 3000 bytes. Links and `#tags` become clickable. One image per post (JPEG, PNG, WebP or GIF, **up to 1 MB**, a Bluesky limit); video is not supported yet and is refused when scheduling.
+- Only `bsky.social` accounts and custom handles hosted there are supported. A self-hosted server address is deliberately not accepted.
+- The worker signs in once per channel per run. A revoked app password fails the post with "Reconnect the account"; Bluesky 429/5xx are retried like Telegram's.
+- `external_id` of a sent post is its `at://` address. "Send test" is Telegram-only: a test would be a public post.
+
 ## Local development
 
 ```
