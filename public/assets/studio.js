@@ -8,15 +8,16 @@
   var S = {
     user: null,
     active: false,        // is Vane Studio switched on for this account?
+    lapsed: false,        // it was on once and has stopped
     limits: { maxVideos: 90, maxFileBytes: 2 * 1024 * 1024 * 1024, partSize: 8 * 1024 * 1024 },
     usage: { videos: 0, storageBytes: 0 },
     uploadsOn: true,      // the server has video storage bound
     videos: [],
-    keys: [],
     file: null,           // the file chosen in the uploader
     up: null              // the upload in progress (see "uploading")
   };
 
+  var Keys = null;        // the API access section (assigned below)
   var PARALLEL = 3;       // chunks sent at once
   var RETRIES = 3;        // a failed chunk is tried again this many times
   var RESUME_KEY = 'vane.studio.uploads';
@@ -45,16 +46,19 @@
     $('inactive').classList.toggle('hidden', S.active);
     $('uploader').classList.toggle('hidden', !S.active);
     if (S.active && !S.uploadsOn) { $('uploader').classList.add('hidden'); $('inactive').classList.remove('hidden'); $('inactiveText').textContent = 'Video storage is not enabled on this server yet.'; }
+    if (Keys) Keys.render();   // the API section shows the same numbers
   }
 
   async function refreshOverview() {
     var r = await Vane.api('GET', '/api/video/me');
-    if (!r.ok) return;
+    if (!r.ok) return false;
     S.active = r.data.entitlement.active;
+    S.lapsed = r.data.entitlement.lapsed;
     S.limits = r.data.limits;
     S.usage = { videos: r.data.usage.videos.used, storageBytes: r.data.usage.storageBytes };
     S.uploadsOn = r.data.features.uploads;
     renderStats();
+    return true;
   }
 
   // ───────────────────────── library ─────────────────────────
@@ -93,7 +97,7 @@
 
   async function loadLibrary() {
     var r = await Vane.api('GET', '/api/video/videos');
-    if (r.ok) { S.videos = r.data.videos; renderLibrary(); }
+    if (r.ok) { S.videos = r.data.videos; renderLibrary(); if (Keys) Keys.render(); }
   }
 
   function find(id) { return S.videos.filter(function (v) { return v.id === id; })[0]; }
@@ -350,48 +354,80 @@
   $('cancelBtn').addEventListener('click', cancelUpload);
   window.addEventListener('beforeunload', function (e) { if (S.up) { e.preventDefault(); e.returnValue = ''; } });
 
-  // ───────────────────────── API keys ─────────────────────────
-  function renderKeys() {
-    $('keyList').innerHTML = S.keys.length ? S.keys.map(function (k) {
-      return '<li class="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-black/25 px-3 py-2.5 text-sm">' +
-        '<div class="min-w-0"><span class="pixel text-xs">' + esc(k.display) + '</span> <span class="text-white/55">' + esc(k.name) + '</span>' +
-        '<div class="text-[11px] text-white/35">' + (k.lastUsedAt ? 'Last used ' + fmtDate(k.lastUsedAt) : 'Never used') + '</div></div>' +
-        '<button class="btn btn-danger btn-sm" data-key="' + k.id + '">Revoke</button></li>';
-    }).join('') : '<li class="text-sm text-white/45">No video keys yet.</li>';
+  // ───────────────────────── API access (same section as in Vane Post: see assets/apikeys.js) ─────────────────────────
+  /** The quota card: your plan and how full the library is (the posting side shows posts used here). */
+  function renderApiQuota(box) {
+    var used = S.usage.videos, limit = S.limits.maxVideos;
+    var pct = limit ? Math.min(100, Math.round(used / limit * 100)) : 100;
+    var html =
+      '<div class="flex items-start justify-between gap-3">' +
+        '<div><div class="text-xs font-medium uppercase tracking-widest text-white/40">Your plan</div>' +
+        '<div class="mt-1 text-base font-semibold">Vane Studio</div></div>' +
+        '<a href="' + esc(Vane.siteHome()) + '#pricing" class="shrink-0 text-xs text-white/45 underline underline-offset-4 transition-colors hover:text-white">Compare plans</a>' +
+      '</div>';
+
+    if (!S.active) {
+      html += '<div class="mt-5 rounded-xl border border-amber-300/20 bg-amber-400/10 p-3.5 text-sm leading-relaxed text-amber-200">' +
+        (S.lapsed ? 'Your Vane Studio subscription has ended. Renew it to upload again and use live keys. Test keys work today.'
+                  : 'Vane Studio is not active on your account yet. Uploads and live keys need it. Test keys work today.') + '</div>';
+    } else {
+      html +=
+        '<div class="mt-5">' +
+          '<div class="text-xs text-white/45">Videos in your library</div>' +
+          '<div class="mt-1.5 flex items-end justify-between gap-3">' +
+            '<div><span class="pixel text-3xl tracking-tight">' + used + '</span><span class="ml-1.5 text-sm text-white/45">/ ' + limit + '</span></div>' +
+            '<span class="text-xs text-white/45">' + Math.max(limit - used, 0) + ' left</span>' +
+          '</div>' +
+          '<div class="meter mt-3" role="progressbar" aria-label="Videos stored" aria-valuemin="0" aria-valuemax="' + limit + '" aria-valuenow="' + used + '"><i style="width:' + pct + '%;background:' + VaneKeys.meterColor(pct) + '"></i></div>' +
+          '<p class="mt-3 text-xs leading-relaxed text-white/45">Dashboard and API uploads share these ' + limit + ' slots. Delete a video to free one.</p>' +
+        '</div>' +
+        '<p class="mt-4 border-t border-white/10 pt-4 text-xs leading-relaxed text-white/45">Each key can make up to 10 requests a minute. A full library answers with a 409 until you delete a video.</p>';
+    }
+    box.innerHTML = html;
   }
 
-  async function loadKeys() {
-    var r = await Vane.api('GET', '/api/keys?scope=video');
-    if (r.ok) { S.keys = r.data.keys; renderKeys(); }
+  /** Quick start: base URL, your videos' ids and a ready-made request (never contains a real key). Returns the request text. */
+  function renderApiQuick(body) {
+    var base = location.origin + '/api/v1/video';
+    var snippet =
+      'curl -X POST ' + base + '/uploads \\\n' +
+      '  -H "Authorization: Bearer $VANE_VIDEO_KEY" \\\n' +
+      '  -H "Content-Type: application/json" \\\n' +
+      '  -d \'{"size":52428800,"contentType":"video/mp4","fileName":"trip.mp4"}\'';
+
+    var ready = S.videos.filter(function (v) { return v.status === 'ready'; }).slice(0, 5);
+    var ids = ready.length
+      ? ready.map(function (v) {
+          return '<div class="flex items-center gap-3 rounded-xl bg-white/[0.04] px-3 py-2 ring-1 ring-white/5">' +
+            '<div class="min-w-0 flex-1"><div class="truncate text-sm">' + esc(v.title) + '</div>' +
+            '<div class="truncate font-mono text-[11px] text-white/45">' + esc(v.id) + '</div></div>' +
+            '<button type="button" data-copy="' + esc(v.id) + '" data-label="Video ID" class="btn btn-ghost btn-sm shrink-0">Copy</button></div>';
+        }).join('')
+      : '<p class="text-xs text-white/45">Upload a video to get its ID.</p>';
+
+    body.innerHTML =
+      '<div><span class="mb-2 block text-[0.7rem] font-medium uppercase tracking-widest text-white/40">Base URL</span>' +
+        '<div class="flex items-center gap-2.5"><code class="field min-w-0 flex-1 truncate font-mono !text-[13px]">' + esc(base) + '</code>' +
+        '<button type="button" data-copy="' + esc(base) + '" data-label="URL" class="btn btn-ghost btn-sm shrink-0">Copy</button></div></div>' +
+      '<div><span class="mb-2 block text-[0.7rem] font-medium uppercase tracking-widest text-white/40">Video IDs <span class="normal-case tracking-normal text-white/30">(use them in /videos/&lt;id&gt;)</span></span><div class="space-y-2">' + ids + '</div></div>' +
+      '<div><div class="flex items-center justify-between"><span class="block text-[0.7rem] font-medium uppercase tracking-widest text-white/40">Example request: start an upload</span>' +
+        '<button type="button" data-copy-snippet class="text-xs text-white/45 transition-colors hover:text-white">Copy</button></div>' +
+        '<pre class="no-scrollbar mt-2 overflow-x-auto rounded-2xl bg-black/35 p-4 font-mono text-[12px] leading-relaxed text-white/80 ring-1 ring-white/10"><code id="apiSnippet"></code></pre></div>' +
+      '<p class="text-xs leading-relaxed text-white/45">The answer carries a <code class="rounded bg-white/10 px-1.5 py-0.5">videoId</code>, a <code class="rounded bg-white/10 px-1.5 py-0.5">partSize</code> and a <code class="rounded bg-white/10 px-1.5 py-0.5">partCount</code>. ' +
+        'Send each chunk with <code class="rounded bg-white/10 px-1.5 py-0.5">PUT ' + esc(base) + '/uploads/&lt;videoId&gt;/parts/&lt;n&gt;</code> (the raw bytes; every chunk but the last is exactly partSize), then <code class="rounded bg-white/10 px-1.5 py-0.5">POST …/complete</code>. ' +
+        'In Make, add an <b class="font-semibold text-white/70">HTTP → Make a request</b> module and add the header <code class="rounded bg-white/10 px-1.5 py-0.5">Authorization: Bearer your-key</code>.</p>';
+    document.getElementById('apiSnippet').textContent = snippet;   // textContent: nothing from the server is ever parsed as HTML
+    return snippet;
   }
 
-  $('keyCreate').addEventListener('click', async function () {
-    var name = $('keyName').value.trim();
-    if (!name) { Vane.toast('err', 'Give the key a name, e.g. "Make.com".'); return; }
-    this.disabled = true;
-    var r = await Vane.api('POST', '/api/keys', { name: name, scope: 'video', mode: $('keyMode').value });
-    this.disabled = false;
-    if (!r.ok) { Vane.toast('err', r.error); return; }
-    $('keyName').value = '';
-    $('newKeySecret').textContent = r.data.secret;
-    $('newKey').classList.remove('hidden');
-    await loadKeys();
-  });
-
-  $('newKeyCopy').addEventListener('click', async function () {
-    var text = $('newKeySecret').textContent;
-    try { await navigator.clipboard.writeText(text); Vane.toast('ok', 'Key copied'); }
-    catch (e) { Vane.toast('err', 'Could not copy. Select the key and copy it by hand.'); }
-  });
-
-  $('keyList').addEventListener('click', async function (e) {
-    var btn = e.target.closest('button[data-key]');
-    if (!btn || !window.confirm('Revoke this key? Anything using it stops working.')) return;
-    btn.disabled = true;
-    var r = await Vane.api('DELETE', '/api/keys/' + encodeURIComponent(btn.getAttribute('data-key')));
-    if (!r.ok) { btn.disabled = false; Vane.toast('err', r.error); return; }
-    Vane.toast('ok', 'Key revoked');
-    await loadKeys();
+  Keys = VaneKeys.mount({
+    scope: 'video',
+    emptyText: 'Create a key to connect Make, Zapier or your own scripts.',
+    liveNote: 'Live keys need Vane Studio, which is not active on your account yet. A test key is perfect while you build.',
+    liveAllowed: function () { return S.active; },
+    load: refreshOverview,
+    renderQuota: renderApiQuota,
+    renderQuick: renderApiQuick
   });
 
   // ───────────────────────── sign out ─────────────────────────
@@ -408,7 +444,7 @@
     S.user = me.data.user;
     $('userEmail').textContent = S.user.email;
     $('avatar').textContent = (S.user.name || S.user.email).charAt(0).toUpperCase();
-    await Promise.all([refreshOverview(), loadLibrary(), loadKeys()]);
+    await Promise.all([loadLibrary(), Keys.refresh()]);
     $('app').classList.remove('opacity-0');
   })();
 })();

@@ -967,7 +967,7 @@
       '<div class="flex items-start justify-between gap-3">' +
         '<div><div class="text-xs font-medium uppercase tracking-widest text-white/40">Your plan</div>' +
         '<div class="mt-1 text-base font-semibold">' + esc(u.plan.label) + '</div></div>' +
-        '<a href="/#pricing" class="shrink-0 text-xs text-white/45 underline underline-offset-4 transition-colors hover:text-white">Compare plans</a>' +
+        '<a href="' + esc(Vane.siteHome()) + '#pricing" class="shrink-0 text-xs text-white/45 underline underline-offset-4 transition-colors hover:text-white">Compare plans</a>' +
       '</div>';
 
     if (u.plan.lapsed) {
