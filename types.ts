@@ -108,6 +108,7 @@ export type ChannelCredentials =
   | { type: 'telegram'; botToken: string; chatId: string }
   | { type: 'x'; accessToken: string; refreshToken?: string; expiresAt?: number }
   | { type: 'linkedin'; accessToken: string; refreshToken?: string; urn: string; expiresAt?: number }
+  | { type: 'mastodon'; instance: string; accountId: string; acct: string; accessToken: string }
   | { type: 'bluesky'; service: string; identifier: string; did: string; appPassword: string }
   | { type: 'webhook'; url: string; secret?: string };
 

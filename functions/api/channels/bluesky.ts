@@ -17,8 +17,8 @@
  * This file is NOT a route: it only exports helpers (Pages ignores files without onRequest*).
  */
 import { decryptToken } from '../lib/crypto';
+import { downloadImage } from '../lib/remoteimage';
 import { utf8Length } from '../lib/text';
-import { isValidMediaUrl } from './telegram';
 
 export const BLUESKY_SERVICE = 'https://bsky.social';
 export const BLUESKY_TEXT_LIMIT = 300;        // graphemes
@@ -27,7 +27,6 @@ export const BLUESKY_IMAGE_MAX_BYTES = 1_000_000;
 
 const TIMEOUT_MS = 10_000;
 const IMAGE_TIMEOUT_MS = 20_000;
-const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
 // ───────────────────────── input validation ─────────────────────────
 const APP_PASSWORD_RE = /^[a-z0-9]{4}(?:-[a-z0-9]{4}){3}$/i;
@@ -185,51 +184,6 @@ export function buildFacets(text: string): Facet[] {
   return facets.sort((a, b) => a.index.byteStart - b.index.byteStart);
 }
 
-// ───────────────────────── image ─────────────────────────
-type ImageResult = { ok: true; bytes: ArrayBuffer; contentType: string } | { ok: false; error: string; retryable: boolean };
-
-/** Downloads the image (a Vane upload or a public https link) with a hard size cap, since Bluesky takes at most 1 MB. */
-async function fetchImage(url: string): Promise<ImageResult> {
-  if (!isValidMediaUrl(url)) return { ok: false, error: 'The attached image link is invalid.', retryable: false };
-  let res: Response;
-  try {
-    res = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS) });
-  } catch {
-    return { ok: false, error: 'Could not download the attached image.', retryable: true };
-  }
-  if (!res.ok) return { ok: false, error: `The attached image could not be downloaded (HTTP ${res.status}).`, retryable: res.status >= 500 || res.status === 429 };
-  const contentType = (res.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
-  if (!IMAGE_TYPES.includes(contentType)) return { ok: false, error: 'Bluesky takes JPEG, PNG, WebP or GIF images.', retryable: false };
-  const tooBig = { ok: false as const, error: 'The image is larger than Bluesky allows (1 MB). Use a smaller image.', retryable: false };
-  if (Number(res.headers.get('content-length')) > BLUESKY_IMAGE_MAX_BYTES) return tooBig;
-
-  const reader = res.body?.getReader();
-  if (!reader) return { ok: false, error: 'Could not download the attached image.', retryable: true };
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      size += value.length;
-      if (size > BLUESKY_IMAGE_MAX_BYTES) {
-        await reader.cancel();
-        return tooBig;
-      }
-      chunks.push(value);
-    }
-  } catch {
-    return { ok: false, error: 'Could not download the attached image.', retryable: true };
-  }
-  const bytes = new Uint8Array(size);
-  let at = 0;
-  for (const c of chunks) {
-    bytes.set(c, at);
-    at += c.length;
-  }
-  return { ok: true, bytes: bytes.buffer, contentType };
-}
-
 // ───────────────────────── send ─────────────────────────
 export type BlueskySend =
   | { ok: true; uri: string }
@@ -243,7 +197,7 @@ export async function sendBlueskyPost(session: BlueskySession, content: string, 
   if (facets.length) record.facets = facets;
 
   if (mediaUrl) {
-    const img = await fetchImage(mediaUrl);
+    const img = await downloadImage(mediaUrl, { maxBytes: BLUESKY_IMAGE_MAX_BYTES, label: 'Bluesky', maxLabel: '1 MB' });
     if (!img.ok) return { ok: false, error: img.error, retryable: img.retryable };
     const up = await xrpc<{ blob: unknown }>('com.atproto.repo.uploadBlob', { jwt: session.jwt, bytes: img.bytes, contentType: img.contentType }, IMAGE_TIMEOUT_MS);
     if (!up.ok) return failure(up);
