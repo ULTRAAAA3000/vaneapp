@@ -44,6 +44,17 @@ Vane Studio — отдельный продукт ($12.00 / мес, ECONOMY §2.
 `_routes.json` пропускает через функцию только `/`, `/app`, `/studio` и `/api/*`, поэтому обычные статические файлы её не вызывают.
 Проверка: `npm run test:hosts`.
 
+### Каналы публикации (YouTube, TikTok, Instagram Reels): заглушки
+
+В Studio есть раздел «Channels» и окно «Connect a channel», сделанные так же, как в Vane Post. Все три сети пока отмечены «Soon» и не выбираются:
+подключение каждой откроется, когда сеть одобрит Vane (SOCIAL_PLATFORMS_VERIFICATION §5, §7, §8: Google brand verification, TikTok Content Posting API review,
+Meta business verification). Что уже готово: таблица `video_channels` (токены шифруются так же, как в `channels`), `GET /api/video/channels` (каналы и каталог сетей с флагом `available`),
+`POST /api/video/channels/connect` (пока отвечает 409 `platform_unavailable` с причиной) и `DELETE /api/video/channels/:id`. Учётные данные в ответах не возвращаются.
+
+**Как открыть сеть, когда она одобрена:** 1) `available: true` в `lib/videochannels.ts`; 2) добавить в `connectVideoChannel` её вход (OAuth: старт и callback, сохранение
+токенов в `video_channels`); 3) в `studio.js` поставить `ready: true` в `VNET` и добавить блок настройки в окно подключения. Список, удаление и сам раздел менять не нужно.
+Публикация видео в подключённые сети (кнопка «Publish» на видео, загрузка по resumable API каждой сети) делается следующим шагом после первого одобренного подключения.
+
 ### Раздел «API access» (одинаковый в Post и Studio)
 
 В Studio раздел API-ключей сделан так же, как в Post: карточка тарифа и квоты (у Studio это заполненность библиотеки из 90 видео), список ключей
@@ -70,6 +81,7 @@ Vane Studio — отдельный продукт ($12.00 / мес, ECONOMY §2.
 - `videos` — библиотека: одна строка = один файл в R2. Статусы: `uploading` → `ready`, либо `failed` (с причиной в `error`).
 - `video_parts` — принятые куски незавершённой загрузки (позволяет докачку). Удаляется при завершении и отмене.
 - `video_assets` — превью и длина видео (необязательны). `video_links` — публичная ссылка (одна на видео).
+- `video_channels` — подключённые видео-сети (YouTube, TikTok, Instagram); пока пуста.
 
 Файлы лежат в R2-бакете `vane-media` под приватным префиксом `videos/<user id>/<video id>.<mp4|mov>`.
 В отличие от медиа постов (`/api/media/:key`, публичные), видео из библиотеки отдаются только владельцу
@@ -103,7 +115,7 @@ MP4/MOV с брендом, совпадающим с заявленным тип
 ## 5. Что дальше
 
 1. Лимит запросов на публичные ссылки и свой домен (cdn.vaneapp.dev) для них.
-2. Каналы YouTube / TikTok / Reels и публикация (после App Verification, SOCIAL_PLATFORMS §5, §7, §8).
+2. Открыть подключение YouTube / TikTok / Reels по мере одобрения (заглушки готовы, см. выше) и сделать публикацию видео в них.
 3. Video AI Engine: хуки, сценарии, описания, теги, таймкоды (ECONOMY §2.5).
 4. Оплата Studio и бандла Suite (Monobank / крипто) вместо ручной выдачи `npm run video:set`.
 5. Страница просмотра видео с превью для соцсетей (Open Graph): сейчас в анонсе голая ссылка на файл, а карточка со скриншотом и названием кликабельнее.

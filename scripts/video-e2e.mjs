@@ -372,6 +372,28 @@ try {
   sql(`DELETE FROM channels WHERE id IN ('${hookId}', '${xId}', '${foreignChannel}')`);
 
   // ───────────────────────────────────────────────────────────────
+  section('Video channels (stubs until YouTube, TikTok and Instagram approve Vane)');
+  check('the channel list needs a session (401)', (await http('GET', '/api/video/channels')).status === 401);
+  const vc = await http('GET', '/api/video/channels', me);
+  check('a new account has no video channels, and the catalog lists the 3 networks as not open yet', vc.status === 200 && vc.json?.channels?.length === 0 && JSON.stringify(vc.json?.platforms?.map((p) => p.id)) === '["youtube","tiktok","instagram"]' && vc.json.platforms.every((p) => p.available === false && p.name && p.note), JSON.stringify(vc.json));
+  for (const [pid, name] of [['youtube', 'YouTube'], ['tiktok', 'TikTok'], ['instagram', 'Instagram Reels']]) {
+    const c = await http('POST', '/api/video/channels/connect', { ...me, body: { platform: pid } });
+    check(`connecting ${name} → 409 platform_unavailable, with the reason`, c.status === 409 && c.json?.code === 'platform_unavailable' && c.json?.error?.includes(name) && /verification|review/i.test(c.json.error), JSON.stringify(c.json));
+  }
+  check('an unknown network → 400', (await http('POST', '/api/video/channels/connect', { ...me, body: { platform: 'myspace' } })).status === 400);
+  check('connect needs a session (401)', (await http('POST', '/api/video/channels/connect', { body: { platform: 'youtube' } })).status === 401);
+  check('removing a channel that does not exist → 404', (await http('DELETE', `/api/video/channels/${randomUUID()}`, me)).status === 404 && (await http('DELETE', '/api/video/channels/not-an-id', me)).status === 404);
+
+  const vcMine = randomUUID(), vcOther = randomUUID();
+  sql(`INSERT INTO video_channels (id, user_id, platform, name, account_ref, credentials) VALUES ('${vcMine}', '${u.id}', 'youtube', 'My channel', 'UC1', 'secret-token'), ('${vcOther}', '${other.id}', 'tiktok', 'Theirs', 'tt1', 'secret-token')`);
+  const vc2 = await http('GET', '/api/video/channels', me);
+  check('a connected channel is listed with its network and name, and never with credentials', vc2.json?.channels?.length === 1 && vc2.json.channels[0].id === vcMine && vc2.json.channels[0].platform === 'youtube' && vc2.json.channels[0].name === 'My channel' && !/secret-token|credentials/.test(JSON.stringify(vc2.json)), JSON.stringify(vc2.json));
+  check("I cannot remove another user's channel (404), and it is still there", (await http('DELETE', `/api/video/channels/${vcOther}`, me)).status === 404 && sql(`SELECT COUNT(*) AS n FROM video_channels WHERE id = '${vcOther}'`)[0].n === 1);
+  check('the same account cannot be stored twice (unique per user, network and account)', (() => { try { sql(`INSERT INTO video_channels (id, user_id, platform, name, account_ref, credentials) VALUES ('${randomUUID()}', '${u.id}', 'youtube', 'Dup', 'UC1', 'x')`); return false; } catch { return true; } })());
+  check('removing my channel → 200 and it is gone', (await http('DELETE', `/api/video/channels/${vcMine}`, me)).status === 200 && (await http('GET', '/api/video/channels', me)).json?.channels?.length === 0);
+  sql(`DELETE FROM video_channels WHERE id = '${vcOther}'`);
+
+  // ───────────────────────────────────────────────────────────────
   section('Switching the Video Engine off');
   videoEngine(u.email, '--off');
   check('a live video key stops working (403 video_engine_required)', (await http('GET', '/api/v1/video/me', { key: (await http('POST', '/api/keys', { ...me, body: { name: 'x', scope: 'video', mode: 'test' } })).json?.secret })).status === 200

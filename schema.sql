@@ -549,3 +549,20 @@ CREATE TABLE IF NOT EXISTS webhook_deliveries (
   created_at       INTEGER NOT NULL DEFAULT (unixepoch())
 );
 CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_due ON webhook_deliveries(status, next_attempt_at);
+
+-- ───────────────────────── Vane Studio channels (where videos are published) ─────────────────────────
+-- Same idea as `channels` in Vane Post, for the video networks: YouTube, TikTok, Instagram Reels. The connect flows open one by
+-- one as each network approves Vane (SOCIAL_PLATFORMS_VERIFICATION.md §5, §7, §8); until then the table stays empty.
+CREATE TABLE IF NOT EXISTS video_channels (
+  id           TEXT    PRIMARY KEY,                                             -- uuid
+  user_id      TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  platform     TEXT    NOT NULL CHECK (platform IN ('youtube', 'tiktok', 'instagram')),
+  name         TEXT    NOT NULL,                                                -- display label, e.g. the channel or account name
+  account_ref  TEXT,                                                            -- the network's own account id: stops the same account being connected twice
+  credentials  TEXT    NOT NULL,                                                -- JSON (OAuth tokens), encrypted at app level like `channels`
+  is_active    INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+  created_at   INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at   INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_video_channels_user ON video_channels(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_video_channels_account ON video_channels(user_id, platform, account_ref);
