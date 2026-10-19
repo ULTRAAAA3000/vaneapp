@@ -15,6 +15,7 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env } from '../../../types';
 import { requireUser } from '../lib/auth';
+import { checkChannelQuota } from '../lib/catalog';
 import { encryptToken } from '../lib/crypto';
 import { toB64Url } from '../lib/encoding';
 import { fail, isRecord, json, readJson } from '../lib/http';
@@ -24,7 +25,7 @@ import * as li from './linkedin';
 import * as th from './threads';
 
 export type Network = 'linkedin' | 'threads';
-type Reason = 'ok' | 'reconnected' | 'denied' | 'noperm' | 'expired' | 'failed' | 'migrate';
+type Reason = 'ok' | 'reconnected' | 'denied' | 'noperm' | 'expired' | 'failed' | 'migrate' | 'limit';
 
 const STATE_TTL_SECONDS = 600;
 const STARTS_PER_USER_PER_HOUR = 10;
@@ -165,6 +166,8 @@ export const callbackHandler = (net: Network): PagesFunction<Env> => async ({ re
       await env.DB.prepare('UPDATE channels SET credentials = ?1, is_active = 1, updated_at = ?2 WHERE id = ?3 AND user_id = ?4').bind(encrypted, now, same.id, auth.userId).run();
       return back(net, 'reconnected');
     }
+    // A new channel counts against the plan (only while "enforce_limits" is on); renewing a sign-in above does not.
+    if (await checkChannelQuota(env, auth.userId)) return back(net, 'limit');
     await env.DB
       .prepare(`INSERT INTO channels (id, user_id, type, name, credentials, is_active, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?6)`)
       .bind(crypto.randomUUID(), auth.userId, net, row.name || defaultName, encrypted, now)
