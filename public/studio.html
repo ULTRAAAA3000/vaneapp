@@ -119,6 +119,20 @@
       </div>
     </section>
 
+    <!-- ═══════════ CHANNELS (video networks; same section and dialog as in Vane Post) ═══════════ -->
+    <section class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-6" style="animation-delay:.12s" aria-labelledby="channelsTitle">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 id="channelsTitle" class="text-lg font-semibold tracking-tight">Channels</h2>
+          <p class="mt-0.5 text-xs text-white/45">Where your videos are published.</p>
+        </div>
+        <button id="connectBtn" type="button" class="btn btn-white btn-sm">
+          <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Connect
+        </button>
+      </div>
+      <div id="channels" class="mt-4 space-y-2.5"><div class="skeleton h-16"></div></div>
+    </section>
+
     <!-- offered after an upload when channels are connected (Studio → Post hand-off) -->
     <section id="announceBanner" class="fade-up glass-d mt-5 hidden items-center justify-between gap-3 rounded-2xl p-4 sm:p-5" role="status">
       <p class="min-w-0 text-sm text-white/80"><span class="font-medium text-white">Video uploaded.</span> Announce it in your social channels?</p>
@@ -166,7 +180,29 @@
     </div>
   </div>
 
-    <!-- create an API key (same dialog as in Vane Post) -->
+    <!-- connect a video channel (same dialog frame as in Vane Post; every network is "Soon" until it approves Vane) -->
+  <dialog id="connectDialog" class="vane-dialog" aria-labelledby="connectTitle">
+    <div class="glass-d-strong max-h-[calc(100vh-2rem)] overflow-y-auto rounded-3xl p-6 shadow-2xl sm:p-8">
+      <div class="flex items-start justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div id="connIcon" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/[0.08] text-white/70">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7"/></svg>
+          </div>
+          <div>
+            <h2 id="connectTitle" class="text-xl font-semibold tracking-tight">Connect a channel</h2>
+            <p id="connectSub" class="text-xs text-white/45">Choose a video network.</p>
+          </div>
+        </div>
+        <button id="connectClose" type="button" class="icon-btn" aria-label="Close"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="mt-6">
+        <div id="netGrid" class="grid gap-2.5 sm:grid-cols-2"></div>
+        <p id="netNote" class="mt-5 text-center text-xs leading-relaxed text-white/40">Each network opens as soon as it approves Vane. They will be connected here, the same way as in Vane Post.</p>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- create an API key (same dialog as in Vane Post) -->
   <dialog id="keyDialog" class="vane-dialog" aria-labelledby="keyTitle">
     <div class="glass-d-strong max-h-[calc(100vh-2rem)] overflow-y-auto rounded-3xl p-6 shadow-2xl sm:p-8">
       <div class="flex items-start justify-between gap-4">
@@ -226,6 +262,6 @@
 
   <script src="/assets/vane.js?v=20261019a"></script>
   <script src="/assets/apikeys.js?v=20261019a"></script>
-  <script src="/assets/studio.js?v=20261019d"></script>
+  <script src="/assets/studio.js?v=20261019e"></script>
 </body>
 </html>

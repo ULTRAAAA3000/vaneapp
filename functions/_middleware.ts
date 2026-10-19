@@ -24,7 +24,7 @@ const STUDIO_API = [...VIDEO_API, '/api/auth/', '/api/keys'];
 
 const startsWithAny = (path: string, prefixes: string[]): boolean => prefixes.some((p) => path === p.replace(/\/$/, '') || path.startsWith(p.endsWith('/') ? p : `${p}/`));
 
-export const onRequest: PagesFunction<Env> = async ({ request, env, next }) => {
+const route: PagesFunction<Env> = async ({ request, env, next }) => {
   const url = new URL(request.url);
   const site = siteOf(url.hostname);
   if (site === 'other') return next();
@@ -56,4 +56,23 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, next }) => {
     if (path === '/studio') return Response.redirect(productUrl('studio'), 308);
   }
   return next();
+};
+
+/**
+ * Safety net for the API: anything a route throws (a missing table, a failing network call nobody caught) becomes a JSON answer with
+ * a sentence the page can show, instead of the platform's own HTML error page ("Request failed (502)" in the dashboard). The real
+ * reason goes to the log (Cloudflare → Pages → Functions → Real-time logs). Pages (non-API) keep their normal behaviour.
+ */
+export const onRequest: PagesFunction<Env> = async (context) => {
+  try {
+    return await route(context);
+  } catch (err) {
+    const { pathname } = new URL(context.request.url);
+    if (!pathname.startsWith('/api/')) throw err;
+    const msg = err instanceof Error ? `${err.name}: ${err.message}` : 'unknown error';
+    console.error(`unhandled error in ${context.request.method} ${pathname}: ${msg}`);
+    // A table or column the code expects is not in the database yet: the schema has not been applied (npm run db:remote).
+    if (/no such (table|column)/i.test(msg)) return fail(503, 'The server database needs one update (npm run db:remote). Please try again later.');
+    return fail(500, 'Something went wrong on our side. Please try again in a moment.');
+  }
 };

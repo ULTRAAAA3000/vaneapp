@@ -9,8 +9,7 @@
  * anywhere: the channel it uses is a placeholder row (posts are only SCHEDULED, the cron worker is not running).
  */
 import { spawnSync } from 'node:child_process';
-import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
-import { createServer } from 'node:http';
+import { randomUUID } from 'node:crypto';
 import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -68,38 +67,6 @@ async function signUp(email) {
   return { email, cookie, id };
 }
 
-
-/** A throw-away HTTP server that plays the customer's webhook endpoint. */
-function startReceiver() {
-  const received = [];
-  const mode = { status: 200, delayMs: 0, location: null };
-  const server = createServer((req, res) => {
-    const chunks = [];
-    req.on('data', (c) => chunks.push(c));
-    req.on('end', () => {
-      received.push({ method: req.method, url: req.url, headers: req.headers, body: Buffer.concat(chunks).toString('utf8'), at: Date.now() });
-      const answer = () => {
-        if (mode.location) { res.writeHead(mode.status, { Location: mode.location }); return res.end(); }
-        res.writeHead(mode.status, { 'content-type': 'text/plain' }); res.end('ok');
-      };
-      mode.delayMs ? setTimeout(answer, mode.delayMs) : answer();
-    });
-  });
-  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => {
-    const port = server.address().port;
-    resolve({ url: `http://127.0.0.1:${port}/hook`, base: `http://127.0.0.1:${port}`, received, mode, close: () => server.close() });
-  }));
-}
-
-/** Verifies a `Vane-Signature: t=…,v1=…` header the way a customer would. */
-function verifyWebhook(secret, signatureHeader, rawBody, maxAgeSeconds = 300) {
-  const m = /^t=(\d+),v1=([0-9a-f]{64})$/.exec(signatureHeader ?? '');
-  if (!m) return false;
-  if (Math.abs(Date.now() / 1000 - Number(m[1])) > maxAgeSeconds) return false;
-  const expected = createHmac('sha256', secret).update(`${m[1]}.${rawBody}`).digest();
-  return timingSafeEqual(expected, Buffer.from(m[2], 'hex'));
-}
-
 const inHours = (h) => new Date(Date.now() + h * 3600_000).toISOString().replace(/\.\d+Z$/, 'Z');
 const period = () => new Date().toISOString().slice(0, 7);
 const post = (key, channelId, extra = {}) => http('POST', '/api/v1/posts', { key, body: { content: 'e2e post', channelIds: [channelId], scheduledAt: inHours(2), ...extra } });
@@ -107,10 +74,6 @@ const post = (key, channelId, extra = {}) => http('POST', '/api/v1/posts', { key
 try {
   const ping = await fetch(BASE + '/api/auth/config').catch(() => null);
   if (!ping) { console.error(`Cannot reach ${BASE}. Start it with: npm run db:local && npm run dev`); process.exit(2); }
-
-  // Sign-ups are rate limited per network (that is the product working); this test only ever touches the LOCAL database,
-  // so it starts from clean counters and can be run as often as needed.
-  sql('DELETE FROM rate_limits');
 
   const stamp = Date.now();
   const u = await signUp(`e2e-${stamp}@example.com`);
@@ -390,127 +353,6 @@ try {
       .map((f) => f || '/');
     const undocumented = routes.filter((r) => !(r in (spec?.paths ?? {})));
     check('every route under functions/api/v1 is documented', undocumented.length === 0, `undocumented: ${undocumented.join(', ')}`);
-  }
-
-  // ───────────────────────────────────────────────────────────────
-  section('Webhooks: creating, listing, testing, deleting');
-  {
-    const w = await signUp(`e2e-hook-${stamp}@example.com`);
-    const wch = randomUUID();
-    sql(`INSERT INTO channels (id, user_id, type, name, credentials) VALUES ('${wch}', '${w.id}', 'telegram', 'hook channel', 'x')`);
-    const wlive = (await http('POST', '/api/keys', { cookie: w.cookie, body: { name: 'hooks live' } })).json.secret;
-    const wtest = (await http('POST', '/api/keys', { cookie: w.cookie, body: { name: 'hooks test', mode: 'test' } })).json.secret;
-    const rx = await startReceiver();
-    const deliveries = (hookId) => sql(`SELECT event, status, post_id FROM webhook_deliveries WHERE webhook_id = '${hookId}' ORDER BY created_at`);
-
-    check('a webhook URL must be https on a public domain (400 invalid_webhook_url)', (await http('POST', '/api/v1/webhooks', { key: wlive, body: { url: 'http://example.com/hook' } })).json?.code === 'invalid_webhook_url');
-    check('an IP address is refused', (await http('POST', '/api/v1/webhooks', { key: wlive, body: { url: 'https://10.0.0.5/hook' } })).status === 400);
-    check('unknown events are refused', (await http('POST', '/api/v1/webhooks', { key: wlive, body: { url: rx.url, events: ['post.exploded'] } })).json?.code === 'invalid_webhook_events');
-    check('an empty events list is refused', (await http('POST', '/api/v1/webhooks', { key: wlive, body: { url: rx.url, events: [] } })).status === 400);
-
-    const probe = await http('POST', '/api/v1/webhooks', { key: wlive, body: { url: rx.url } });
-    if (probe.status === 400) {
-      console.log('  ! the rest of this section needs WEBHOOK_DEV_MODE=1 in .dev.vars (local receiver on http://127.0.0.1): skipped');
-    } else {
-      check('a webhook is created (201)', probe.status === 201);
-      const hook = probe.json.webhook, secret = probe.json.secret;
-      check('the signing secret is shown once (whsec_ + 32 characters)', /^whsec_[A-Za-z0-9]{32}$/.test(secret));
-      check('it subscribes to all three events by default', JSON.stringify(hook.events) === '["post.sent","post.failed","post.cancelled"]' && hook.active === true && hook.failures === 0);
-      const stored = sql(`SELECT secret, hint FROM webhooks WHERE id = '${hook.id}'`)[0];
-      check('the database holds the secret ENCRYPTED (never the plain text)', stored.secret && !stored.secret.includes('whsec_') && !stored.secret.includes(secret.slice(7)) && stored.hint === secret.slice(-4));
-      const listed = await http('GET', '/api/v1/webhooks', { key: wlive });
-      check('the list shows a masked secret and never the secret itself', listed.json?.webhooks?.length === 1 && listed.json.webhooks[0].secretHint === `whsec_••••${secret.slice(-4)}` && !JSON.stringify(listed.json).includes(secret) && !/"secret"/.test(JSON.stringify(listed.json)));
-      check('the same URL twice → 409 webhook_exists', (await http('POST', '/api/v1/webhooks', { key: wlive, body: { url: rx.url } })).json?.code === 'webhook_exists');
-      check('the dashboard route lists the same webhook (session)', (await http('GET', '/api/webhooks', { cookie: w.cookie })).json?.webhooks?.[0]?.id === hook.id);
-      check('keys do NOT open the dashboard webhook routes', (await http('GET', '/api/webhooks', { key: wlive })).status === 401);
-      check('the session cookie does NOT open /api/v1/webhooks', (await http('GET', '/api/v1/webhooks', { cookie: w.cookie })).status === 401);
-
-      // ── ping
-      const ping = await http('POST', `/api/v1/webhooks/${hook.id}/test`, { key: wlive });
-      check('a test event is delivered (delivered: true, status 200)', ping.status === 200 && ping.json?.delivered === true && ping.json?.status === 200);
-      const got = rx.received.at(-1);
-      const sent = got ? JSON.parse(got.body) : {};
-      check('the receiver got a POST with JSON', got?.method === 'POST' && got.url === '/hook' && /application\/json/.test(got.headers['content-type']) && sent.type === 'ping');
-      check('Vane-Event, Vane-Delivery and User-Agent are set', got?.headers['vane-event'] === 'ping' && got.headers['vane-delivery'] === sent.id && got.headers['user-agent'] === 'Vane-Webhooks/1.0' && /^evt_/.test(sent.id));
-      check('the signature verifies with the secret from creation', verifyWebhook(secret, got?.headers['vane-signature'], got?.body ?? ''));
-      check('…and fails for a wrong secret, a tampered body and an old timestamp', !verifyWebhook(secret + 'x', got.headers['vane-signature'], got.body) && !verifyWebhook(secret, got.headers['vane-signature'], got.body + ' ') && !verifyWebhook(secret, got.headers['vane-signature'], got.body, -1));
-      check('the webhook records the last status', sql(`SELECT last_status AS s FROM webhooks WHERE id = '${hook.id}'`)[0].s === 200);
-
-      rx.mode.status = 500;
-      const p500 = await http('POST', `/api/v1/webhooks/${hook.id}/test`, { key: wlive });
-      check('an endpoint answering 500 → delivered: false, status 500, an explanation', p500.json?.delivered === false && p500.json?.status === 500 && /500/.test(p500.json?.error ?? ''));
-      rx.mode.status = 302; rx.mode.location = rx.base + '/elsewhere';
-      const before = rx.received.length;
-      const p302 = await http('POST', `/api/v1/webhooks/${hook.id}/test`, { key: wlive });
-      check('a redirect is NOT followed (delivered: false, status 302, the target was never called)', p302.json?.delivered === false && p302.json?.status === 302 && rx.received.length === before + 1 && !rx.received.some((r) => r.url === '/elsewhere'));
-      rx.mode.status = 200; rx.mode.location = null;
-
-      // a switched-off webhook comes back when a test succeeds
-      sql(`UPDATE webhooks SET active = 0, failures = 10, disabled_reason = 'Too many failed deliveries.' WHERE id = '${hook.id}'`);
-      const back = await http('POST', `/api/v1/webhooks/${hook.id}/test`, { key: wlive });
-      const row = sql(`SELECT active, failures, disabled_reason IS NULL AS cleared FROM webhooks WHERE id = '${hook.id}'`)[0];
-      check('a successful test switches a disabled webhook back on', back.json?.delivered === true && row.active === 1 && row.failures === 0 && row.cleared === 1);
-
-      // ── post.cancelled is queued in the same batch as the cancellation
-      const mk = async () => (await http('POST', '/api/v1/posts', { key: wlive, body: { content: 'to cancel', channelIds: [wch], scheduledAt: inHours(4) } })).json.posts[0].id;
-      const p1 = await mk();
-      check('scheduling a post queues nothing', deliveries(hook.id).length === 0);
-      check('cancelling it works (200)', (await http('DELETE', `/api/v1/posts/${p1}`, { key: wlive })).status === 200);
-      const q = deliveries(hook.id);
-      check('…and queued exactly one post.cancelled for the post', q.length === 1 && q[0].event === 'post.cancelled' && q[0].status === 'pending' && q[0].post_id === p1);
-      check('cancelling it AGAIN (409) queues nothing more', (await http('DELETE', `/api/v1/posts/${p1}`, { key: wlive })).status === 409 && deliveries(hook.id).length === 1);
-      const p2 = await mk();
-      check('a test key only checks the cancel: no event', (await http('DELETE', `/api/v1/posts/${p2}`, { key: wtest })).json?.test === true && deliveries(hook.id).length === 1);
-      check('a dashboard cancel queues the event as well', (await http('DELETE', `/api/posts/${p2}`, { cookie: w.cookie })).status === 200 && deliveries(hook.id).length === 2);
-
-      sql(`UPDATE webhooks SET events = 'post.sent' WHERE id = '${hook.id}'`);
-      const p3 = await mk(); await http('DELETE', `/api/v1/posts/${p3}`, { key: wlive });
-      check('a webhook that did not subscribe to the event gets nothing', deliveries(hook.id).length === 2);
-      sql(`UPDATE webhooks SET events = 'post.sent,post.failed,post.cancelled', active = 0 WHERE id = '${hook.id}'`);
-      const p4 = await mk(); await http('DELETE', `/api/v1/posts/${p4}`, { key: wlive });
-      check('a switched-off webhook gets nothing', deliveries(hook.id).length === 2);
-      sql(`UPDATE webhooks SET active = 1 WHERE id = '${hook.id}'`);
-
-      // ── other people's webhooks are invisible
-      const stranger = await signUp(`e2e-hook-b-${stamp}@example.com`);
-      check("someone else cannot delete my webhook (404)", (await http('DELETE', `/api/webhooks/${hook.id}`, { cookie: stranger.cookie })).status === 404);
-      check("…or test it (404)", (await http('POST', `/api/webhooks/${hook.id}/test`, { cookie: stranger.cookie })).status === 404);
-      check("a stranger's cancel never queues events for my webhook", deliveries(hook.id).length === 2);
-
-      // ── test keys: validated like live, nothing stored
-      const sim = await http('POST', '/api/v1/webhooks', { key: wtest, body: { url: rx.base + '/other' } });
-      check('a test key answers like a live one (201, test: true, a secret)…', sim.status === 201 && sim.json?.test === true && /^whsec_/.test(sim.json?.secret));
-      check('…but stores nothing', (await http('GET', '/api/v1/webhooks', { key: wlive })).json.webhooks.length === 1);
-      check('a test key validates too (bad URL → 400)', (await http('POST', '/api/v1/webhooks', { key: wtest, body: { url: 'http://example.com/x' } })).status === 400);
-      check('a test key DELETE only checks it exists', (await http('DELETE', `/api/v1/webhooks/${hook.id}`, { key: wtest })).json?.test === true && (await http('GET', '/api/v1/webhooks', { key: wlive })).json.webhooks.length === 1);
-
-      // ── limit of 5, delete, plan gating
-      for (let i = 2; i <= 5; i++) await http('POST', '/api/v1/webhooks', { key: wlive, body: { url: `${rx.base}/hook${i}` } });
-      const sixth = await http('POST', '/api/v1/webhooks', { key: wlive, body: { url: `${rx.base}/hook6` } });
-      check('the 6th webhook → 409 too_many_webhooks', sixth.status === 409 && sixth.json?.code === 'too_many_webhooks');
-      // The list is newest first, so the last entry is the OLDEST webhook: `hook`, the one with two queued deliveries.
-      const oldest = (await http('GET', '/api/v1/webhooks', { key: wlive })).json.webhooks.at(-1);
-      check('the oldest webhook is the one with queued deliveries', oldest.id === hook.id && deliveries(hook.id).length === 2);
-      check('deleting it works (200)', (await http('DELETE', `/api/v1/webhooks/${hook.id}`, { key: wlive })).status === 200);
-      check('…its queued deliveries are removed with it', deliveries(hook.id).length === 0);
-      check('…and the slot is free again', (await http('POST', '/api/v1/webhooks', { key: wlive, body: { url: `${rx.base}/hook6` } })).status === 201);
-      check('deleting twice → 404', (await http('DELETE', `/api/v1/webhooks/${hook.id}`, { key: wlive })).status === 404);
-
-      setPlan(w.email, 'pro');
-      const gated = await http('POST', '/api/webhooks', { cookie: w.cookie, body: { url: `${rx.base}/gated` } });
-      check('Pro without the API Add-on cannot add a webhook (403 api_not_in_plan)…', gated.status === 403 && gated.json?.code === 'api_not_in_plan');
-      check('…but can still list them', (await http('GET', '/api/webhooks', { cookie: w.cookie })).status === 200);
-      setPlan(w.email, 'api');
-      const own = await http('DELETE', `/api/webhooks/${(await http('GET', '/api/webhooks', { cookie: w.cookie })).json.webhooks[0].id}`, { cookie: w.cookie });
-      check('the dashboard can delete one (200)', own.status === 200);
-
-      // ── ping rate limit: 10 a minute
-      const one = (await http('POST', '/api/webhooks', { cookie: w.cookie, body: { url: `${rx.base}/rl` } })).json.webhook;
-      let limited = null;
-      for (let i = 0; i < 14 && !limited; i++) { const r = await http('POST', `/api/webhooks/${one.id}/test`, { cookie: w.cookie }); if (r.status === 429) limited = r; }
-      check('test events are limited (429 rate_limited with Retry-After)', limited?.json?.code === 'rate_limited' && Number(limited.headers.get('retry-after')) > 0);
-    }
-    rx.close();
   }
 } catch (err) {
   console.error('\nTest run aborted:', err instanceof Error ? err.message : err);

@@ -3,7 +3,6 @@ import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env } from '../../../types';
 import { requireUser } from '../lib/auth';
 import { fail, json, UUID_RE } from '../lib/http';
-import { enqueueWebhookEvent, webhooksTablesExist } from '../lib/webhooks';
 
 /**
  * Shared by the dashboard route and `DELETE /api/v1/posts/:id`.
@@ -21,12 +20,10 @@ export async function cancelPostForUser(env: Env, userId: string, id: string | u
 
   const now = Math.floor(Date.now() / 1000);
   // Atomic: only a post that is still 'scheduled' can be cancelled, so we can't race the sender.
-  const cancel = env.DB.prepare(`UPDATE posts SET status = 'cancelled', updated_at = ?3 WHERE id = ?1 AND user_id = ?2 AND status = 'scheduled'`).bind(id, userId, now);
-  // The post.cancelled webhook event is queued in the SAME batch, and only if THIS statement really cancelled the post.
-  // (Before the webhook tables exist, i.e. between a deploy and `npm run db:remote`, cancelling must still work.)
-  const [res] = (await webhooksTablesExist(env.DB))
-    ? await env.DB.batch([cancel, enqueueWebhookEvent(env.DB, id, 'post.cancelled', now, true)])
-    : [await cancel.run()];
+  const res = await env.DB
+    .prepare(`UPDATE posts SET status = 'cancelled', updated_at = ?3 WHERE id = ?1 AND user_id = ?2 AND status = 'scheduled'`)
+    .bind(id, userId, now)
+    .run();
   if ((res.meta?.changes ?? 0) > 0) return json({ ok: true });
 
   const row = await env.DB.prepare('SELECT status FROM posts WHERE id = ?1 AND user_id = ?2').bind(id, userId).first<{ status: string }>();

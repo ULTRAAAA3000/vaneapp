@@ -357,6 +357,105 @@
           }
         }
       }
+    },
+    "/api/v1/webhooks": {
+      "get": {
+        "operationId": "listWebhooks",
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "List webhooks",
+        "description": "Your webhook subscriptions. The signing secret is never shown again.",
+        "responses": {
+          "200": {
+            "description": "The subscriptions."
+          },
+          "401": {
+            "description": "Invalid key."
+          }
+        }
+      },
+      "post": {
+        "operationId": "createWebhook",
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Subscribe a webhook",
+        "description": "Vane POSTs a signed JSON event to your https url when a post is published (post.published) or fails (post.failed). The secret in the answer is shown once.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "url"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "events": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "post.published",
+                        "post.failed"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Subscribed. Returns webhook and secret."
+          },
+          "400": {
+            "description": "Invalid url or events."
+          },
+          "401": {
+            "description": "Invalid key."
+          },
+          "409": {
+            "description": "Already subscribed, or limit reached."
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/{id}": {
+      "delete": {
+        "operationId": "deleteWebhook",
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Delete a webhook",
+        "description": "Stops a subscription.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted."
+          },
+          "401": {
+            "description": "Invalid key."
+          },
+          "404": {
+            "description": "No such webhook."
+          }
+        }
+      }
     }
   },
   "components": {

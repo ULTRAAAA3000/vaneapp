@@ -43,7 +43,6 @@ export function openApiDocument(origin: string): Json {
         '- `cpost_test_…` is simulated: requests are validated and answered with `"test": true`, but nothing is posted or counted.\n\n' +
         'Quota: 1 request = 1 post, however many channels it targets. Out of quota the API answers 402 `quota_exceeded`.\n' +
         'Retries: send an `Idempotency-Key` header on POST /posts so a retry never creates a second post.\n' +
-        'Webhooks: register an https URL and Vane calls it, signed with HMAC-SHA256, when a post is sent, fails or is cancelled (see the `webhooks` section).\n' +
         'Limits: 100 requests per minute per key (429 `rate_limited`).\n' +
         'Errors are `{ "ok": false, "error": "…", "code": "…" }`: branch on `code`.',
     },
@@ -53,7 +52,7 @@ export function openApiDocument(origin: string): Json {
       { name: 'Account', description: 'Check a key and read the quota.' },
       { name: 'Channels', description: 'Where posts can go.' },
       { name: 'Posts', description: 'Schedule, read and cancel posts.' },
-      { name: 'Webhooks', description: 'Get called when a post is sent, fails or is cancelled.' },
+      { name: 'Webhooks', description: 'Get told when a post is published or fails.' },
     ],
     paths: {
       '/me': {
@@ -210,30 +209,37 @@ export function openApiDocument(origin: string): Json {
           operationId: 'listWebhooks',
           tags: ['Webhooks'],
           summary: 'List webhooks',
-          description: 'Your webhooks with their status. The signing secret is never returned again.',
+          description: 'Your webhook subscriptions. The signing secret is never shown again.',
           responses: {
-            '200': ok('Webhooks.', {
+            '200': ok('The subscriptions.', {
               type: 'object',
               required: ['ok', 'webhooks'],
-              properties: { ok: { type: 'boolean', const: true }, webhooks: { type: 'array', items: ref('Webhook') }, max: { type: 'integer' } },
+              properties: { ok: { type: 'boolean', const: true }, webhooks: { type: 'array', items: ref('Webhook') } },
             }),
             '401': errorResponse('Invalid key.'),
-            '403': errorResponse('No API access on this plan.'),
             '429': errorResponse('Rate limited.'),
           },
         },
         post: {
           operationId: 'createWebhook',
           tags: ['Webhooks'],
-          summary: 'Add a webhook',
-          description: 'Registers an https URL. The response has the signing secret: shown once, store it. Up to 5 webhooks. A test key validates only and stores nothing.',
+          summary: 'Subscribe a webhook',
+          description: 'Vane POSTs a signed JSON event to your https url when a post is published (post.published) or fails (post.failed). The secret in the answer is shown once. A test key saves nothing.',
           requestBody: { required: true, content: { 'application/json': { schema: ref('CreateWebhookRequest') } } },
           responses: {
-            '201': ok('Created.', ref('CreateWebhookResponse')),
-            '400': errorResponse('Bad URL (`invalid_webhook_url`: it must be https, on port 443, on a public domain name) or bad events (`invalid_webhook_events`).'),
+            '201': ok('Subscribed.', {
+              type: 'object',
+              required: ['ok', 'webhook', 'secret'],
+              properties: {
+                ok: { type: 'boolean', const: true },
+                test: { type: 'boolean' },
+                webhook: ref('Webhook'),
+                secret: { type: 'string', description: 'Signs every delivery. Returned only now.' },
+              },
+            }),
+            '400': errorResponse('Invalid url or events.'),
             '401': errorResponse('Invalid key.'),
-            '403': errorResponse('No API access on this plan.'),
-            '409': errorResponse('That URL is already registered (`webhook_exists`) or the limit of 5 is reached (`too_many_webhooks`).'),
+            '409': errorResponse('That url is already subscribed, or the limit of 10 is reached.'),
             '429': errorResponse('Rate limited.'),
           },
         },
@@ -243,7 +249,7 @@ export function openApiDocument(origin: string): Json {
           operationId: 'deleteWebhook',
           tags: ['Webhooks'],
           summary: 'Delete a webhook',
-          description: 'Removes the webhook and its queued deliveries. A test key only checks that it exists.',
+          description: 'Stops a subscription. A test key checks and changes nothing.',
           parameters: [{ name: 'id', in: 'path', required: true, description: 'Webhook id (uuid).', schema: { type: 'string', format: 'uuid' } }],
           responses: {
             '200': ok('Deleted.', { type: 'object', required: ['ok'], properties: { ok: { type: 'boolean', const: true }, test: { type: 'boolean' } } }),
@@ -251,51 +257,6 @@ export function openApiDocument(origin: string): Json {
             '404': errorResponse('No such webhook.'),
             '429': errorResponse('Rate limited.'),
           },
-        },
-      },
-      '/webhooks/{id}/test': {
-        post: {
-          operationId: 'testWebhook',
-          tags: ['Webhooks'],
-          summary: 'Send a test event',
-          description: 'Sends a signed `ping` to the webhook now and reports what your endpoint answered. A successful test switches a disabled webhook back on. 10 a minute.',
-          parameters: [{ name: 'id', in: 'path', required: true, description: 'Webhook id (uuid).', schema: { type: 'string', format: 'uuid' } }],
-          responses: {
-            '200': ok('The test was sent (check `delivered`).', {
-              type: 'object',
-              required: ['ok', 'delivered', 'durationMs'],
-              properties: {
-                ok: { type: 'boolean', const: true },
-                delivered: { type: 'boolean', description: 'True when your endpoint answered 2xx.' },
-                status: { type: ['integer', 'null'], description: 'HTTP status your endpoint answered, null if it did not answer.' },
-                error: { type: 'string' },
-                durationMs: { type: 'integer' },
-              },
-            }),
-            '401': errorResponse('Invalid key.'),
-            '404': errorResponse('No such webhook.'),
-            '429': errorResponse('Too many test events (`rate_limited`).'),
-          },
-        },
-      },
-    },
-    // Incoming webhooks (OpenAPI 3.1): requests that VANE sends to YOUR url.
-    webhooks: {
-      postEvent: {
-        post: {
-          operationId: 'receivePostEvent',
-          tags: ['Webhooks'],
-          summary: 'A post reached a final state',
-          description:
-            'Vane POSTs this to your URL. Verify `Vane-Signature` (t=<unix>,v1=<hex HMAC-SHA256 of "<t>.<raw body>" with your signing secret>) and reject a t older than 5 minutes. ' +
-            'Any 2xx is a success; otherwise it is retried after 1 min, 5 min, 15 min, 1 h and 6 h. Delivery is at least once: dedupe on `id`.',
-          parameters: [
-            { name: 'Vane-Signature', in: 'header', required: true, description: 'Signature: t=<unix seconds>,v1=<hex HMAC-SHA256>.', schema: { type: 'string' } },
-            { name: 'Vane-Event', in: 'header', required: true, description: 'The event type.', schema: { type: 'string', enum: ['post.sent', 'post.failed', 'post.cancelled', 'ping'] } },
-            { name: 'Vane-Delivery', in: 'header', required: true, description: 'The event id (same as `id` in the body).', schema: { type: 'string' } },
-          ],
-          requestBody: { required: true, content: { 'application/json': { schema: ref('WebhookEventPayload') } } },
-          responses: { '2XX': { description: 'Received.' } },
         },
       },
     },
@@ -308,52 +269,35 @@ export function openApiDocument(origin: string): Json {
         },
       },
       schemas: {
-        WebhookEvent: { type: 'string', enum: ['post.sent', 'post.failed', 'post.cancelled'] },
         Webhook: {
           type: 'object',
-          required: ['id', 'url', 'events', 'active', 'secretHint', 'failures', 'createdAt'],
+          required: ['id', 'url', 'events', 'disabled', 'createdAt'],
           properties: {
             id: { type: 'string', format: 'uuid' },
             url: { type: 'string', format: 'uri' },
-            events: { type: 'array', items: ref('WebhookEvent') },
-            active: { type: 'boolean', description: 'False when it was switched off (too many failed deliveries, or the endpoint answered 410).' },
-            secretHint: { type: 'string', description: 'The signing secret, masked: whsec_••••ab12.' },
-            failures: { type: 'integer', description: 'Consecutive deliveries that failed for good. At 10 the webhook is switched off.' },
-            lastStatus: { type: ['integer', 'null'], description: 'HTTP status of the last attempt, 0 = no answer.' },
-            lastDeliveryAt: { type: ['integer', 'null'] },
-            disabledReason: { type: ['string', 'null'] },
-            createdAt: { type: 'integer' },
+            events: { type: 'array', items: { type: 'string', enum: ['post.published', 'post.failed'] } },
+            lastStatus: { type: ['integer', 'null'], description: 'HTTP status of the latest delivery (0 = no answer).' },
+            disabled: { type: 'boolean', description: 'True after your server answered 410 Gone.' },
+            createdAt: { type: 'integer', description: 'Unix seconds.' },
           },
         },
         CreateWebhookRequest: {
           type: 'object',
           required: ['url'],
           properties: {
-            url: { type: 'string', format: 'uri', description: 'https URL on a public domain name (port 443, no credentials, no IP addresses).' },
-            events: { type: 'array', minItems: 1, items: ref('WebhookEvent'), description: 'Default: all three.' },
+            url: { type: 'string', format: 'uri', description: 'Public https address (port 443, a host name, not an IP).' },
+            events: { type: 'array', minItems: 1, items: { type: 'string', enum: ['post.published', 'post.failed'] }, description: 'Default: both.' },
           },
         },
-        CreateWebhookResponse: {
+        WebhookEvent: {
           type: 'object',
-          required: ['ok', 'webhook', 'secret'],
-          properties: {
-            ok: { type: 'boolean', const: true },
-            test: { type: 'boolean', description: 'True for a test key: nothing was stored.' },
-            webhook: ref('Webhook'),
-            secret: { type: 'string', description: 'The signing secret (whsec_…). Shown ONCE.' },
-          },
-        },
-        WebhookEventPayload: {
-          type: 'object',
+          description: 'The body Vane sends. Headers: Vane-Event, Vane-Delivery (same on retries), Vane-Signature: t=<unix>,v1=<hex HMAC-SHA256 of "<t>.<raw body>" with your secret>. Reply 2xx; otherwise Vane retries after 1 min, 5 min, 30 min, 2 h, 12 h. 410 ends the subscription.',
           required: ['id', 'type', 'createdAt', 'data'],
           properties: {
-            id: { type: 'string', description: 'Unique per event. Deliveries are at least once: dedupe on it.' },
-            type: { type: 'string', enum: ['post.sent', 'post.failed', 'post.cancelled', 'ping'] },
-            createdAt: { type: 'integer', description: 'Unix seconds.' },
-            data: {
-              type: 'object',
-              properties: { post: ref('Post'), message: { type: 'string', description: 'Only on `ping`.' } },
-            },
+            id: { type: 'string', format: 'uuid', description: 'Delivery id: de-duplicate on it.' },
+            type: { type: 'string', enum: ['post.published', 'post.failed'] },
+            createdAt: { type: 'string', format: 'date-time' },
+            data: { type: 'object', properties: { post: ref('Post') } },
           },
         },
         Error: {

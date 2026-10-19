@@ -13,6 +13,9 @@
     usage: { videos: 0, storageBytes: 0 },
     uploadsOn: true,      // the server has video storage bound
     videos: [],
+    channels: [],         // connected video channels
+    platforms: [],        // the networks the server knows, with whether each is open yet
+    armed: {},            // two-step delete: ids waiting for the second click
     file: null,           // the file chosen in the uploader
     preview: null,        // Promise of its preview frame and length (made in the browser), see makePreview()
     up: null              // the upload in progress (see "uploading")
@@ -220,6 +223,125 @@
     }
     paint();
   }
+
+  // ───────────────────────── channels (video networks) ─────────────────────────
+  // One entry per video network: icon, tile colour and the card in the connect dialog. The server decides whether a network is
+  // open (GET /api/video/channels → platforms[].available). To open one: the server flag, the connect flow behind
+  // POST /api/video/channels/connect (see functions/api/lib/videochannels.ts), then `ready: true` here and a setup block in the dialog.
+  var VNET = {
+    youtube: {
+      name: 'YouTube', ready: false, blurb: 'Videos and Shorts', setup: 'Choose which channel Vane should publish to.',
+      tile: 'bg-red-500/15 text-red-300',
+      icon: { d: 'M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17zM10 15l5-3-5-3z' }
+    },
+    tiktok: {
+      name: 'TikTok', ready: false, blurb: 'Short videos', setup: 'Choose which account Vane should publish to.',
+      tile: 'bg-pink-500/15 text-pink-300',
+      icon: { d: 'M9 18V5l12-2v13M3 18a3 3 0 1 0 6 0 3 3 0 1 0-6 0M15 16a3 3 0 1 0 6 0 3 3 0 1 0-6 0' }
+    },
+    instagram: {
+      name: 'Instagram Reels', ready: false, blurb: 'Business and Creator accounts', setup: 'Choose which account Vane should publish to.',
+      tile: 'bg-orange-500/15 text-orange-300',
+      icon: { d: 'M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zM16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37zM17.5 6.5h.01' }
+    }
+  };
+  var VNET_ORDER = ['youtube', 'tiktok', 'instagram'];
+  var VNET_OTHER = { tile: 'bg-white/[0.08] text-white/70', icon: { d: 'M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7' } };
+  var TRASH = '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6M10 11v6M14 11v6"/></svg>';
+
+  function netIcon(key, cls) {
+    var ic = (VNET[key] || VNET_OTHER).icon;
+    return '<svg class="' + cls + '" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="' + ic.d + '"/></svg>';
+  }
+  function netTile(key) { return (VNET[key] || VNET_OTHER).tile; }
+  function netName(key) { return VNET[key] ? VNET[key].name : key.charAt(0).toUpperCase() + key.slice(1); }
+  function isOpen(key) {
+    var p = S.platforms.filter(function (x) { return x.id === key; })[0];
+    return !!(VNET[key] && VNET[key].ready && p && p.available);
+  }
+
+  async function loadChannels() {
+    var r = await Vane.api('GET', '/api/video/channels');
+    if (!r.ok) return;
+    S.channels = r.data.channels;
+    S.platforms = r.data.platforms;
+    renderChannels();
+  }
+
+  function renderChannels() {
+    var box = $('channels');
+    if (!S.channels.length) {
+      box.innerHTML =
+        '<div class="rounded-2xl border border-dashed border-white/10 px-5 py-8 text-center">' +
+          '<div class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl ' + netTile('other') + '">' + netIcon('other', 'h-5 w-5') + '</div>' +
+          '<p class="mt-4 text-sm font-medium">No channels yet</p>' +
+          '<p class="mx-auto mt-1 max-w-[20rem] text-xs leading-relaxed text-white/45">YouTube, TikTok and Instagram Reels open one by one as each network approves Vane. You will connect them here.</p>' +
+          '<div class="mt-4 flex flex-wrap justify-center gap-2">' + VNET_ORDER.map(function (k) {
+            return '<span class="inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-2.5 py-1 text-xs text-white/60">' + netIcon(k, 'h-3.5 w-3.5') + esc(VNET[k].name) + '<span class="text-[10px] font-semibold uppercase tracking-wide text-white/40">Soon</span></span>';
+          }).join('') + '</div>' +
+          '<button type="button" data-act="connect" class="btn btn-white btn-sm mt-5">See the networks</button>' +
+        '</div>';
+      return;
+    }
+    box.innerHTML = S.channels.map(function (c) {
+      var armed = !!S.armed['del:' + c.id];
+      return '<div class="flex items-center gap-3 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/5">' +
+        '<div class="net-tile ' + netTile(c.platform) + '">' + netIcon(c.platform, 'h-5 w-5') + '</div>' +
+        '<div class="min-w-0 flex-1"><div class="truncate text-sm font-medium">' + esc(c.name) + '</div>' +
+          '<div class="mt-0.5 text-xs text-white/40">' + esc(netName(c.platform)) + ' · Added ' + esc(fmtDate(c.createdAt)) + '</div></div>' +
+        (armed
+          ? '<button type="button" data-act="del" data-id="' + esc(c.id) + '" class="btn btn-danger btn-sm shrink-0">Remove?</button>'
+          : '<button type="button" data-act="del" data-id="' + esc(c.id) + '" class="icon-btn shrink-0" aria-label="Remove ' + esc(c.name) + '">' + TRASH + '</button>') +
+      '</div>';
+    }).join('');
+  }
+
+  $('channels').addEventListener('click', async function (e) {
+    var btn = e.target.closest('[data-act]');
+    if (!btn) return;
+    var act = btn.getAttribute('data-act'), id = btn.getAttribute('data-id');
+    if (act === 'connect') return openConnect();
+    if (act === 'del') {
+      var key = 'del:' + id;
+      if (!S.armed[key]) {                       // the first click arms, the second confirms
+        S.armed[key] = setTimeout(function () { delete S.armed[key]; renderChannels(); }, 3200);
+        renderChannels();
+        return;
+      }
+      clearTimeout(S.armed[key]); delete S.armed[key];
+      btn.disabled = true;
+      var r = await Vane.api('DELETE', '/api/video/channels/' + encodeURIComponent(id));
+      if (!r.ok) { Vane.toast('err', r.error); renderChannels(); return; }
+      Vane.toast('ok', 'Channel removed');
+      await loadChannels();
+    }
+  });
+
+  // ---- the connect dialog: pick a network (those not open yet are "Soon" and cannot be chosen)
+  var cdlg = $('connectDialog');
+  function renderNetGrid() {
+    $('netGrid').innerHTML = VNET_ORDER.map(function (k) {
+      var n = VNET[k], open = isOpen(k);
+      return '<button type="button" class="net-card" data-net="' + k + '"' + (open ? '' : ' disabled') + '>' +
+        '<span class="net-tile ' + n.tile + '">' + netIcon(k, 'h-5 w-5') + '</span>' +
+        '<span class="min-w-0 flex-1"><span class="block text-sm font-semibold">' + esc(n.name) + '</span><span class="block truncate text-xs text-white/45">' + esc(open ? n.blurb : 'Coming soon') + '</span></span>' +
+        (open ? '' : '<span class="rounded-full bg-white/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/50">Soon</span>') +
+      '</button>';
+    }).join('');
+  }
+  function openConnect() {
+    renderNetGrid();
+    if (typeof cdlg.showModal === 'function') cdlg.showModal(); else cdlg.setAttribute('open', '');
+  }
+  function closeConnect() { if (typeof cdlg.close === 'function') cdlg.close(); else cdlg.removeAttribute('open'); }
+  $('connectBtn').addEventListener('click', openConnect);
+  $('connectClose').addEventListener('click', closeConnect);
+  cdlg.addEventListener('click', function (e) { if (e.target === cdlg) closeConnect(); });
+  // The connect step of an open network goes here (the setup block of that network, see the note above VNET).
+  $('netGrid').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-net]');
+    if (b && !b.disabled) Vane.toast('info', netName(b.getAttribute('data-net')) + ' cannot be connected yet.');
+  });
 
   // ───────────────────────── announce in Vane Post (the Studio → Post hand-off) ─────────────────────────
   // The text and the channels are chosen here; the server writes the post with the same code as Vane Post, so the same limits
@@ -661,7 +783,7 @@
     S.user = me.data.user;
     $('userEmail').textContent = S.user.email;
     $('avatar').textContent = (S.user.name || S.user.email).charAt(0).toUpperCase();
-    await Promise.all([loadLibrary(), Keys.refresh()]);
+    await Promise.all([loadLibrary(), Keys.refresh(), loadChannels()]);
     $('app').classList.remove('opacity-0');
   })();
 })();

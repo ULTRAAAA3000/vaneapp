@@ -13,7 +13,6 @@ import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env } from '../../../types';
 import { encryptToken } from '../lib/crypto';
 import { fail, json } from '../lib/http';
-import { enqueueCancelledForChannel, webhooksTablesExist } from '../lib/webhooks';
 import { parseSignedRequest, threadsIdentity } from './threads';
 
 const MAX_BODY = 8 * 1024;
@@ -50,15 +49,11 @@ export const handleThreadsDeauthorize: PagesFunction<Env> = async ({ request, en
   if (!env.ENCRYPTION_KEY || env.ENCRYPTION_KEY.length < 32) return fail(500, 'Server is not configured correctly');
 
   const now = Math.floor(Date.now() / 1000);
-  const REASON = 'Access to Threads was removed.';
-  // The owner's webhooks hear about every post this cancels (skipped until the webhook tables exist: Meta's call must never fail).
-  const hooks = await webhooksTablesExist(env.DB);
   for (const ch of await channelsOf(env, who.userId)) {
     const wiped = await encryptToken(JSON.stringify({ type: 'threads', userId: who.userId, username: '', accessToken: '', expiresAt: 0 }), env.ENCRYPTION_KEY);
     await env.DB.batch([
       env.DB.prepare('UPDATE channels SET is_active = 0, credentials = ?1, updated_at = ?2 WHERE id = ?3').bind(wiped, now, ch.id),
-      env.DB.prepare(`UPDATE posts SET status = 'cancelled', error = ?3, updated_at = ?1 WHERE channel_id = ?2 AND status = 'scheduled'`).bind(now, ch.id, REASON),
-      ...(hooks ? [enqueueCancelledForChannel(env.DB, ch.id, REASON, now)] : []),
+      env.DB.prepare(`UPDATE posts SET status = 'cancelled', error = 'Access to Threads was removed.', updated_at = ?1 WHERE channel_id = ?2 AND status = 'scheduled'`).bind(now, ch.id),
     ]);
   }
   return json({ ok: true });

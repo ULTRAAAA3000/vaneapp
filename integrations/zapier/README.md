@@ -5,12 +5,12 @@ Zapier integration (Zapier Platform CLI app) for the Vane public API.
 | | | Calls |
 |---|---|---|
 | Action | Create Social Post (text, channels, publish time, image) | `POST /posts` |
-| Trigger | New Published Post | `GET /posts?view=history`, only `sent` |
-| Trigger | Post Failed | `GET /posts?view=history`, only `failed` |
+| Trigger (instant) | New Published Post | webhook `post.published` (`POST /webhooks`, removed again with `DELETE /webhooks/:id`) |
+| Trigger (instant) | Post Failed | webhook `post.failed` |
 | Hidden trigger | Channels (fills the dropdown) | `GET /channels` |
 | Sign in | API key, tested with `GET /me` | `GET /me` |
 
-The triggers poll (Zapier asks every few minutes), so they need no webhooks on the Vane side.
+The triggers are instant: Zapier hands Vane a URL and Vane calls it the moment a post is published or fails (see *Webhooks* in the main README). While you build a Zap, sample data comes from the post history.
 Errors read `[402] message (quota_exceeded)`.
 
 ## Put it into Zapier without a terminal

@@ -18,7 +18,25 @@ export const ADMIN_COOKIE = 'vane_admin';
 export const ADMIN_TTL_SECONDS = 8 * 3600;
 const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
 
-export const adminConfigured = (env: Env): boolean => Boolean(env.ADMIN_EMAIL && env.ADMIN_PASSWORD_HASH);
+/**
+ * Secrets pasted into the Cloudflare dashboard often carry what the eye does not see: a trailing space or newline, a
+ * zero-width character, or quotes around the value. Any of those made a correct password look wrong, so every admin secret
+ * is cleaned before it is used.
+ */
+export function cleanSecret(v: string | undefined): string {
+  let s = (v ?? '').replace(/[\u200b-\u200d\u2060\ufeff]/g, '').trim();
+  const q = /^(["'`])([\s\S]*)\1$/.exec(s);
+  if (q) s = q[2].trim();
+  return s;
+}
+
+export const adminConfigured = (env: Env): boolean => Boolean(cleanSecret(env.ADMIN_EMAIL) && cleanSecret(env.ADMIN_PASSWORD_HASH));
+
+/** Is ADMIN_PASSWORD_HASH shaped like the output of `npm run admin:hash`? (Shape only: it says nothing about the password.) */
+export function adminHashLooksValid(env: Env): boolean {
+  const m = /^pbkdf2-sha256\$(\d+)\$[A-Za-z0-9_-]+\$[A-Za-z0-9_-]+$/.exec(cleanSecret(env.ADMIN_PASSWORD_HASH));
+  return !!m && Number(m[1]) >= 1 && Number(m[1]) <= 100_000;
+}
 
 export function adminCookie(request: Request, token: string, maxAge: number): string {
   const secure = new URL(request.url).protocol === 'https:' ? '; Secure' : '';
@@ -54,13 +72,22 @@ export function adminIpAllowed(env: Env, request: Request): boolean {
   });
 }
 
+/** Why a sign-in failed, for the attempts feed only (the person always sees one generic message). */
+export type AdminCheck = 'ok' | 'bad_login' | 'bad_password';
+
 /** Always runs the full password hash, so timing doesn't reveal whether the login name matched. */
+export async function checkAdminCredentialsDetailed(env: Env, login: string, password: string): Promise<AdminCheck> {
+  const l = cleanSecret(login).toLowerCase();
+  const email = cleanSecret(env.ADMIN_EMAIL).toLowerCase();
+  const username = cleanSecret(env.ADMIN_USERNAME).toLowerCase();
+  const nameOk = l !== '' && (l === email || (username !== '' && l === username));
+  const passOk = await verifyPassword(password, cleanSecret(env.ADMIN_PASSWORD_HASH));
+  if (nameOk && passOk) return 'ok';
+  return nameOk ? 'bad_password' : 'bad_login';
+}
+
 export async function checkAdminCredentials(env: Env, login: string, password: string): Promise<boolean> {
-  const l = login.trim().toLowerCase();
-  const nameOk =
-    l !== '' && (l === (env.ADMIN_EMAIL ?? '').trim().toLowerCase() || (!!env.ADMIN_USERNAME && l === env.ADMIN_USERNAME.trim().toLowerCase()));
-  const passOk = await verifyPassword(password, env.ADMIN_PASSWORD_HASH ?? '');
-  return nameOk && passOk;
+  return (await checkAdminCredentialsDetailed(env, login, password)) === 'ok';
 }
 
 export async function createAdminSession(env: Env, request: Request): Promise<string> {

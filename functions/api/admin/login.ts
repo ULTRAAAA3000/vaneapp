@@ -7,7 +7,7 @@
  */
 import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env } from '../../../types';
-import { adminConfigured, adminCookie, adminIpAllowed, ADMIN_TTL_SECONDS, audit, checkAdminCredentials, createAdminSession } from '../lib/admin';
+import { adminConfigured, adminCookie, adminHashLooksValid, adminIpAllowed, ADMIN_TTL_SECONDS, audit, checkAdminCredentialsDetailed, createAdminSession } from '../lib/admin';
 import { logAttempt, maybeAutoBan } from '../lib/attempts';
 import { guard } from '../lib/guard';
 import { crossOriginViolation, fail, isRecord, json, methodNotAllowed, readJson } from '../lib/http';
@@ -21,6 +21,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const xo = crossOriginViolation(request);
   if (xo) return xo;
   if (!adminConfigured(env)) return fail(503, 'The admin panel is not configured on this server.');
+
+  if (!adminHashLooksValid(env)) {
+    // Not a secret (it says nothing about the password) and the one thing that makes EVERY sign-in fail, so say it plainly.
+    console.error('admin: ADMIN_PASSWORD_HASH is not a valid hash (expected pbkdf2-sha256$100000$salt$hash)');
+    return fail(503, 'ADMIN_PASSWORD_HASH is set but is not a valid password hash. Create it again with /admin-hash.html and save it as the secret.');
+  }
 
   if (!adminIpAllowed(env, request)) {
     await logAttempt(env, request, { kind: 'admin_login', ok: false, reason: 'not_allowed_ip' });
@@ -50,9 +56,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return fail(429, `Too many failed attempts. Try again in ${Math.ceil(wait / 60)} min.`, { 'Retry-After': String(wait) });
   }
 
-  if (!(await checkAdminCredentials(env, login, password))) {
+  const check = await checkAdminCredentialsDetailed(env, login, password);
+  if (check !== 'ok') {
     await bump(env, ipKey, WINDOW);
-    await logAttempt(env, request, { kind: 'admin_login', ok: false, reason: 'bad_password', email: login });
+    // The feed says which half was wrong (only the admin reads it); the person who typed gets the same message either way.
+    await logAttempt(env, request, { kind: 'admin_login', ok: false, reason: check, email: login });
     await maybeAutoBan(env, request, 'admin_login');
     return fail(401, 'Invalid login or password.');
   }

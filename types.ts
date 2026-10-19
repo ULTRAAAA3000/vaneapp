@@ -12,6 +12,8 @@ export interface Env {
   ASSETS: Fetcher;
   /** R2 bucket for post media and the Vane Studio video library */
   MEDIA?: R2Bucket;             // optional: uploads are enabled only when the R2 bucket is bound
+  /** Cloudflare Workers AI (wrangler.toml [ai]): the AI tools in the editor are off without it */
+  AI?: { run(model: string, input: unknown): Promise<unknown> };
 
   /** Secrets (wrangler secret put / Pages → Settings → Variables) */
   ENCRYPTION_KEY?: string;      // for encrypting channels.credentials (>= 32 random chars)
@@ -43,7 +45,6 @@ export interface Env {
   THREADS_APP_ID?: string;          // plain var
   THREADS_APP_SECRET?: string;      // secret (also checks Meta's deauthorize / data-deletion calls)
   SYSTEM_BOT_USERNAME?: string; // shared bot username without @ (default: VanePublishBot)
-  WEBHOOK_DEV_MODE?: string;    // '1' ONLY in .dev.vars: lets a webhook point at http://localhost so deliveries can be tested locally. Never set it in production.
 }
 
 // ───────────────────────── Enums ─────────────────────────
@@ -360,6 +361,15 @@ export interface UsageSummary {
   ui: UsageBucket;
   /** Free Trial only */
   shared: UsageBucket | null;
+  /** AI generations (Smart Re-formatter, Post Generator, Tone, Hook & CTA); the free tools are not counted */
+  ai: {
+    /** credits the plan includes; null = no fixed amount (unlimited, or billed per generation: see perGenerationUsd) */
+    limit: number | null;
+    used: number;
+    remaining: number | null;
+    /** set when every generation is billed (Developer API): USD per generation */
+    perGenerationUsd: number | null;
+  };
   /** may this account send live API requests? */
   apiAccess: boolean;
   overage: {
@@ -460,35 +470,3 @@ export type StartVideoUploadResponse =
       simulated?: true;
     }
   | ApiError;
-
-// ───────────────────────── Public API: webhooks (API part 3b) ─────────────────────────
-export type WebhookEvent = 'post.sent' | 'post.failed' | 'post.cancelled';
-
-/** What the API returns about a webhook. The signing secret is shown ONCE, on creation. */
-export interface WebhookPublic {
-  id: string;
-  url: string;
-  events: WebhookEvent[];
-  active: boolean;
-  /** masked, e.g. "whsec_••••ab12" */
-  secretHint: string;
-  /** consecutive deliveries that failed for good; at 10 the webhook is switched off */
-  failures: number;
-  /** HTTP status of the last delivery attempt, 0 = the endpoint did not answer */
-  lastStatus: number | null;
-  lastDeliveryAt: number | null;
-  /** why it was switched off, when it was */
-  disabledReason: string | null;
-  createdAt: number;
-}
-
-export interface CreateWebhookRequest {
-  /** https URL on a public domain */
-  url: string;
-  /** default: all three */
-  events?: WebhookEvent[];
-}
-
-export type CreateWebhookResponse = { ok: true; webhook: WebhookPublic; secret: string } | ApiError;
-export type ListWebhooksResponse = { ok: true; webhooks: WebhookPublic[]; max: number } | ApiError;
-export type PingWebhookResponse = { ok: true; delivered: boolean; status: number | null; error?: string; durationMs: number } | ApiError;

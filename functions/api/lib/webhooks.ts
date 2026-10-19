@@ -1,226 +1,184 @@
 /**
- * Webhooks: Vane calls YOUR https URL when one of your posts reaches a final state.
+ * Webhooks (REST hooks): Vane calls a URL the user gave when a post is published or fails.
  *
- *   post.sent        it was published
- *   post.failed      it could not be published (the reason is in `data.post.error`)
- *   post.cancelled   it was cancelled before it was sent
+ *   POST  <url>   Content-Type: application/json
+ *   Vane-Event: post.published | post.failed
+ *   Vane-Delivery: <delivery id>                      same id on every retry: de-duplicate on it
+ *   Vane-Signature: t=<unix seconds>,v1=<hex>         HMAC-SHA256 of "<t>.<raw body>" with the subscription secret
+ *   {"id":"<delivery id>","type":"post.published","createdAt":"…Z","data":{"post":{…as GET /api/v1/posts/:id…}}}
  *
- * A delivery is a POST with a JSON body:
- *   { "id": "evt_<id>", "type": "post.sent", "createdAt": 1790000000, "data": { "post": { … } } }
- * and these headers:
- *   Vane-Signature: t=<unix seconds>,v1=<hex HMAC-SHA256 of "<t>.<raw body>" with your signing secret>
- *   Vane-Event: post.sent         Vane-Delivery: evt_<id>         User-Agent: Vane-Webhooks/1.0
- *
- * Verify it: recompute the HMAC over `${t}.${rawBody}`, compare in constant time, and reject a `t` more than 5 minutes old
- * (replay protection). Deliveries are AT LEAST ONCE (a timeout is retried), so dedupe on `id`.
- * Any 2xx answer is a success; anything else is retried 1 min, 5 min, 15 min, 1 h, 6 h later (6 attempts in all).
- * Redirects are NOT followed. After 10 consecutive deliveries that failed for good the webhook is switched off.
- *
- * The rows of the outbox (webhook_deliveries) are written in the same D1 batch as the status change that causes them
- * (see enqueueWebhookEvent), and sent by the cron worker (worker/src/webhooks.ts). This file is shared by both sides.
+ * Any 2xx is "delivered". Anything else (or no answer within 8 s) is retried after 1 min, 5 min, 30 min, 2 h, 12 h and then given up.
+ * 410 Gone ends the subscription. Events are written to an outbox table first (`enqueueWebhookEvent`) and sent by the cron worker
+ * (`deliverDueWebhooks`), so a slow receiver never delays posting and nothing is lost when a send fails.
  */
-import type { D1PreparedStatement } from '@cloudflare/workers-types';
-import type { Env, WebhookEvent, WebhookPublic } from '../../../types';
-import { randomBase62 } from './apikeys';
+import type { Env, PostPublic } from '../../../types';
+import { loadPostPublic } from '../posts/list';
+import { decryptToken } from './crypto';
 
-export const WEBHOOK_EVENTS: readonly WebhookEvent[] = ['post.sent', 'post.failed', 'post.cancelled'];
-export const MAX_WEBHOOKS_PER_USER = 5;
-/** After this many consecutive deliveries that failed for good, the webhook is switched off. */
-export const DISABLE_AFTER_FAILURES = 10;
-/** Seconds to wait after attempt N failed (index N-1): 1 min, 5 min, 15 min, 1 h; the 6th failure is final. */
-export const RETRY_DELAYS = [60, 300, 900, 3600] as const;
-export const MAX_DELIVERY_ATTEMPTS = RETRY_DELAYS.length + 2;
-export const DELIVERY_TIMEOUT_MS = 8000;
-const SECRET_RANDOM_LEN = 32;
+export const WEBHOOK_EVENTS = ['post.published', 'post.failed'] as const;
+export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
+export const MAX_SUBSCRIPTIONS_PER_USER = 10;
+const BATCH = 20;
+const TIMEOUT_MS = 8000;
+const RETRY_DELAYS = [60, 300, 1800, 7200, 43200];            // seconds; attempt n+1 waits RETRY_DELAYS[n-1]
+const MAX_ATTEMPTS = RETRY_DELAYS.length + 1;
+const LEASE_SECONDS = 120;
+const KEEP_SECONDS = 7 * 24 * 3600;
 
-// ───────────────────────── url ─────────────────────────
-
-const BLOCKED_SUFFIXES = ['.localhost', '.local', '.internal', '.lan', '.home.arpa', '.intranet', '.corp'];
-/** Our own hosts: a webhook that calls back into Vane could be used to reach its internals. */
+/** Names that only make sense inside a private network. */
+const PRIVATE_SUFFIXES = /(^|\.)(localhost|local|internal|lan|home|home\.arpa|intranet|corp|test|invalid|example)$/;
+/** Vane's own hosts: a webhook that calls back into Vane could be used to reach its internals (or loop forever). */
 const OWN_HOSTS = ['vaneapp.dev'];
 
-export type UrlCheck = { ok: true; url: string } | { ok: false; error: string };
-
-/**
- * A webhook URL must be https, on the default port, on a public DOMAIN NAME (no IP addresses, no localhost, no internal
- * names, no credentials). Cloudflare Workers cannot reach private networks anyway; this keeps the product honest and
- * gives the owner a clear message. `devMode` (WEBHOOK_DEV_MODE=1, local .dev.vars only) additionally allows http://localhost.
- */
-export function validateWebhookUrl(raw: unknown, devMode = false): UrlCheck {
-  const bad = (error: string): UrlCheck => ({ ok: false, error });
-  if (typeof raw !== 'string' || !raw.trim()) return bad('url is required');
-  if (raw.length > 2048) return bad('url is too long (max 2048 characters)');
-
+/** A receiver address Vane is willing to call: https, a real host name, the normal port, no password in it, not Vane itself. */
+export function validateWebhookUrl(v: unknown): string | null {
+  if (typeof v !== 'string' || v.length > 2048) return null;
   let u: URL;
-  try { u = new URL(raw.trim()); } catch { return bad('url is not a valid URL'); }
-
-  const host = u.hostname.toLowerCase();
-  if (devMode && (host === 'localhost' || host === '127.0.0.1') && (u.protocol === 'http:' || u.protocol === 'https:')) {
-    return { ok: true, url: u.toString() };
-  }
-
-  if (u.protocol !== 'https:') return bad('url must start with https://');
-  if (u.username || u.password) return bad('url must not contain a username or password');
-  if (u.port && u.port !== '443') return bad('only the default HTTPS port (443) is allowed');
-  if (host.includes(':') || /^[0-9.]+$/.test(host)) return bad('use a domain name, not an IP address');
-  if (!host.includes('.') || host === 'localhost' || BLOCKED_SUFFIXES.some((s) => host.endsWith(s))) {
-    return bad('url must point to a public domain name');
-  }
-  if (!/^[a-z][a-z0-9-]*$/.test(host.split('.').pop() ?? '')) return bad('url must point to a public domain name');
-  if (OWN_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))) return bad('a webhook cannot point back at Vane');
-  return { ok: true, url: u.toString() };
+  try { u = new URL(v); } catch { return null; }
+  if (u.protocol !== 'https:' || u.username || u.password || (u.port && u.port !== '443')) return null;
+  // "localhost." (a trailing dot) is the same name: look at the host without it, so the rules below cannot be sidestepped
+  const host = u.hostname.toLowerCase().replace(/\.+$/, '');
+  if (!host.includes('.') || host.startsWith('[') || /^\d+(\.\d+){3}$/.test(host)) return null;       // IP addresses, "localhost"
+  if (PRIVATE_SUFFIXES.test(host)) return null;
+  if (OWN_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))) return null;
+  return u.toString();
 }
 
-// ───────────────────────── secret and signature ─────────────────────────
+const hex = (buf: ArrayBuffer): string => Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
 
-export const generateWebhookSecret = (): { secret: string; hint: string } => {
-  const random = randomBase62(SECRET_RANDOM_LEN);
-  return { secret: `whsec_${random}`, hint: random.slice(-4) };
-};
-export const displaySecret = (hint: string): string => `whsec_••••${hint}`;
-
-const toHex = (buf: ArrayBuffer): string => Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
-
-/** `t=<timestamp>,v1=<hex>`: the HMAC-SHA256 of "<timestamp>.<body>" under the webhook's secret. */
 export async function signWebhook(secret: string, timestamp: number, body: string): Promise<string> {
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const mac = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${timestamp}.${body}`));
-  return `t=${timestamp},v1=${toHex(mac)}`;
+  return `t=${timestamp},v1=${hex(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${timestamp}.${body}`)))}`;
 }
 
-// ───────────────────────── row ⇄ public ─────────────────────────
+export const newWebhookSecret = (): string => 'whsec_' + hex(crypto.getRandomValues(new Uint8Array(24)).buffer);
 
-export interface WebhookRow {
-  id: string;
-  user_id: string;
-  url: string;
-  events: string;
-  secret: string;
-  hint: string;
-  active: number;
-  failures: number;
-  last_status: number | null;
-  last_delivery_at: number | null;
-  disabled_reason: string | null;
-  created_at: number;
-}
-
-export const parseEvents = (stored: string): WebhookEvent[] =>
-  stored.split(',').filter((e): e is WebhookEvent => (WEBHOOK_EVENTS as readonly string[]).includes(e));
-
-export const webhookToPublic = (r: WebhookRow): WebhookPublic => ({
-  id: r.id,
-  url: r.url,
-  events: parseEvents(r.events),
-  active: r.active === 1,
-  secretHint: displaySecret(r.hint),
-  failures: r.failures,
-  lastStatus: r.last_status,
-  lastDeliveryAt: r.last_delivery_at,
-  disabledReason: r.disabled_reason,
-  createdAt: r.created_at,
-});
-
-/** The columns that are safe to select for a list: `secret` (the ciphertext) is never part of it. */
-export const WEBHOOK_PUBLIC_COLUMNS = 'id, user_id, url, events, hint, active, failures, last_status, last_delivery_at, disabled_reason, created_at';
-
-// ───────────────────────── the outbox ─────────────────────────
+type OutboxEnv = Pick<Env, 'DB'> & { ENCRYPTION_KEY?: string };
 
 /**
- * A statement that queues `event` for every ACTIVE webhook of the post's owner that subscribed to it.
- * Put it in the same batch as the status change it reports. `onlyIfChanged` makes it conditional on the previous
- * statement of the batch (the guarded UPDATE) having changed a row, so an event is never queued for a change that lost a race.
+ * Writes one outbox row for every subscription of the post's owner that wants `event`. Never throws: a webhook problem
+ * (including the tables not being created yet) must not disturb posting.
  */
-export function enqueueWebhookEvent(db: Env['DB'], postId: string, event: WebhookEvent, now: number, onlyIfChanged = false): D1PreparedStatement {
-  return db
-    .prepare(
-      `INSERT INTO webhook_deliveries (id, webhook_id, event, post_id, status, attempts, next_attempt_at, created_at)
-       SELECT lower(hex(randomblob(16))), w.id, ?2, p.id, 'pending', 0, ?3, ?3
-         FROM posts p JOIN webhooks w ON w.user_id = p.user_id AND w.active = 1
-        WHERE p.id = ?1 AND instr(',' || w.events || ',', ',' || ?2 || ',') > 0 ${onlyIfChanged ? 'AND changes() > 0' : ''}`,
-    )
-    .bind(postId, event, now);
-}
-
-/**
- * Queues `post.cancelled` for every post of `channelId` that a bulk
- *   UPDATE posts SET status = 'cancelled', error = <reason>, updated_at = <now> WHERE channel_id = … AND status = 'scheduled'
- * has just cancelled (e.g. Threads access was removed). Put it right after that UPDATE, in the same batch.
- */
-export function enqueueCancelledForChannel(db: Env['DB'], channelId: string, reason: string, now: number): D1PreparedStatement {
-  return db
-    .prepare(
-      `INSERT INTO webhook_deliveries (id, webhook_id, event, post_id, status, attempts, next_attempt_at, created_at)
-       SELECT lower(hex(randomblob(16))), w.id, 'post.cancelled', p.id, 'pending', 0, ?3, ?3
-         FROM posts p JOIN webhooks w ON w.user_id = p.user_id AND w.active = 1 AND instr(',' || w.events || ',', ',post.cancelled,') > 0
-        WHERE p.channel_id = ?1 AND p.status = 'cancelled' AND p.updated_at = ?3 AND p.error = ?2`,
-    )
-    .bind(channelId, reason, now);
-}
-
-// ───────────────────────── sending ─────────────────────────
-
-export interface EventPayload {
-  id: string;
-  type: WebhookEvent | 'ping';
-  createdAt: number;
-  data: Record<string, unknown>;
-}
-
-export interface SendResult {
-  ok: boolean;
-  /** HTTP status, 0 when the endpoint did not answer */
-  status: number;
-  error?: string;
-  durationMs: number;
-}
-
-/** One signed POST. Never throws, never follows a redirect, gives up after 8 seconds. */
-export async function sendWebhook(url: string, secret: string, payload: EventPayload): Promise<SendResult> {
-  const body = JSON.stringify(payload);
-  const timestamp = Math.floor(Date.now() / 1000);
-  const started = Date.now();
+export async function enqueueWebhookEvent(env: OutboxEnv, userId: string, postId: string, event: WebhookEvent, nowSec: number): Promise<number> {
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      redirect: 'manual',
-      signal: AbortSignal.timeout(DELIVERY_TIMEOUT_MS),
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'Vane-Webhooks/1.0',
-        'Vane-Event': payload.type,
-        'Vane-Delivery': payload.id,
-        'Vane-Signature': await signWebhook(secret, timestamp, body),
-      },
-      body,
+    const { results: subs } = await env.DB
+      .prepare('SELECT id, events FROM webhook_subscriptions WHERE user_id = ?1 AND disabled_at IS NULL')
+      .bind(userId)
+      .all<{ id: string; events: string }>();
+    const wanted = subs.filter((s) => { try { return (JSON.parse(s.events) as string[]).includes(event); } catch { return false; } });
+    if (!wanted.length) return 0;
+    const post: PostPublic | null = await loadPostPublic(env as Env, postId);
+    if (!post) return 0;
+    const stmts = wanted.map((s) => {
+      const id = crypto.randomUUID();
+      const payload = JSON.stringify({ id, type: event, createdAt: new Date(nowSec * 1000).toISOString(), data: { post } });
+      return env.DB
+        .prepare(`INSERT INTO webhook_deliveries (id, subscription_id, event, payload, next_attempt_at, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?5)`)
+        .bind(id, s.id, event, payload, nowSec);
     });
-    // We only need the status: don't hold the connection open for a body.
-    await res.body?.cancel().catch(() => undefined);
-    const durationMs = Date.now() - started;
-    if (res.status >= 200 && res.status < 300) return { ok: true, status: res.status, durationMs };
-    if (res.status >= 300 && res.status < 400) return { ok: false, status: res.status, error: `Answered with a redirect (${res.status}); redirects are not followed.`, durationMs };
-    return { ok: false, status: res.status, error: `Answered with HTTP ${res.status}.`, durationMs };
+    await env.DB.batch(stmts);
+    return stmts.length;
   } catch (err) {
-    const timedOut = err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError');
-    return { ok: false, status: 0, error: timedOut ? `No answer within ${DELIVERY_TIMEOUT_MS / 1000} seconds.` : 'Could not connect to the URL.', durationMs: Date.now() - started };
+    console.error('webhooks: could not queue event', err instanceof Error ? err.message : 'unknown');
+    return 0;
   }
 }
 
-// ───────────────────────── safe rollout ─────────────────────────
+export const backoffForAttempt = (attempts: number): number => RETRY_DELAYS[Math.min(attempts, RETRY_DELAYS.length) - 1];
 
-let tablesKnown = false;
-/**
- * Are the webhook tables in the database yet? The code can be deployed before `npm run db:remote` is run; until then the
- * paths that CHANGE posts (cancel, the cron worker) must keep working and simply not queue events.
- * A positive answer is cached for the life of the isolate (tables never go away); a negative one is asked again.
- */
-export async function webhooksTablesExist(db: Env['DB']): Promise<boolean> {
-  if (tablesKnown) return true;
+interface Due { id: string; subscription_id: string; event: string; payload: string; attempts: number; url: string; secret: string }
+
+/** Sends what is due. Returns how many were delivered / will be retried / were given up. */
+export async function deliverDueWebhooks(env: OutboxEnv, nowSec: number): Promise<{ delivered: number; retried: number; failed: number }> {
+  const out = { delivered: 0, retried: 0, failed: 0 };
+  if (!env.ENCRYPTION_KEY || env.ENCRYPTION_KEY.length < 32) return out;
+  let due: Due[];
   try {
-    const row = await db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name IN ('webhooks', 'webhook_deliveries')").first<{ n: number }>();
-    tablesKnown = (row?.n ?? 0) === 2;
-  } catch {
-    tablesKnown = false;
+    // Claim atomically (the lease pushes next_attempt_at forward, so an overlapping run skips these rows).
+    const claimed = await env.DB
+      .prepare(
+        `UPDATE webhook_deliveries SET attempts = attempts + 1, next_attempt_at = ?1 + ?2
+          WHERE id IN (SELECT d.id FROM webhook_deliveries d JOIN webhook_subscriptions s ON s.id = d.subscription_id
+                        WHERE d.status = 'pending' AND d.next_attempt_at <= ?1 AND s.disabled_at IS NULL
+                        ORDER BY d.next_attempt_at LIMIT ?3)
+          RETURNING id, subscription_id, event, payload, attempts`,
+      )
+      .bind(nowSec, LEASE_SECONDS, BATCH)
+      .all<Omit<Due, 'url' | 'secret'>>();
+    if (!claimed.results.length) return out;
+    const subIds = [...new Set(claimed.results.map((r) => r.subscription_id))];
+    const { results: subs } = await env.DB
+      .prepare(`SELECT id, url, secret FROM webhook_subscriptions WHERE id IN (${subIds.map((_, i) => `?${i + 1}`).join(',')})`)
+      .bind(...subIds)
+      .all<{ id: string; url: string; secret: string }>();
+    const byId = new Map(subs.map((s) => [s.id, s]));
+    due = claimed.results.flatMap((r) => { const s = byId.get(r.subscription_id); return s ? [{ ...r, url: s.url, secret: s.secret }] : []; });
+  } catch (err) {
+    console.error('webhooks: could not read the outbox', err instanceof Error ? err.message : 'unknown');
+    return out;
   }
-  return tablesKnown;
+
+  const secrets = new Map<string, string | null>();
+  for (const d of due) {
+    if (!secrets.has(d.subscription_id)) secrets.set(d.subscription_id, await decryptToken(d.secret, env.ENCRYPTION_KEY).catch(() => null));
+    const secret = secrets.get(d.subscription_id);
+    let status = 0;
+    let error: string | null = null;
+    if (!secret) {
+      error = 'The signing secret could not be read.';
+    } else {
+      try {
+        const ts = Math.floor(Date.now() / 1000);
+        const res = await fetch(d.url, {
+          method: 'POST',
+          redirect: 'error',
+          signal: AbortSignal.timeout(TIMEOUT_MS),
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'Vane-Webhooks/1',
+            'Vane-Event': d.event,
+            'Vane-Delivery': d.id,
+            'Vane-Signature': await signWebhook(secret, ts, d.payload),
+          },
+          body: d.payload,
+        });
+        status = res.status;
+        if (res.status < 200 || res.status >= 300) error = `The receiver answered HTTP ${res.status}.`;
+      } catch (e) {
+        error = e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError') ? 'The receiver did not answer in time.' : 'Could not connect to the receiver.';
+      }
+    }
+
+    if (!error) {
+      out.delivered++;
+      await env.DB.batch([
+        env.DB.prepare(`UPDATE webhook_deliveries SET status = 'delivered', last_error = NULL WHERE id = ?1`).bind(d.id),
+        env.DB.prepare('UPDATE webhook_subscriptions SET last_status = ?1 WHERE id = ?2').bind(status, d.subscription_id),
+      ]);
+    } else if (status === 410) {
+      out.failed++;
+      await env.DB.batch([
+        env.DB.prepare(`UPDATE webhook_deliveries SET status = 'failed', last_error = ?1 WHERE id = ?2`).bind(error, d.id),
+        env.DB.prepare('UPDATE webhook_subscriptions SET disabled_at = ?1, last_status = 410 WHERE id = ?2').bind(nowSec, d.subscription_id),
+      ]);
+    } else if (d.attempts >= MAX_ATTEMPTS) {
+      out.failed++;
+      await env.DB.batch([
+        env.DB.prepare(`UPDATE webhook_deliveries SET status = 'failed', last_error = ?1 WHERE id = ?2`).bind(error, d.id),
+        env.DB.prepare('UPDATE webhook_subscriptions SET last_status = ?1 WHERE id = ?2').bind(status, d.subscription_id),
+      ]);
+    } else {
+      out.retried++;
+      await env.DB.batch([
+        env.DB.prepare(`UPDATE webhook_deliveries SET next_attempt_at = ?1, last_error = ?2 WHERE id = ?3`).bind(nowSec + backoffForAttempt(d.attempts), error, d.id),
+        env.DB.prepare('UPDATE webhook_subscriptions SET last_status = ?1 WHERE id = ?2').bind(status, d.subscription_id),
+      ]);
+    }
+  }
+  return out;
+}
+
+/** Housekeeping: finished deliveries are kept for a week. */
+export async function purgeOldWebhookDeliveries(env: Pick<Env, 'DB'>, nowSec: number): Promise<void> {
+  await env.DB.prepare(`DELETE FROM webhook_deliveries WHERE status != 'pending' AND created_at <= ?1`).bind(nowSec - KEEP_SECONDS).run();
 }

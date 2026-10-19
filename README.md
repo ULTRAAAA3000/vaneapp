@@ -67,7 +67,7 @@ A separate sign-in at `https://vaneapp.dev/admin` (not linked anywhere, `noindex
    `npx wrangler d1 execute vane-db --remote --file=./schema.sql`
    then, once, if the database existed before the admin panel: `npx wrangler d1 execute vane-db --remote --file=./scripts/migrations/001-subscriptions-any-plan.sql`
 2. **Make the password hash** (typing is hidden, use a long random passphrase):
-   `npm run admin:hash` → prints `pbkdf2-sha256$100000$…`
+   `npm run admin:hash` → prints `pbkdf2-sha256$100000$…`. No terminal? Open `/admin-hash.html` on the site: it makes the same hash in your browser (the password never leaves the page) and has a **Check** box that tells you whether a pasted hash belongs to a password. Paste the hash into the secret with no quotes or spaces (stray ones are ignored now, but keep it clean).
 3. **Store the secrets** and redeploy:
    ```
    npx wrangler pages secret put ADMIN_EMAIL         --project-name=vaneapp   # the login, an e-mail
@@ -156,8 +156,7 @@ Spec: `ECONOMY_AND_FINANCE.md` §2 and §6, `SECURITY_ARCHITECTURE.md` §2-3. Bu
 | 1 | Tables, key generation and hashing, key auth, scopes, test mode, quota engine with 402, `/api/v1/*`, usage | done |
 | 2 | "API access" section in the dashboard: create / revoke keys, quota meter, quick start | done |
 | 3a | OpenAPI spec and `Idempotency-Key` (safe retries from Make / Zapier) | done |
-| 3b | Webhooks: signed `post.sent` / `post.failed` / `post.cancelled` events, retries, auto-disable | done |
-| 3c | "Webhooks" card in the dashboard (add, test, delete, status) | next |
+| 3b | Webhooks: signed `post.published` / `post.failed` events, retries (shipped, see Webhooks below) | done |
 | 4 | Payments (Monobank, USDT/USDC) that grant the plan and issue keys automatically | |
 | 5 | AI endpoints on Workers AI (reformat, tone, hooks) with their own metering | |
 
@@ -194,7 +193,6 @@ curl -X POST https://vaneapp.dev/api/keys -H "Authorization: Bearer <jwt>" -H "C
 | | |
 |---|---|
 | `GET /api/v1/openapi.json` | the OpenAPI 3.1 description (no key needed) |
-| `GET` / `POST /api/v1/webhooks`, `DELETE /api/v1/webhooks/:id`, `POST /api/v1/webhooks/:id/test` | webhooks (below) |
 | `GET /api/v1/me` | is the key valid, which plan (the "test connection" call for Make / Zapier) |
 | `GET /api/v1/usage` | plan, quota, what is left, what extra posts cost |
 | `GET /api/v1/channels` | my channels; their `id`s go into `channelIds` |
@@ -204,7 +202,7 @@ curl -X POST https://vaneapp.dev/api/keys -H "Authorization: Bearer <jwt>" -H "C
 | `DELETE /api/v1/posts/:id` | cancel while still `scheduled` |
 
 Every metered response carries `X-Vane-Quota-Limit`, `X-Vane-Quota-Remaining` and `X-Vane-Quota-Reset`. Errors are `{ "ok": false, "error": "…", "code": "…" }`; branch on `code`:
-`invalid_api_key` (401) · `wrong_key_scope` (403) · `api_not_in_plan` (403) · `quota_exceeded` (402) · `rate_limited` (429) · `too_many_keys` (409) · `invalid_idempotency_key` (400) · `idempotency_key_reuse` (422) · `idempotency_in_progress` (409) · `invalid_webhook_url` / `invalid_webhook_events` (400) · `webhook_exists` / `too_many_webhooks` (409).
+`invalid_api_key` (401) · `wrong_key_scope` (403) · `api_not_in_plan` (403) · `quota_exceeded` (402) · `rate_limited` (429) · `too_many_keys` (409) · `invalid_idempotency_key` (400) · `idempotency_key_reuse` (422) · `idempotency_in_progress` (409).
 
 **OpenAPI spec:** `https://vaneapp.dev/vane-openapi.json` (OpenAPI 3.0, served from `public/`) describes all of the above, so a tool can import it instead of being set up by hand.
 - *ChatGPT Custom GPT*: Configure → Actions → *Import from URL* with the address above → Authentication *API Key* → *Bearer*, paste a `cpost_…` key. Use a `cpost_test_` key while trying it out.
@@ -231,58 +229,6 @@ Only a **successful** answer is remembered: a request that failed (400, 402, 5xx
 ### OpenAPI / Custom GPT
 
 `GET /api/v1/openapi.json` serves an OpenAPI 3.1 description of this API (public, CORS-enabled, nothing private in it). The dashboard's Quick start shows the URL with a Copy button. In ChatGPT: *Create a GPT → Configure → Actions → Import from URL*, then set Authentication to *API Key / Bearer* and paste a `cpost_live_…` key. Postman and Make read it too. The spec lives in `functions/api/lib/openapi.ts` (the only hand-written description); `npm run test:api` validates its structure and **fails if a route under `functions/api/v1` is not documented or a documented route does not exist** (the Video Engine has its own document, `documentation/VIDEO_ENGINE.md`).
-
-### Webhooks
-
-Instead of polling `GET /api/v1/posts/:id`, give Vane an https URL and it calls you when one of the account's posts reaches a final state (it covers posts from the dashboard too).
-
-```
-POST /api/v1/webhooks   { "url": "https://example.com/hooks/vane", "events": ["post.sent", "post.failed", "post.cancelled"] }   (events is optional: all three)
-→ 201 { "webhook": { "id": "…", "secretHint": "whsec_••••ab12", … }, "secret": "whsec_…" }     the secret is shown ONCE
-```
-
-| Event | When |
-|---|---|
-| `post.sent` | it was published |
-| `post.failed` | it could not be published (`data.post.error` says why: overdue, channel problem, retries used up) |
-| `post.cancelled` | it was cancelled before it was sent |
-| `ping` | only from `POST /api/v1/webhooks/:id/test` |
-
-Every delivery is a `POST` with this body and these headers:
-
-```json
-{ "id": "evt_9f2c…", "type": "post.sent", "createdAt": 1790000000, "data": { "post": { "id": "…", "groupId": "…", "channelId": "…", "status": "sent", "content": "…", "sentAt": 1790000001, … } } }
-```
-```
-Vane-Signature: t=1790000001,v1=<hex HMAC-SHA256 of "<t>.<raw body>" with your signing secret>
-Vane-Event: post.sent        Vane-Delivery: evt_9f2c…        User-Agent: Vane-Webhooks/1.0
-```
-
-**Verify the signature** (use the raw body, compare in constant time, reject an old `t`):
-
-```js
-import { createHmac, timingSafeEqual } from 'node:crypto';
-
-function verify(secret, signatureHeader, rawBody) {
-  const m = /^t=(\d+),v1=([0-9a-f]{64})$/.exec(signatureHeader ?? '');
-  if (!m || Math.abs(Date.now() / 1000 - Number(m[1])) > 300) return false;      // malformed, or older than 5 minutes
-  const expected = createHmac('sha256', secret).update(`${m[1]}.${rawBody}`).digest();
-  return timingSafeEqual(expected, Buffer.from(m[2], 'hex'));
-}
-```
-
-**Delivery rules**
-- Any `2xx` is a success. Anything else is retried after 1 min, 5 min, 15 min, 1 h (6 attempts in all), then the delivery is `failed`. Redirects are **not** followed; an endpoint gets 8 seconds to answer.
-- **At least once**: a timeout can mean "received but slow", so the same event can arrive twice (same `id`). Dedupe on `id`. Order is roughly oldest first, not guaranteed: use `createdAt`.
-- After **10 consecutive deliveries that failed for good** the webhook is switched off (`active: false`, `disabledReason` says why); a `410 Gone` switches it off at once. Fix the endpoint and press **Test** (`POST /api/v1/webhooks/:id/test`): a successful test switches it back on.
-- Up to 5 webhooks per account. The URL must be `https`, on port 443, on a public **domain name** (no IP addresses, `localhost`, `*.local` / `*.internal`, credentials, or Vane itself). Webhooks belong to the API, so a plan without API access (Pro without the Add-on) cannot add one.
-- A test key (`cpost_test_…`) validates and answers like a live one but stores nothing; listing and testing work with any key. Because this is also what REST-hook tools need, `POST /api/v1/webhooks` is the "subscribe" and `DELETE /api/v1/webhooks/:id` the "unsubscribe" call of a Zapier / Make instant trigger.
-
-**How it works.** The event is written to an outbox table (`webhook_deliveries`) in the **same database batch** as the status change that causes it (cancel: `functions/api/posts/cancel.ts`; sent / failed / overdue: `worker/src/dispatch.ts`), guarded by `changes()` so a change that lost a race queues nothing. The cron worker sends the outbox every minute right after the posts (`worker/src/webhooks.ts`): rows are claimed with one atomic `UPDATE … RETURNING`, a run that died mid-send is recovered after 5 minutes, at most 10 deliveries per run. Signing secrets are stored **AES-GCM encrypted** (`ENCRYPTION_KEY`, like channel credentials), because the worker needs the plain text to sign; the API never returns them again. Shared code: `functions/api/lib/webhooks.ts`.
-
-**Rolling it out.** Run `npm run db:remote` (two new tables: `webhooks`, `webhook_deliveries`) and redeploy the worker (`npm run cron:deploy`). In between, nothing breaks: until the tables exist, cancelling and the cron worker simply don't queue events.
-
-**Testing locally.** Add `WEBHOOK_DEV_MODE=1` to `.dev.vars` (never in production): it lets a webhook point at `http://localhost`. Then `npm run test:unit` (URL rules incl. SSRF tricks, signature against an independent HMAC), `npm run test:api` (management, tests, cancel events), and `npm run test:webhooks` (starts the real cron worker and checks signed deliveries, retries, giving up, auto-disable, 410, redirects, timeouts, recovery, batching).
 
 ### How the quota works
 
@@ -311,7 +257,7 @@ npm run plan:set -- me@example.com pro --addon --forever --remote   # production
 
 ### Test it
 
-`npm run db:local && npm run dev` in one terminal, `npm run test:api` in another: 148 checks that walk through keys, scopes, test mode, the Free Trial, every plan, the parallel-request race, overage, revoking, the rate limit, Idempotency-Key (retries, races, expiry), the OpenAPI document and webhook management (secrets, signatures, limits, cancel events). `npm run test:unit` and `npm run test:webhooks` cover the rest, see Webhooks. It only schedules posts for a placeholder channel; nothing is sent anywhere.
+`npm run db:local && npm run dev` in one terminal, `npm run test:api` in another: 101 checks that walk through keys, scopes, test mode, the Free Trial, every plan, the parallel-request race, overage, revoking, the rate limit, Idempotency-Key (retries, races, expiry) and the OpenAPI document. It only schedules posts for a placeholder channel; nothing is sent anywhere.
 
 ## Vane Studio / Video Engine (a separate dashboard)
 
@@ -360,6 +306,14 @@ All of it is computed in the browser from the two post lists the dashboard alrea
 - **Reuse** (History): copies a finished post's text and channels back into the editor. **Ctrl / ⌘ + Enter** schedules.
 
 
+## AI in the post editor
+
+`POST /api/ai` (dashboard session) runs on Cloudflare Workers AI (`@cf/meta/llama-3.1-8b-instruct`). The binding is declared in `wrangler.toml` (`[ai] binding = "AI"`); if it does not show up after a deploy, add it in Pages → Settings → Bindings → Workers AI with the variable name `AI`. Without it the AI bar stays hidden and `/api/ai` answers 503.
+
+- Free for everyone: **Make it clean** (typos, emoji) and **Hashtags**.
+- AI Pass (counts against `aiCredits` of the plan): tone, hooks, CTAs, a version per selected channel, a post from an idea, a week plan. Free plan = the credits set in the plan catalog (set `aiCredits` to 0 in the admin panel to make them Pro-only); API plan pays per generation; Pro has a monthly allowance.
+- Links in the text are kept as they are, and every result is fitted to the limit of the network.
+
 ## LinkedIn and Threads
 
 Both connect with the network's own "Allow" page (OAuth), publish text and one picture, and are off ("Soon" in the Connect dialog) until their app keys are set.
@@ -375,3 +329,22 @@ Full setup, redirect URLs, review checklist and the screencast script: `document
 - Sign-ins last 60 days. Threads renews itself; LinkedIn (no refresh token for ordinary apps) shows **Reconnect** on the channel card a week before, and reconnecting renews the same channel in place.
 - A sent post's `url` (History link, `GET /api/v1/posts`): LinkedIn `linkedin.com/feed/update/<urn>/`, Threads its permalink.
 - Pages: `/privacy` and `/data-deletion` (fill in the legal name and contact email before submitting for review).
+
+## Webhooks
+
+Vane can call your server (or Make / Zapier) when a post is published or fails.
+
+```
+POST /api/v1/webhooks   { "url": "https://example.com/hook", "events": ["post.published", "post.failed"] }
+  → 201 { "webhook": { "id": "…" }, "secret": "whsec_…" }      the secret is shown once
+GET  /api/v1/webhooks                                            my subscriptions
+DELETE /api/v1/webhooks/:id                                      stop one
+```
+
+Same `Authorization: Bearer cpost_…` as the rest of the API (a `cpost_test_` key saves nothing). The url must be https on port 443 with a real host name (no IP addresses). Up to 10 per account.
+
+Each event is a `POST` with the JSON `{ "id", "type", "createdAt", "data": { "post": {…same as GET /api/v1/posts/:id…} } }` and the headers `Vane-Event`, `Vane-Delivery` (same value on every retry: de-duplicate on it) and `Vane-Signature: t=<unix>,v1=<hex>`, the HMAC-SHA256 of `"<t>.<raw body>"` with your secret. Answer with any 2xx. Otherwise Vane retries after 1 min, 5 min, 30 min, 2 h and 12 h, then gives up; HTTP 410 ends the subscription.
+
+Events are queued in `webhook_deliveries` and sent by the cron worker every minute, so a slow receiver never delays posting. The two webhook tables are in `schema.sql` (run it, or the two `CREATE TABLE` blocks at its end, in the D1 console); until then `/api/v1/webhooks` answers 503 and posting is unaffected.
+
+**Receiver address rules** (`validateWebhookUrl` in `functions/api/lib/webhooks.ts`): https only, port 443, no credentials, a public domain name (no IP addresses in any notation, no `localhost`, `*.local`, `*.internal`, `*.lan`, `*.home.arpa`, `*.intranet` …, a trailing dot does not sidestep it) and never Vane itself (`vaneapp.dev` and its subdomains). Redirects are not followed. `npm run test:unit` checks these rules and the signature against an independent HMAC.
