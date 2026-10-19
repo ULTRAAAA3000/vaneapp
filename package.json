@@ -21,7 +21,9 @@
     "test:video": "node scripts/video-e2e.mjs",
     "test:hosts": "node scripts/hosts-e2e.mjs",
     "db:migrate:networks": "wrangler d1 execute vane-db --remote --file=./migrations/0001-channel-types.sql",
-    "check:integrations": "node scripts/check-integrations.mjs"
+    "check:integrations": "node scripts/check-integrations.mjs",
+    "test:unit": "node scripts/webhooks-unit.mjs",
+    "test:webhooks": "node scripts/webhooks-e2e.mjs"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250101.0",

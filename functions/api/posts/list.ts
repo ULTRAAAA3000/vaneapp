@@ -55,7 +55,7 @@ function toPublic(r: Row, url: string | null): PostPublic {
  * Rows → public posts, each sent post with the link to open it on its network. Telegram needs the channel's chat for that, so the
  * saved credentials are decrypted once per Telegram channel in the list (a handful at most); nothing from them leaves this function.
  */
-async function withLinks(env: Env, rows: Row[]): Promise<PostPublic[]> {
+async function withLinks(env: Pick<Env, 'ENCRYPTION_KEY'>, rows: Row[]): Promise<PostPublic[]> {
   const chats = new Map<string, string | null>();
   for (const r of rows) {
     if (r.channel_type === 'telegram' && r.status === 'sent' && r.external_id && !chats.has(r.channel_id)) {
@@ -81,6 +81,12 @@ export async function listPostsForUser(env: Env, userId: string, view: string): 
     .all<Row>();
 
   return json({ ok: true, posts: await withLinks(env, results) });
+}
+
+/** A post as the API shows it, by id. Used for webhook payloads (the sender checks ownership through the webhook row). */
+export async function loadPostPublic(env: Pick<Env, 'DB' | 'ENCRYPTION_KEY'>, id: string): Promise<PostPublic | null> {
+  const row = await env.DB.prepare(`${SELECT_POST} WHERE p.id = ?1`).bind(id).first<Row>();
+  return row ? (await withLinks(env, [row]))[0] : null;   // a sent post carries the link to open it on its network
 }
 
 /** One post by id (mine only: someone else's id looks exactly like a missing one). */

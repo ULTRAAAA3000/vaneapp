@@ -37,3 +37,7 @@ TELEGRAM_WEBHOOK_SECRET=random-16+-chars-A-Za-z0-9_-   # e.g. openssl rand -hex 
 # Redirect URL: <APP_URL>/api/channels/threads/callback   Deauthorize: <APP_URL>/api/channels/threads/deauthorize   Data deletion: <APP_URL>/api/channels/threads/delete
 #THREADS_APP_ID=your-threads-app-id
 #THREADS_APP_SECRET=your-threads-app-secret
+
+# Local testing of webhooks only: lets a webhook point at http://localhost (the receiver in `npm run test:api`).
+# NEVER set this in production.
+# WEBHOOK_DEV_MODE=1

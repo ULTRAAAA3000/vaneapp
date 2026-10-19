@@ -43,6 +43,7 @@ export interface Env {
   THREADS_APP_ID?: string;          // plain var
   THREADS_APP_SECRET?: string;      // secret (also checks Meta's deauthorize / data-deletion calls)
   SYSTEM_BOT_USERNAME?: string; // shared bot username without @ (default: VanePublishBot)
+  WEBHOOK_DEV_MODE?: string;    // '1' ONLY in .dev.vars: lets a webhook point at http://localhost so deliveries can be tested locally. Never set it in production.
 }
 
 // ───────────────────────── Enums ─────────────────────────
@@ -459,3 +460,35 @@ export type StartVideoUploadResponse =
       simulated?: true;
     }
   | ApiError;
+
+// ───────────────────────── Public API: webhooks (API part 3b) ─────────────────────────
+export type WebhookEvent = 'post.sent' | 'post.failed' | 'post.cancelled';
+
+/** What the API returns about a webhook. The signing secret is shown ONCE, on creation. */
+export interface WebhookPublic {
+  id: string;
+  url: string;
+  events: WebhookEvent[];
+  active: boolean;
+  /** masked, e.g. "whsec_••••ab12" */
+  secretHint: string;
+  /** consecutive deliveries that failed for good; at 10 the webhook is switched off */
+  failures: number;
+  /** HTTP status of the last delivery attempt, 0 = the endpoint did not answer */
+  lastStatus: number | null;
+  lastDeliveryAt: number | null;
+  /** why it was switched off, when it was */
+  disabledReason: string | null;
+  createdAt: number;
+}
+
+export interface CreateWebhookRequest {
+  /** https URL on a public domain */
+  url: string;
+  /** default: all three */
+  events?: WebhookEvent[];
+}
+
+export type CreateWebhookResponse = { ok: true; webhook: WebhookPublic; secret: string } | ApiError;
+export type ListWebhooksResponse = { ok: true; webhooks: WebhookPublic[]; max: number } | ApiError;
+export type PingWebhookResponse = { ok: true; delivered: boolean; status: number | null; error?: string; durationMs: number } | ApiError;

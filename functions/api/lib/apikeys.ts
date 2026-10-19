@@ -38,7 +38,7 @@ export async function hashApiKey(rawKey: string): Promise<string> {
 }
 
 /** n random base62 characters with no modulo bias (bytes ≥ 248 are thrown away, 248 = 62 × 4). */
-function randomBase62(n: number): string {
+export function randomBase62(n: number): string {
   let out = '';
   while (out.length < n) {
     for (const b of crypto.getRandomValues(new Uint8Array(n * 2))) {

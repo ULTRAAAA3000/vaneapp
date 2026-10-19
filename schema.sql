@@ -521,3 +521,44 @@ CREATE TABLE IF NOT EXISTS video_links (
   video_id    TEXT    NOT NULL UNIQUE REFERENCES videos(id) ON DELETE CASCADE,
   created_at  INTEGER NOT NULL DEFAULT (unixepoch())
 );
+
+-- ───────────────────────── Public API: webhooks (API part 3b) ─────────────────────────
+-- A webhook is an https URL that Vane calls when one of the account's posts reaches a final state
+-- (post.sent, post.failed, post.cancelled), signed with HMAC-SHA256 so the receiver knows it was us.
+--   secret   AES-GCM ciphertext (ENCRYPTION_KEY) of the signing secret. The cron worker needs the plain text to sign each
+--            delivery, so it cannot be a one-way hash like an API key; the owner sees it once, when the webhook is created.
+--   events   comma-separated list, e.g. 'post.sent,post.failed'
+--   failures consecutive deliveries that failed for good (all retries used); a success resets it; at 10 the webhook is
+--            switched off (active = 0, disabled_reason says why)
+CREATE TABLE IF NOT EXISTS webhooks (
+  id                TEXT    PRIMARY KEY,
+  user_id           TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  url               TEXT    NOT NULL,
+  events            TEXT    NOT NULL,
+  secret            TEXT    NOT NULL,
+  hint              TEXT    NOT NULL,                                          -- last 4 characters of the secret
+  active            INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+  failures          INTEGER NOT NULL DEFAULT 0,
+  last_status       INTEGER,                                                   -- HTTP status of the last attempt, 0 = no answer
+  last_delivery_at  INTEGER,
+  disabled_reason   TEXT,
+  created_at        INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_webhooks_user ON webhooks(user_id);
+
+-- The outbox: one row per (event, webhook). Rows are written in the SAME batch as the status change that causes them,
+-- so an event can't be lost or invented. The cron worker sends them (retries with backoff, at-least-once: receivers
+-- dedupe on the event id, which is `evt_` + this row's id).
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+  id               TEXT    PRIMARY KEY,
+  webhook_id       TEXT    NOT NULL REFERENCES webhooks(id) ON DELETE CASCADE,
+  event            TEXT    NOT NULL,
+  post_id          TEXT,
+  status           TEXT    NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sending', 'done', 'failed')),
+  attempts         INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at  INTEGER NOT NULL,                                           -- when 'pending' it is due; when 'sending' it is the claim time
+  last_error       TEXT,
+  created_at       INTEGER NOT NULL DEFAULT (unixepoch()),
+  delivered_at     INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_due ON webhook_deliveries(status, next_attempt_at);
