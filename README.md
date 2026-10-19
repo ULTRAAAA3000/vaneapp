@@ -67,7 +67,7 @@ A separate sign-in at `https://vaneapp.dev/admin` (not linked anywhere, `noindex
    `npx wrangler d1 execute vane-db --remote --file=./schema.sql`
    then, once, if the database existed before the admin panel: `npx wrangler d1 execute vane-db --remote --file=./scripts/migrations/001-subscriptions-any-plan.sql`
 2. **Make the password hash** (typing is hidden, use a long random passphrase):
-   `npm run admin:hash` → prints `pbkdf2-sha256$100000$…`
+   `npm run admin:hash` → prints `pbkdf2-sha256$100000$…`. No terminal? Open `/admin-hash.html` on the site: it makes the same hash in your browser (the password never leaves the page) and has a **Check** box that tells you whether a pasted hash belongs to a password. Paste the hash into the secret with no quotes or spaces (stray ones are ignored now, but keep it clean).
 3. **Store the secrets** and redeploy:
    ```
    npx wrangler pages secret put ADMIN_EMAIL         --project-name=vaneapp   # the login, an e-mail
