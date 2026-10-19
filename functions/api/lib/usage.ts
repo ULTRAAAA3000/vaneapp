@@ -7,8 +7,8 @@
 import type { D1PreparedStatement } from '@cloudflare/workers-types';
 import type { Env, UsageBucket, UsageSummary } from '../../../types';
 import {
-  apiAllowed, limitsFor, microToUsd, overageRates, periodKey, periodResetsAt, refreshPlanSpecs, resolveSubscription, specOf,
-  type Subscription, type SubscriptionRow,
+  aiMode, apiAllowed, limitsFor, microToUsd, overageRates, periodKey, periodResetsAt, refreshPlanSpecs, resolveSubscription, specOf,
+  type PlanSpec, type Subscription, type SubscriptionRow,
 } from './plans';
 
 export const nowSeconds = (): number => Math.floor(Date.now() / 1000);
@@ -25,19 +25,28 @@ export async function loadSubscription(env: Env, userId: string, now = nowSecond
 interface Counters {
   api_posts: number;
   ui_posts: number;
+  ai_generations: number;
   overage_posts: number;
   overage_micro_usd: number;
 }
 
 async function loadCounters(env: Env, userId: string, period: string): Promise<Counters> {
   const row = await env.DB
-    .prepare('SELECT api_posts, ui_posts, overage_posts, overage_micro_usd FROM usage_counters WHERE user_id = ?1 AND period = ?2')
+    .prepare('SELECT api_posts, ui_posts, ai_generations, overage_posts, overage_micro_usd FROM usage_counters WHERE user_id = ?1 AND period = ?2')
     .bind(userId, period)
     .first<Counters>();
-  return row ?? { api_posts: 0, ui_posts: 0, overage_posts: 0, overage_micro_usd: 0 };
+  return row ?? { api_posts: 0, ui_posts: 0, ai_generations: 0, overage_posts: 0, overage_micro_usd: 0 };
 }
 
 const bucket = (limit: number, used: number): UsageBucket => ({ limit, used, remaining: Math.max(limit - used, 0) });
+
+/** AI credits as the dashboard shows them. See aiMode() for how a plan's `aiCredits` is read. */
+function aiBucket(spec: PlanSpec, sub: Subscription, used: number): UsageSummary['ai'] {
+  const mode = aiMode(spec);
+  if (mode.kind === 'credits') return { limit: mode.credits, used, remaining: Math.max(mode.credits - used, 0), perGenerationUsd: null };
+  if (mode.kind === 'per_generation') return { limit: null, used, remaining: null, perGenerationUsd: microToUsd(mode.priceMicro) };
+  return { limit: null, used, remaining: null, perGenerationUsd: null };
+}
 
 /** The full picture for `GET /api/usage` and `GET /api/v1/usage`. */
 export async function usageSummary(env: Env, userId: string, sub: Subscription, now = nowSeconds()): Promise<UsageSummary> {
@@ -58,6 +67,7 @@ export async function usageSummary(env: Env, userId: string, sub: Subscription, 
     api: shared ?? bucket(lim.api, c.api_posts),
     ui: shared ?? bucket(lim.ui, c.ui_posts),
     shared,
+    ai: aiBucket(spec, sub, c.ai_generations),
     apiAccess: apiAllowed(sub),
     overage: {
       enabled: rates !== null,
@@ -181,4 +191,80 @@ export function quotaHeaders(u: UsageSummary): Record<string, string> {
   };
   if (u.period.resetsAt !== null) h['X-Vane-Quota-Reset'] = String(u.period.resetsAt);
   return h;
+}
+
+// ───────────────────────── AI generations ─────────────────────────
+
+export type AiReservation =
+  | { ok: true; overage: boolean; costMicro: number; period: string }
+  | { ok: false; code: 'ai_not_in_plan' | 'ai_quota_exceeded' };
+
+/**
+ * Takes one AI generation, or says why it can't. Same single-statement guard as reserveApiPost.
+ *   credits         → counted while the included credits last; beyond them priced when overage billing is on, else stopped
+ *   per_generation  → every generation priced (needs overage billing on, otherwise ai_not_in_plan)
+ *   unlimited       → counted, never stopped
+ */
+export async function reserveAiGeneration(env: Env, userId: string, sub: Subscription, now: number): Promise<AiReservation> {
+  const spec = specOf(sub.plan);
+  const mode = aiMode(spec);
+  const period = periodKey(sub.plan, now);
+  const rates = overageRates(sub);
+
+  if (mode.kind === 'credits' && mode.credits >= 1) {
+    const res = await env.DB
+      .prepare(
+        `INSERT INTO usage_counters (user_id, period, ai_generations, updated_at) VALUES (?1, ?2, 1, ?3)
+         ON CONFLICT(user_id, period) DO UPDATE SET ai_generations = ai_generations + 1, updated_at = ?3
+         WHERE ai_generations + 1 <= ?4`,
+      )
+      .bind(userId, period, now, mode.credits)
+      .run();
+    if ((res.meta?.changes ?? 0) > 0) return { ok: true, overage: false, costMicro: 0, period };
+  }
+  if (mode.kind === 'unlimited') {
+    await env.DB
+      .prepare(`INSERT INTO usage_counters (user_id, period, ai_generations, updated_at) VALUES (?1, ?2, 1, ?3)
+                ON CONFLICT(user_id, period) DO UPDATE SET ai_generations = ai_generations + 1, updated_at = ?3`)
+      .bind(userId, period, now)
+      .run();
+    return { ok: true, overage: false, costMicro: 0, period };
+  }
+
+  // Credits used up (or none), or a pay-per-generation plan
+  if (!rates) return { ok: false, code: mode.kind === 'credits' && mode.credits >= 1 ? 'ai_quota_exceeded' : 'ai_not_in_plan' };
+  const costMicro = rates.aiPost;
+  await env.DB
+    .prepare(
+      `INSERT INTO usage_counters (user_id, period, ai_generations, overage_micro_usd, updated_at) VALUES (?1, ?2, 1, ?4, ?3)
+       ON CONFLICT(user_id, period) DO UPDATE SET ai_generations = ai_generations + 1, overage_micro_usd = overage_micro_usd + ?4, updated_at = ?3`,
+    )
+    .bind(userId, period, now, costMicro)
+    .run();
+  return { ok: true, overage: true, costMicro, period };
+}
+
+/** The generation failed on our side (the model did not answer): give the credit back. */
+export async function releaseAiGeneration(env: Env, userId: string, r: Extract<AiReservation, { ok: true }>): Promise<void> {
+  try {
+    await env.DB
+      .prepare(
+        `UPDATE usage_counters SET ai_generations = MAX(ai_generations - 1, 0), overage_micro_usd = MAX(overage_micro_usd - ?3, 0), updated_at = ?4
+         WHERE user_id = ?1 AND period = ?2`,
+      )
+      .bind(userId, r.period, r.costMicro, nowSeconds())
+      .run();
+  } catch (err) {
+    console.error('ai credit release failed', err instanceof Error ? err.message : 'unknown');
+  }
+}
+
+/** One row in the usage log per paid generation (admin → Plans reads it like the post rows). */
+export function aiLogStatement(env: Env, e: { userId: string; overage: boolean; costMicro: number; ref: string; now: number }): D1PreparedStatement {
+  return env.DB
+    .prepare(
+      `INSERT INTO usage_logs (user_id, api_key_id, source, kind, units, overage, cost_micro_usd, ref, created_at)
+       VALUES (?1, NULL, 'ui', 'ai_post', 1, ?2, ?3, ?4, ?5)`,
+    )
+    .bind(e.userId, e.overage ? 1 : 0, e.costMicro, e.ref, e.now);
 }

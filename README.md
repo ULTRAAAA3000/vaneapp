@@ -306,6 +306,14 @@ All of it is computed in the browser from the two post lists the dashboard alrea
 - **Reuse** (History): copies a finished post's text and channels back into the editor. **Ctrl / ⌘ + Enter** schedules.
 
 
+## AI in the post editor
+
+`POST /api/ai` (dashboard session) runs on Cloudflare Workers AI (`@cf/meta/llama-3.1-8b-instruct`). The binding is declared in `wrangler.toml` (`[ai] binding = "AI"`); if it does not show up after a deploy, add it in Pages → Settings → Bindings → Workers AI with the variable name `AI`. Without it the AI bar stays hidden and `/api/ai` answers 503.
+
+- Free for everyone: **Make it clean** (typos, emoji) and **Hashtags**.
+- AI Pass (counts against `aiCredits` of the plan): tone, hooks, CTAs, a version per selected channel, a post from an idea, a week plan. Free plan = the credits set in the plan catalog (set `aiCredits` to 0 in the admin panel to make them Pro-only); API plan pays per generation; Pro has a monthly allowance.
+- Links in the text are kept as they are, and every result is fitted to the limit of the network.
+
 ## LinkedIn and Threads
 
 Both connect with the network's own "Allow" page (OAuth), publish text and one picture, and are off ("Soon" in the Connect dialog) until their app keys are set.

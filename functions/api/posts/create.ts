@@ -32,7 +32,7 @@ const MAX_CHANNELS = 20;
 const MAX_HORIZON_SECONDS = 366 * 24 * 3600;
 
 /** Per-platform text limits (same numbers the landing-page demo shows). */
-const CONTENT_LIMIT: Record<ChannelType, number> = {
+export const CONTENT_LIMIT: Record<ChannelType, number> = {
   telegram: 4096,
   x: 280,
   linkedin: 3000,

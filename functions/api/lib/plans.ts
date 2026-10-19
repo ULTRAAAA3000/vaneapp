@@ -117,6 +117,20 @@ export function apiAllowed(sub: Subscription): boolean {
   return specOf(sub.plan).apiIncluded || (sub.plan === 'pro' && sub.apiAddon);
 }
 
+/**
+ * How a plan pays for AI generations (the free tools are never counted):
+ *   credits          `aiCredits` of them are included (Free Trial 10 for life, Pro 250 a month); beyond that the plan's overage rate
+ *                    applies when overage billing is on, otherwise it stops
+ *   per_generation   no credits but an AI price (Developer API $0.09): every generation is billed, so overage billing must be on
+ *   unlimited        an admin-made plan with the field left empty: counted, never blocked
+ */
+export type AiMode = { kind: 'credits'; credits: number } | { kind: 'per_generation'; priceMicro: number } | { kind: 'unlimited' };
+export function aiMode(spec: PlanSpec): AiMode {
+  if (spec.aiCredits !== null) return { kind: 'credits', credits: spec.aiCredits };
+  if (spec.overage && spec.overage.aiPost > 0) return { kind: 'per_generation', priceMicro: spec.overage.aiPost };
+  return { kind: 'unlimited' };
+}
+
 /** Overage rates that apply to this subscription, or null when it can never go over (it just stops). */
 export function overageRates(sub: Subscription): { post: number; aiPost: number } | null {
   return sub.overageEnabled ? specOf(sub.plan).overage : null;
