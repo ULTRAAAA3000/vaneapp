@@ -4,6 +4,7 @@
  */
 import type { CronEnv } from '../../types';
 import { purgeExpiredIdempotencyKeys } from '../../functions/api/lib/idempotency';
+import { deliverDueWebhooks, purgeOldWebhookDeliveries } from '../../functions/api/lib/webhooks';
 import { runDuePosts } from './dispatch';
 import { isRenewalMinute, renewExpiringTokens } from './tokens';
 
@@ -18,6 +19,10 @@ export default {
         // Housekeeping: Idempotency-Keys are remembered for 24 hours (a no-op when none has expired, and when the table is not there yet).
         .then(() => purgeExpiredIdempotencyKeys(env, Math.floor(Date.now() / 1000)))
         .catch(() => undefined)
+        // Webhooks: send what the posts above just queued (and retries that are due), then tidy up. Never blocks or breaks posting.
+        .then(() => deliverDueWebhooks(env, Math.floor(Date.now() / 1000)))
+        .then(() => purgeOldWebhookDeliveries(env, Math.floor(Date.now() / 1000)))
+        .catch((err) => console.error('vane-cron: webhooks failed:', err instanceof Error ? err.message : 'unknown'))
         // Once a day: renew LinkedIn / Threads sign-ins that are running out (see tokens.ts).
         .then(() => (isRenewalMinute(Math.floor(Date.now() / 1000)) ? renewExpiringTokens(env, Math.floor(Date.now() / 1000)) : undefined))
         .catch((err) => console.error('vane-cron: sign-in renewal failed:', err instanceof Error ? err.message : 'unknown')),

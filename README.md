@@ -321,3 +321,21 @@ Full setup, redirect URLs, review checklist and the screencast script: `document
 - Sign-ins last 60 days. Threads renews itself; LinkedIn (no refresh token for ordinary apps) shows **Reconnect** on the channel card a week before, and reconnecting renews the same channel in place.
 - A sent post's `url` (History link, `GET /api/v1/posts`): LinkedIn `linkedin.com/feed/update/<urn>/`, Threads its permalink.
 - Pages: `/privacy` and `/data-deletion` (fill in the legal name and contact email before submitting for review).
+
+## Webhooks
+
+Vane can call your server (or Make / Zapier) when a post is published or fails.
+
+```
+POST /api/v1/webhooks   { "url": "https://example.com/hook", "events": ["post.published", "post.failed"] }
+  → 201 { "webhook": { "id": "…" }, "secret": "whsec_…" }      the secret is shown once
+GET  /api/v1/webhooks                                            my subscriptions
+DELETE /api/v1/webhooks/:id                                      stop one
+```
+
+Same `Authorization: Bearer cpost_…` as the rest of the API (a `cpost_test_` key saves nothing). The url must be https on port 443 with a real host name (no IP addresses). Up to 10 per account.
+
+Each event is a `POST` with the JSON `{ "id", "type", "createdAt", "data": { "post": {…same as GET /api/v1/posts/:id…} } }` and the headers `Vane-Event`, `Vane-Delivery` (same value on every retry: de-duplicate on it) and `Vane-Signature: t=<unix>,v1=<hex>`, the HMAC-SHA256 of `"<t>.<raw body>"` with your secret. Answer with any 2xx. Otherwise Vane retries after 1 min, 5 min, 30 min, 2 h and 12 h, then gives up; HTTP 410 ends the subscription.
+
+Events are queued in `webhook_deliveries` and sent by the cron worker every minute, so a slow receiver never delays posting. The two webhook tables are in `schema.sql` (run it, or the two `CREATE TABLE` blocks at its end, in the D1 console); until then `/api/v1/webhooks` answers 503 and posting is unaffected.
+

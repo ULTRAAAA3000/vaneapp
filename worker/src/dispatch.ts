@@ -25,6 +25,7 @@ import { LINKEDIN_RENEW_BEFORE_SECONDS, linkedinBlob, loadLinkedinCreds, renewLi
 import { THREADS_RENEW_BEFORE_SECONDS, loadThreadsCreds, refreshThreadsToken, sendThreadsPost, threadsBlob, type ThreadsCreds } from '../../functions/api/channels/threads';
 import { encryptToken } from '../../functions/api/lib/crypto';
 import { isValidMediaUrl, sendTelegramPost } from '../../functions/api/channels/telegram';
+import { enqueueWebhookEvent } from '../../functions/api/lib/webhooks';
 
 export const BATCH_SIZE = 20;               // per run: keeps us inside Workers' subrequest limits
 export const MAX_ATTEMPTS = 5;
@@ -79,6 +80,7 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
     .all<{ id: string; user_id: string; channel_id: string }>();
   summary.expired = late.results.length;
   if (late.results.length) await env.DB.batch(late.results.map((p) => log(p, 'error', 'post.expired', 'Not published: more than 2 hours overdue')));
+  for (const p of late.results) await enqueueWebhookEvent(env, p.user_id, p.id, 'post.failed', nowSec);
 
   // ── 2) Orphans: 'processing' for too long means a previous run died mid-flight.
   const stuck = await env.DB
@@ -92,6 +94,7 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
     .all<{ id: string; user_id: string; channel_id: string }>();
   summary.reaped = stuck.results.length;
   if (stuck.results.length) await env.DB.batch(stuck.results.map((p) => log(p, 'error', 'post.interrupted', 'Marked failed: stuck in processing')));
+  for (const p of stuck.results) await enqueueWebhookEvent(env, p.user_id, p.id, 'post.failed', nowSec);
 
   // ── 3) Claim due posts atomically (scheduled → processing) and read them back in one statement.
   const claimed = await env.DB
@@ -148,6 +151,7 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
           .bind(nowSec, extra.externalId ?? '', post.id),
         log(base, 'info', 'post.sent', `Published to ${extra.network ?? 'Telegram'}`, { attempt: post.attempts, externalId: extra.externalId }),
       ]);
+      await enqueueWebhookEvent(env, post.user_id, post.id, 'post.published', nowSec);
     } else if (outcome === 'retry') {
       // Due again at updated_at + backoff(attempts). For the network's retry_after (Telegram, Bluesky), push updated_at
       // into the future by the difference so the next try is never earlier than the network asked.
@@ -164,6 +168,7 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
           .bind(clip(error ?? 'Delivery failed'), nowSec, post.id),
         log(base, 'error', 'post.failed', error ?? 'Delivery failed', { attempt: post.attempts }),
       ]);
+      await enqueueWebhookEvent(env, post.user_id, post.id, 'post.failed', nowSec);
     }
   }
 

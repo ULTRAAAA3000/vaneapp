@@ -91,6 +91,12 @@ export async function getPostForUser(env: Env, userId: string, id: string): Prom
   return json({ ok: true, post: (await withLinks(env, [row]))[0] });
 }
 
+/** One post in its public shape, for events sent to other systems (null when it does not exist). */
+export async function loadPostPublic(env: Env, postId: string): Promise<PostPublic | null> {
+  const row = await env.DB.prepare(`${SELECT_POST} WHERE p.id = ?1`).bind(postId).first<Row>();
+  return row ? (await withLinks(env, [row]))[0] : null;
+}
+
 export const handleListPosts: PagesFunction<Env> = async ({ request, env }) => {
   const auth = await requireUser(request, env);
   if (!auth.ok) return auth.response;

@@ -521,3 +521,31 @@ CREATE TABLE IF NOT EXISTS video_links (
   video_id    TEXT    NOT NULL UNIQUE REFERENCES videos(id) ON DELETE CASCADE,
   created_at  INTEGER NOT NULL DEFAULT (unixepoch())
 );
+
+-- ───────────────────────── Webhooks: where Vane tells other systems that a post was published or failed ─────────────────────────
+-- Make / Zapier subscribe here (REST hooks); anyone can subscribe with an API key: POST /api/v1/webhooks.
+CREATE TABLE IF NOT EXISTS webhook_subscriptions (
+  id           TEXT    PRIMARY KEY,                         -- uuid
+  user_id      TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  url          TEXT    NOT NULL,                            -- https only
+  events       TEXT    NOT NULL,                            -- JSON array: "post.published", "post.failed"
+  secret       TEXT    NOT NULL,                            -- signs every delivery; encrypted at app level, shown to its owner once
+  last_status  INTEGER,                                     -- HTTP status of the latest delivery attempt (0 = no answer)
+  disabled_at  INTEGER,                                     -- set when the receiver answers 410 Gone
+  created_at   INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_subs_user ON webhook_subscriptions(user_id);
+
+-- The outbox: one row per event per subscription. The cron worker sends what is due and retries with a growing delay.
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+  id               TEXT    PRIMARY KEY,                     -- uuid, sent as the event id (receivers can de-duplicate on it)
+  subscription_id  TEXT    NOT NULL REFERENCES webhook_subscriptions(id) ON DELETE CASCADE,
+  event            TEXT    NOT NULL,
+  payload          TEXT    NOT NULL,                        -- the JSON body that is sent
+  status           TEXT    NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'delivered', 'failed')),
+  attempts         INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at  INTEGER NOT NULL,
+  last_error       TEXT,
+  created_at       INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_due ON webhook_deliveries(status, next_attempt_at);
