@@ -49,16 +49,40 @@ test('channels dropdown: active channels only, labelled with the network', async
   assert.deepEqual(r, [{ id: 'a', name: 'T (telegram)' }]);
 });
 
-test('published trigger keeps only sent posts, reads the history view', async () => {
-  answer = () => ({ status: 200, body: { ok: true, posts: [{ id: '1', status: 'sent' }, { id: '2', status: 'failed' }, { id: '3', status: 'cancelled' }] } });
-  const r = await tester(appDef.triggers.new_published_post.operation.perform, bundle());
-  assert.deepEqual(r.map((p) => p.id), ['1']);
-  assert.equal(seen.at(-1).url, '/api/v1/posts?view=history');
+test('hook triggers subscribe with Zapier\'s url and only their event', async () => {
+  answer = () => ({ status: 201, body: { ok: true, webhook: { id: 'w1' }, secret: 'whsec_x' } });
+  const sub = await tester(appDef.triggers.new_published_post.operation.performSubscribe, { ...bundle(), targetUrl: 'https://hooks.zapier.com/hooks/standard/1/abc/' });
+  assert.deepEqual(sub, { id: 'w1' });
+  assert.equal(seen.at(-1).method, 'POST');
+  assert.equal(seen.at(-1).url, '/api/v1/webhooks');
+  assert.deepEqual(seen.at(-1).body, { url: 'https://hooks.zapier.com/hooks/standard/1/abc/', events: ['post.published'] });
+  await tester(appDef.triggers.post_failed.operation.performSubscribe, { ...bundle(), targetUrl: 'https://hooks.zapier.com/x/' });
+  assert.deepEqual(seen.at(-1).body.events, ['post.failed']);
 });
 
-test('failed trigger keeps only failed posts', async () => {
-  const r = await tester(appDef.triggers.post_failed.operation.perform, bundle());
-  assert.deepEqual(r.map((p) => p.id), ['2']);
+test('unsubscribe deletes the stored webhook, and a 404 is fine', async () => {
+  answer = () => ({ status: 200, body: { ok: true } });
+  await tester(appDef.triggers.new_published_post.operation.performUnsubscribe, { ...bundle(), subscribeData: { id: 'w1' } });
+  assert.equal(seen.at(-1).method, 'DELETE');
+  assert.equal(seen.at(-1).url, '/api/v1/webhooks/w1');
+  answer = () => ({ status: 404, body: { ok: false, error: 'Webhook not found' } });
+  await tester(appDef.triggers.new_published_post.operation.performUnsubscribe, { ...bundle(), subscribeData: { id: 'w1' } });
+  answer = () => ({ status: 500, body: { ok: false, error: 'boom' } });
+  await assert.rejects(tester(appDef.triggers.new_published_post.operation.performUnsubscribe, { ...bundle(), subscribeData: { id: 'w1' } }), /\[500\]/);
+});
+
+test('hook perform returns the post from the event body', async () => {
+  const post = { id: 'p1', status: 'sent' };
+  const r = await tester(appDef.triggers.new_published_post.operation.perform, { ...bundle(), cleanedRequest: { id: 'd', type: 'post.published', data: { post } } });
+  assert.deepEqual(r, [post]);
+  assert.deepEqual(await tester(appDef.triggers.post_failed.operation.perform, { ...bundle(), cleanedRequest: {} }), []);
+});
+
+test('hook performList (samples while building a Zap) reads history, sent / failed only', async () => {
+  answer = () => ({ status: 200, body: { ok: true, posts: [{ id: '1', status: 'sent' }, { id: '2', status: 'failed' }, { id: '3', status: 'cancelled' }] } });
+  assert.deepEqual((await tester(appDef.triggers.new_published_post.operation.performList, bundle())).map((p) => p.id), ['1']);
+  assert.equal(seen.at(-1).url, '/api/v1/posts?view=history');
+  assert.deepEqual((await tester(appDef.triggers.post_failed.operation.performList, bundle())).map((p) => p.id), ['2']);
 });
 
 test('create post: body, one channel as a string, UTC time without zone, idempotency key', async () => {
