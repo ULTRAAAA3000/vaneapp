@@ -3,7 +3,8 @@
  * a key must never be able to mint or list keys.
  *
  *   GET  /api/keys   → my active keys (masked; the secret and the hash are never returned)
- *   POST /api/keys   → { name, mode?: "live" | "test", scope?: "post" }  → the new key, with its SECRET (shown once)
+ *                      ?scope=post|video limits the list to one product: each dashboard asks for its own keys
+ *   POST /api/keys   → { name, mode?: "live" | "test", scope?: "post" | "video" }  → the new key, with its SECRET (shown once)
  *   DELETE /api/keys/:id → revoke (see ./[id].ts)
  */
 import type { PagesFunction } from '@cloudflare/workers-types';
@@ -12,6 +13,7 @@ import { requireUser } from '../lib/auth';
 import { displayKey, generateApiKey, MAX_KEYS_PER_USER } from '../lib/apikeys';
 import { fail, failCode, isRecord, json, methodNotAllowed, readJson } from '../lib/http';
 import { apiAllowed } from '../lib/plans';
+import { loadVideoSubscription, videoEngineRequired } from '../lib/videoplans';
 import { bump, retryAfter } from '../lib/throttle';
 import { loadSubscription } from '../lib/usage';
 
@@ -28,10 +30,13 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const auth = await requireUser(request, env);
   if (!auth.ok) return auth.response;
 
+  const scope = new URL(request.url).searchParams.get('scope');
+  if (scope !== null && scope !== 'post' && scope !== 'video') return fail(400, 'scope must be "post" or "video"');
+
   // Explicit columns: key_hash is deliberately never selected.
   const { results } = await env.DB
-    .prepare('SELECT id, name, scope, mode, hint, created_at, last_used_at FROM api_keys WHERE user_id = ?1 AND revoked_at IS NULL ORDER BY created_at DESC')
-    .bind(auth.userId)
+    .prepare('SELECT id, name, scope, mode, hint, created_at, last_used_at FROM api_keys WHERE user_id = ?1 AND revoked_at IS NULL AND (?2 IS NULL OR scope = ?2) ORDER BY created_at DESC')
+    .bind(auth.userId, scope)
     .all<KeyListRow>();
   return json({ ok: true, keys: results.map(toPublic), max: MAX_KEYS_PER_USER });
 };
@@ -52,12 +57,14 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (mode !== 'live' && mode !== 'test') return fail(400, 'mode must be "live" or "test"');
 
   const scope = body.scope === undefined ? 'post' : body.scope;
-  if (scope !== 'post' && scope !== 'video') return fail(400, 'scope must be "post"');
-  if (scope === 'video') return fail(501, 'Video Engine keys are not available yet.');
+  if (scope !== 'post' && scope !== 'video') return fail(400, 'scope must be "post" or "video"');
 
-  // A live key is only useful on a plan with API access; say so now instead of failing on its first request.
-  if (mode === 'live' && !apiAllowed(await loadSubscription(env, auth.userId))) {
+  // A live key is only useful on an account that can use it; say so now instead of failing on its first request.
+  if (mode === 'live' && scope === 'post' && !apiAllowed(await loadSubscription(env, auth.userId))) {
     return failCode(403, 'api_not_in_plan', 'Your plan does not include API access. Add the API Add-on, or create a test key.');
+  }
+  if (mode === 'live' && scope === 'video' && !(await loadVideoSubscription(env, auth.userId)).active) {
+    return videoEngineRequired();
   }
 
   // Creating keys is cheap for us but a good way to fill the table: 20 an hour is plenty.

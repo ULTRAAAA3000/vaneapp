@@ -936,7 +936,7 @@
   S.keyMax = 10;
 
   async function loadApi() {
-    var rs = await Promise.all([Vane.api('GET', '/api/usage'), Vane.api('GET', '/api/keys')]);
+    var rs = await Promise.all([Vane.api('GET', '/api/usage'), Vane.api('GET', '/api/keys?scope=post')]);
     if (!rs[0].ok || !rs[1].ok) { if (!S.usage) S.apiFailed = true; return; }   // keep what is on screen on a hiccup
     S.apiFailed = false;
     S.usage = rs[0].data.usage;
@@ -967,7 +967,7 @@
       '<div class="flex items-start justify-between gap-3">' +
         '<div><div class="text-xs font-medium uppercase tracking-widest text-white/40">Your plan</div>' +
         '<div class="mt-1 text-base font-semibold">' + esc(u.plan.label) + '</div></div>' +
-        '<a href="/#pricing" class="shrink-0 text-xs text-white/45 underline underline-offset-4 transition-colors hover:text-white">Compare plans</a>' +
+        '<a href="' + esc(Vane.siteHome()) + '#pricing" class="shrink-0 text-xs text-white/45 underline underline-offset-4 transition-colors hover:text-white">Compare plans</a>' +
       '</div>';
 
     if (u.plan.lapsed) {

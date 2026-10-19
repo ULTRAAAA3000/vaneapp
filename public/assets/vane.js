@@ -1,4 +1,4 @@
-/* Shared helpers for /login and /app. Exposes window.Vane. */
+/* Shared helpers for /login, the Vane Post dashboard and the Vane Studio dashboard. Exposes window.Vane. */
 (function () {
   'use strict';
   var Vane = {};
@@ -11,8 +11,73 @@
   Vane.go = function (url) { if (window.__go) window.__go(url); else window.location.assign(url); };
 
   /**
+   * Each product has its own host (post.vaneapp.dev, studio.vaneapp.dev) and one sign-in covers both.
+   * Vane.home(): where a signed-in user lands.  Vane.loginUrl(): where a signed-out visitor is sent.
+   * On the main site that is Vane Post; in local dev (no subdomains) /app and /studio are plain paths, and ?next= carries the choice.
+   */
+  var OWN_HOST = /^(post|studio)\.vaneapp\.dev$/i;
+  var DEV_PAGES = ['/app', '/studio'];
+  Vane.home = function () {
+    var h = location.hostname;
+    if (OWN_HOST.test(h)) return '/';
+    var q = new URLSearchParams(location.search);
+    var studio = q.get('product') === 'studio';                        // chosen on the sign-in page's Post / Studio switch
+    if (/^(www\.)?vaneapp\.dev$/i.test(h)) return studio ? 'https://studio.vaneapp.dev/' : 'https://post.vaneapp.dev/';
+    var next = q.get('next');
+    if (DEV_PAGES.indexOf(next) !== -1) return next;
+    return studio ? '/studio' : '/app';
+  };
+  Vane.loginUrl = function () {
+    if (OWN_HOST.test(location.hostname) || DEV_PAGES.indexOf(location.pathname) === -1) return '/login';
+    return '/login?next=' + encodeURIComponent(location.pathname);
+  };
+
+  /**
+   * Address of a product's dashboard: its own host in production, the plain /app and /studio paths in local dev.
+   */
+  Vane.productUrl = function (product) {
+    if (OWN_HOST.test(location.hostname) || /^(www\.)?vaneapp\.dev$/i.test(location.hostname)) return 'https://' + product + '.vaneapp.dev/';
+    return product === 'studio' ? '/studio' : '/app';
+  };
+
+  /**
+   * The Vane Post | Vane Studio switch in a dashboard's header. The page holds
+   *   <nav id="productSwitch" data-current="post|studio"></nav>
+   * and this fills it: the product you are in is marked, the other one is a link to its dashboard (one account, one sign-in).
+   */
+  var PRODUCTS = [
+    { id: 'post', name: 'Vane Post', short: 'Post', hint: 'Schedule posts',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>' },
+    { id: 'studio', name: 'Vane Studio', short: 'Studio', hint: 'Your videos',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M10 9l5 3-5 3z"/></svg>' }
+  ];
+  function mountProductSwitch() {
+    var nav = document.getElementById('productSwitch');
+    if (!nav) return;
+    var current = nav.getAttribute('data-current');
+    nav.innerHTML = '<div class="pswitch">' + PRODUCTS.map(function (p) {
+      var inner = p.icon + '<span class="pswitch-name">' + p.short + '</span>';
+      return p.id === current
+        ? '<span aria-current="page" title="' + p.name + '">' + inner + '</span>'
+        : '<a href="' + Vane.productUrl(p.id) + '" title="Open ' + p.name + ': ' + p.hint + '" aria-label="Open ' + p.name + '">' + inner + '</a>';
+    }).join('') + '</div>';
+  }
+
+  /**
+   * "Home" is the main site (the landing page). On post. and studio. the address "/" is that product's own dashboard,
+   * so a logo or "Back to site" link must point at the main site explicitly. Mark such links with data-site-home.
+   */
+  Vane.siteHome = function () { return OWN_HOST.test(location.hostname) ? 'https://vaneapp.dev/' : '/'; };
+  function wireHomeLinks() {
+    var links = document.querySelectorAll('a[data-site-home]');
+    for (var i = 0; i < links.length; i++) links[i].setAttribute('href', Vane.siteHome());
+  }
+  function onReady() { wireHomeLinks(); mountProductSwitch(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', onReady); else onReady();
+
+  /**
    * JSON API client. Resolves to { ok, status, data, error } and never throws.
-   * A 401 sends the user to /login unless opts.noRedirect is set.
+   * A 401 sends the user to the sign-in page unless opts.noRedirect is set.
    */
   Vane.api = async function (method, path, body, opts) {
     opts = opts || {};
@@ -29,7 +94,7 @@
     }
     var data = null;
     try { data = await res.json(); } catch (e) { /* non-JSON */ }
-    if (res.status === 401 && !opts.noRedirect) Vane.go('/login');
+    if (res.status === 401 && !opts.noRedirect) Vane.go(Vane.loginUrl());
     var ok = res.ok && !(data && data.ok === false);
     return { ok: ok, status: res.status, data: data, error: ok ? null : ((data && data.error) || 'Request failed (' + res.status + ')') };
   };
@@ -51,7 +116,7 @@
       xhr.onload = function () {
         var data = null;
         try { data = JSON.parse(xhr.responseText); } catch (e) { /* not JSON */ }
-        if (xhr.status === 401) Vane.go('/login');
+        if (xhr.status === 401) Vane.go(Vane.loginUrl());
         if (xhr.status >= 200 && xhr.status < 300 && data && data.ok) resolve(data);
         else resolve({ ok: false, status: xhr.status, error: (data && data.error) || 'Upload failed (' + xhr.status + ').' });
       };

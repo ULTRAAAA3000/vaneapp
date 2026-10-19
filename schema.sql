@@ -212,6 +212,56 @@ CREATE TABLE IF NOT EXISTS usage_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_usage_logs_user ON usage_logs(user_id, created_at);
 
+-- ───────────────────────── Vane Studio / Video Engine (a separate product with its own dashboard) ─────────────────────────
+-- Vane Studio, ECONOMY_AND_FINANCE.md §2.5: $12.00 / month, sold and metered apart from Vane Post (Free / API / Pro).
+-- The $18.00 Suite bundle (§2.6) is Post + Studio: it will just create a row in BOTH subscription tables.
+-- That is why it gets its own tables: `subscriptions` and `users` are never touched, so this file stays re-runnable.
+
+-- Who has the Video Engine. No row = no access. A row that is not 'active' or whose period has ended counts as no access.
+CREATE TABLE IF NOT EXISTS video_subscriptions (
+  user_id             TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  status              TEXT    NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'past_due', 'canceled')),
+  current_period_end  INTEGER,                                                  -- NULL = no expiry (granted by hand)
+  provider            TEXT    NOT NULL DEFAULT 'manual',                        -- 'manual' | 'monobank' | 'crypto'
+  provider_ref        TEXT,
+  created_at          INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at          INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+-- The video library: one row = one video file in R2 (private; it is streamed to its owner, never public).
+-- A row is created when an upload starts and becomes 'ready' when every chunk is in and the file has been checked.
+CREATE TABLE IF NOT EXISTS videos (
+  id                 TEXT    PRIMARY KEY,                                       -- uuid
+  user_id            TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title              TEXT    NOT NULL,
+  description        TEXT    NOT NULL DEFAULT '',
+  tags               TEXT    NOT NULL DEFAULT '[]',                             -- JSON array of strings
+  status             TEXT    NOT NULL DEFAULT 'uploading'
+                     CHECK (status IN ('uploading', 'ready', 'failed')),
+  r2_key             TEXT    NOT NULL UNIQUE,                                   -- 'videos/<user id>/<video id>.mp4'
+  content_type       TEXT    NOT NULL CHECK (content_type IN ('video/mp4', 'video/quicktime')),
+  size_bytes         INTEGER NOT NULL,                                          -- declared when the upload starts, verified when it ends
+  part_size          INTEGER NOT NULL,                                          -- chunk size of this upload (all chunks but the last are exactly this)
+  upload_id          TEXT,                                                      -- R2 multipart upload id; NULL once the upload is over
+  upload_expires_at  INTEGER,                                                   -- an unfinished upload is thrown away after this
+  error              TEXT,                                                      -- why a 'failed' video was rejected
+  source             TEXT    NOT NULL CHECK (source IN ('ui', 'api')),
+  created_at         INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at         INTEGER NOT NULL DEFAULT (unixepoch()),
+  completed_at       INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_videos_user ON videos(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_videos_upload_exp ON videos(status, upload_expires_at);
+
+-- Chunks of an unfinished upload (what lets a broken upload resume). Deleted when the upload completes or is cancelled.
+CREATE TABLE IF NOT EXISTS video_parts (
+  video_id     TEXT    NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+  part_number  INTEGER NOT NULL,                                                -- 1-based
+  etag         TEXT    NOT NULL,                                                -- R2's receipt for the chunk, needed to assemble the file
+  size_bytes   INTEGER NOT NULL,
+  PRIMARY KEY (video_id, part_number)
+);
+
 -- ═════════════════════════════ Admin panel (/admin) ═════════════════════════════
 
 -- ───────────────────────── Settings ─────────────────────────

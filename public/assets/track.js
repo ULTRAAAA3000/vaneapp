@@ -5,6 +5,9 @@
   try {
     if (navigator.doNotTrack === '1' || window.doNotTrack === '1' || navigator.globalPrivacyControl) return;
     if (location.pathname.indexOf('/admin') === 0) return;
+    // A page can name itself: the dashboard is served at "/" on post.vaneapp.dev, which must not count as the landing page.
+    var tag = document.currentScript;
+    var path = (tag && tag.getAttribute('data-path')) || location.pathname;
 
     var mem = {};
     function store(area, key, make, validFor) {
@@ -36,7 +39,7 @@
     }
 
     var q = new URLSearchParams(location.search);
-    send({ t: 'view', id: id, sid: sid, vid: vid, path: location.pathname, ref: document.referrer || '', utm: q.get('utm_source') || '' });
+    send({ t: 'view', id: id, sid: sid, vid: vid, path: path, ref: document.referrer || '', utm: q.get('utm_source') || '' });
 
     function ping(beacon) { send({ t: 'ping', id: id, vid: vid }, beacon); }
     setInterval(function () { if (document.visibilityState === 'visible') ping(false); }, 20000);

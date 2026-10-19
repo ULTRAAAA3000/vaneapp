@@ -4,6 +4,9 @@
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
 
+  // On post. / studio. "/" is that product's dashboard, so the logo must point at the main site (same rule as Vane.siteHome in vane.js).
+  if (/^(post|studio)\.vaneapp\.dev$/i.test(location.hostname)) $('home').setAttribute('href', 'https://vaneapp.dev/');
+
   var m = /^#(\d{6})$/.exec(window.location.hash);
   // The code must not stay in the address bar or the browser history entry.
   try { history.replaceState(null, '', window.location.pathname); } catch (e) { /* ignore */ }
