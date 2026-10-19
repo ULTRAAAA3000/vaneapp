@@ -315,7 +315,7 @@ try {
   const simLink = await http('POST', `/api/v1/video/videos/${id}/link`, t);
   check('test key: POST link is simulated (looks real, creates nothing)', simLink.status === 200 || simLink.status === 201 ? simLink.json?.simulated === true && /\/api\/video\/public\/x{32}$/.test(simLink.json?.url ?? '') : false, JSON.stringify(simLink.json));
   check('test key: DELETE link is simulated and the real link survives', (await http('DELETE', `/api/v1/video/videos/${id}/link`, t)).json?.simulated === true && sql(`SELECT COUNT(*) AS n FROM video_links`)[0].n === linksBefore);
-  const finalLink = apiLink.json.url;
+  let finalLink = apiLink.json.url;
 
   // 10 requests a minute per video key (SECURITY_ARCHITECTURE.md §2.2)
   const rl = await http('POST', '/api/keys', { ...me, body: { name: 'rate probe', scope: 'video', mode: 'test' } });
@@ -327,11 +327,57 @@ try {
   check('the 11th request in a minute → 429 rate_limited with Retry-After', seen429?.at === 11 && seen429.code === 'rate_limited' && Number(seen429.retry) > 0, JSON.stringify(seen429));
 
   // ───────────────────────────────────────────────────────────────
+  section('Announcing a video in Vane Post (the Studio → Post hand-off)');
+  const hookId = randomUUID(), xId = randomUUID(), foreignChannel = randomUUID();
+  sql(`INSERT INTO channels (id, user_id, type, name, credentials) VALUES ('${hookId}', '${u.id}', 'webhook', 'E2E hook', 'x'), ('${xId}', '${u.id}', 'x', 'E2E x', 'x'), ('${foreignChannel}', '${other.id}', 'webhook', 'Not mine', 'x')`);
+  const ann = (auth, vid, body) => http('POST', `/api/video/videos/${vid}/announce`, { ...auth, body });
+  const postsOf = (groupId) => sql(`SELECT channel_id, content, status FROM posts WHERE group_id = '${groupId}'`);
+  const linkOf = async () => (await http('GET', `/api/video/videos/${id}`, me)).json?.video?.publicUrl;
+  const ch = await http('GET', '/api/video/announce', me);
+  check('the channel list shows my channels and never their credentials', ch.status === 200 && ch.json?.channels?.length === 2 && !/credentials|"x"\s*}/.test(JSON.stringify(ch.json)) && ch.json.channels.every((c) => c.id && c.platform && c.name), JSON.stringify(ch.json));
+  check('the channel list needs a session (401)', (await http('GET', '/api/video/announce')).status === 401);
+  check('another user sees only their own channel, none of mine', (() => null)() === null && (await http('GET', '/api/video/announce', { cookie: other.cookie })).json?.channels?.every((c) => c.id === foreignChannel) === true);
+
+  check('no text → 400', (await ann(me, id, { channelIds: [hookId] })).status === 400);
+  check('no channels → 400', (await ann(me, id, { text: 'Hi {link}', channelIds: [] })).status === 400);
+  check("another user's channel → 404", (await ann(me, id, { text: 'Hi', channelIds: [foreignChannel] })).status === 404);
+  check("another user's video → 404", (await ann({ cookie: other.cookie }, id, { text: 'Hi', channelIds: [hookId] })).status === 404);
+  const unfinished = await start(me, 5000);
+  check('an unfinished upload cannot be announced → 409 not_ready', (await ann(me, unfinished.json.videoId, { text: 'Hi', channelIds: [hookId] })).json?.code === 'not_ready');
+  await http('DELETE', `/api/video/uploads/${unfinished.json.videoId}`, me);
+
+  await http('DELETE', `/api/video/videos/${id}/link`, me);
+  check('(setup) the video has no public link now', (await linkOf()) === null);
+  const longText = 'a'.repeat(290) + ' {link}';
+  const tooLong = await ann(me, id, { text: longText, channelIds: [xId] });
+  check('a text too long for X (280) is refused with the reason', tooLong.status === 400 && /too long for x/i.test(tooLong.json?.error ?? ''), JSON.stringify(tooLong.json));
+  check('and no link was made by the failed attempt (all or nothing)', (await linkOf()) === null && postsOf('none').length === 0);
+
+  const a1 = await ann(me, id, { text: 'New video!\n\n{link}', channelIds: [hookId] });
+  const madeLink = await linkOf();
+  check('announce → 201; the video got a public link because the text asked for it', a1.status === 201 && a1.json?.channels === 1 && /\/api\/video\/public\/[A-Za-z0-9_-]{32}$/.test(madeLink ?? '') && a1.json?.url === madeLink, JSON.stringify(a1.json));
+  const rows1 = postsOf(a1.json.groupId);
+  check('one post per channel is scheduled, with the real address in the text', rows1.length === 1 && rows1[0].status === 'scheduled' && rows1[0].channel_id === hookId && rows1[0].content === `New video!\n\n${madeLink}`, JSON.stringify(rows1));
+  check('the address in the post opens the video without signing in', (await fetch(madeLink)).status === 200);
+  const a2 = await ann(me, id, { text: '{link} and again {link}', channelIds: [hookId] });
+  check('announcing again reuses the SAME link (every {link} replaced)', a2.status === 201 && a2.json?.text === `${madeLink} and again ${madeLink}` && (await linkOf()) === madeLink);
+  check('the dashboard post counter went up (same counting as Vane Post)', sql(`SELECT COALESCE(SUM(ui_posts), 0) AS n FROM usage_counters WHERE user_id = '${u.id}'`)[0].n >= 2);
+
+  await http('DELETE', `/api/video/videos/${id}/link`, me);
+  const a3 = await ann(me, id, { text: 'Just words, no link', channelIds: [hookId, xId] });
+  check('a text without {link} posts as written and makes NO link', a3.status === 201 && a3.json?.channels === 2 && a3.json?.url === null && (await linkOf()) === null && postsOf(a3.json.groupId).every((r) => r.content === 'Just words, no link'));
+  check('the dashboard gets the 4 results it needs (groupId, channels, text, scheduledAt)', a3.json?.groupId && a3.json?.text && a3.json?.scheduledAt > Math.floor(Date.now() / 1000) - 5);
+
+  finalLink = (await http('POST', `/api/video/videos/${id}/link`, me)).json?.url;   // leave a link for the next part of the run
+  sql(`DELETE FROM channels WHERE id IN ('${hookId}', '${xId}', '${foreignChannel}')`);
+
+  // ───────────────────────────────────────────────────────────────
   section('Switching the Video Engine off');
   videoEngine(u.email, '--off');
   check('a live video key stops working (403 video_engine_required)', (await http('GET', '/api/v1/video/me', { key: (await http('POST', '/api/keys', { ...me, body: { name: 'x', scope: 'video', mode: 'test' } })).json?.secret })).status === 200
     && (await http('GET', '/api/v1/video/videos', { key: liveKey })).json?.code === 'video_engine_required');
   check('the dashboard says it lapsed, and uploads are refused', (await http('GET', '/api/video/me', me)).json?.entitlement?.lapsed === true && (await start(me, 5000)).json?.code === 'video_engine_required');
+  check('without Vane Studio an announcement is refused (403 video_engine_required)', (await ann(me, id, { text: 'Hi {link}', channelIds: [randomUUID()] })).json?.code === 'video_engine_required');
   check('without Vane Studio a public link cannot be made, but it can still be removed', (await http('POST', `/api/video/videos/${id}/link`, me)).json?.code === 'video_engine_required' && (await http('DELETE', `/api/video/videos/${id}/link`, me)).status === 200 && (await fetch(finalLink)).status === 404);
   const gone = id;
   check('but the account can still see and delete its videos', (await http('GET', '/api/video/videos', me)).json?.videos?.length === 1 && (await http('DELETE', `/api/video/videos/${id}`, me)).status === 200);

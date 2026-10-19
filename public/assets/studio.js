@@ -95,6 +95,7 @@
     var actions = '';
     if (v.status === 'ready') {
       actions = '<button class="btn btn-ghost btn-sm" data-act="share" data-id="' + v.id + '">' + (v.publicUrl ? 'Link' : 'Share') + '</button>' +
+        '<button class="btn btn-ghost btn-sm" data-act="announce" data-id="' + v.id + '">Announce</button>' +
         '<button class="btn btn-ghost btn-sm" data-act="edit" data-id="' + v.id + '">Edit</button>' +
         '<button class="btn btn-danger btn-sm" data-act="delete" data-id="' + v.id + '">Delete</button>';
     } else if (v.status === 'uploading') {
@@ -135,6 +136,7 @@
     if (act === 'play') openPlayer(v);
     else if (act === 'edit') openEditor(v);
     else if (act === 'share') openShare(v);
+    else if (act === 'announce') openAnnounce(v);
     else if (act === 'delete') await removeVideo(v, btn);
   });
 
@@ -218,6 +220,100 @@
     }
     paint();
   }
+
+  // ───────────────────────── announce in Vane Post (the Studio → Post hand-off) ─────────────────────────
+  // The text and the channels are chosen here; the server writes the post with the same code as Vane Post, so the same limits
+  // apply and the post goes out within a minute, without opening the posting dashboard.
+  var NET_LIMIT = { telegram: 4096, x: 280, linkedin: 3000, webhook: 10000, bluesky: 300, mastodon: 500, threads: 500 };
+  var NET_NAME = { telegram: 'Telegram', x: 'X', linkedin: 'LinkedIn', webhook: 'Webhook', bluesky: 'Bluesky', mastodon: 'Mastodon', threads: 'Threads' };
+  var LINK_PLACEHOLDER = '{link}';
+  var LINK_LENGTH = 76;   // a public link: host + path + 32-character token (Mastodon counts any link as 23)
+
+  /** A first draft: the title, the start of the description, the tags as hashtags, and the link. Editable before sending. */
+  function composeText(v) {
+    var desc = (v.description || '').replace(/\s+/g, ' ').trim();
+    if (desc.length > 140) desc = desc.slice(0, 139).trimEnd() + '…';
+    var tags = v.tags.slice(0, 4).map(function (t) { return '#' + t.replace(/\s+/g, ''); }).join(' ');
+    return v.title + (desc ? '\n\n' + desc : '') + (tags ? '\n\n' + tags : '') + '\n\n' + LINK_PLACEHOLDER;
+  }
+
+  /** How long the text will be on a network (the link counts as it will really be). */
+  function lengthOn(text, platform) {
+    var n = platform === 'mastodon' ? 23 : LINK_LENGTH;
+    var filled = text.split(LINK_PLACEHOLDER).join(new Array(n + 1).join('x'));
+    return platform === 'bluesky' && window.Intl && Intl.Segmenter ? Array.from(new Intl.Segmenter().segment(filled)).length : filled.length;
+  }
+
+  async function openAnnounce(v) {
+    openModal('<h3 class="mb-3 break-words text-base font-semibold">Announce "' + esc(v.title) + '"</h3><p class="text-sm text-white/50">Loading your channels…</p>');
+    var r = await Vane.api('GET', '/api/video/announce');
+    if (!r.ok) { closeModal(); Vane.toast('err', r.error); return; }
+    var channels = r.data.channels.filter(function (c) { return c.isActive; });
+
+    if (!channels.length) {
+      openModal('<h3 class="mb-2 text-base font-semibold">Announce "' + esc(v.title) + '"</h3>' +
+        '<p class="text-sm leading-relaxed text-white/60">You have no social channels yet. Connect Telegram, Bluesky or another channel in Vane Post, then come back and announce your video in one click.</p>' +
+        '<div class="mt-5 flex justify-end gap-2"><button class="btn btn-ghost btn-sm" id="mClose">Close</button><a class="btn btn-white btn-sm" href="' + esc(Vane.productUrl('post')) + '">Open Vane Post</a></div>');
+      $('mClose').addEventListener('click', closeModal);
+      return;
+    }
+
+    openModal('<h3 class="mb-1 break-words text-base font-semibold">Announce "' + esc(v.title) + '"</h3>' +
+      '<p class="text-xs text-white/45">Posts to your channels within a minute. <span class="pixel">{link}</span> becomes this video\'s public link (made now if it has none).</p>' +
+      '<fieldset class="mt-4"><legend class="mb-2 text-xs text-white/55">Channels</legend><div id="annChannels" class="flex flex-wrap gap-2">' +
+        channels.map(function (c) {
+          return '<label class="flex cursor-pointer items-center gap-2 rounded-full bg-white/[0.06] px-3 py-1.5 text-sm ring-1 ring-white/10 has-[:checked]:bg-white has-[:checked]:text-black">' +
+            '<input type="checkbox" class="sr-only" data-plat="' + esc(c.platform) + '" value="' + esc(c.id) + '" checked />' +
+            '<span class="font-medium">' + esc(NET_NAME[c.platform] || c.platform) + '</span><span class="opacity-60">' + esc(c.name) + '</span></label>';
+        }).join('') + '</div></fieldset>' +
+      '<div class="mt-4"><label for="annText" class="mb-1 block text-xs text-white/55">Text</label>' +
+        '<textarea id="annText" class="field" rows="7" maxlength="10000">' + esc(composeText(v)) + '</textarea>' +
+        '<p id="annHint" class="mt-1.5 min-h-[1rem] text-xs text-white/45" aria-live="polite"></p></div>' +
+      '<div class="mt-5 flex justify-end gap-2"><button class="btn btn-ghost btn-sm" id="mClose">Cancel</button><button class="btn btn-white btn-sm" id="annSend">Announce</button></div>');
+
+    function picked() { return Array.prototype.slice.call(document.querySelectorAll('#annChannels input:checked')); }
+    function check() {
+      var text = $('annText').value, hint = $('annHint'), problems = [];
+      picked().forEach(function (i) {
+        var p = i.getAttribute('data-plat'), len = lengthOn(text, p), limit = NET_LIMIT[p] || 10000;
+        if (len > limit && problems.indexOf(p) === -1) problems.push(NET_NAME[p] + ' ' + len + '/' + limit);
+      });
+      var ok = text.trim() && picked().length && !problems.length;
+      hint.textContent = !picked().length ? 'Choose at least one channel.' : problems.length ? 'Too long for ' + problems.join(', ') + '. Shorten the text.' : '';
+      hint.className = 'mt-1.5 min-h-[1rem] text-xs ' + (problems.length || !picked().length ? 'text-amber-200' : 'text-white/45');
+      $('annSend').disabled = !ok;
+    }
+    $('annText').addEventListener('input', check);
+    $('annChannels').addEventListener('change', check);
+    $('mClose').addEventListener('click', closeModal);
+    check();
+
+    $('annSend').addEventListener('click', async function () {
+      var btn = this;
+      btn.disabled = true;
+      var res = await Vane.api('POST', '/api/video/videos/' + v.id + '/announce', { text: $('annText').value, channelIds: picked().map(function (i) { return i.value; }) });
+      if (!res.ok) { btn.disabled = false; Vane.toast('err', res.error); return; }
+      closeModal();
+      Vane.toast('ok', 'Announcement queued for ' + res.data.channels + (res.data.channels === 1 ? ' channel' : ' channels') + '. It goes out within a minute.');
+      await Promise.all([loadLibrary(), refreshOverview()]);
+    });
+  }
+
+  /** After an upload: offer to announce it, but only when there is somewhere to announce it (never nag an account with no channels). */
+  async function offerAnnounce(videoId) {
+    var r = await Vane.api('GET', '/api/video/announce', undefined, { noRedirect: true });
+    if (!r.ok || !r.data.channels.some(function (c) { return c.isActive; })) return;
+    var banner = $('announceBanner');
+    banner.classList.remove('hidden'); banner.classList.add('flex');
+    banner.setAttribute('data-video', videoId);
+  }
+  function hideBanner() { var b = $('announceBanner'); b.classList.add('hidden'); b.classList.remove('flex'); b.removeAttribute('data-video'); }
+  $('announceLater').addEventListener('click', hideBanner);
+  $('announceNow').addEventListener('click', function () {
+    var v = find($('announceBanner').getAttribute('data-video'));
+    hideBanner();
+    if (v) openAnnounce(v);
+  });
 
   // ───────────────────────── choosing a file ─────────────────────────
   function setFile(f) {
@@ -440,6 +536,7 @@
     Vane.toast('ok', 'Video uploaded');
     await sendPreview(U.videoId, previewPromise);
     await Promise.all([loadLibrary(), refreshOverview()]);
+    offerAnnounce(U.videoId);
   }
 
   /** The upload stopped. A broken connection keeps the unfinished upload (choose the file again to continue); a server "no" ends it. */

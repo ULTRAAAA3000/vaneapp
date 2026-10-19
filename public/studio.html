@@ -119,6 +119,12 @@
       </div>
     </section>
 
+    <!-- offered after an upload when channels are connected (Studio → Post hand-off) -->
+    <section id="announceBanner" class="fade-up glass-d mt-5 hidden items-center justify-between gap-3 rounded-2xl p-4 sm:p-5" role="status">
+      <p class="min-w-0 text-sm text-white/80"><span class="font-medium text-white">Video uploaded.</span> Announce it in your social channels?</p>
+      <div class="flex shrink-0 gap-2"><button id="announceNow" type="button" class="btn btn-white btn-sm">Announce</button><button id="announceLater" type="button" class="btn btn-ghost btn-sm">Not now</button></div>
+    </section>
+
     <!-- ═══════════ LIBRARY ═══════════ -->
     <section class="fade-up mt-5" style="animation-delay:.14s" aria-labelledby="libTitle">
       <h2 id="libTitle" class="mb-3 text-lg font-semibold">Library</h2>
@@ -220,6 +226,6 @@
 
   <script src="/assets/vane.js?v=20261019a"></script>
   <script src="/assets/apikeys.js?v=20261019a"></script>
-  <script src="/assets/studio.js?v=20261019c"></script>
+  <script src="/assets/studio.js?v=20261019d"></script>
 </body>
 </html>
