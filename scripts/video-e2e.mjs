@@ -172,6 +172,54 @@ try {
   check('the usage counter follows the library', (await http('GET', '/api/video/me', me)).json?.usage?.videos?.used === 1);
 
   // ───────────────────────────────────────────────────────────────
+  section('Preview frame and length');
+  const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), randomBytes(2000)]);
+  const putThumb = (auth, vid, bytes, query = '') => http('PUT', `/api/video/videos/${vid}/thumbnail${query}`, { ...auth, raw: bytes });
+  check('no preview yet → 404', (await http('GET', `/api/video/videos/${id}/thumbnail`, me)).status === 404);
+  check('a preview that is not a JPEG → 415', (await putThumb(me, id, Buffer.alloc(500, 1))).status === 415);
+  check('a 400 KB preview → 413 thumbnail_too_large', (await putThumb(me, id, Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(400 * 1024)]))).json?.code === 'thumbnail_too_large');
+  check('a bad length value → 400', (await putThumb(me, id, JPEG, '?d=abc')).status === 400);
+  const pending = await start(me, 5000);
+  check('a preview for an unfinished upload → 409 not_ready', (await putThumb(me, pending.json.videoId, JPEG)).json?.code === 'not_ready');
+  await http('DELETE', `/api/video/uploads/${pending.json.videoId}`, me);
+  check("another user cannot add a preview to my video (404)", (await putThumb({ cookie: other.cookie }, id, JPEG)).status === 404);
+
+  const tp = await putThumb(me, id, JPEG, '?d=61500&w=1280&h=720');
+  check('a JPEG with its length and size is stored → the video reports them', tp.status === 200 && tp.json?.video?.durationMs === 61500 && tp.json.video.width === 1280 && tp.json.video.height === 720 && tp.json.video.thumbnailUrl === `/api/video/videos/${id}/thumbnail`, JSON.stringify(tp.json));
+  const tg = await http('GET', `/api/video/videos/${id}/thumbnail`, me);
+  check('the owner gets the same image back (image/jpeg, private cache)', tg.status === 200 && tg.bytes?.equals(JPEG) && tg.headers.get('content-type') === 'image/jpeg' && /private/.test(tg.headers.get('cache-control') ?? ''));
+  check('the preview needs the owner (401 without a session, 404 for another user)', (await http('GET', `/api/video/videos/${id}/thumbnail`)).status === 401 && (await http('GET', `/api/video/videos/${id}/thumbnail`, { cookie: other.cookie })).status === 404);
+  check('sending a preview again without the length keeps the length', (await putThumb(me, id, JPEG)).json?.video?.durationMs === 61500);
+  const lib2 = (await http('GET', '/api/video/videos', me)).json?.videos?.find((v) => v.id === id);
+  check('the library list carries preview address and length', lib2?.thumbnailUrl && lib2?.durationMs === 61500);
+
+  // ───────────────────────────────────────────────────────────────
+  section('Public link');
+  const lc = await http('POST', `/api/video/videos/${id}/link`, me);
+  const linkUrl = lc.json?.url ?? '';
+  check('POST link → 201 with an unguessable address (32 characters)', lc.status === 201 && /\/api\/video\/public\/[A-Za-z0-9_-]{32}$/.test(linkUrl), JSON.stringify(lc.json));
+  check('the video shows its public address', lc.json?.video?.publicUrl === linkUrl);
+  check('asking again returns the SAME address (one link per video)', (await http('POST', `/api/video/videos/${id}/link`, me)).json?.url === linkUrl);
+  const pub = await fetch(linkUrl);                              // no cookie, no key: the address is the permission
+  const pubBytes = Buffer.from(await pub.arrayBuffer());
+  check('anyone with the address gets the video (200, exact bytes, no sign-in)', pub.status === 200 && pubBytes.equals(FILE), `${pub.status} ${pubBytes.length}`);
+  check('it is marked noindex, public-cached and named after the title', pub.headers.get('x-robots-tag') === 'noindex, nofollow' && /public/.test(pub.headers.get('cache-control') ?? '') && /filename\*=UTF-8''Trip%20to%20the%20sea\.mp4/.test(pub.headers.get('content-disposition') ?? ''), `${pub.headers.get('content-disposition')}`);
+  const pr = await fetch(linkUrl, { headers: { range: 'bytes=100-199' } });
+  check('Range works on the public address (206)', pr.status === 206 && Buffer.from(await pr.arrayBuffer()).equals(FILE.subarray(100, 200)));
+  const ph = await fetch(linkUrl, { method: 'HEAD' });
+  check('HEAD returns the length (platforms ask for it first)', ph.status === 200 && Number(ph.headers.get('content-length')) === FILE.length);
+  check('a wrong or made-up token → 404', (await fetch(linkUrl.replace(/.$/, (c) => (c === 'A' ? 'B' : 'A')))).status === 404 && (await fetch(`${linkUrl.slice(0, linkUrl.lastIndexOf('/'))}/${'A'.repeat(32)}`)).status === 404 && (await fetch(`${linkUrl.slice(0, linkUrl.lastIndexOf('/'))}/short`)).status === 404);
+  check("another user cannot make or remove my video's link (404)", (await http('POST', `/api/video/videos/${id}/link`, { cookie: other.cookie })).status === 404 && (await http('DELETE', `/api/video/videos/${id}/link`, { cookie: other.cookie })).status === 404);
+  const lr = await http('DELETE', `/api/video/videos/${id}/link`, me);
+  check('DELETE link → 200, the address stops working at once', lr.status === 200 && lr.json?.video?.publicUrl === null && (await fetch(linkUrl)).status === 404);
+  const lc2 = await http('POST', `/api/video/videos/${id}/link`, me);
+  check('a new link is a NEW address (the old one stays dead)', lc2.status === 201 && lc2.json?.url !== linkUrl && (await fetch(linkUrl)).status === 404);
+  const liveLink = lc2.json?.url;
+  const pend2 = await start(me, 5000);
+  check('a link for an unfinished upload → 409 not_ready', (await http('POST', `/api/video/videos/${pend2.json.videoId}/link`, me)).json?.code === 'not_ready');
+  await http('DELETE', `/api/video/uploads/${pend2.json.videoId}`, me);
+
+  // ───────────────────────────────────────────────────────────────
   section('Files that are not what they claim');
   const noMoov = makeMp4(PART + 500, { moov: false });
   const s2 = await start(me, noMoov.length);
@@ -254,6 +302,21 @@ try {
   const after = sql(`SELECT COUNT(*) AS n FROM videos WHERE user_id = '${u.id}'`)[0].n;
   check('test key: nothing was stored', before === after, `${before} → ${after}`);
 
+  // links and the public shape through the API (a fresh key: each key has only 10 requests a minute)
+  const lk3 = await http('POST', '/api/keys', { ...me, body: { name: 'links', scope: 'video' } });
+  const b = { key: lk3.json?.secret };
+  const v1l = await http('GET', '/api/v1/video/videos', b);
+  const mine = v1l.json?.videos?.find((v) => v.id === id);
+  check('API: the list shows length and the public address, but no private preview/stream address', mine?.durationMs === 61500 && mine?.publicUrl === liveLink && mine?.thumbnailUrl === null && mine?.fileUrl === null, JSON.stringify(mine));
+  check('API: DELETE link removes it', (await http('DELETE', `/api/v1/video/videos/${id}/link`, b)).json?.video?.publicUrl === null && (await fetch(liveLink)).status === 404);
+  const apiLink = await http('POST', `/api/v1/video/videos/${id}/link`, b);
+  check('API: POST link makes a new one that opens without a key', apiLink.status === 201 && (await fetch(apiLink.json.url)).status === 200);
+  const linksBefore = sql(`SELECT COUNT(*) AS n FROM video_links`)[0].n;
+  const simLink = await http('POST', `/api/v1/video/videos/${id}/link`, t);
+  check('test key: POST link is simulated (looks real, creates nothing)', simLink.status === 200 || simLink.status === 201 ? simLink.json?.simulated === true && /\/api\/video\/public\/x{32}$/.test(simLink.json?.url ?? '') : false, JSON.stringify(simLink.json));
+  check('test key: DELETE link is simulated and the real link survives', (await http('DELETE', `/api/v1/video/videos/${id}/link`, t)).json?.simulated === true && sql(`SELECT COUNT(*) AS n FROM video_links`)[0].n === linksBefore);
+  const finalLink = apiLink.json.url;
+
   // 10 requests a minute per video key (SECURITY_ARCHITECTURE.md §2.2)
   const rl = await http('POST', '/api/keys', { ...me, body: { name: 'rate probe', scope: 'video', mode: 'test' } });
   let seen429 = null;
@@ -269,8 +332,11 @@ try {
   check('a live video key stops working (403 video_engine_required)', (await http('GET', '/api/v1/video/me', { key: (await http('POST', '/api/keys', { ...me, body: { name: 'x', scope: 'video', mode: 'test' } })).json?.secret })).status === 200
     && (await http('GET', '/api/v1/video/videos', { key: liveKey })).json?.code === 'video_engine_required');
   check('the dashboard says it lapsed, and uploads are refused', (await http('GET', '/api/video/me', me)).json?.entitlement?.lapsed === true && (await start(me, 5000)).json?.code === 'video_engine_required');
+  check('without Vane Studio a public link cannot be made, but it can still be removed', (await http('POST', `/api/video/videos/${id}/link`, me)).json?.code === 'video_engine_required' && (await http('DELETE', `/api/video/videos/${id}/link`, me)).status === 200 && (await fetch(finalLink)).status === 404);
+  const gone = id;
   check('but the account can still see and delete its videos', (await http('GET', '/api/video/videos', me)).json?.videos?.length === 1 && (await http('DELETE', `/api/video/videos/${id}`, me)).status === 200);
   check('a deleted video is gone from storage too (404 on the stream)', (await http('GET', `/api/video/videos/${id}/file`, me)).status === 404);
+  check('and its preview and links are gone with it (404)', (await http('GET', `/api/video/videos/${gone}/thumbnail`, me)).status === 404 && sql(`SELECT COUNT(*) AS n FROM video_assets WHERE video_id = '${gone}'`)[0].n === 0);
   void randomUUID;
 } catch (err) {
   console.error('\nTest run aborted:', err instanceof Error ? err.message : err);

@@ -14,6 +14,7 @@
     uploadsOn: true,      // the server has video storage bound
     videos: [],
     file: null,           // the file chosen in the uploader
+    preview: null,        // Promise of its preview frame and length (made in the browser), see makePreview()
     up: null              // the upload in progress (see "uploading")
   };
 
@@ -29,6 +30,10 @@
     return (n / 1073741824).toFixed(2) + ' GB';
   }
   function fmtDate(sec) { return new Date(sec * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); }
+  function fmtDuration(ms) {
+    var s = Math.round(ms / 1000), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
+    return (h ? h + ':' + (m < 10 ? '0' : '') + m : m) + ':' + (ss < 10 ? '0' : '') + ss;
+  }
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
   function parseTags(text) { return text.split(',').map(function (t) { return t.trim(); }).filter(Boolean); }
 
@@ -67,13 +72,29 @@
     failed: '<span class="rounded-full bg-red-400/15 px-2 py-0.5 text-[11px] text-red-200">Failed</span>',
     ready: ''
   };
+  var FILM_ICON = '<svg class="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M10 9l5 3-5 3z"/></svg>';
+  var PLAY_ICON = '<svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
+
+  /** The picture on top of a card: the preview frame (or a placeholder), the length, and a play button for finished videos. */
+  function cover(v) {
+    var picture = v.thumbnailUrl
+      ? '<img src="' + esc(v.thumbnailUrl) + '" alt="" loading="lazy" class="h-full w-full object-cover" />'
+      : '<div class="flex h-full w-full items-center justify-center bg-gradient-to-br from-violet-500/15 via-white/[0.03] to-fuchsia-500/15 text-white/35">' + FILM_ICON + '</div>';
+    var length = v.durationMs ? '<span class="absolute bottom-2 right-2 rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] font-medium tabular-nums">' + fmtDuration(v.durationMs) + '</span>' : '';
+    var status = v.status !== 'ready' ? '<span class="absolute left-2 top-2">' + BADGE[v.status] + '</span>' : '';
+    var play = v.status === 'ready'
+      ? '<button type="button" data-act="play" data-id="' + v.id + '" class="group absolute inset-0 flex items-center justify-center" aria-label="Play ' + esc(v.title) + '">' +
+          '<span class="flex h-12 w-12 items-center justify-center rounded-full bg-black/55 text-white opacity-80 ring-1 ring-white/20 backdrop-blur transition group-hover:scale-105 group-hover:opacity-100">' + PLAY_ICON + '</span></button>'
+      : '';
+    return '<div class="relative aspect-video overflow-hidden bg-black/40">' + picture + play + length + status + '</div>';
+  }
 
   function card(v) {
     var tags = v.tags.map(function (t) { return '<span class="rounded-full bg-white/8 px-2 py-0.5 text-[11px] text-white/60">#' + esc(t) + '</span>'; }).join(' ');
     var note = '';
     var actions = '';
     if (v.status === 'ready') {
-      actions = '<button class="btn btn-white btn-sm" data-act="play" data-id="' + v.id + '">Play</button>' +
+      actions = '<button class="btn btn-ghost btn-sm" data-act="share" data-id="' + v.id + '">' + (v.publicUrl ? 'Link' : 'Share') + '</button>' +
         '<button class="btn btn-ghost btn-sm" data-act="edit" data-id="' + v.id + '">Edit</button>' +
         '<button class="btn btn-danger btn-sm" data-act="delete" data-id="' + v.id + '">Delete</button>';
     } else if (v.status === 'uploading') {
@@ -83,11 +104,14 @@
       note = '<p class="mt-2 text-xs text-red-200/80">' + esc(v.error || 'This upload was rejected.') + '</p>';
       actions = '<button class="btn btn-danger btn-sm" data-act="delete" data-id="' + v.id + '">Delete</button>';
     }
-    return '<article class="glass-d flex flex-col rounded-2xl p-4">' +
-      '<div class="flex items-start justify-between gap-2"><h3 class="min-w-0 break-words text-sm font-semibold">' + esc(v.title) + '</h3>' + BADGE[v.status] + '</div>' +
-      '<p class="mt-1 text-xs text-white/45">' + fmtBytes(v.sizeBytes) + ' · ' + fmtDate(v.createdAt) + '</p>' +
-      (tags ? '<div class="mt-2 flex flex-wrap gap-1">' + tags + '</div>' : '') + note +
-      '<div class="mt-4 flex flex-wrap gap-2">' + actions + '</div></article>';
+    var pub = v.publicUrl ? '<span class="badge badge-sent shrink-0">Public</span>' : '';
+    var size = v.width && v.height ? fmtBytes(v.sizeBytes) + ' · ' + v.width + '×' + v.height : fmtBytes(v.sizeBytes);
+    return '<article class="glass-d flex flex-col overflow-hidden rounded-2xl">' + cover(v) +
+      '<div class="flex flex-1 flex-col p-4">' +
+        '<div class="flex items-start justify-between gap-2"><h3 class="min-w-0 break-words text-sm font-semibold">' + esc(v.title) + '</h3>' + pub + '</div>' +
+        '<p class="mt-1 text-xs text-white/45">' + size + ' · ' + fmtDate(v.createdAt) + '</p>' +
+        (tags ? '<div class="mt-2 flex flex-wrap gap-1">' + tags + '</div>' : '') + note +
+        '<div class="mt-auto flex flex-wrap gap-2 pt-4">' + actions + '</div></div></article>';
   }
 
   function renderLibrary() {
@@ -110,6 +134,7 @@
     var act = btn.getAttribute('data-act');
     if (act === 'play') openPlayer(v);
     else if (act === 'edit') openEditor(v);
+    else if (act === 'share') openShare(v);
     else if (act === 'delete') await removeVideo(v, btn);
   });
 
@@ -160,6 +185,40 @@
     });
   }
 
+  /** Share: make the video's public link, copy it, or remove it. Anyone with the address can watch and download the video. */
+  function openShare(v) {
+    function paint() {
+      var cur = find(v.id) || v;
+      openModal('<h3 class="mb-1 break-words text-base font-semibold">Share "' + esc(cur.title) + '"</h3>' +
+        (cur.publicUrl
+          ? '<p class="text-xs leading-relaxed text-white/50">Anyone with this link can watch and download the video. Remove the link and it stops working at once.</p>' +
+            '<div class="mt-4 flex items-center gap-2.5"><input id="shareUrl" class="field min-w-0 flex-1 font-mono !text-[13px]" readonly value="' + esc(cur.publicUrl) + '" />' +
+            '<button class="btn btn-white btn-sm shrink-0" id="shareCopy">Copy</button></div>' +
+            '<div class="mt-5 flex justify-between gap-2"><button class="btn btn-danger btn-sm" id="shareRemove">Remove link</button><button class="btn btn-ghost btn-sm" id="mClose">Done</button></div>'
+          : '<p class="text-xs leading-relaxed text-white/50">The video is private now. Make a link to let anyone with the address watch and download it, or to give a platform a file to pull. You can remove the link at any time.</p>' +
+            '<div class="mt-5 flex justify-end gap-2"><button class="btn btn-ghost btn-sm" id="mClose">Cancel</button><button class="btn btn-white btn-sm" id="shareMake">Create link</button></div>'));
+      $('mClose').addEventListener('click', closeModal);
+      var copy = $('shareCopy');
+      if (copy) {
+        $('shareUrl').addEventListener('focus', function () { this.select(); });
+        copy.addEventListener('click', function () { VaneKeys.copyWithToast(cur.publicUrl, 'Link'); });
+        $('shareRemove').addEventListener('click', async function () { await change('DELETE', this, 'Link removed'); });
+      }
+      var make = $('shareMake');
+      if (make) make.addEventListener('click', async function () { await change('POST', this, 'Link created'); });
+    }
+    async function change(method, btn, message) {
+      btn.disabled = true;
+      var r = await Vane.api(method, '/api/video/videos/' + v.id + '/link');
+      if (!r.ok) { btn.disabled = false; Vane.toast('err', r.error); return; }
+      S.videos = S.videos.map(function (x) { return x.id === v.id ? r.data.video : x; });
+      renderLibrary();
+      Vane.toast('ok', message);
+      paint();
+    }
+    paint();
+  }
+
   // ───────────────────────── choosing a file ─────────────────────────
   function setFile(f) {
     if (!f) return;
@@ -170,6 +229,63 @@
     $('dropTitle').textContent = f.name;
     $('dropSub').textContent = fmtBytes(f.size);
     $('uploadBtn').disabled = false;
+    $('dropPreview').classList.add('hidden');
+    var mine = S.preview = makePreview(f);
+    mine.then(function (p) {                                      // show the frame once it is ready, unless another file was chosen since
+      if (S.preview !== mine || !p || !p.blob) return;
+      $('dropPreview').src = p.url;
+      $('dropPreview').classList.remove('hidden');
+    });
+  }
+
+  /**
+   * A preview frame and the length of the chosen video, made in the browser (nothing leaves the machine until the upload finishes).
+   * Resolves to { blob, url, d, w, h }, or null when the browser cannot decode the file (some codecs): the video then just
+   * shows a placeholder, and the upload is unaffected.
+   */
+  function makePreview(file) {
+    return new Promise(function (resolve) {
+      var url = URL.createObjectURL(file);
+      var v = document.createElement('video');
+      var info = { d: 0, w: 0, h: 0 };
+      var done = false;
+      var timer = setTimeout(function () { finish(null); }, 8000);
+      function finish(result) {
+        if (done) return;
+        done = true; clearTimeout(timer);
+        v.removeAttribute('src'); v.load(); URL.revokeObjectURL(url);
+        resolve(result);
+      }
+      v.muted = true; v.playsInline = true; v.preload = 'metadata';
+      v.onerror = function () { finish(null); };
+      v.onloadedmetadata = function () {
+        var dur = isFinite(v.duration) ? v.duration : 0;
+        info = { d: Math.round(dur * 1000), w: v.videoWidth, h: v.videoHeight };
+        v.currentTime = dur > 0 ? Math.min(1, dur * 0.1) : 0.1;   // a little after the start: the very first frame is often black
+      };
+      v.onseeked = function () {
+        if (!info.w || !info.h) return finish(null);
+        var w = Math.min(480, info.w), h = Math.max(1, Math.round(info.h * w / info.w));
+        var canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        try { canvas.getContext('2d').drawImage(v, 0, 0, w, h); } catch (e) { return finish(null); }
+        canvas.toBlob(function (blob) {
+          finish(blob ? { blob: blob, url: URL.createObjectURL(blob), d: info.d, w: info.w, h: info.h } : null);
+        }, 'image/jpeg', 0.8);
+      };
+      v.src = url;
+    });
+  }
+
+  /** Sends the preview frame of a finished upload. Best effort: the video is already safe, so a failure is not shown. */
+  async function sendPreview(videoId, previewPromise) {
+    try {
+      var p = await previewPromise;
+      if (!p || !p.blob) return;
+      await fetch('/api/video/videos/' + videoId + '/thumbnail?d=' + p.d + '&w=' + p.w + '&h=' + p.h, {
+        method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'image/jpeg' }, body: p.blob
+      });
+    } catch (e) { /* the placeholder is shown instead */ }
   }
   $('fileInput').addEventListener('change', function () { setFile(this.files[0]); });
   var drop = $('drop');
@@ -251,6 +367,8 @@
     $('dropSub').textContent = 'MP4 or MOV';
     ['upTitle', 'upDesc', 'upTags'].forEach(function (id) { $(id).value = ''; });
     $('uploadBtn').disabled = true;
+    $('dropPreview').classList.add('hidden');
+    S.preview = null;
   }
 
   /** Starts a new upload, or picks up the unfinished one that belongs to this same file. Resolves to the upload state or null. */
@@ -279,6 +397,7 @@
   async function startUpload() {
     if (!S.file || S.up) return;
     var meta = { title: $('upTitle').value.trim(), description: $('upDesc').value.trim(), tags: parseTags($('upTags').value) };
+    var previewPromise = S.preview;
     setBusy(true);
     $('progressLabel').textContent = 'Preparing…';
     var U = await openUpload(S.file, meta);
@@ -319,6 +438,7 @@
     setBusy(false);
     resetForm();
     Vane.toast('ok', 'Video uploaded');
+    await sendPreview(U.videoId, previewPromise);
     await Promise.all([loadLibrary(), refreshOverview()]);
   }
 
