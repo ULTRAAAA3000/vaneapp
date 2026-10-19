@@ -1,0 +1,47 @@
+name: Zapier
+
+# Manual only: Actions tab → Zapier → Run workflow.
+# Needs the repository secret ZAPIER_DEPLOY_KEY (Settings → Secrets and variables → Actions).
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'register = create the integration in Zapier (first time), push = upload the current code'
+        type: choice
+        options: [push, register]
+        default: push
+
+permissions:
+  contents: write
+
+jobs:
+  zapier:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: integrations/zapier
+    env:
+      ZAPIER_DEPLOY_KEY: ${{ secrets.ZAPIER_DEPLOY_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm test
+      - run: npx zapier-platform validate
+
+      - name: Register (first time only)
+        if: inputs.action == 'register'
+        run: |
+          if [ -f .zapierapprc ]; then echo "Already registered (.zapierapprc exists)"; exit 0; fi
+          npx zapier-platform register "Vane" --desc "Schedule and cross-post to Telegram, Bluesky, Mastodon and more with Vane." --url "https://vaneapp.dev" --audience private --role employee --category marketing-automation --no-subscribe --yes
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .zapierapprc
+          git commit -m "chore(zapier): link the integration (.zapierapprc)"
+          git push
+
+      - name: Push to Zapier
+        if: inputs.action == 'push'
+        run: npx zapier-platform push

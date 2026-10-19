@@ -25,5 +25,16 @@ for (const [dir] of dirs) {
     }
   }
 }
+// Zapier: every `${BASE}/path` the app calls must exist in the spec (any method)
+const specPaths = new Set(Object.keys(spec.paths).map((p) => p.replace(/^\/api\/v1/, '')));
+for (const dir of ['integrations/zapier/triggers', 'integrations/zapier/creates', 'integrations/zapier']) {
+  for (const name of readdirSync(dir).filter((n) => n.endsWith('.js'))) {
+    const src = readFileSync(join(dir, name), 'utf8');
+    for (const m of src.matchAll(/\$\{BASE\}(\/[a-z]+)/g)) {
+      checked++;
+      if (!specPaths.has(m[1])) { bad++; console.error(`FAIL ${join(dir, name)}: ${m[1]} is not in public/vane-openapi.json`); }
+    }
+  }
+}
 if (bad) process.exit(1);
-console.log(`ok: ${checked} Make calls match the OpenAPI spec`);
+console.log(`ok: ${checked} Make/Zapier calls match the OpenAPI spec`);
