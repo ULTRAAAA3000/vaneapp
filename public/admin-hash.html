@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin password hash — Vane</title>
+  <meta name="robots" content="noindex, nofollow, noarchive" />
+  <meta name="theme-color" content="#070708" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #070708; color: #f4f4f5; font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    main { max-width: 640px; margin: 0 auto; padding: 32px 16px 64px; }
+    h1 { font-size: 22px; margin: 0 0 6px; }
+    h2 { font-size: 16px; margin: 0 0 8px; }
+    p { color: rgba(255,255,255,.62); margin: 0 0 14px; }
+    section { border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.03); border-radius: 16px; padding: 18px; margin-top: 20px; }
+    label { display: block; font-size: 13px; color: rgba(255,255,255,.62); margin: 12px 0 4px; }
+    input, textarea { width: 100%; border-radius: 10px; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.05); color: inherit; padding: 10px 12px; font: inherit; }
+    textarea { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; word-break: break-all; min-height: 84px; }
+    button { margin-top: 14px; border: 0; border-radius: 999px; background: #fff; color: #010101; font: inherit; font-weight: 600; padding: 10px 20px; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: wait; }
+    .out { margin-top: 14px; font-size: 14px; }
+    .ok { color: #6ee7b7; } .bad { color: #fca5a5; }
+    code { background: rgba(255,255,255,.1); border-radius: 6px; padding: 1px 6px; font-size: 13px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Admin password hash</h1>
+  <p>Everything happens in this page, in your browser: the password is never sent anywhere.</p>
+
+  <section>
+    <h2>1. Make the hash</h2>
+    <p>Type the password you want for <code>/admin</code> (at least 12 characters). Copy the result into the Cloudflare secret <code>ADMIN_PASSWORD_HASH</code>, with no quotes and no spaces around it.</p>
+    <label for="p1">Password</label>
+    <input id="p1" type="password" autocomplete="new-password" />
+    <button id="mk" type="button">Make hash</button>
+    <div id="mkOut" class="out"></div>
+    <textarea id="hashOut" readonly hidden></textarea>
+  </section>
+
+  <section>
+    <h2>2. Check a password against a hash</h2>
+    <p>Paste the value of <code>ADMIN_PASSWORD_HASH</code> exactly as you saved it, and the password you type on the sign-in page. It tells you whether they belong together, and what is wrong if not.</p>
+    <label for="h2">Hash</label>
+    <textarea id="h2" spellcheck="false"></textarea>
+    <label for="p2">Password</label>
+    <input id="p2" type="password" autocomplete="off" />
+    <button id="ck" type="button">Check</button>
+    <div id="ckOut" class="out"></div>
+  </section>
+</main>
+<script>
+(function () {
+  var ITER = 100000; // the Workers ceiling, same as functions/api/lib/password.ts
+  var enc = new TextEncoder();
+  function $(id) { return document.getElementById(id); }
+  function b64u(bytes) { var s = ''; bytes.forEach(function (b) { s += String.fromCharCode(b); }); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+  function unb64u(s) { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; var r = atob(s), a = new Uint8Array(r.length); for (var i = 0; i < r.length; i++) a[i] = r.charCodeAt(i); return a; }
+  function derive(pw, salt, iter) {
+    return crypto.subtle.importKey('raw', enc.encode(pw.normalize('NFKC')), 'PBKDF2', false, ['deriveBits'])
+      .then(function (k) { return crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: salt, iterations: iter }, k, 256); })
+      .then(function (b) { return new Uint8Array(b); });
+  }
+  function say(el, cls, text) { el.className = 'out ' + cls; el.textContent = text; }
+
+  $('mk').addEventListener('click', function () {
+    var pw = $('p1').value, out = $('mkOut');
+    if (pw.length < 12) return say(out, 'bad', 'Use at least 12 characters.');
+    $('mk').disabled = true;
+    var salt = crypto.getRandomValues(new Uint8Array(16));
+    derive(pw, salt, ITER).then(function (h) {
+      var line = 'pbkdf2-sha256$' + ITER + '$' + b64u(salt) + '$' + b64u(h);
+      $('hashOut').value = line; $('hashOut').hidden = false; $('hashOut').select();
+      say(out, 'ok', 'Done. Copy the whole line below. A new hash is made every time; any of them works for this password.');
+      $('mk').disabled = false;
+    });
+  });
+
+  $('ck').addEventListener('click', function () {
+    var raw = $('h2').value, pw = $('p2').value, out = $('ckOut');
+    var hash = raw.replace(/[​-‍⁠﻿]/g, '').trim(), notes = [];
+    if (hash !== raw) notes.push('The pasted value had spaces, a new line or a hidden character around it (the server now ignores those).');
+    var q = /^(["'`])([\s\S]*)\1$/.exec(hash);
+    if (q) { hash = q[2].trim(); notes.push('The value was wrapped in quotes (the server now ignores those).'); }
+    var m = /^pbkdf2-sha256\$(\d+)\$([A-Za-z0-9_-]+)\$([A-Za-z0-9_-]+)$/.exec(hash);
+    if (!m) return say(out, 'bad', 'This is not a valid hash. It must look like pbkdf2-sha256$100000$…$…  Make a new one in step 1. ' + notes.join(' '));
+    var iter = Number(m[1]);
+    if (iter < 1 || iter > ITER) return say(out, 'bad', 'The iteration count must be 100000 or lower. Make a new hash in step 1.');
+    if (!pw) return say(out, 'bad', 'Type the password.');
+    $('ck').disabled = true;
+    derive(pw, unb64u(m[2]), iter).then(function (actual) {
+      var exp = unb64u(m[3]), same = actual.length === exp.length;
+      for (var i = 0; same && i < actual.length; i++) if (actual[i] !== exp[i]) same = false;
+      say(out, same ? 'ok' : 'bad', (same ? 'Match: this hash belongs to this password. ' : 'No match: the password you typed is not the one this hash was made from. Make a new hash in step 1 and replace the secret. ') + notes.join(' '));
+      $('ck').disabled = false;
+    });
+  });
+})();
+</script>
+</body>
+</html>
