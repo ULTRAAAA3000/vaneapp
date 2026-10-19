@@ -27,7 +27,11 @@ Vane dashboard → API keys → create a key. Use `cpost_test_…` to try it, `c
 }
 ```
 
-4. Restart Claude Desktop. The Vane tools appear under the tools icon.
+   The path is where you saved the file: `C:\\Users\\You\\Documents\\vane-mcp.mjs` on Windows (double backslashes), `/Users/you/Documents/vane-mcp.mjs` on macOS. The config file itself is in `%APPDATA%\\Claude` (Windows) or `~/Library/Application Support/Claude` (macOS).
+4. Fully quit Claude Desktop (system tray / menu bar → Quit) and open it again. The Vane tools appear under the tools icon.
+5. Try with a `cpost_test_…` key: "Show my Vane channels", then "Post 'Hello' to telegram tomorrow at 9:00 UTC". Claude answers `TEST MODE` and nothing is posted.
+
+If the tools do not appear: Node is not installed or the path is wrong (Settings → Developer shows the server as failed with the reason).
 
 Once `@vane/mcp-server` is published to npm the file download is not needed: `"command": "npx", "args": ["-y", "@vane/mcp-server"]`.
 
