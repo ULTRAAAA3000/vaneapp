@@ -10,6 +10,7 @@ import type { Env } from '../../../../../types';
 import { requireApiKey } from '../../../lib/apikeys';
 import { methodNotAllowed, readJson } from '../../../lib/http';
 import { simulateStart, startUpload, validateStart } from '../../../lib/videoupload';
+import { videoView } from '../../../lib/videos';
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const auth = await requireApiKey(request, env, 'video');
@@ -20,7 +21,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const checked = validateStart(parsed.data);
   if (!checked.ok) return checked.response;
 
-  return auth.key.mode === 'test' ? simulateStart(checked.v) : startUpload(env, auth.userId, checked.v, 'api', null);
+  return auth.key.mode === 'test' ? simulateStart(checked.v) : startUpload(env, auth.userId, checked.v, 'api', videoView(request, false));
 };
 
 export const onRequest: PagesFunction<Env> = async () => methodNotAllowed('POST');

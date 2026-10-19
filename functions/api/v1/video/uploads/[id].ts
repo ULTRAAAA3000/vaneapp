@@ -9,13 +9,14 @@ import type { Env } from '../../../../../types';
 import { requireApiKey } from '../../../lib/apikeys';
 import { json, methodNotAllowed } from '../../../lib/http';
 import { cancelUpload, uploadStatus } from '../../../lib/videoupload';
+import { videoView } from '../../../lib/videos';
 
 const idOf = (p: string | string[] | undefined) => (Array.isArray(p) ? p[0] : p) ?? '';
 
 export const onRequestGet: PagesFunction<Env, 'id'> = async ({ request, env, params }) => {
   const auth = await requireApiKey(request, env, 'video');
   if (!auth.ok) return auth.response;
-  return uploadStatus(env, auth.userId, idOf(params.id), null);
+  return uploadStatus(env, auth.userId, idOf(params.id), videoView(request, false));
 };
 
 export const onRequestDelete: PagesFunction<Env, 'id'> = async ({ request, env, params }) => {

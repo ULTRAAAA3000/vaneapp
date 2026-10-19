@@ -9,14 +9,14 @@ import type { Env } from '../../../../types';
 import { requireUser } from '../../lib/auth';
 import { methodNotAllowed } from '../../lib/http';
 import { cancelUpload, uploadStatus } from '../../lib/videoupload';
-import { VIDEO_FILE_BASE } from '../../lib/videos';
+import { videoView } from '../../lib/videos';
 
 const idOf = (p: string | string[] | undefined) => (Array.isArray(p) ? p[0] : p) ?? '';
 
 export const onRequestGet: PagesFunction<Env, 'id'> = async ({ request, env, params }) => {
   const auth = await requireUser(request, env);
   if (!auth.ok) return auth.response;
-  return uploadStatus(env, auth.userId, idOf(params.id), VIDEO_FILE_BASE);
+  return uploadStatus(env, auth.userId, idOf(params.id), videoView(request, true));
 };
 
 export const onRequestDelete: PagesFunction<Env, 'id'> = async ({ request, env, params }) => {

@@ -14,7 +14,7 @@ import type { Env } from '../../../../types';
 import { requireUser } from '../../lib/auth';
 import { methodNotAllowed, readJson } from '../../lib/http';
 import { startUpload, validateStart } from '../../lib/videoupload';
-import { VIDEO_FILE_BASE } from '../../lib/videos';
+import { videoView } from '../../lib/videos';
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const auth = await requireUser(request, env);
@@ -25,7 +25,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const checked = validateStart(parsed.data);
   if (!checked.ok) return checked.response;
 
-  return startUpload(env, auth.userId, checked.v, 'ui', VIDEO_FILE_BASE);
+  return startUpload(env, auth.userId, checked.v, 'ui', videoView(request, true));
 };
 
 export const onRequest: PagesFunction<Env> = async () => methodNotAllowed('POST');

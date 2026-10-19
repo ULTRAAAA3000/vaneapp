@@ -343,12 +343,12 @@ try {
     }
     check('every documented operation exists and is protected (401 without a key)', missing.length === 0, missing.join('; '));
 
-    // Drift guard 2: every route on disk is documented (the Video Engine has its own document)
+    // Drift guard 2: every route on disk is documented (the Video Engine has its own document; /mcp is the MCP protocol endpoint, not a REST route)
     const walk = (dir) => readdirSync(dir).flatMap((n) => { const f = join(dir, n); return statSync(f).isDirectory() ? walk(f) : [f]; });
     const root = 'functions/api/v1';
     const routes = walk(root)
       .map((f) => f.slice(root.length).replace(/\\/g, '/'))
-      .filter((f) => !f.startsWith('/video/') && f !== '/openapi.json.ts' && f.endsWith('.ts'))
+      .filter((f) => !f.startsWith('/video/') && f !== '/openapi.json.ts' && f !== '/mcp.ts' && f.endsWith('.ts'))
       .map((f) => f.replace(/\.ts$/, '').replace(/\/index$/, '').replace(/\[id\]/g, '{id}'))
       .map((f) => f || '/');
     const undocumented = routes.filter((r) => !(r in (spec?.paths ?? {})));
