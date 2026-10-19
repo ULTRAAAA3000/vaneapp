@@ -131,15 +131,23 @@ async function call<T>(
 // ───────────────────────── the OAuth app on a server ─────────────────────────
 export interface MastodonApp { clientId: string; clientSecret: string }
 
-export type AppResult = { ok: true; app: MastodonApp } | { ok: false; error: string; network: boolean };
+export type AppResult = { ok: true; app: MastodonApp } | { ok: false; error: string; network: boolean; /** the database lacks the Mastodon tables: run `npm run db:remote` */ setup?: boolean };
+
+const NEEDS_DB_UPDATE: AppResult = { ok: false, network: false, setup: true, error: 'Mastodon is not enabled on this server yet. The database needs one update: npm run db:remote.' };
 
 /** Vane's app on `instance`: the saved one, or registered right now (dynamic registration). */
 export async function appFor(env: Env, instance: string, redirectUri: string): Promise<AppResult> {
   const key = env.ENCRYPTION_KEY!;
-  const saved = await env.DB
-    .prepare('SELECT client_id, client_secret FROM mastodon_apps WHERE instance = ?1 AND redirect_uri = ?2')
-    .bind(instance, redirectUri)
-    .first<{ client_id: string; client_secret: string }>();
+  let saved: { client_id: string; client_secret: string } | null;
+  try {
+    saved = await env.DB
+      .prepare('SELECT client_id, client_secret FROM mastodon_apps WHERE instance = ?1 AND redirect_uri = ?2')
+      .bind(instance, redirectUri)
+      .first<{ client_id: string; client_secret: string }>();
+  } catch (err) {
+    console.error('mastodon_apps unreadable (run npm run db:remote?)', err instanceof Error ? err.message : 'unknown');
+    return NEEDS_DB_UPDATE;
+  }
   if (saved) {
     try {
       return { ok: true, app: { clientId: saved.client_id, clientSecret: await decryptToken(saved.client_secret, key) } };
@@ -161,13 +169,18 @@ export async function appFor(env: Env, instance: string, redirectUri: string): P
   if (typeof clientId !== 'string' || typeof clientSecret !== 'string' || !clientId || !clientSecret) {
     return { ok: false, network: false, error: `${instance} did not answer like a Mastodon server.` };
   }
-  await env.DB
-    .prepare(
-      `INSERT INTO mastodon_apps (instance, redirect_uri, client_id, client_secret, created_at) VALUES (?1, ?2, ?3, ?4, ?5)
-       ON CONFLICT(instance, redirect_uri) DO UPDATE SET client_id = ?3, client_secret = ?4, created_at = ?5`,
-    )
-    .bind(instance, redirectUri, clientId, await encryptToken(clientSecret, key), Math.floor(Date.now() / 1000))
-    .run();
+  try {
+    await env.DB
+      .prepare(
+        `INSERT INTO mastodon_apps (instance, redirect_uri, client_id, client_secret, created_at) VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT(instance, redirect_uri) DO UPDATE SET client_id = ?3, client_secret = ?4, created_at = ?5`,
+      )
+      .bind(instance, redirectUri, clientId, await encryptToken(clientSecret, key), Math.floor(Date.now() / 1000))
+      .run();
+  } catch (err) {
+    console.error('mastodon_apps not writable (run npm run db:remote?)', err instanceof Error ? err.message : 'unknown');
+    return NEEDS_DB_UPDATE;
+  }
   return { ok: true, app: { clientId, clientSecret } };
 }
 
