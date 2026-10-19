@@ -23,6 +23,15 @@ export function siteOf(hostname: string): Site {
 export const productUrl = (product: 'post' | 'studio', path = '/'): string => `https://${product}.${ROOT_DOMAIN}${path}`;
 
 /**
+ * Where public video links live: Vane Studio's own host in production (even when the request came through the main site),
+ * the request's own origin in local dev and previews.
+ */
+export const studioOrigin = (request: Request): string => {
+  const url = new URL(request.url);
+  return siteOf(url.hostname) === 'other' ? url.origin : `https://studio.${ROOT_DOMAIN}`;
+};
+
+/**
  * `; Domain=vaneapp.dev` on our own hosts, so ONE sign-in covers post. and studio. (they are the same site, so SameSite=Lax
  * still applies). Empty on local dev, where a host-only cookie is what works.
  */

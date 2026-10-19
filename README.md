@@ -264,8 +264,4 @@ All of it is computed in the browser from the two post lists the dashboard alrea
 - **No view counts:** Telegram's Bot API does not report how many people saw a channel post, so there is nothing honest to show. Add it when a network that reports it (LinkedIn, Threads, Bluesky) is opened.
 - **Draft:** the editor text is kept in this browser's `localStorage` (key `vane:draft:<userId>`), restored on the next visit, removed once the post is scheduled and on sign-out.
 - **Reuse** (History): copies a finished post's text and channels back into the editor. **Ctrl / ⌘ + Enter** schedules.
-- **Open a sent post:** in History a channel pill of a sent post is a link to the post on its network (Mastodon: the post URL, Bluesky: `bsky.app/profile/<did>/post/<id>`, Telegram: `t.me/<channel>/<id>` for an `@name` channel, `t.me/c/<id>/<id>` for one saved by its numeric id, which opens for members). The same `url` field is in `GET /api/v1/posts`. It is built on read from `posts.external_id` (`functions/api/lib/postlink.ts`), nothing new is stored, and it is `null` where a network gives no stable link (private chats, groups).
 
-## WordPress plugin
-
-`integrations/wordpress/` holds the "Vane for WordPress" plugin (editor sidebar, cross-post on publish). The ready zip is `public/downloads/vane-for-wordpress.zip`, served at `/downloads/vane-for-wordpress.zip`; setup is in `integrations/wordpress/README.md`.

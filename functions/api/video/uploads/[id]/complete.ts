@@ -10,14 +10,14 @@ import type { Env } from '../../../../../types';
 import { requireUser } from '../../../lib/auth';
 import { methodNotAllowed } from '../../../lib/http';
 import { completeUpload } from '../../../lib/videoupload';
-import { VIDEO_FILE_BASE } from '../../../lib/videos';
+import { videoView } from '../../../lib/videos';
 
 const idOf = (p: string | string[] | undefined) => (Array.isArray(p) ? p[0] : p) ?? '';
 
 export const onRequestPost: PagesFunction<Env, 'id'> = async ({ request, env, params }) => {
   const auth = await requireUser(request, env);
   if (!auth.ok) return auth.response;
-  return completeUpload(env, auth.userId, idOf(params.id), VIDEO_FILE_BASE);
+  return completeUpload(env, auth.userId, idOf(params.id), videoView(request, true));
 };
 
 export const onRequest: PagesFunction<Env, 'id'> = async () => methodNotAllowed('POST');

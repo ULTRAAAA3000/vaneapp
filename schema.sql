@@ -306,3 +306,22 @@ CREATE TABLE IF NOT EXISTS oauth_states (
   expires_at  INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_oauth_states_expiry ON oauth_states(expires_at);
+
+-- What the browser learns about a video while it uploads it: a preview frame and its length. Optional (a video without
+-- them just shows a placeholder). Separate table so `videos` never needs an ALTER and this file stays re-runnable.
+CREATE TABLE IF NOT EXISTS video_assets (
+  video_id    TEXT    PRIMARY KEY REFERENCES videos(id) ON DELETE CASCADE,
+  thumb_key   TEXT,                                                             -- R2 key of the JPEG preview, 'videos/<user id>/<video id>.jpg'
+  duration_ms INTEGER,
+  width       INTEGER,
+  height      INTEGER,
+  updated_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+-- A public link: anyone who has the address can watch/download the video. One link per video; removing it kills the address.
+-- Platforms that pull a file by URL (TikTok, Instagram Reels) and the "announce in Vane Post" hand-off use it.
+CREATE TABLE IF NOT EXISTS video_links (
+  token       TEXT    PRIMARY KEY,                                              -- 192 random bits, base64url (32 chars): unguessable
+  video_id    TEXT    NOT NULL UNIQUE REFERENCES videos(id) ON DELETE CASCADE,
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);

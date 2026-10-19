@@ -25,7 +25,7 @@ import { fail, failCode, isRecord, json, readBodyLimited } from './http';
 import { bump, retryAfter } from './throttle';
 import { readBoxHeader, sniffVideoBrand } from './video';
 import { requireVideoAccess, VIDEO_ENGINE } from './videoplans';
-import { getVideoRow, MEDIA_OFF, parseVideoMeta, TITLE_MAX, toPublicVideo, videoKey, type VideoMeta } from './videos';
+import { getVideoRow, MEDIA_OFF, parseVideoMeta, TITLE_MAX, toPublicVideo, videoKey, type VideoMeta, type VideoView } from './videos';
 
 export const PART_SIZE = 8 * 1024 * 1024;
 export const UPLOAD_TTL_SECONDS = 24 * 3600;
@@ -112,7 +112,7 @@ async function reapExpiredUploads(env: Env, userId: string, now: number): Promis
   await env.DB.batch(results.map((r) => del.bind(r.id)));
 }
 
-export async function startUpload(env: Env, userId: string, v: ValidStart, source: 'ui' | 'api', fileBase: string | null): Promise<Response> {
+export async function startUpload(env: Env, userId: string, v: ValidStart, source: 'ui' | 'api', view: VideoView): Promise<Response> {
   if (!env.MEDIA) return fail(503, MEDIA_OFF);
   const denied = await requireVideoAccess(env, userId);
   if (denied) return denied;
@@ -166,7 +166,7 @@ export async function startUpload(env: Env, userId: string, v: ValidStart, sourc
       partCount: partCount(v.size),
       uploadedParts: [],
       expiresAt: expiry(now),
-      video: row ? toPublicVideo(row, fileBase) : null,
+      video: row ? toPublicVideo(row, view) : null,
     },
     201,
   );
@@ -196,13 +196,13 @@ async function uploadedPartNumbers(env: Env, videoId: string): Promise<number[]>
 }
 
 /** Where an upload stands: what the client asks after a dropped connection, to send only the chunks that are missing. */
-export async function uploadStatus(env: Env, userId: string, id: string, fileBase: string | null): Promise<Response> {
+export async function uploadStatus(env: Env, userId: string, id: string, view: VideoView): Promise<Response> {
   const row = await getVideoRow(env, userId, id);
   if (!row) return fail(404, 'Upload not found');
   const parts = row.status === 'uploading' ? await uploadedPartNumbers(env, row.id) : [];
   return json({
     ok: true,
-    video: toPublicVideo(row, fileBase),
+    video: toPublicVideo(row, view),
     partSize: row.part_size,
     partCount: partCount(row.size_bytes),
     uploadedParts: parts,
@@ -293,14 +293,14 @@ async function rejectUpload(env: Env, bucket: R2Bucket, row: VideoRow, message: 
 }
 
 /** Assembles the chunks into the file, checks it, and makes the video 'ready'. Safe to call twice: a finished video just answers again. */
-export async function completeUpload(env: Env, userId: string, id: string, fileBase: string | null): Promise<Response> {
+export async function completeUpload(env: Env, userId: string, id: string, view: VideoView): Promise<Response> {
   if (!env.MEDIA) return fail(503, MEDIA_OFF);
   const denied = await requireVideoAccess(env, userId);
   if (denied) return denied;
 
   const existing = await getVideoRow(env, userId, id);
   if (!existing) return fail(404, 'Upload not found');
-  if (existing.status === 'ready') return json({ ok: true, video: toPublicVideo(existing, fileBase) });
+  if (existing.status === 'ready') return json({ ok: true, video: toPublicVideo(existing, view) });
   if (existing.status === 'failed') return failCode(409, 'invalid_video', existing.error ?? 'This upload was rejected.');
 
   const loaded = await loadUploading(env, userId, id);
@@ -326,7 +326,7 @@ export async function completeUpload(env: Env, userId: string, id: string, fileB
   } catch (err) {
     // A parallel "complete" may have won: then the video is ready and this call just reports it.
     const now = await getVideoRow(env, userId, id);
-    if (now?.status === 'ready') return json({ ok: true, video: toPublicVideo(now, fileBase) });
+    if (now?.status === 'ready') return json({ ok: true, video: toPublicVideo(now, view) });
     console.error('video complete failed', err instanceof Error ? err.message : 'unknown');
     return fail(502, 'Storage could not assemble the file. Please try again.');
   }
@@ -344,7 +344,7 @@ export async function completeUpload(env: Env, userId: string, id: string, fileB
     env.DB.prepare('DELETE FROM video_parts WHERE video_id = ?1').bind(row.id),
   ]);
   const fresh = await getVideoRow(env, userId, id);
-  return fresh ? json({ ok: true, video: toPublicVideo(fresh, fileBase) }) : fail(404, 'Upload not found');
+  return fresh ? json({ ok: true, video: toPublicVideo(fresh, view) }) : fail(404, 'Upload not found');
 }
 
 /** Cancels an unfinished upload: its chunks in R2 and its row disappear. (A finished video is deleted through the library.) */
