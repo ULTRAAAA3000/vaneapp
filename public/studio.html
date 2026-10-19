@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/assets/vane.css?v=20261019a" />
+  <link rel="stylesheet" href="/assets/vane.css?v=20261019b" />
 </head>
 
 <body class="min-h-screen overflow-x-hidden bg-[#070708]">
@@ -28,7 +28,7 @@
   <header class="sticky top-0 z-30 border-b border-white/5 bg-[#070708]/70 backdrop-blur-xl">
     <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-y-2.5 px-5 py-3 sm:px-8">
       <a href="/" data-site-home class="flex items-center gap-2" aria-label="Vane home">
-        <img src="/assets/logo.svg" alt="" width="31" height="22" />
+        <img src="/assets/logo.svg" alt="" width="31" height="30" />
         <span class="text-lg font-semibold">vane</span>
         <span class="pixel rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-widest text-white/70">studio</span>
       </a>
@@ -50,6 +50,19 @@
       <p class="text-xs font-medium uppercase tracking-widest text-white/40">Vane Studio</p>
       <h1 class="mt-2 text-3xl font-semibold leading-[1.1] tracking-tight sm:text-4xl">Your videos</h1>
       <p class="mt-2 text-sm text-white/55">Upload once, keep it safe, publish it everywhere.</p>
+    </section>
+
+    <!-- hand-off to the other product -->
+    <section class="fade-up mt-6" style="animation-delay:.03s">
+      <a href="/app" data-product-link="post" data-handoff class="handoff glass-d rounded-2xl p-5 sm:p-6" style="--ho-glow:rgba(56,189,248,.20)">
+        <span class="handoff-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg></span>
+        <span class="handoff-body">
+          <span class="text-xs font-medium uppercase tracking-widest text-white/40">Vane Post</span>
+          <span class="handoff-title">Posts that publish themselves</span>
+          <span class="handoff-text">Schedule once and every post goes out on its own to Telegram, Bluesky, Mastodon and more, right on time.</span>
+        </span>
+        <span class="handoff-cta">Open Vane Post <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></span>
+      </a>
     </section>
 
     <!-- not active -->
@@ -260,7 +273,7 @@
     </div>
   </dialog>
 
-  <script src="/assets/vane.js?v=20261019a"></script>
+  <script src="/assets/vane.js?v=20261019b"></script>
   <script src="/assets/apikeys.js?v=20261019a"></script>
   <script src="/assets/studio.js?v=20261019e"></script>
 </body>
