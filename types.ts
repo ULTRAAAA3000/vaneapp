@@ -235,6 +235,8 @@ export interface PostPublic {
   attempts: number;
   error: string | null;
   sentAt: number | null;
+  /** where the published post can be opened on its network (https); null while unsent or when the network gives no link */
+  url: string | null;
 }
 
 export type ListPostsResponse = { ok: true; posts: PostPublic[] } | ApiError;
@@ -372,6 +374,15 @@ export interface VideoRow {
   completed_at: number | null;
 }
 
+/** A video row joined with its optional preview/length and its public link (what every library query returns). */
+export interface VideoRowJoined extends VideoRow {
+  thumb_key: string | null;
+  duration_ms: number | null;
+  width: number | null;
+  height: number | null;
+  link_token: string | null;
+}
+
 /** What the API ever returns about a video. The R2 key and the multipart upload id never leave the server. */
 export interface VideoPublic {
   id: string;
@@ -389,6 +400,13 @@ export interface VideoPublic {
   uploadExpiresAt: number | null;
   /** dashboard only: where the owner streams it (needs the session cookie). Not set in the public API. */
   fileUrl: string | null;
+  /** dashboard only: the preview frame (needs the session cookie) */
+  thumbnailUrl: string | null;
+  durationMs: number | null;
+  width: number | null;
+  height: number | null;
+  /** the public link, if the owner made one: anyone with it can watch and download the video */
+  publicUrl: string | null;
 }
 
 export interface StartVideoUploadRequest {

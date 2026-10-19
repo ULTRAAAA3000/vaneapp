@@ -26,6 +26,8 @@
 
   var TG_LIMIT = 4096, CAPTION_LIMIT = 1024, MAX_LEN = 10000;
 
+  // small "opens elsewhere" arrow, shown on pills that link to the published post
+  var EXT = '<svg class="h-3 w-3 text-white/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M8 7h9v9"/></svg>';
   var ICON = {
     trash: '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6M10 11v6M14 11v6"/></svg>',
     clock: '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
@@ -232,11 +234,16 @@
     }
     // everything below is derived from the same two lists: hashtag memory and the Insights card
     if (tags) tags.setPosts(S.history.concat(S.upcoming));
-    Vane.renderInsights($('insights'), S.history, S.upcoming, {
+    var ins = Vane.renderInsights($('insights'), S.history, S.upcoming, {
       limit: 200,                                   // the server returns at most 200 posts per list
       netIcon: netIcon,
       onTag: function (t) { tags.insert(t); }
     });
+    var pill = $('streakPill');
+    pill.textContent = '🔥 ' + ins.streak + ' days in a row';
+    pill.classList.toggle('hidden', ins.streak < 2);
+    syncUsual(ins.hour);
+    renderWeek();
   }
 
   // ───────────────────────── channels ─────────────────────────
@@ -633,16 +640,65 @@
       { label: 'Tomorrow 09:00', value: toLocalInput(t9) },
       { label: 'Tomorrow 18:00', value: toLocalInput(t18) }
     ];
+    usualVal = undefined; // the "usual time" chip is rebuilt by the next stats render
+    whenEl.value = QUICK[1].value;
+    renderQuick();
+  }
+  function renderQuick() {
     $('quick').innerHTML = QUICK.map(function (q, i) {
       return '<button type="button" class="chip" data-i="' + i + '" aria-pressed="false">' + ICON.clock + '<span>' + esc(q.label) + '</span></button>';
     }).join('');
-    whenEl.value = QUICK[1].value;
     syncQuick();
   }
   function syncQuick() {
     var btns = $('quick').querySelectorAll('button');
     for (var i = 0; i < btns.length; i++) btns[i].setAttribute('aria-pressed', String(QUICK[i].value === whenEl.value));
+    renderWeek();
   }
+
+  // A 4th chip with the hour you post at most (from Insights): the next time that hour comes round. Hidden when it equals a chip already shown.
+  var usualVal;
+  function syncUsual(hour) {
+    var val = '', label = '';
+    if (hour !== null && hour !== undefined) {
+      var t = new Date(); t.setHours(hour, 0, 0, 0);
+      if (t.getTime() < Date.now() + 10 * 60000) t.setDate(t.getDate() + 1);
+      val = toLocalInput(t); label = 'Your usual ' + pad(hour) + ':00';
+    }
+    if (val && QUICK.slice(0, 3).some(function (q) { return q.value === val; })) val = '';
+    if (val === usualVal) return;
+    usualVal = val;
+    QUICK = QUICK.slice(0, 3);
+    if (val) QUICK.push({ label: label, value: val });
+    renderQuick();
+  }
+
+  // The next 7 days as tiles: a dot for every post already scheduled that day; a tap sets the day and keeps the time of day.
+  var fmtWd = new Intl.DateTimeFormat(undefined, { weekday: 'short' });
+  var ymd = function (d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+  function renderWeek() {
+    var box = $('week');
+    var counts = {};
+    groupPosts(S.upcoming).forEach(function (g) { var k = ymd(new Date(g[0].scheduledAt * 1000)); counts[k] = (counts[k] || 0) + 1; });
+    var sel = (whenEl.value || '').slice(0, 10), now = new Date(), html = '';
+    for (var i = 0; i < 7; i++) {
+      var d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i), k = ymd(d), n = counts[k] || 0, dots = '';
+      for (var j = 0; j < Math.min(n, 3); j++) dots += '<i></i>';
+      html += '<button type="button" class="day-tile" data-d="' + k + '" aria-pressed="' + (k === sel) + '" title="' + (n ? n + (n === 1 ? ' post' : ' posts') + ' scheduled' : 'Nothing scheduled') + '">' +
+        '<span class="day-wd">' + esc(fmtWd.format(d)) + '</span><span class="pixel day-num">' + pad(d.getDate()) + '</span><span class="day-dots">' + dots + '</span></button>';
+    }
+    box.innerHTML = html;
+  }
+  $('week').addEventListener('click', function (e) {
+    var b = e.target.closest('.day-tile');
+    if (!b) return;
+    var v = b.getAttribute('data-d') + 'T' + ((whenEl.value || '').slice(11, 16) || '09:00');
+    if (new Date(v).getTime() < Date.now() + 5 * 60000) { // today, and that time has gone: the next quarter of an hour
+      var n = new Date(Date.now() + 15 * 60000); n.setMinutes(Math.ceil(n.getMinutes() / 15) * 15, 0, 0); v = toLocalInput(n);
+    }
+    whenEl.value = v;
+    syncQuick(); renderPreview(); validate();
+  });
   $('quick').addEventListener('click', function (e) {
     var b = e.target.closest('button'); if (!b) return;
     whenEl.value = QUICK[Number(b.getAttribute('data-i'))].value;
@@ -673,6 +729,53 @@
 
   // text + counter
   textEl.addEventListener('input', function () { renderPreview(); validate(); });
+
+  // Inserts text where the caret is (replacing a selection), the way typing would.
+  function insertAtCaret(text) {
+    var v = textEl.value, a = textEl.selectionStart, b = textEl.selectionEnd;
+    if (typeof a !== 'number') a = b = v.length;
+    textEl.value = v.slice(0, a) + text + v.slice(b);
+    textEl.focus();
+    textEl.setSelectionRange(a + text.length, a + text.length);
+    textEl.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  // emoji picker: a small curated set, plus the ones you used last (kept in this browser)
+  var EMOJI = ['😀','😁','😂','🤣','😊','😍','🥰','😎','🤩','🤔','😅','😉','🙂','😭','😤','🙌',
+    '👏','🙏','💪','👍','🔥','✨','🎉','🚀','💡','📌','📢','🔔','✅','❌','⚡','💯',
+    '❤️','💙','🧡','💜','🌟','⭐','🎯','🏆','👀','📈','🛠️','💬','📅','⏰','🆕','🔗',
+    '☕','🌍','📸','🎬','🎧','👇','👉','➡️'];
+  var emojiBtn = $('emojiBtn'), emojiPop = $('emojiPop');
+  function recentEmoji() {
+    try { return JSON.parse(localStorage.getItem('vane:emoji') || '[]').filter(function (e) { return EMOJI.indexOf(e) > -1; }).slice(0, 8); }
+    catch (e) { return []; }
+  }
+  function rememberEmoji(e) {
+    try { localStorage.setItem('vane:emoji', JSON.stringify([e].concat(recentEmoji().filter(function (x) { return x !== e; })).slice(0, 8))); }
+    catch (err) { /* storage blocked: recents are a convenience */ }
+  }
+  function emojiCell(e) { return '<button type="button" class="emoji-cell" data-e="' + e + '" aria-label="' + e + '">' + e + '</button>'; }
+  function setEmojiOpen(open) {
+    if (open) {
+      var rec = recentEmoji();
+      emojiPop.innerHTML =
+        (rec.length ? '<div class="px-1 pb-1.5 text-[10px] font-medium uppercase tracking-widest text-white/35">Recent</div><div class="grid grid-cols-8 gap-0.5">' + rec.map(emojiCell).join('') + '</div><div class="my-2 h-px bg-white/10"></div>' : '') +
+        '<div class="no-scrollbar grid max-h-48 grid-cols-8 gap-0.5 overflow-y-auto">' + EMOJI.map(emojiCell).join('') + '</div>';
+    }
+    emojiPop.classList.toggle('hidden', !open);
+    emojiBtn.setAttribute('aria-expanded', String(open));
+  }
+  emojiBtn.addEventListener('mousedown', function (e) { e.preventDefault(); }); // keep the caret in the text box
+  emojiPop.addEventListener('mousedown', function (e) { e.preventDefault(); });
+  emojiBtn.addEventListener('click', function () { setEmojiOpen(emojiPop.classList.contains('hidden')); });
+  emojiPop.addEventListener('click', function (e) {
+    var c = e.target.closest('.emoji-cell');
+    if (!c) return;
+    var em = c.getAttribute('data-e');
+    insertAtCaret(em); rememberEmoji(em);
+  });
+  document.addEventListener('click', function (e) { if (!emojiPop.classList.contains('hidden') && !e.target.closest('#emojiBtn, #emojiPop')) setEmojiOpen(false); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !emojiPop.classList.contains('hidden')) { setEmojiOpen(false); emojiBtn.focus(); } });
 
   // hashtag memory: suggestions from past posts while you type "#" (assets/insights.js)
   var tags = Vane.createTagAssist(textEl, $('tagBar'));
@@ -714,13 +817,24 @@
     return worst || { net: 'telegram', len: raw.length, limit: media ? CAPTION_LIMIT : TG_LIMIT };
   }
 
+  // the little progress ring in the counter: it fills with the text and turns amber, then red, near the limit
+  var RING = 2 * Math.PI * 7;
+  function ring(ratio) {
+    var r = Math.max(0, Math.min(1, ratio));
+    return '<svg class="h-3.5 w-3.5 -rotate-90" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true">' +
+      '<circle cx="9" cy="9" r="7" stroke-opacity=".18"/>' +
+      (r > 0 ? '<circle cx="9" cy="9" r="7" stroke-linecap="round" stroke-dasharray="' + RING.toFixed(2) + '" stroke-dashoffset="' + (RING * (1 - r)).toFixed(2) + '"/>' : '') +
+      '</svg>';
+  }
+
   // validation (live: drives the hint and the button)
   function validate() {
     var text = textEl.value.trim(), media = currentMedia();
     var t = tightest(textEl.value, media), len = t.len, limit = t.limit;
     var counter = $('count');
-    counter.textContent = len + ' / ' + limit;
-    counter.className = 'rounded-full px-2.5 py-1 text-xs font-medium ' + (len > limit ? 'bg-red-500/15 text-red-300' : 'bg-white/[0.06] text-white/50');
+    counter.innerHTML = ring(limit ? len / limit : 0) + '<span>' + len + ' / ' + limit + '</span>';
+    counter.className = 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ' +
+      (len > limit ? 'bg-red-500/15 text-red-300' : len > limit * 0.9 ? 'bg-amber-400/10 text-amber-200' : 'bg-white/[0.06] text-white/50');
 
     var msg = '';
     if (picker.isBusy()) msg = 'Waiting for the upload to finish…';
@@ -943,9 +1057,16 @@
       var armed = !!S.armed['cancel:' + p.groupId];
       var errs = g.filter(function (x) { return x.status === 'failed' && x.error; });
 
+      // a sent post that has a link on its network turns its channel pill into a link to it
       var pills = g.map(function (x) {
-        return '<span class="inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-2.5 py-1 text-xs text-white/70">' +
-          '<span class="h-1.5 w-1.5 rounded-full" style="background:' + (DOT[x.status] || DOT.scheduled) + '"></span>' + netIcon(x.platform, 'h-3 w-3 text-white/50') + esc(x.channelName) + '</span>';
+        var link = x.status === 'sent' && typeof x.url === 'string' && x.url.indexOf('https://') === 0;
+        var inner = '<span class="h-1.5 w-1.5 rounded-full" style="background:' + (DOT[x.status] || DOT.scheduled) + '"></span>' +
+          netIcon(x.platform, 'h-3 w-3 text-white/50') + esc(x.channelName) + (link ? EXT : '');
+        var base = 'inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-2.5 py-1 text-xs text-white/70';
+        var net = NET[x.platform] ? NET[x.platform].name : 'the network';
+        return link
+          ? '<a href="' + esc(x.url) + '" target="_blank" rel="noopener noreferrer" class="' + base + ' transition-colors hover:bg-white/[0.14] hover:text-white" title="Open the post on ' + esc(net) + '" aria-label="Open the post on ' + esc(net) + ' (' + esc(x.channelName) + ')">' + inner + '</a>'
+          : '<span class="' + base + '">' + inner + '</span>';
       }).join('');
 
       return '<article class="flex gap-4 rounded-2xl bg-white/[0.04] p-4 ring-1 ring-white/5 transition-colors hover:bg-white/[0.06]">' +

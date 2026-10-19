@@ -34,6 +34,11 @@ async function readBlob(encrypted: string, encryptionKey: string | undefined): P
   }
 }
 
+/** Just the chat of a saved Telegram channel (@name, -100… or a number), for building a link to a sent post. null when unreadable. */
+export async function readTelegramChatId(encrypted: string, encryptionKey: string | undefined): Promise<string | null> {
+  return (await readBlob(encrypted, encryptionKey))?.chatId ?? null;
+}
+
 export async function loadTelegramCreds(
   encrypted: string,
   env: { ENCRYPTION_KEY?: string; SYSTEM_BOT_TOKEN?: string },
