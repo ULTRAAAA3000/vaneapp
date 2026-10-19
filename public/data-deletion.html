@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Data deletion — Vane</title>
+  <meta name="description" content="How to delete your Vane data, including what is removed when you remove Vane from LinkedIn or Threads." />
+  <meta name="theme-color" content="#070708" />
+  <link rel="icon" href="/favicon.ico" sizes="32x32" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/assets/vane.css?v=20261017" />
+  <style>
+    .doc h2 { margin-top: 2.25rem; font-size: 1.15rem; font-weight: 600; letter-spacing: -.01em; }
+    .doc p, .doc li { margin-top: .6rem; font-size: .92rem; line-height: 1.7; color: rgba(255,255,255,.68); }
+    .doc ul { margin-top: .4rem; padding-left: 1.1rem; list-style: disc; }
+    .doc b { color: #fff; font-weight: 600; }
+    .doc a { color: #fff; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(255,255,255,.3); }
+    .doc a:hover { text-decoration-color: #fff; }
+    .todo { background: rgba(251,191,36,.12); color: #fcd34d; border-radius: 6px; padding: 0 .35rem; }
+  </style>
+</head>
+
+<body class="min-h-screen overflow-x-hidden bg-[#070708] text-white">
+  <div class="fixed inset-0 bg-gradient-to-b from-white/[0.04] via-transparent to-transparent" aria-hidden="true"></div>
+  <div class="relative z-10 flex min-h-screen flex-col">
+    <header class="flex items-center justify-between px-5 py-5 sm:px-8 sm:py-6 lg:px-12">
+      <a href="/" class="text-lg font-semibold" aria-label="Vane home">vane</a>
+      <a href="/login" class="btn btn-ghost btn-sm">Sign in</a>
+    </header>
+    <main class="mx-auto w-full max-w-2xl flex-1 px-5 pb-20 sm:px-8">
+      <div class="glass-d rounded-3xl p-6 sm:p-9 doc">
+
+        <h1 class="text-3xl font-semibold tracking-tight">Data deletion</h1>
+
+        <div id="done" class="hidden mt-5 rounded-2xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3.5">
+          <p class="!mt-0 !text-emerald-200"><b>Your request was received and the Threads connection and its data were deleted from Vane.</b></p>
+          <p class="!mt-1.5 text-sm">Confirmation code: <b id="code" class="pixel tracking-wider"></b></p>
+        </div>
+
+        <p>You decide what Vane keeps. There are three ways to delete data, from the smallest to the largest.</p>
+
+        <h2>1. Remove one connected account</h2>
+        <p>In the dashboard, open <b>Channels</b> and press the bin next to the account. This deletes its saved sign-in and every post still scheduled for it. Posts already published stay on the network, where you can delete them yourself.</p>
+
+        <h2>2. Remove Vane from LinkedIn or Threads</h2>
+        <ul>
+          <li><b>LinkedIn:</b> Settings &amp; Privacy → Data privacy → Permitted services → Vane → Remove.</li>
+          <li><b>Threads:</b> Account → Website permissions (or Settings → Apps and websites) → Vane → Remove. Threads then tells Vane, and Vane deletes that Threads connection and its posts. If you used Threads’ “delete data” option, you get a confirmation code, and this page shows it.</li>
+        </ul>
+        <p>Removing the permission makes the connection stop working immediately, whatever Vane does next.</p>
+
+        <h2>3. Delete your whole Vane account</h2>
+        <p>Write from the email address of the account to <span class="todo">[contact email]</span> with the subject “Delete my account”. We delete the account, its channels and sign-in tokens, posts, uploaded files and logs, and confirm by email, within 30 days.</p>
+
+        <p>See the <a href="/privacy">privacy policy</a> for what Vane keeps and why.</p>
+      </div>
+    </main>
+    <footer class="px-5 pb-10 text-center text-xs text-white/35">
+      <a href="/privacy" class="hover:text-white">Privacy</a> · <a href="/data-deletion" class="hover:text-white">Data deletion</a> · <a href="/" class="hover:text-white">vaneapp.dev</a>
+    </footer>
+  </div>
+  <script>
+    // Meta sends people here with ?code=<confirmation code> after a data-deletion request
+    (function () {
+      var m = /^[0-9a-f]{16}$/.exec(new URLSearchParams(location.search).get('code') || '');
+      if (!m) return;
+      document.getElementById('code').textContent = m[0];
+      document.getElementById('done').classList.remove('hidden');
+    })();
+  </script>
+</body>
+</html>

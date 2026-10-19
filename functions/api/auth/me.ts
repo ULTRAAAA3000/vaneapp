@@ -2,7 +2,9 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env, UserPublic } from '../../../types';
 import { requireUser } from '../lib/auth';
+import { linkedinConfigured } from '../channels/linkedin';
 import { quickConnectAvailable, systemBotHandle } from '../channels/quick';
+import { threadsConfigured } from '../channels/threads';
 import { fail, json, methodNotAllowed } from '../lib/http';
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
@@ -19,7 +21,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   return json({
     ok: true,
     user,
-    features: { uploads: Boolean(env.MEDIA), quickConnect: quick, systemBot: quick ? systemBotHandle(env) : null },
+    features: { uploads: Boolean(env.MEDIA), quickConnect: quick, systemBot: quick ? systemBotHandle(env) : null, linkedin: linkedinConfigured(env), threads: threadsConfigured(env) },
   });
 };
 

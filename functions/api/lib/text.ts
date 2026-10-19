@@ -20,3 +20,13 @@ export const MASTODON_URL_COST = 23;
 export function mastodonLength(text: string): number {
   return Array.from(text.replace(/https?:\/\/[^\s]+/g, 'x'.repeat(MASTODON_URL_COST))).length;
 }
+
+/**
+ * Threads counts characters, except that an emoji counts as the bytes it takes in UTF-8 (Meta's rule for the `text` field, limit 500).
+ * Counted the safe way round: every pictographic code point costs its UTF-8 size, everything else costs 1.
+ */
+export function threadsLength(text: string): number {
+  let n = 0;
+  for (const ch of text) n += /\p{Extended_Pictographic}/u.test(ch) ? new TextEncoder().encode(ch).length : 1;
+  return n;
+}

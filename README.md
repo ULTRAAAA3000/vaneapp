@@ -305,3 +305,19 @@ All of it is computed in the browser from the two post lists the dashboard alrea
 - **Draft:** the editor text is kept in this browser's `localStorage` (key `vane:draft:<userId>`), restored on the next visit, removed once the post is scheduled and on sign-out.
 - **Reuse** (History): copies a finished post's text and channels back into the editor. **Ctrl / ⌘ + Enter** schedules.
 
+
+## LinkedIn and Threads
+
+Both connect with the network's own "Allow" page (OAuth), publish text and one picture, and are off ("Soon" in the Connect dialog) until their app keys are set.
+Full setup, redirect URLs, review checklist and the screencast script: `documentation/LINKEDIN_THREADS_SETUP.md`.
+
+| Variable | Where | Notes |
+|---|---|---|
+| `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET` | Pages (secret for the second) | LinkedIn app with *Share on LinkedIn* + *Sign In with LinkedIn using OpenID Connect* |
+| `LINKEDIN_VERSION` | Pages + worker, optional | the `Linkedin-Version` header (YYYYMM), default in `functions/api/channels/linkedin.ts` |
+| `THREADS_APP_ID`, `THREADS_APP_SECRET` | Pages (secret for the second) | the Threads app id/secret of the Meta app (not the main app id) |
+
+- Code: `functions/api/channels/linkedin.ts` and `threads.ts` (API calls), `social-oauth.ts` (the start/callback flow for both), `threads-hooks.ts` (Meta's deauthorize and data-deletion calls), `worker/src/dispatch.ts` (publishing) and `worker/src/tokens.ts` (daily Threads sign-in renewal).
+- Sign-ins last 60 days. Threads renews itself; LinkedIn (no refresh token for ordinary apps) shows **Reconnect** on the channel card a week before, and reconnecting renews the same channel in place.
+- A sent post's `url` (History link, `GET /api/v1/posts`): LinkedIn `linkedin.com/feed/update/<urn>/`, Threads its permalink.
+- Pages: `/privacy` and `/data-deletion` (fill in the legal name and contact email before submitting for review).

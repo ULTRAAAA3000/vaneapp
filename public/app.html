@@ -346,6 +346,56 @@
         <p id="connNote" class="mt-5 text-center text-xs text-white/30"></p>
       </div>
 
+      <div data-step="linkedin" class="hidden">
+        <ol class="mt-6 space-y-3 text-sm text-white/65">
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>Press <b class="font-semibold text-white">Continue with LinkedIn</b>. LinkedIn asks you to sign in (if you are not already) and to <b class="font-semibold text-white">Allow</b> Vane.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>You come straight back here, and your profile is connected.</span></li>
+        </ol>
+        <p class="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-xs leading-relaxed text-white/50">Vane may only create posts on your profile and read your name to show it here. It cannot read your feed, messages or connections. A LinkedIn sign-in lasts 60 days: Vane shows <b class="font-semibold text-white/70">Reconnect</b> before it runs out, and you can remove the access any time in LinkedIn’s settings.</p>
+
+        <form id="liForm" class="mt-6 space-y-4" novalidate autocomplete="off">
+          <div>
+            <label for="liName" class="lbl">Display name</label>
+            <input id="liName" type="text" maxlength="80" placeholder="Same as your account" class="field" />
+          </div>
+
+          <div id="liErr" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
+
+          <div class="flex items-center justify-end gap-3 pt-1">
+            <button type="button" id="liCancel" class="btn btn-ghost">Cancel</button>
+            <button type="submit" id="liSubmit" class="btn btn-white">
+              <span id="liSpin" class="spinner spinner-dark hidden"></span>
+              <span id="liLabel">Continue with LinkedIn</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div data-step="threads" class="hidden">
+        <ol class="mt-6 space-y-3 text-sm text-white/65">
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>Press <b class="font-semibold text-white">Continue with Threads</b>. Threads asks you to sign in (if you are not already) and to <b class="font-semibold text-white">Allow</b> Vane.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>You come straight back here, and your profile is connected.</span></li>
+        </ol>
+        <p class="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-xs leading-relaxed text-white/50">Vane may only publish posts for you and read your username to show it here. It cannot read your messages or follow anyone. Vane keeps your sign-in fresh by itself; you can remove the access any time in Threads settings (Account → Website permissions).</p>
+
+        <form id="thForm" class="mt-6 space-y-4" novalidate autocomplete="off">
+          <div>
+            <label for="thName" class="lbl">Display name</label>
+            <input id="thName" type="text" maxlength="80" placeholder="Same as your account" class="field" />
+          </div>
+
+          <div id="thErr" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
+
+          <div class="flex items-center justify-end gap-3 pt-1">
+            <button type="button" id="thCancel" class="btn btn-ghost">Cancel</button>
+            <button type="submit" id="thSubmit" class="btn btn-white">
+              <span id="thSpin" class="spinner spinner-dark hidden"></span>
+              <span id="thLabel">Continue with Threads</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
       <div data-step="mastodon" class="hidden">
         <ol class="mt-6 space-y-3 text-sm text-white/65">
           <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>Type the address of the server your account is on, for example <code class="rounded bg-white/10 px-1.5 py-0.5 text-xs">mastodon.social</code>.</span></li>

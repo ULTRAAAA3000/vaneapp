@@ -26,3 +26,14 @@ TELEGRAM_WEBHOOK_SECRET=random-16+-chars-A-Za-z0-9_-   # e.g. openssl rand -hex 
 # Without them sign-up and sign-in work as before. Needs a sender on a domain verified in Resend (resend.com → Domains).
 #RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxx
 #EMAIL_FROM=Vane <noreply@vaneapp.dev>
+
+# LinkedIn (profile posting): developer portal app with the products "Share on LinkedIn" and "Sign In with LinkedIn using OpenID Connect".
+# Optional: the LinkedIn card in the dashboard stays on "Soon" until BOTH are set. Redirect URL to register: <APP_URL>/api/channels/linkedin/callback
+#LINKEDIN_CLIENT_ID=your-client-id
+#LINKEDIN_CLIENT_SECRET=your-client-secret
+#LINKEDIN_VERSION=202608          # optional: the Linkedin-Version header (YYYYMM)
+
+# Threads: Meta app with the Threads API use case. Optional: the Threads card stays on "Soon" until BOTH are set.
+# Redirect URL: <APP_URL>/api/channels/threads/callback   Deauthorize: <APP_URL>/api/channels/threads/deauthorize   Data deletion: <APP_URL>/api/channels/threads/delete
+#THREADS_APP_ID=your-threads-app-id
+#THREADS_APP_SECRET=your-threads-app-secret

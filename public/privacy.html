@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Privacy policy — Vane</title>
+  <meta name="description" content="How Vane handles your data, and what it does and does not do with your social accounts." />
+  <meta name="theme-color" content="#070708" />
+  <link rel="icon" href="/favicon.ico" sizes="32x32" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/assets/vane.css?v=20261017" />
+  <style>
+    .doc h2 { margin-top: 2.25rem; font-size: 1.15rem; font-weight: 600; letter-spacing: -.01em; }
+    .doc p, .doc li { margin-top: .6rem; font-size: .92rem; line-height: 1.7; color: rgba(255,255,255,.68); }
+    .doc ul { margin-top: .4rem; padding-left: 1.1rem; list-style: disc; }
+    .doc b { color: #fff; font-weight: 600; }
+    .doc a { color: #fff; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(255,255,255,.3); }
+    .doc a:hover { text-decoration-color: #fff; }
+    .todo { background: rgba(251,191,36,.12); color: #fcd34d; border-radius: 6px; padding: 0 .35rem; }
+  </style>
+</head>
+
+<body class="min-h-screen overflow-x-hidden bg-[#070708] text-white">
+  <div class="fixed inset-0 bg-gradient-to-b from-white/[0.04] via-transparent to-transparent" aria-hidden="true"></div>
+  <div class="relative z-10 flex min-h-screen flex-col">
+    <header class="flex items-center justify-between px-5 py-5 sm:px-8 sm:py-6 lg:px-12">
+      <a href="/" class="text-lg font-semibold" aria-label="Vane home">vane</a>
+      <a href="/login" class="btn btn-ghost btn-sm">Sign in</a>
+    </header>
+    <main class="mx-auto w-full max-w-2xl flex-1 px-5 pb-20 sm:px-8">
+      <div class="glass-d rounded-3xl p-6 sm:p-9 doc">
+
+        <h1 class="text-3xl font-semibold tracking-tight">Privacy policy</h1>
+        <p class="!mt-2 text-xs !text-white/40">Last updated: 19 October 2026</p>
+        <p>Vane (<b>vaneapp.dev</b>) schedules and publishes your posts to the social networks you connect. This page says what we keep, why, and how to have it removed. We wrote it to match what the service actually does.</p>
+        <p><span class="todo">TODO before submitting to LinkedIn / Meta: put the company’s legal name and a monitored contact address in the two places marked like this.</span></p>
+
+        <h2>Who is responsible</h2>
+        <p><span class="todo">[legal name of the company or person behind Vane]</span> is the controller of the data described here. Contact: <span class="todo">[contact email]</span>.</p>
+
+        <h2>What we keep</h2>
+        <ul>
+          <li><b>Your account:</b> email address, an optional name, your time zone, and your password as a salted PBKDF2 hash (we never store the password itself).</li>
+          <li><b>Your posts:</b> the text and pictures or videos you write or upload, the time you chose, and whether each post was sent or failed, with the link to the published post.</li>
+          <li><b>Your connected accounts:</b> a sign-in token for each network, stored <b>encrypted</b> (AES-256-GCM). Besides the token we keep the public name, username or id of the account, so the dashboard can show which one it is.</li>
+          <li><b>Operational records:</b> a short log of what the service did for you (for example “post sent”), sign-in sessions (stored as a hash), and counters that limit abuse. A request’s IP address is used only to apply those limits.</li>
+        </ul>
+
+        <h2>What Vane does with LinkedIn, Threads and the other networks</h2>
+        <p>Vane asks each network for the smallest permission that lets it publish for you.</p>
+        <ul>
+          <li><b>LinkedIn</b> (<i>openid, profile, w_member_social</i>): to learn your name and member id and to create posts on your own profile when you schedule them.</li>
+          <li><b>Threads</b> (<i>threads_basic, threads_content_publish</i>): to learn your username and to publish the posts you schedule.</li>
+          <li><b>Bluesky, Mastodon, Telegram:</b> a Bluesky app password, a Mastodon sign-in on your server, or a Telegram bot token, used only to publish your posts.</li>
+        </ul>
+        <p>Vane <b>does not</b> read your feed, messages, followers or connections, does not post anything you did not schedule, does not sell or share this data, does not use it for advertising, and does not use it to train AI models. Data received from a network is used only to provide the publishing features you asked for.</p>
+        <p>You can take the access back at any time: remove the channel in Vane, or remove Vane in LinkedIn’s or Threads’ own settings. Removing it there makes the connection stop working and Vane cancels the posts still waiting for it.</p>
+
+        <h2>Where the data lives and who helps us run it</h2>
+        <p>Vane runs on Cloudflare (hosting, database and file storage). Email codes for sign-in are sent through Resend. These providers process data for us under their own terms; nobody else gets your data, except the network you publish to, which receives the post you asked us to publish.</p>
+
+        <h2>How long we keep it</h2>
+        <p>Posts, channels and the account stay until you delete them. Removing a channel deletes its saved sign-in and its scheduled posts at once. Expired sign-in sessions and short-lived technical records are removed automatically.</p>
+
+        <h2>Your choices and rights</h2>
+        <p>You can see and remove your channels and posts in the dashboard. To delete your whole account, or to ask for a copy of your data or a correction, write to <span class="todo">[contact email]</span>; we answer within 30 days. Steps are on the <a href="/data-deletion">data deletion</a> page. If you are in the EU/UK you also have the rights of access, rectification, erasure, restriction and portability, and may complain to your data protection authority.</p>
+
+        <h2>Cookies</h2>
+        <p>Vane sets one cookie, to keep you signed in (HttpOnly, Secure). There are no advertising or tracking cookies.</p>
+
+        <h2>Children</h2>
+        <p>Vane is not meant for anyone under 16 and we do not knowingly collect their data.</p>
+
+        <h2>Changes</h2>
+        <p>If this policy changes in a way that matters, we will say so in the dashboard before it takes effect. The date at the top shows the current version.</p>
+      </div>
+    </main>
+    <footer class="px-5 pb-10 text-center text-xs text-white/35">
+      <a href="/privacy" class="hover:text-white">Privacy</a> · <a href="/data-deletion" class="hover:text-white">Data deletion</a> · <a href="/" class="hover:text-white">vaneapp.dev</a>
+    </footer>
+  </div>
+</body>
+</html>

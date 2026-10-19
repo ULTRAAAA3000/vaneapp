@@ -38,6 +38,7 @@
   // ───────────────────────── networks ─────────────────────────
   // One entry per social network: icon, tile colour, text limit, preview background and the card in the connect dialog.
   // To open a network for connecting: set ready: true and add a <div data-step="<key>"> setup block to the dialog in app.html.
+  // (LinkedIn and Threads are switched on at boot by the server: their `ready` follows /api/auth/me → features, i.e. whether the app keys are set.)
   // Limits: Telegram 4096 (1024 under an image or video), LinkedIn 3000, Threads 500, Bluesky 300 (graphemes), Mastodon 500 (a link counts as 23).
   var NET = {
     telegram: {
@@ -46,12 +47,12 @@
       icon: { d: 'M21.5 3.5L2.8 10.7l5.9 2.2 2.3 6.6 3.1-4.2 4.6 3.4zM8.7 12.9l12-8.6' }
     },
     linkedin: {
-      name: 'LinkedIn', ready: false, blurb: 'Profiles and pages', setup: 'Choose which profile or page Vane should publish to.',
+      name: 'LinkedIn', ready: false, blurb: 'Your LinkedIn profile', setup: 'Sign in with LinkedIn and allow Vane to post for you.',
       tile: 'bg-blue-600/20 text-blue-300', limit: 3000, bg: '#000000', hint: 'LinkedIn folds long posts behind “see more” after about three lines.',
       icon: { fill: true, d: 'M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z' }
     },
     threads: {
-      name: 'Threads', ready: false, blurb: 'Your Threads profile', setup: 'Choose which profile Vane should publish to.',
+      name: 'Threads', ready: false, blurb: 'Your Threads profile', setup: 'Sign in with Threads and allow Vane to publish for you.',
       tile: 'bg-white/10 text-white/85', limit: 500, bg: '#101010', hint: '',
       icon: { fill: true, d: 'M12.186 24h-.007c-3.581-.024-6.334-1.205-8.184-3.509C2.35 18.44 1.5 15.586 1.472 12.01v-.017c.03-3.579.879-6.43 2.525-8.482C5.845 1.205 8.6.024 12.18 0h.014c2.746.02 5.043.725 6.826 2.098 1.677 1.29 2.858 3.13 3.509 5.467l-2.04.569c-1.104-3.96-3.898-5.984-8.304-6.015-2.91.022-5.11.936-6.54 2.717C4.307 6.504 3.616 8.914 3.589 12c.027 3.086.718 5.496 2.057 7.164 1.43 1.783 3.631 2.698 6.54 2.717 2.623-.02 4.358-.631 5.8-2.045 1.647-1.613 1.618-3.593 1.09-4.798-.31-.71-.873-1.3-1.634-1.75-.192 1.352-.622 2.446-1.284 3.272-.886 1.102-2.14 1.704-3.73 1.79-1.202.065-2.361-.218-3.259-.801-1.063-.689-1.685-1.74-1.752-2.964-.065-1.19.408-2.285 1.33-3.082.88-.76 2.119-1.207 3.583-1.291a13.853 13.853 0 0 1 3.02.142c-.126-.742-.375-1.332-.75-1.757-.513-.586-1.308-.883-2.359-.89h-.029c-.844 0-1.992.232-2.721 1.32L7.734 7.847c.98-1.454 2.568-2.256 4.478-2.256h.044c3.194.02 5.097 1.975 5.287 5.388.108.046.216.094.321.142 1.49.7 2.58 1.761 3.154 3.07.797 1.82.871 4.79-1.548 7.158-1.85 1.81-4.094 2.628-7.277 2.65Zm1.003-11.69c-.242 0-.487.007-.739.021-1.836.103-2.98.946-2.916 2.143.067 1.256 1.452 1.839 2.784 1.767 1.224-.065 2.818-.543 3.086-3.71a10.5 10.5 0 0 0-2.215-.221z' }
     },
@@ -115,20 +116,27 @@
     return diff >= 0 ? 'in ' + dur(diff) : (Math.abs(diff) < 60000 ? 'just now' : dur(-diff) + ' ago');
   }
 
-  // The server's "Authorize" page sends the browser back to /app?connect=mastodon&status=…: say what happened, then tidy the address bar.
-  var MASTODON_RESULT = {
-    ok: ['ok', 'Mastodon connected.'],
-    denied: ['err', 'Mastodon was not connected: access was not allowed.'],
-    expired: ['err', 'That sign-in took too long or was already used. Start again.'],
-    duplicate: ['err', 'This Mastodon account is already connected.'],
-    migrate: ['err', 'Mastodon is not enabled on this server yet. The database needs one update.'],
-    limit: ['err', 'Your plan has no room for another channel. Upgrade to connect more.'],
-    failed: ['err', 'Could not finish connecting Mastodon. Try again.']
-  };
-  function reportMastodonReturn() {
-    var q = new URLSearchParams(location.search);
-    if (q.get('connect') !== 'mastodon') return;
-    var res = MASTODON_RESULT[q.get('status')] || MASTODON_RESULT.failed;
+  // The network's own "Allow" page sends the browser back to /app?connect=<network>&status=…: say what happened, then tidy the address bar.
+  function connectMessage(net, status) {
+    var name = (NET[net] && NET[net].name) || 'The account';
+    var again = 'Start again.';
+    var table = {
+      ok: ['ok', name + ' connected.'],
+      reconnected: ['ok', name + ' reconnected. Your scheduled posts will go out as planned.'],
+      denied: ['err', name + ' was not connected: access was not allowed.'],
+      noperm: ['err', name + ' was not connected: Vane needs the permission to post. Connect again and keep it ticked.'],
+      expired: ['err', 'That sign-in took too long or was already used. ' + again],
+      duplicate: ['err', 'This ' + name + ' account is already connected.'],
+      migrate: ['err', name + ' is not enabled on this server yet. The database needs one update.'],
+      limit: ['err', 'Your plan has no room for another channel. Upgrade to connect more.'],
+      failed: ['err', 'Could not finish connecting ' + name + '. Try again.']
+    };
+    return table[status] || table.failed;
+  }
+  function reportConnectReturn() {
+    var q = new URLSearchParams(location.search), net = q.get('connect');
+    if (net !== 'mastodon' && net !== 'linkedin' && net !== 'threads') return;
+    var res = connectMessage(net, q.get('status'));
     Vane.toast(res[0], res[1]);
     try { history.replaceState(null, '', location.pathname); } catch (e) { /* address bar left as it is */ }
   }
@@ -142,6 +150,8 @@
     S.uploads = !!feats.uploads;
     S.quick = !!feats.quickConnect;
     if (feats.systemBot) S.systemBot = feats.systemBot;
+    NET.linkedin.ready = !!feats.linkedin;
+    NET.threads.ready = !!feats.threads;
 
     var display = S.user.name || S.user.email.split('@')[0];
     $('userEmail').textContent = S.user.email;
@@ -159,7 +169,7 @@
     setTab('upcoming');
     renderAll();
     if (restored) Vane.toast('info', 'Your unsent draft is back.');
-    reportMastodonReturn();
+    reportConnectReturn();
 
     setInterval(function () { renderStats(); renderPosts(); }, 30000);
     // live posts: poll while the tab is visible, and catch up the moment it is back in front
@@ -263,12 +273,16 @@
     box.innerHTML = groupChannels(S.channels).map(function (g, i) {
       return '<div' + (i ? ' class="pt-2"' : '') + '>' + groupHead(g) + '<div class="space-y-2.5">' + g.items.map(function (c) {
         var armed = !!S.armed['del:' + c.id];
+        var exp = expiryNote(c);
         return '<div class="flex items-center gap-3 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/5">' +
           '<div class="net-tile ' + netTile(c.platform) + '">' + netIcon(c.platform, 'h-5 w-5') + '</div>' +
           '<div class="min-w-0 flex-1">' +
             '<div class="truncate text-sm font-medium">' + esc(c.name) + '</div>' +
-            '<div class="mt-0.5 text-xs text-white/40">Added ' + esc(new Date(c.createdAt * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })) + '</div>' +
+            (exp
+              ? '<div class="mt-0.5 text-xs ' + exp.cls + '">' + exp.text + '</div>'
+              : '<div class="mt-0.5 text-xs text-white/40">Added ' + esc(new Date(c.createdAt * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })) + '</div>') +
           '</div>' +
+          (exp ? '<button type="button" data-act="reconnect" data-net="' + esc(c.platform) + '" class="btn btn-ghost btn-sm shrink-0">Reconnect</button>' : '') +
           (c.platform === 'telegram' ? '<button type="button" data-act="test" data-id="' + esc(c.id) + '" class="btn btn-ghost btn-sm shrink-0">Send test</button>' : '') +
           (armed
             ? '<button type="button" data-act="del" data-id="' + esc(c.id) + '" class="btn btn-danger btn-sm shrink-0">Remove?</button>'
@@ -276,6 +290,15 @@
         '</div>';
       }).join('') + '</div></div>';
     }).join('');
+  }
+
+  // LinkedIn and Threads sign-ins expire: from a week before, the card says so and offers Reconnect (which renews it in place)
+  function expiryNote(c) {
+    if (!c.expiresAt) return null;
+    var days = Math.ceil((c.expiresAt * 1000 - Date.now()) / 86400000);
+    if (days <= 0) return { text: 'Sign-in expired. Reconnect to keep posting', cls: 'text-red-300/90' };
+    if (days <= 7) return { text: 'Sign-in expires in ' + days + (days === 1 ? ' day' : ' days'), cls: 'text-amber-300/90' };
+    return null;
   }
 
   function arm(key, ms) {
@@ -290,6 +313,7 @@
     var act = btn.getAttribute('data-act'), id = btn.getAttribute('data-id');
 
     if (act === 'connect') return openConnect();
+    if (act === 'reconnect') return openConnect(btn.getAttribute('data-net'));
 
     if (act === 'test') {
       btn.disabled = true; var old = btn.textContent; btn.innerHTML = '<span class="spinner"></span>';
@@ -536,6 +560,25 @@
     Vane.go(r.data.authorizeUrl);
   });
 
+  // ---- LinkedIn and Threads: one button, then the network's own "Allow" page (the server builds the address)
+  function bindSignIn(net, p) {
+    $(p + 'Form').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var btn = $(p + 'Submit');
+      hideErr($(p + 'Err'));
+      btn.disabled = true; $(p + 'Spin').classList.remove('hidden'); $(p + 'Label').textContent = 'Opening ' + NET[net].name + '…';
+      var r = await Vane.api('POST', '/api/channels/' + net + '/start', { name: $(p + 'Name').value.trim() });
+      if (!r.ok) {
+        btn.disabled = false; $(p + 'Spin').classList.add('hidden'); $(p + 'Label').textContent = 'Continue with ' + NET[net].name;
+        return showErr($(p + 'Err'), $(p + 'Form'), r.error);
+      }
+      Vane.go(r.data.authorizeUrl);
+    });
+    $(p + 'Cancel').addEventListener('click', closeConnect);
+  }
+  bindSignIn('linkedin', 'li');
+  bindSignIn('threads', 'th');
+
   // ---- steps: pick a network, then set it up (each network's setup is the block with its data-step)
   function renderNetGrid() {
     $('netGrid').innerHTML = NET_ORDER.map(function (k) {
@@ -562,7 +605,7 @@
   function openStep(step) {
     showStep(step);
     setTimeout(function () {
-      var first = step === 'telegram' ? ($('panelQuick').classList.contains('hidden') ? $('cName') : $('qChat')) : step === 'bluesky' ? $('bHandle') : step === 'mastodon' ? $('mInstance') : dlg.querySelector('.net-card:not(:disabled)');
+      var first = step === 'telegram' ? ($('panelQuick').classList.contains('hidden') ? $('cName') : $('qChat')) : step === 'bluesky' ? $('bHandle') : step === 'mastodon' ? $('mInstance') : step === 'linkedin' ? $('liName') : step === 'threads' ? $('thName') : dlg.querySelector('.net-card:not(:disabled)');
       if (first) first.focus();
     }, 60);
   }
@@ -578,6 +621,9 @@
     $('cToken').type = 'password'; $('cTokenToggle').textContent = 'Show';
     $('mForm').reset(); hideErr($('mErr')); $('mSubmit').disabled = false; $('mSpin').classList.add('hidden'); $('mLabel').textContent = 'Continue';
     $('bForm').reset(); hideErr($('bErr')); $('bPass').type = 'password'; $('bPassToggle').textContent = 'Show';
+    [['li', 'LinkedIn'], ['th', 'Threads']].forEach(function (n) {
+      $(n[0] + 'Form').reset(); hideErr($(n[0] + 'Err')); $(n[0] + 'Submit').disabled = false; $(n[0] + 'Spin').classList.add('hidden'); $(n[0] + 'Label').textContent = 'Continue with ' + n[1];
+    });
     qReset(); $('qChat').value = '';
 
     $('qBot').textContent = S.systemBot;

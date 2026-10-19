@@ -5,6 +5,7 @@
 import type { CronEnv } from '../../types';
 import { purgeExpiredIdempotencyKeys } from '../../functions/api/lib/idempotency';
 import { runDuePosts } from './dispatch';
+import { isRenewalMinute, renewExpiringTokens } from './tokens';
 
 export default {
   async scheduled(_controller: ScheduledController, env: CronEnv, ctx: ExecutionContext): Promise<void> {
@@ -16,7 +17,10 @@ export default {
         })
         // Housekeeping: Idempotency-Keys are remembered for 24 hours (a no-op when none has expired, and when the table is not there yet).
         .then(() => purgeExpiredIdempotencyKeys(env, Math.floor(Date.now() / 1000)))
-        .catch(() => undefined),
+        .catch(() => undefined)
+        // Once a day: renew LinkedIn / Threads sign-ins that are running out (see tokens.ts).
+        .then(() => (isRenewalMinute(Math.floor(Date.now() / 1000)) ? renewExpiringTokens(env, Math.floor(Date.now() / 1000)) : undefined))
+        .catch((err) => console.error('vane-cron: sign-in renewal failed:', err instanceof Error ? err.message : 'unknown')),
     );
   },
 

@@ -22,7 +22,7 @@ import { requireUser } from '../lib/auth';
 import { fail, isRecord, json, readJson, UUID_RE } from '../lib/http';
 import { mediaKindFromUrl } from '../lib/media';
 import { postUnits } from '../lib/plans';
-import { graphemeLength, mastodonLength, utf8Length } from '../lib/text';
+import { graphemeLength, mastodonLength, threadsLength, utf8Length } from '../lib/text';
 import { countUiPosts } from '../lib/usage';
 import { BLUESKY_TEXT_LIMIT, BLUESKY_TEXT_MAX_BYTES } from '../channels/bluesky';
 import { MASTODON_TEXT_LIMIT } from '../channels/mastodon';
@@ -124,7 +124,8 @@ export async function validateCreatePost(env: Env, userId: string, body: unknown
   for (const ch of owned) {
     const limit = ch.type === 'telegram' && mediaUrl ? TELEGRAM_CAPTION_LIMIT : CONTENT_LIMIT[ch.type];
     // Bluesky counts what a person sees (an emoji is 1); Mastodon counts every link as 23 characters
-    const length = ch.type === 'bluesky' ? graphemeLength(content) : ch.type === 'mastodon' ? mastodonLength(content) : content.length;
+    // Threads counts an emoji as the bytes it takes; LinkedIn counts UTF-16 units, which is what `.length` is
+    const length = ch.type === 'bluesky' ? graphemeLength(content) : ch.type === 'mastodon' ? mastodonLength(content) : ch.type === 'threads' ? threadsLength(content) : content.length;
     if (length > limit) {
       const why = ch.type === 'telegram' && mediaUrl ? ' when the post has an image' : '';
       return bad(fail(400, `Text is too long for ${ch.type}${why}: ${length}/${limit} characters`));
@@ -132,6 +133,9 @@ export async function validateCreatePost(env: Env, userId: string, body: unknown
     if (ch.type === 'bluesky') {
       if (utf8Length(content) > BLUESKY_TEXT_MAX_BYTES) return bad(fail(400, 'Text is too long for bluesky: too many emoji or symbols'));
       if (mediaUrl && mediaKindFromUrl(mediaUrl) === 'video') return bad(fail(400, 'Bluesky posts with video are not supported yet. Attach an image or remove the media.'));
+    }
+    if (ch.type === 'linkedin' && mediaUrl && mediaKindFromUrl(mediaUrl) === 'video') {
+      return bad(fail(400, 'LinkedIn posts with video are not supported yet. Attach an image or remove the media.'));
     }
     if (ch.type === 'mastodon' && mediaUrl && mediaKindFromUrl(mediaUrl) === 'video') {
       return bad(fail(400, 'Mastodon posts with video are not supported yet. Attach an image or remove the media.'));

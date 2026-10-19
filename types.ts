@@ -34,6 +34,14 @@ export interface Env {
   GSC_SITE_URL?: string;        // Search Console property, e.g. sc-domain:vaneapp.dev
   TURNSTILE_SITE_KEY?: string;  // Cloudflare Turnstile site key (public, rendered on /login)
   EMAIL_FROM?: string;          // sender on a domain verified in Resend, e.g. "Vane <noreply@vaneapp.dev>"
+
+  /** LinkedIn (Share on LinkedIn + Sign In with LinkedIn using OpenID Connect): the connect button is off until both are set */
+  LINKEDIN_CLIENT_ID?: string;      // plain var
+  LINKEDIN_CLIENT_SECRET?: string;  // secret
+  LINKEDIN_VERSION?: string;        // optional: the Linkedin-Version header, YYYYMM (default in channels/linkedin.ts)
+  /** Threads (Meta app with the Threads API): the connect button is off until both are set */
+  THREADS_APP_ID?: string;          // plain var
+  THREADS_APP_SECRET?: string;      // secret (also checks Meta's deauthorize / data-deletion calls)
   SYSTEM_BOT_USERNAME?: string; // shared bot username without @ (default: VanePublishBot)
 }
 
@@ -116,7 +124,8 @@ export interface LogRow {
 export type ChannelCredentials =
   | { type: 'telegram'; botToken: string; chatId: string }
   | { type: 'x'; accessToken: string; refreshToken?: string; expiresAt?: number }
-  | { type: 'linkedin'; accessToken: string; refreshToken?: string; urn: string; expiresAt?: number }
+  | { type: 'linkedin'; accessToken: string; refreshToken?: string; urn: string; name?: string; expiresAt?: number; refreshExpiresAt?: number }
+  | { type: 'threads'; accessToken: string; userId: string; username: string; expiresAt: number }
   | { type: 'mastodon'; instance: string; accountId: string; acct: string; accessToken: string }
   | { type: 'bluesky'; service: string; identifier: string; did: string; appPassword: string }
   | { type: 'webhook'; url: string; secret?: string };
@@ -140,6 +149,8 @@ export interface ChannelPublic {
   name: string;
   isActive: boolean;
   createdAt: number;
+  /** LinkedIn / Threads only: unix seconds when the saved sign-in stops working (the dashboard offers "Reconnect" before that) */
+  expiresAt?: number;
 }
 
 export interface AddChannelRequest {
@@ -203,6 +214,9 @@ export interface UserFeatures {
   quickConnect: boolean;
   /** e.g. "@VanePublishBot" when quickConnect is true */
   systemBot: string | null;
+  /** the LinkedIn / Threads app is configured on this server, so their connect buttons work */
+  linkedin: boolean;
+  threads: boolean;
 }
 export type MeResponse = { ok: true; user: UserPublic; features: UserFeatures } | ApiError;
 
@@ -255,6 +269,9 @@ export interface CronEnv {
   ENCRYPTION_KEY?: string;   // MUST be the same value as on the Pages project
   SYSTEM_BOT_TOKEN?: string; // MUST be the same as on Pages: needed to publish to Quick Connect channels
   APP_URL?: string;          // public origin, used to turn stored R2 keys into URLs
+  LINKEDIN_CLIENT_ID?: string;     // only to renew a LinkedIn sign-in that came with a refresh token
+  LINKEDIN_CLIENT_SECRET?: string;
+  LINKEDIN_VERSION?: string;       // the same optional value as on Pages
 }
 
 // ───────────────────────── Quick Connect (stage 2 of the upgrade) ─────────────────────────

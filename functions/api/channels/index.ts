@@ -18,7 +18,9 @@ import { checkChannelQuota } from '../lib/catalog';
 import { handleAddBluesky } from './bluesky-add';
 import { CREDS_ERROR, findDuplicateTelegramChannel, loadTelegramCreds } from './credentials';
 import { quickConnectAvailable, VERIFIED_VALID_SECONDS } from './quick';
+import { loadLinkedinCreds } from './linkedin';
 import { normalizeChatId, sendTelegramPost, validateTelegramBot } from './telegram';
+import { loadThreadsCreds } from './threads';
 
 const CHANNEL_TYPES: readonly ChannelType[] = ['telegram', 'x', 'linkedin', 'webhook', 'bluesky', 'mastodon', 'threads'];
 const CONNECTABLE: readonly ChannelType[] = ['telegram', 'bluesky'];
@@ -35,12 +37,22 @@ const toPublic = (r: Pick<ChannelRow, 'id' | 'type' | 'name' | 'is_active' | 'cr
 // ───────────────────────── GET /api/channels ─────────────────────────
 /** My channels, newest first. Shared by the dashboard route and `GET /api/v1/channels`. */
 export async function channelsForUser(env: Env, userId: string): Promise<ChannelPublic[]> {
-  // Explicit column list: `credentials` is deliberately never selected.
+  // Explicit column list: `credentials` is never returned (see the one exception below).
+  // The one exception: LinkedIn and Threads sign-ins expire (60 days), so for those two the saved sign-in is opened here, on the server,
+  // only to read WHEN it expires. Nothing from it leaves this function except that number.
   const { results } = await env.DB
-    .prepare('SELECT id, type, name, is_active, created_at FROM channels WHERE user_id = ?1 ORDER BY created_at DESC')
+    .prepare(`SELECT id, type, name, is_active, created_at, CASE WHEN type IN ('linkedin', 'threads') THEN credentials END AS expiring
+              FROM channels WHERE user_id = ?1 ORDER BY created_at DESC`)
     .bind(userId)
-    .all<Pick<ChannelRow, 'id' | 'type' | 'name' | 'is_active' | 'created_at'>>();
-  return results.map(toPublic);
+    .all<Pick<ChannelRow, 'id' | 'type' | 'name' | 'is_active' | 'created_at'> & { expiring: string | null }>();
+  return Promise.all(results.map(async (r) => {
+    const pub = toPublic(r);
+    if (r.expiring) {
+      const c = r.type === 'linkedin' ? await loadLinkedinCreds(r.expiring, env.ENCRYPTION_KEY) : await loadThreadsCreds(r.expiring, env.ENCRYPTION_KEY);
+      if (c && c.expiresAt) pub.expiresAt = c.expiresAt;
+    }
+    return pub;
+  }));
 }
 
 export const handleListChannels: PagesFunction<Env> = async ({ request, env }) => {
@@ -76,6 +88,7 @@ export const handleAddChannel: PagesFunction<Env> = async ({ request, env }) => 
     return fail(400, `platform must be one of: ${CHANNEL_TYPES.join(', ')}`);
   }
   if (platform === 'mastodon') return fail(400, 'Mastodon connects through a sign-in on your server: POST /api/channels/mastodon/start { instance }.');
+  if (platform === 'linkedin' || platform === 'threads') return fail(400, `${platform === 'linkedin' ? 'LinkedIn' : 'Threads'} connects through a sign-in on its own page: POST /api/channels/${platform}/start.`);
   if (!CONNECTABLE.includes(platform as ChannelType)) {
     return fail(501, `Platform "${platform}" is not supported yet. Available: ${CONNECTABLE.join(', ')}.`);
   }

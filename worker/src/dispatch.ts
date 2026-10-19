@@ -15,12 +15,15 @@
  *
  * No schema change needed: backoff reuses `updated_at` (a requeued post becomes due again at
  * updated_at + backoff). `sent_at` is the "published at" timestamp, `external_id` the id of the post
- * on the network (Telegram message id, Bluesky at:// uri, Mastodon status url).
+ * on the network (Telegram message id, Bluesky at:// uri, Mastodon status url, LinkedIn post urn, Threads permalink).
  */
 import type { ChannelRow, CronEnv } from '../../types';
 import { CREDS_ERROR, loadTelegramCreds, type TelegramCreds } from '../../functions/api/channels/credentials';
 import { loadBlueskyCreds, openBlueskySession, sendBlueskyPost, type BlueskySession } from '../../functions/api/channels/bluesky';
 import { loadMastodonCreds, sendMastodonPost } from '../../functions/api/channels/mastodon';
+import { LINKEDIN_RENEW_BEFORE_SECONDS, linkedinBlob, loadLinkedinCreds, renewLinkedin, sendLinkedinPost, type LinkedinCreds } from '../../functions/api/channels/linkedin';
+import { THREADS_RENEW_BEFORE_SECONDS, loadThreadsCreds, refreshThreadsToken, sendThreadsPost, threadsBlob, type ThreadsCreds } from '../../functions/api/channels/threads';
+import { encryptToken } from '../../functions/api/lib/crypto';
 import { isValidMediaUrl, sendTelegramPost } from '../../functions/api/channels/telegram';
 
 export const BATCH_SIZE = 20;               // per run: keeps us inside Workers' subrequest limits
@@ -170,6 +173,8 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
     if (!ch.is_active) return finish(post, 'failed', 'The channel is disabled.');
     if (ch.type === 'bluesky') return deliverBluesky(post, ch);
     if (ch.type === 'mastodon') return deliverMastodon(post, ch);
+    if (ch.type === 'linkedin') return deliverLinkedin(post, ch);
+    if (ch.type === 'threads') return deliverThreads(post, ch);
     if (ch.type !== 'telegram') return finish(post, 'failed', `Publishing to ${ch.type} is not supported yet.`);
 
     const resolved = await credsFor(ch);
@@ -265,6 +270,73 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
     // The post id is the Idempotency-Key: if a try times out after Mastodon already posted, the next try gets the same status back instead of a duplicate.
     const res = await sendMastodonPost(creds, post.content, mediaUrl, post.id);
     if (res.ok) return finish(post, 'sent', null, { externalId: res.url, network: 'Mastodon' });
+    if (res.retryable && post.attempts < MAX_ATTEMPTS) return finish(post, 'retry', res.error, { retryAfter: res.retryAfter });
+    return finish(post, 'failed', res.retryable ? `${res.error} (gave up after ${post.attempts} attempts)` : res.error);
+  }
+
+  /** The attached picture / video as a public address; `{ error }` when the stored reference is bad. */
+  function mediaOf(post: Claimed): { url?: string } | { error: string } {
+    try {
+      const first = (JSON.parse(post.media_keys) as unknown[])[0];
+      if (first === undefined) return {};
+      const url = resolveMediaUrl(first, env.APP_URL);
+      return url ? { url } : { error: 'The attached image reference is invalid.' };
+    } catch {
+      return { error: 'The attached image reference is invalid.' };
+    }
+  }
+
+  // A LinkedIn / Threads sign-in lasts 60 days. One that is running out is renewed here when the network allows it
+  // (Threads always; LinkedIn only with a refresh token) and the new token is saved, encrypted, in the same step.
+  async function saveCreds(ch: ChannelInfo, blob: Record<string, unknown>): Promise<void> {
+    await env.DB
+      .prepare('UPDATE channels SET credentials = ?1, updated_at = ?2 WHERE id = ?3')
+      .bind(await encryptToken(JSON.stringify(blob), env.ENCRYPTION_KEY!), nowSec, ch.id)
+      .run();
+  }
+
+  async function deliverLinkedin(post: Claimed, ch: ChannelInfo): Promise<void> {
+    let creds: LinkedinCreds | null = await loadLinkedinCreds(ch.credentials, env.ENCRYPTION_KEY);
+    if (!creds) {
+      console.error(`vane-cron: could not read credentials of channel ${ch.id} (wrong ENCRYPTION_KEY or corrupt data)`);
+      return finish(post, post.attempts < MAX_ATTEMPTS ? 'retry' : 'failed', CREDS_ERROR.unreadable);
+    }
+    if (creds.expiresAt && creds.expiresAt - nowSec < LINKEDIN_RENEW_BEFORE_SECONDS) {
+      const renewed = await renewLinkedin(env, creds, nowSec);
+      if (renewed) {
+        creds = renewed;
+        await saveCreds(ch, linkedinBlob(renewed.urn, renewed.name, renewed));
+      }
+    }
+    const media = mediaOf(post);
+    if ('error' in media) return finish(post, 'failed', media.error);
+
+    const res = await sendLinkedinPost(env, creds, post.content, media.url, nowSec);
+    // LinkedIn answers with the post's urn; the dashboard turns it into a link (functions/api/lib/postlink.ts)
+    if (res.ok) return finish(post, 'sent', null, { externalId: res.id, network: 'LinkedIn' });
+    if (res.retryable && post.attempts < MAX_ATTEMPTS) return finish(post, 'retry', res.error, { retryAfter: res.retryAfter });
+    return finish(post, 'failed', res.retryable ? `${res.error} (gave up after ${post.attempts} attempts)` : res.error);
+  }
+
+  async function deliverThreads(post: Claimed, ch: ChannelInfo): Promise<void> {
+    let creds: ThreadsCreds | null = await loadThreadsCreds(ch.credentials, env.ENCRYPTION_KEY);
+    if (!creds) {
+      console.error(`vane-cron: could not read credentials of channel ${ch.id} (wrong ENCRYPTION_KEY or corrupt data)`);
+      return finish(post, post.attempts < MAX_ATTEMPTS ? 'retry' : 'failed', CREDS_ERROR.unreadable);
+    }
+    if (creds.expiresAt && creds.expiresAt - nowSec < THREADS_RENEW_BEFORE_SECONDS) {
+      const renewed = await refreshThreadsToken(creds, nowSec);
+      if (renewed) {
+        creds = renewed;
+        await saveCreds(ch, threadsBlob(renewed));
+      }
+    }
+    const media = mediaOf(post);
+    if ('error' in media) return finish(post, 'failed', media.error);
+
+    const res = await sendThreadsPost(creds, post.content, media.url, nowSec);
+    // the permalink, or (when Threads would not give one) the post id
+    if (res.ok) return finish(post, 'sent', null, { externalId: res.url || res.id, network: 'Threads' });
     if (res.retryable && post.attempts < MAX_ATTEMPTS) return finish(post, 'retry', res.error, { retryAfter: res.retryAfter });
     return finish(post, 'failed', res.retryable ? `${res.error} (gave up after ${post.attempts} attempts)` : res.error);
   }

@@ -15,9 +15,9 @@
 | **Telegram** | 🟢 **ACTIVE (Готово)** | Bot API (Token + Chat ID) | ❌ Нет | Мгновенно (0 мин) |
 | **Bluesky** | 🟡 **Phase 1 (В разработке)** | AT Protocol (App Passwords) | ❌ Нет | Мгновенно (0 мин) |
 | **Mastodon** | 🟡 **Phase 1 (В разработке)** | OAuth 2.0 (Dynamic App Reg) | ❌ Нет | Мгновенно (0 мин) |
-| **LinkedIn** | 🟡 **Phase 1 (В разработке)** | OAuth 2.0 (Community Management API) | ⚠️ Частично (Developer Portal) | 1–3 дня |
+| **LinkedIn** | 🟢 **Код готов** (личные профили; ждёт ключей и ревью) | OAuth 2.0 (Community Management API) | ⚠️ Частично (Developer Portal) | 1–3 дня |
 | **YouTube (Shorts/Full)**| 🟡 **Phase 1 / Phase 2** | OAuth 2.0 (YouTube Data API v3) | ⚠️ Требуется Google Brand Verification | 3–14 дней |
-| **Threads** | 🟠 **Phase 2 (Pending)** | Meta Graph API (Threads API) | 🟢 Нужен Meta Verified Developer App | 5–14 дней |
+| **Threads** | 🟢 **Код готов** (ждёт ключей и App Review) | Meta Graph API (Threads API) | 🟢 Нужен Meta Verified Developer App | 5–14 дней |
 | **Instagram Reels** | 🔴 **Phase 2 (Pending)** | Meta Graph API (Content Publishing) | 🔴 Нужен Meta Business Verification + Review | 7–21 день |
 | **TikTok** | 🔴 **Phase 2 (Pending)** | TikTok Content Posting API | 🔴 Нужен TikTok Developer Business Review | 7–21 день |
 
@@ -79,8 +79,9 @@
 2. Подключить продукты:
    - **Share on LinkedIn** (для личных профилей).
    - **Community Management API** (для публичных страниц компаний).
-3. Прописать Redirect URL: `https://api.vaneapp.dev/v1/channels/linkedin/callback`.
-4. **Необходимые Scopes:** `openid`, `profile`, `w_member_social`, `w_organization_social`.
+3. Прописать Redirect URL: `https://vaneapp.dev/api/channels/linkedin/callback`.
+4. **Необходимые Scopes:** `openid`, `profile`, `w_member_social` (личные профили, запрашиваются сейчас). `w_organization_social` для Страниц компаний добавляется только после одобрения Community Management API.
+5. Подробная настройка, чек-лист и сценарий скринкаста: `documentation/LINKEDIN_THREADS_SETUP.md`.
 
 ---
 
@@ -107,7 +108,7 @@
 ### Требования для Meta for Developers:
 1. Создать приложение типа **Business** в [Meta Developer Dashboard](https://developers.facebook.com/).
 2. Включить продукт **Threads API**.
-3. Запросить разрешения: `threads_basic`, `threads_content_publish`.
+3. Запросить разрешения: `threads_basic`, `threads_content_publish`. Callback-адреса (redirect, deauthorize, data deletion) и чек-лист: `documentation/LINKEDIN_THREADS_SETUP.md`.
 4. Пройти **App Review** с предоставлением тестового видео публикации.
 
 ---

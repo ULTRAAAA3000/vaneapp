@@ -4,6 +4,8 @@
  *
  *   mastodon  the sender stores the post's own https URL
  *   bluesky   the sender stores the at:// URI; the web address is bsky.app/profile/<did>/post/<rkey>
+ *   linkedin  the sender stores the post's urn (urn:li:share:… / urn:li:ugcPost:…); the web address is linkedin.com/feed/update/<urn>/
+ *   threads   the sender stores the post's permalink (https on threads.net / threads.com)
  *   telegram  the sender stores the message id; a public channel (@name) opens at t.me/<name>/<id>, a channel
  *             saved by its numeric id (-100…) at t.me/c/<id>/<id> (that form opens for members, i.e. the owner)
  *
@@ -18,6 +20,14 @@ export function postUrl(platform: string, externalId: string | null, telegramCha
     case 'bluesky': {
       const m = /^at:\/\/(did:[a-z0-9]+:[A-Za-z0-9._:%-]+)\/app\.bsky\.feed\.post\/([A-Za-z0-9._~:-]+)$/.exec(externalId);
       return m ? `https://bsky.app/profile/${m[1]}/post/${m[2]}` : null;
+    }
+    case 'linkedin': {
+      const m = /^urn:li:(share|ugcPost):(\d{5,30})$/.exec(externalId);
+      return m ? `https://www.linkedin.com/feed/update/urn:li:${m[1]}:${m[2]}/` : null;
+    }
+    case 'threads': {
+      const url = httpsUrl(externalId);
+      return url && /(^|\.)threads\.(net|com)$/.test(new URL(url).hostname) ? url : null;
     }
     case 'telegram': {
       if (!/^\d{1,12}$/.test(externalId) || !telegramChatId) return null;
