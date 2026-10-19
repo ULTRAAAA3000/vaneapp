@@ -44,6 +44,8 @@ try {
   check('/ is the posting dashboard', pr.status === 200 && title(pr) === 'Dashboard — Vane', `${pr.status} ${title(pr)}`);
   const pa = await req(POST, 'GET', '/app');
   check('/app forwards to / (308)', pa.status === 308 && new URL(pa.headers.location).pathname === '/', `${pa.status} ${pa.headers.location}`);
+  const pq = await req(POST, 'GET', '/app?connect=mastodon&status=ok');
+  check('/app keeps the query when it forwards (the Mastodon return trip)', pq.status === 308 && new URL(pq.headers.location).search === '?connect=mastodon&status=ok', `${pq.status} ${pq.headers.location}`);
   const ps = await req(POST, 'GET', '/studio');
   check('/studio forwards to studio.vaneapp.dev', ps.status === 308 && pa.headers.location !== undefined && ps.headers.location === `https://${STUDIO}/`, ps.headers.location);
   check('the video API is not served here (404)', (await req(POST, 'GET', '/api/video/me')).status === 404 && (await req(POST, 'GET', '/api/v1/video/me')).status === 404);

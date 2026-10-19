@@ -32,6 +32,7 @@ const route: PagesFunction<Env> = async ({ request, env, next }) => {
   const path = url.pathname;
   const page = request.method === 'GET' || request.method === 'HEAD';
   const here = (p: string): string => new URL(p, url).toString();
+  const keepQuery = (target: string): string => target + url.search;   // /app?connect=mastodon&status=ok must survive the forward
   const rewrite = (p: string): Promise<Response> => env.ASSETS.fetch(new Request(here(p), request));
 
   // ── API: each host serves only what belongs to its product
@@ -45,15 +46,15 @@ const route: PagesFunction<Env> = async ({ request, env, next }) => {
   if (!page) return next();
   if (site === 'post') {
     if (path === '/') return rewrite('/app');
-    if (path === '/app') return Response.redirect(here('/'), 308);
-    if (path === '/studio') return Response.redirect(productUrl('studio'), 308);
+    if (path === '/app') return Response.redirect(keepQuery(here('/')), 308);
+    if (path === '/studio') return Response.redirect(keepQuery(productUrl('studio')), 308);
   } else if (site === 'studio') {
     if (path === '/') return rewrite('/studio');
-    if (path === '/studio') return Response.redirect(here('/'), 308);
-    if (path === '/app') return Response.redirect(productUrl('post'), 308);
+    if (path === '/studio') return Response.redirect(keepQuery(here('/')), 308);
+    if (path === '/app') return Response.redirect(keepQuery(productUrl('post')), 308);
   } else {
-    if (path === '/app') return Response.redirect(productUrl('post'), 308);
-    if (path === '/studio') return Response.redirect(productUrl('studio'), 308);
+    if (path === '/app') return Response.redirect(keepQuery(productUrl('post')), 308);
+    if (path === '/studio') return Response.redirect(keepQuery(productUrl('studio')), 308);
   }
   return next();
 };

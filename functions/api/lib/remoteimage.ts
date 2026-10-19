@@ -17,9 +17,13 @@ export async function downloadImage(url: string, opts: { maxBytes: number; label
   if (!isValidMediaUrl(url)) return { ok: false, error: 'The attached image link is invalid.', retryable: false };
   let res: Response;
   try {
-    res = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(TIMEOUT_MS) });
+    res = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(TIMEOUT_MS) });   // Workers have no redirect: 'error'; a 3xx is refused below
   } catch {
     return { ok: false, error: 'Could not download the attached image.', retryable: true };
+  }
+  if (res.status >= 300 && res.status < 400) {
+    await res.body?.cancel().catch(() => undefined);
+    return { ok: false, error: 'The attached image link redirects to another address. Use the direct link to the image.', retryable: false };
   }
   if (!res.ok) return { ok: false, error: `The attached image could not be downloaded (HTTP ${res.status}).`, retryable: res.status >= 500 || res.status === 429 };
   const contentType = (res.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
