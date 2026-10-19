@@ -156,7 +156,7 @@ Spec: `ECONOMY_AND_FINANCE.md` §2 and §6, `SECURITY_ARCHITECTURE.md` §2-3. Bu
 | 1 | Tables, key generation and hashing, key auth, scopes, test mode, quota engine with 402, `/api/v1/*`, usage | done |
 | 2 | "API access" section in the dashboard: create / revoke keys, quota meter, quick start | done |
 | 3a | OpenAPI spec and `Idempotency-Key` (safe retries from Make / Zapier) | done |
-| 3b | Webhooks: signed `post.sent` / `post.failed` / `post.cancelled` events, retries | next |
+| 3b | Webhooks: signed `post.published` / `post.failed` events, retries (shipped, see Webhooks below) | done |
 | 4 | Payments (Monobank, USDT/USDC) that grant the plan and issue keys automatically | |
 | 5 | AI endpoints on Workers AI (reformat, tone, hooks) with their own metering | |
 
@@ -347,3 +347,4 @@ Each event is a `POST` with the JSON `{ "id", "type", "createdAt", "data": { "po
 
 Events are queued in `webhook_deliveries` and sent by the cron worker every minute, so a slow receiver never delays posting. The two webhook tables are in `schema.sql` (run it, or the two `CREATE TABLE` blocks at its end, in the D1 console); until then `/api/v1/webhooks` answers 503 and posting is unaffected.
 
+**Receiver address rules** (`validateWebhookUrl` in `functions/api/lib/webhooks.ts`): https only, port 443, no credentials, a public domain name (no IP addresses in any notation, no `localhost`, `*.local`, `*.internal`, `*.lan`, `*.home.arpa`, `*.intranet` …, a trailing dot does not sidestep it) and never Vane itself (`vaneapp.dev` and its subdomains). Redirects are not followed. `npm run test:unit` checks these rules and the signature against an independent HMAC.
