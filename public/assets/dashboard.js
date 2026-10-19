@@ -122,6 +122,7 @@
     expired: ['err', 'That sign-in took too long or was already used. Start again.'],
     duplicate: ['err', 'This Mastodon account is already connected.'],
     migrate: ['err', 'Mastodon is not enabled on this server yet. The database needs one update.'],
+    limit: ['err', 'Your plan has no room for another channel. Upgrade to connect more.'],
     failed: ['err', 'Could not finish connecting Mastodon. Try again.']
   };
   function reportMastodonReturn() {

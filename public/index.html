@@ -247,9 +247,9 @@
 
         <div class="flex w-full flex-col gap-4 sm:flex-row lg:w-auto lg:gap-5">
           <div class="flex flex-col justify-between rounded-2xl bg-white/10 p-5 backdrop-blur-lg sm:w-64 sm:p-6">
-            <div class="pixel text-3xl tracking-tight text-[#010101] sm:text-4xl lg:text-white">$9.99</div>
+            <div class="pixel text-3xl tracking-tight text-[#010101] sm:text-4xl lg:text-white" data-plan-price="pro">$9.99</div>
             <p class="mt-3 text-sm leading-relaxed text-[#010101]/70 sm:mt-4 lg:text-white/70">
-              Early Bird, per month. Unlimited channels and workspaces. Standard price is $12.
+              Early Bird, per month. Unlimited channels and workspaces. Standard price is <span data-plan-compare="pro">$12</span>.
             </p>
           </div>
 
@@ -368,7 +368,7 @@
 
             <div class="mt-8 flex flex-wrap items-center gap-3">
               <button type="button" data-goto-join class="rounded-full bg-white px-6 py-3 text-sm font-semibold text-[#010101] transition-opacity hover:opacity-90">Get notified</button>
-              <span class="text-sm text-white/45">$8.99 a month, arriving after launch.</span>
+              <span class="text-sm text-white/45"><span data-plan-price="video">$8.99</span> a month, arriving after launch.</span>
             </div>
           </div>
 
@@ -561,7 +561,7 @@
               <li class="py-3.5"><div class="font-medium">Hook and CTA generator</div><div class="mt-1 leading-relaxed text-white/55">Sharper openings and clearer calls to action.</div></li>
               <li class="py-3.5"><div class="flex items-center gap-2 font-medium">Video script generator <span class="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/55">Soon</span></div><div class="mt-1 leading-relaxed text-white/55">Scripts and hooks for Shorts, TikTok and Reels. Arrives with the Video Engine.</div></li>
             </ul>
-            <p class="mt-auto pt-6 text-xs leading-relaxed text-white/40">Pro includes a soft limit of about 250 generations a month. On the Developer API plan, an AI post is $0.09.</p>
+            <p class="mt-auto pt-6 text-xs leading-relaxed text-white/40">Pro includes a soft limit of about 250 generations a month. On the Developer API plan, an AI post is <span data-plan-limit="api.overageAiPostUsd">$0.09</span>.</p>
           </div>
         </div>
       </div>
@@ -660,7 +660,7 @@ curl -X POST https://vaneapp.dev/api/posts \
           <p class="mt-4 text-sm leading-relaxed text-white/60 sm:text-base">Start free, no card required. Pay a flat monthly price when you are ready. No per-channel fees on any plan.</p>
         </div>
 
-        <div class="mt-12 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <div id="planGrid" class="mt-12 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           <!-- free trial -->
           <div class="reveal glass-d flex flex-col rounded-3xl p-6 sm:p-7">
             <p class="text-xs font-medium uppercase tracking-widest text-white/40">Free Trial</p>
@@ -738,7 +738,7 @@ curl -X POST https://vaneapp.dev/api/posts \
         </div>
 
         <!-- add-on strip -->
-        <div class="reveal glass-d mt-5 flex flex-col gap-4 rounded-3xl p-6 sm:flex-row sm:items-center sm:justify-between sm:p-7">
+        <div id="addonStrip" class="reveal glass-d mt-5 flex flex-col gap-4 rounded-3xl p-6 sm:flex-row sm:items-center sm:justify-between sm:p-7">
           <div>
             <h3 class="text-lg font-semibold">Need the dashboard and the API?</h3>
             <p class="mt-1 text-sm leading-relaxed text-white/60">Add the API to Pro for <span class="font-semibold text-white">+$2.99 a month</span>. It adds 180 API posts and keeps Pro’s low overage rates.</p>
@@ -754,8 +754,8 @@ curl -X POST https://vaneapp.dev/api/posts \
               <p class="mt-2 text-sm leading-relaxed text-white/55">Posts beyond your monthly quota are billed per post. Pro gets half the Developer API rate.</p>
               <div class="mt-5 overflow-hidden rounded-2xl ring-1 ring-white/10">
                 <div class="grid grid-cols-3 bg-white/5 px-4 py-2.5 text-xs font-medium text-white/45"><span>Plan</span><span>Post</span><span>AI post</span></div>
-                <div class="grid grid-cols-3 border-t border-white/10 px-4 py-3 text-sm"><span class="text-white/70">Developer API</span><span class="pixel text-base">$0.03</span><span class="pixel text-base">$0.09</span></div>
-                <div class="grid grid-cols-3 border-t border-white/10 px-4 py-3 text-sm"><span class="text-white/70">Pro Dashboard</span><span class="pixel text-base">$0.015</span><span class="pixel text-base">$0.045</span></div>
+                <div class="grid grid-cols-3 border-t border-white/10 px-4 py-3 text-sm"><span class="text-white/70">Developer API</span><span class="pixel text-base" data-plan-limit="api.overagePostUsd">$0.03</span><span class="pixel text-base" data-plan-limit="api.overageAiPostUsd">$0.09</span></div>
+                <div class="grid grid-cols-3 border-t border-white/10 px-4 py-3 text-sm"><span class="text-white/70">Pro Dashboard</span><span class="pixel text-base" data-plan-limit="pro.overagePostUsd">$0.015</span><span class="pixel text-base" data-plan-limit="pro.overageAiPostUsd">$0.045</span></div>
               </div>
             </div>
 
@@ -774,7 +774,7 @@ curl -X POST https://vaneapp.dev/api/posts \
           <!-- calculator -->
           <div class="reveal glass-d rounded-3xl p-6 sm:p-8" style="transition-delay:.08s">
             <p class="text-xs font-medium uppercase tracking-widest text-white/40">Savings calculator</p>
-            <p class="mt-2 text-sm leading-relaxed text-white/55">Enter what a per-channel tool charges you and how many channels you run. Vane Pro is compared at its $12 standard price, so Early Bird saves you even more. The figure below is illustrative; use your own numbers.</p>
+            <p class="mt-2 text-sm leading-relaxed text-white/55">Enter what a per-channel tool charges you and how many channels you run. Vane Pro is compared at its <span data-plan-compare="pro">$12</span> standard price, so Early Bird saves you even more. The figure below is illustrative; use your own numbers.</p>
 
             <div class="mt-6">
               <div class="flex items-center justify-between text-sm">
@@ -797,7 +797,7 @@ curl -X POST https://vaneapp.dev/api/posts \
               </div>
               <div class="rounded-2xl bg-black/30 p-4 ring-1 ring-white/5">
                 <div class="text-xs text-white/45">Vane Pro</div>
-                <div class="pixel mt-1 text-2xl">$12</div>
+                <div class="pixel mt-1 text-2xl" data-plan-compare="pro">$12</div>
               </div>
             </div>
             <div id="saveBox" class="mt-3 rounded-2xl bg-emerald-400/10 p-4 text-sm text-emerald-300 ring-1 ring-emerald-400/20"></div>
@@ -820,7 +820,7 @@ curl -X POST https://vaneapp.dev/api/posts \
               Is the price really flat?
               <span class="faq-plus text-xl text-white/40 transition-transform duration-300">+</span>
             </summary>
-            <p class="mt-3 text-sm leading-relaxed text-white/60">Yes. Pro is $9.99 a month (Early Bird) or $12 standard, or $99 a year, and it covers unlimited channels and workspaces. There are no per-channel add-ons. Only posts beyond your monthly quota are billed, at the overage rates in the pricing section.</p>
+            <p class="mt-3 text-sm leading-relaxed text-white/60">Yes. Pro is <span data-plan-price="pro">$9.99</span> a month (Early Bird) or <span data-plan-compare="pro">$12</span> standard, or <span data-plan-yearly="pro">$99</span> a year, and it covers unlimited channels and workspaces. There are no per-channel add-ons. Only posts beyond your monthly quota are billed, at the overage rates in the pricing section.</p>
           </details>
 
           <details name="faq" class="reveal glass-d rounded-2xl p-5 transition-colors sm:p-6">
@@ -836,7 +836,7 @@ curl -X POST https://vaneapp.dev/api/posts \
               What happens if I go over my monthly quota?
               <span class="faq-plus text-xl text-white/40 transition-transform duration-300">+</span>
             </summary>
-            <p class="mt-3 text-sm leading-relaxed text-white/60">Extra posts are billed per post. On Pro that is $0.015 per post and $0.045 per AI-generated post. On the Developer API plan it is $0.03 and $0.09. Pro includes 1,000 posts a month and the Developer API includes 180.</p>
+            <p class="mt-3 text-sm leading-relaxed text-white/60">Extra posts are billed per post. On Pro that is <span data-plan-limit="pro.overagePostUsd">$0.015</span> per post and <span data-plan-limit="pro.overageAiPostUsd">$0.045</span> per AI-generated post. On the Developer API plan it is <span data-plan-limit="api.overagePostUsd">$0.03</span> and <span data-plan-limit="api.overageAiPostUsd">$0.09</span>. Pro includes <span data-plan-limit="pro.postsPerMonth">1,000</span> posts a month and the Developer API includes <span data-plan-limit="api.apiPostsPerMonth">180</span>.</p>
           </details>
 
           <details name="faq" class="reveal glass-d rounded-2xl p-5 transition-colors sm:p-6">
@@ -860,7 +860,7 @@ curl -X POST https://vaneapp.dev/api/posts \
               Can I use Vane from code or no-code tools?
               <span class="faq-plus text-xl text-white/40 transition-transform duration-300">+</span>
             </summary>
-            <p class="mt-3 text-sm leading-relaxed text-white/60">Yes. The REST API comes with the Developer plan or as a +$2.99 add-on to Pro. Make.com, Zapier, a Custom GPT action and a Claude MCP server are planned right after launch.</p>
+            <p class="mt-3 text-sm leading-relaxed text-white/60">Yes. The REST API comes with the Developer plan or as a +<span data-plan-price="api-addon">$2.99</span> add-on to Pro. Make.com, Zapier, a Custom GPT action and a Claude MCP server are planned right after launch.</p>
           </details>
 
           <details name="faq" class="reveal glass-d rounded-2xl p-5 transition-colors sm:p-6">
@@ -868,7 +868,7 @@ curl -X POST https://vaneapp.dev/api/posts \
               When will video publishing arrive?
               <span class="faq-plus text-xl text-white/40 transition-transform duration-300">+</span>
             </summary>
-            <p class="mt-3 text-sm leading-relaxed text-white/60">The Video Engine ($8.99 a month) is the next expansion, covering YouTube Shorts, TikTok, Instagram Reels and YouTube long-form. It needs approval from each platform before it can go live, so we will announce the date once those clear. Join the waitlist and we will tell you.</p>
+            <p class="mt-3 text-sm leading-relaxed text-white/60">The Video Engine (<span data-plan-price="video">$8.99</span> a month) is the next expansion, covering YouTube Shorts, TikTok, Instagram Reels and YouTube long-form. It needs approval from each platform before it can go live, so we will announce the date once those clear. Join the waitlist and we will tell you.</p>
           </details>
 
           <details name="faq" class="reveal glass-d rounded-2xl p-5 transition-colors sm:p-6">
@@ -919,7 +919,7 @@ curl -X POST https://vaneapp.dev/api/posts \
       <div class="reveal glass-d relative mx-auto max-w-5xl overflow-hidden rounded-[2rem] px-6 py-14 text-center sm:px-12 sm:py-20">
         <div class="pointer-events-none absolute -top-24 left-1/2 h-64 w-[36rem] -translate-x-1/2 rounded-full bg-indigo-500/25 blur-[90px]" aria-hidden="true"></div>
         <h2 class="relative text-3xl font-semibold leading-[1.1] tracking-tight sm:text-5xl">Stop paying per channel.</h2>
-        <p class="relative mx-auto mt-4 max-w-md text-sm leading-relaxed text-white/60 sm:text-base">Join the waitlist for early access. Pro starts at $9.99 a month, flat, with every channel included.</p>
+        <p class="relative mx-auto mt-4 max-w-md text-sm leading-relaxed text-white/60 sm:text-base">Join the waitlist for early access. Pro starts at <span data-plan-price="pro">$9.99</span> a month, flat, with every channel included.</p>
 
         <div class="relative mt-8">
           <form class="wl-form mx-auto flex max-w-md flex-col gap-3 sm:inline-flex sm:max-w-none sm:flex-row sm:items-center sm:gap-0 sm:rounded-full sm:bg-white sm:p-1.5" novalidate data-tone="dark" id="joinForm">
@@ -996,12 +996,13 @@ curl -X POST https://vaneapp.dev/api/posts \
     window.addEventListener('pageshow', function (e) { if (e.persisted) checkAuth(); }); // back button after sign-out
 
     // ───────────────── scroll helpers ─────────────────
-    $$('[data-goto-join]').forEach(function (b) {
+    function wireJoin(b) {
       b.addEventListener('click', function () {
         $('#join').scrollIntoView({ behavior: 'smooth', block: 'center' });
         setTimeout(function () { $('#joinEmail').focus({ preventScroll: true }); }, 600);
       });
-    });
+    }
+    $$('[data-goto-join]').forEach(wireJoin);
 
     // ───────────────── mobile menu ─────────────────
     var btn = $('#menuBtn'), overlay = $('#overlay'), drawer = $('#drawer');
@@ -1623,7 +1624,75 @@ curl -X POST https://vaneapp.dev/api/posts \
     range.addEventListener('input', calc);
     ppc.addEventListener('input', calc);
     calc();
+
+    // ═════════════════════════════════════════════════════════
+    //        LIVE PRICING (edited in /admin → Plans)
+    // ═════════════════════════════════════════════════════════
+    // The markup above is the fallback. When /api/plans answers, the cards, the add-on strip and
+    // every price quoted in the text are replaced by the live values.
+    (function livePricing() {
+      function fmt(c, cur) {
+        try { return new Intl.NumberFormat('en-US', { style: 'currency', currency: cur || 'USD', minimumFractionDigits: c % 100 === 0 ? 0 : 2 }).format(c / 100); }
+        catch (e) { return '$' + (c % 100 === 0 ? c / 100 : (c / 100).toFixed(2)); }
+      }
+      function planCard(p, i) {
+        var price = fmt(p.priceCents, p.currency);
+        var per = p.priceCents > 0 ? '<span class="pb-1 text-sm text-white/50">/ ' + (p.interval === 'once' ? 'one-time' : esc(p.interval)) + '</span>' : '';
+        var compare = p.comparePriceCents ? '<span class="line-through">' + fmt(p.comparePriceCents, p.currency) + '</span> ' : '';
+        var label = '<p class="text-xs font-medium uppercase tracking-widest text-white/40">' + esc(p.name) + '</p>';
+        var head = p.comingSoon
+          ? '<div class="flex h-5 items-center justify-between gap-3">' + label + '<span class="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/55">Coming soon</span></div>'
+          : label;
+        var badge = p.badge ? '<span class="absolute -top-3 left-6 rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-[#010101]">' + esc(p.badge) + '</span>' : '';
+        var cls = 'reveal glass-d flex flex-col rounded-3xl p-6 sm:p-7' + (p.highlight || p.badge ? ' relative' : '') + (p.highlight ? ' ring-1 ring-white/30' : '');
+        var btn = p.highlight ? 'bg-white text-[#010101] transition-opacity hover:opacity-90' : 'bg-white/10 text-white transition-colors hover:bg-white/20';
+        return '<div class="' + cls + '"' + (i ? ' style="transition-delay:' + (i * 0.06).toFixed(2) + 's"' : '') + '>' + badge + head +
+          '<div class="mt-4 flex items-end gap-2"><span class="pixel text-5xl leading-none tracking-tight">' + esc(price) + '</span>' + per + '</div>' +
+          '<p class="mt-2 text-sm text-white/50">' + compare + esc(p.tagline) + '</p>' +
+          '<ul class="mt-6 space-y-3 text-sm text-white/75">' + p.features.map(function (f) { return '<li class="flex gap-3"><span class="text-emerald-400">✓</span> ' + esc(f) + '</li>'; }).join('') + '</ul>' +
+          '<div class="mt-auto pt-7"><button type="button" data-goto-join class="w-full rounded-full px-6 py-3 text-sm font-semibold ' + btn + '">' + esc(p.ctaLabel) + '</button></div></div>';
+      }
+      function reveal(root) {
+        $$('.reveal', root).forEach(function (el) { if (typeof io !== 'undefined' && io) io.observe(el); else el.classList.add('in'); });
+      }
+      function bind(attr, fn) {
+        $$('[' + attr + ']').forEach(function (el) { var v = fn(el.getAttribute(attr)); if (v !== null && v !== undefined) el.textContent = v; });
+      }
+      function apply(plans) {
+        var by = {};
+        plans.forEach(function (p) { by[p.id] = p; });
+
+        var grid = $('#planGrid'), list = plans.filter(function (p) { return p.kind === 'plan'; });
+        if (grid && list.length) {
+          grid.innerHTML = list.map(planCard).join('');
+          $$('[data-goto-join]', grid).forEach(wireJoin);
+          reveal(grid);
+        }
+        var strip = $('#addonStrip'), addon = plans.filter(function (p) { return p.kind === 'addon'; })[0];
+        if (strip) {
+          if (!addon) strip.hidden = true;
+          else {
+            var amount = '+' + fmt(addon.priceCents, addon.currency);
+            strip.innerHTML = '<div><h3 class="text-lg font-semibold">' + esc(addon.name) + '</h3><p class="mt-1 text-sm leading-relaxed text-white/60">' +
+              esc(addon.tagline).replace('{price}', '<span class="font-semibold text-white">' + esc(amount) + '</span>') + '</p></div><span class="pixel shrink-0 text-3xl leading-none">' + esc(amount) + '</span>';
+          }
+        }
+        bind('data-plan-price', function (id) { var p = by[id]; return p ? fmt(p.priceCents, p.currency) : null; });
+        bind('data-plan-compare', function (id) { var p = by[id]; return p ? fmt(p.comparePriceCents || p.priceCents, p.currency) : null; });
+        bind('data-plan-yearly', function (id) { var p = by[id]; return p && p.yearlyPriceCents ? fmt(p.yearlyPriceCents, p.currency) : null; });
+        bind('data-plan-limit', function (spec) {
+          var k = spec.split('.'), p = by[k[0]], v = p && p.limits ? p.limits[k[1]] : null;
+          return typeof v === 'number' ? (/Usd$/.test(k[1]) ? '$' + v : v.toLocaleString('en-US')) : null;
+        });
+        if (by.pro) { VANE = (by.pro.comparePriceCents || by.pro.priceCents) / 100; calc(); }   // savings calculator
+      }
+      fetch('/api/plans')
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) { if (d && d.ok && d.plans && d.plans.length) apply(d.plans); })
+        .catch(function () { /* offline or blocked: the static prices stay */ });
+    })();
   })();
   </script>
+  <script src="/assets/track.js?v=20261017" defer></script>
 </body>
 </html>

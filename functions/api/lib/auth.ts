@@ -89,7 +89,10 @@ export async function requireUser(request: Request, env: Env): Promise<AuthResul
     if (!payload) return unauthorized('Invalid or expired token');
 
     // A valid signature for a user that no longer exists must not pass.
-    const user = await env.DB.prepare('SELECT id FROM users WHERE id = ?1').bind(payload.sub).first<{ id: string }>();
+    const user = await env.DB
+      .prepare('SELECT u.id FROM users u LEFT JOIN user_flags f ON f.user_id = u.id WHERE u.id = ?1 AND COALESCE(f.disabled, 0) = 0')
+      .bind(payload.sub)
+      .first<{ id: string }>();
     if (!user) return unauthorized('Invalid or expired token');
     return { ok: true, userId: user.id, via: 'bearer' };
   }

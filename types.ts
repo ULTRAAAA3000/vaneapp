@@ -20,11 +20,18 @@ export interface Env {
   SYSTEM_BOT_TOKEN?: string;        // token of the shared Vane bot used by Quick Connect
   TELEGRAM_WEBHOOK_SECRET?: string; // proves webhook calls really come from Telegram
 
+  ADMIN_PASSWORD_HASH?: string;     // /admin password, PBKDF2 hash from `npm run admin:hash` (admin is OFF without it)
+  GSC_SERVICE_ACCOUNT?: string;     // Google service-account JSON key (Search Console tab in /admin)
+  PROXYCHECK_KEY?: string;          // optional: proxycheck.io key, enables the VPN / proxy lookup
   TURNSTILE_SECRET_KEY?: string;    // Cloudflare Turnstile secret; bot check on sign-in / sign-up is enforced when set together with the site key
   RESEND_API_KEY?: string;          // Resend API key; emailed 6-digit codes are enforced when set together with EMAIL_FROM
 
   /** Plain vars */
   APP_URL?: string;             // e.g. https://vaneapp.dev
+  ADMIN_EMAIL?: string;         // /admin login (e-mail)
+  ADMIN_USERNAME?: string;      // optional second login name for /admin
+  ADMIN_ALLOW_IPS?: string;     // optional: comma list of addresses / CIDR ranges allowed to use /admin
+  GSC_SITE_URL?: string;        // Search Console property, e.g. sc-domain:vaneapp.dev
   TURNSTILE_SITE_KEY?: string;  // Cloudflare Turnstile site key (public, rendered on /login)
   EMAIL_FROM?: string;          // sender on a domain verified in Resend, e.g. "Vane <noreply@vaneapp.dev>"
   SYSTEM_BOT_USERNAME?: string; // shared bot username without @ (default: VanePublishBot)

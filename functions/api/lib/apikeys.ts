@@ -14,7 +14,7 @@
  */
 import type { Env, KeyMode, KeyScope } from '../../../types';
 import { failCode } from './http';
-import { apiAllowed, resolveSubscription, type Subscription, type SubscriptionRow } from './plans';
+import { apiAllowed, refreshPlanSpecs, resolveSubscription, type Subscription, type SubscriptionRow } from './plans';
 import { bump, retryAfter } from './throttle';
 import { loadVideoSubscription, videoEngineRequired } from './videoplans';
 
@@ -149,6 +149,7 @@ export async function requireApiKey(request: Request, env: Env, need: KeyScope):
   await bump(env, rlKey, 60);
 
   const now = Math.floor(Date.now() / 1000);
+  await refreshPlanSpecs(env);
   const sub = resolveSubscription(row, now);
 
   if (row.mode === 'live' && row.scope === 'post' && !apiAllowed(sub)) {

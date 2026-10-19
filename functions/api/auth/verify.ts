@@ -15,16 +15,18 @@ import { crossOriginViolation, EMAIL_RE, fail, isRecord, json, methodNotAllowed,
 import { emailConfigured } from '../lib/mail';
 import { createSession, purgeExpired, revokeSessions, SESSION_TTL_SECONDS, sessionCookie } from '../lib/session';
 import { createUser } from '../lib/users';
+import { logAttempt } from '../lib/attempts';
+import { recordAttribution } from '../lib/attribution';
 
 const CODE_RE = /^\d{6}$/;
 
-interface PendingSignup { passwordHash: string; name: string | null; timezone: string }
+interface PendingSignup { passwordHash: string; name: string | null; timezone: string; visitorId: string | null }
 
 function readPending(raw: string | null): PendingSignup | null {
   try {
     const p: unknown = JSON.parse(raw ?? '');
     if (isRecord(p) && typeof p.passwordHash === 'string' && typeof p.timezone === 'string' && (p.name === null || typeof p.name === 'string')) {
-      return { passwordHash: p.passwordHash, name: p.name, timezone: p.timezone };
+      return { passwordHash: p.passwordHash, name: p.name, timezone: p.timezone, visitorId: typeof p.visitorId === 'string' ? p.visitorId : null };
     }
   } catch {
     // fall through: unreadable payload
@@ -59,13 +61,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       return fail(500, 'Could not create the account. Please start again.');
     }
     const id = crypto.randomUUID();
-    const created = await createUser(env, { id, email, ...pending });
+    const created = await createUser(env, { id, email, passwordHash: pending.passwordHash, name: pending.name, timezone: pending.timezone });
     if (!created.ok) {
       return created.taken
         ? fail(409, 'An account with this email already exists. Try signing in.')
         : fail(500, 'Could not create the account. Please try again.');
     }
     await markSeen(env, id);
+    await logAttempt(env, request, { kind: 'register', ok: true, email });
+    await recordAttribution(env, request, id, pending.visitorId);
     const token = await createSession(env, request, id);
     const user: UserPublic = { id, email, name: pending.name, timezone: pending.timezone };
     return json({ ok: true, user }, 201, { 'Set-Cookie': sessionCookie(request, token, SESSION_TTL_SECONDS) });
@@ -80,6 +84,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   await revokeSessions(env, user.id);
   await purgeExpired(env);
   await markSeen(env, user.id);
+  await logAttempt(env, request, { kind: 'login', ok: true, email });
   const token = await createSession(env, request, user.id);
   return json({ ok: true, user }, 200, { 'Set-Cookie': sessionCookie(request, token, SESSION_TTL_SECONDS) });
 };

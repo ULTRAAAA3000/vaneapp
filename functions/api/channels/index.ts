@@ -14,6 +14,7 @@ import { requireUser } from '../lib/auth';
 import { encryptToken } from '../lib/crypto';
 import { fail, isRecord, json, methodNotAllowed, readJson, UUID_RE } from '../lib/http';
 import { bump, retryAfter } from '../lib/throttle';
+import { checkChannelQuota } from '../lib/catalog';
 import { handleAddBluesky } from './bluesky-add';
 import { CREDS_ERROR, findDuplicateTelegramChannel, loadTelegramCreds } from './credentials';
 import { quickConnectAvailable, VERIFIED_VALID_SECONDS } from './quick';
@@ -136,6 +137,9 @@ export const handleAddChannel: PagesFunction<Env> = async ({ request, env }) => 
   // Connecting the same chat twice would double-post: refuse, whichever method was used before.
   const dup = await findDuplicateTelegramChannel(env.DB, env.ENCRYPTION_KEY, auth.userId, chatIdToStore);
   if (dup) return fail(409, `This chat is already connected as "${dup}".`);
+
+  const overQuota = await checkChannelQuota(env, auth.userId);   // plan limit (only while "enforce_limits" is on)
+  if (overQuota) return overQuota;
 
   const encrypted = await encryptToken(JSON.stringify(blob), env.ENCRYPTION_KEY);
   const id = crypto.randomUUID();

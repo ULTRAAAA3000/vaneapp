@@ -10,12 +10,16 @@ import type { ChannelPublic, Env } from '../../../types';
 import { encryptToken } from '../lib/crypto';
 import { fail, isRecord, json } from '../lib/http';
 import { bump, retryAfter } from '../lib/throttle';
+import { checkChannelQuota } from '../lib/catalog';
 import { findDuplicateBlueskyChannel, BLUESKY_SERVICE, validateBlueskyAccount } from './bluesky';
 
 const ADD_ATTEMPTS_PER_HOUR = 10;
 
 export async function handleAddBluesky(env: Env, userId: string, name: string, credentials: unknown): Promise<Response> {
   if (!isRecord(credentials)) return fail(400, 'credentials must be an object: { identifier, appPassword }');
+
+  const overQuota = await checkChannelQuota(env, userId);   // plan limit (only while "enforce_limits" is on)
+  if (overQuota) return overQuota;
 
   // Every attempt is a real sign-in at Bluesky: don't let this become a password-guessing tool.
   const key = `bsky:add:${userId}`;

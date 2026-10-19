@@ -19,6 +19,7 @@ import { encryptToken } from '../lib/crypto';
 import { fail, isRecord, json, readJson } from '../lib/http';
 import { sha256Hex } from '../lib/session';
 import { bump, clientIp, retryAfter } from '../lib/throttle';
+import { checkChannelQuota } from '../lib/catalog';
 import { appFor, authorizeUrl, exchangeCode, findDuplicateMastodonChannel, normalizeInstance, readAccount } from './mastodon';
 
 const STATE_TTL_SECONDS = 600;
@@ -76,7 +77,7 @@ export const handleMastodonStart: PagesFunction<Env> = async ({ request, env }) 
 };
 
 // ───────────────────────── callback ─────────────────────────
-type Reason = 'ok' | 'denied' | 'expired' | 'failed' | 'duplicate' | 'migrate';
+type Reason = 'ok' | 'denied' | 'expired' | 'failed' | 'duplicate' | 'migrate' | 'limit';
 
 const back = (status: Reason): Response =>
   new Response(null, {
@@ -101,6 +102,7 @@ export const handleMastodonCallback: PagesFunction<Env> = async ({ request, env 
   if (!row || row.expires_at <= now || row.user_id !== auth.userId) return back('expired');
 
   if (q.get('error')) return back('denied');
+  if (await checkChannelQuota(env, auth.userId)) return back('limit');   // plan limit (only while "enforce_limits" is on)
   const code = q.get('code') ?? '';
   if (!code || code.length > 2048) return back('failed');
   if (!env.ENCRYPTION_KEY || env.ENCRYPTION_KEY.length < 32) {

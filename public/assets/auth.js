@@ -180,6 +180,7 @@
     setLoading(true);
     var body = { email: em, password: pw };
     if (ts.key) body.turnstileToken = ts.token;
+    if (mode === 'register' && window.VaneTrack) body.visitorId = window.VaneTrack.vid;
     if (mode === 'register') {
       body.name = nameInput.value.trim();
       try { body.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (err) { /* server falls back to UTC */ }

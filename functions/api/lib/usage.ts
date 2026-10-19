@@ -7,13 +7,14 @@
 import type { D1PreparedStatement } from '@cloudflare/workers-types';
 import type { Env, UsageBucket, UsageSummary } from '../../../types';
 import {
-  apiAllowed, limitsFor, microToUsd, overageRates, PLANS, periodKey, periodResetsAt, resolveSubscription,
+  apiAllowed, limitsFor, microToUsd, overageRates, periodKey, periodResetsAt, refreshPlanSpecs, resolveSubscription, specOf,
   type Subscription, type SubscriptionRow,
 } from './plans';
 
 export const nowSeconds = (): number => Math.floor(Date.now() / 1000);
 
 export async function loadSubscription(env: Env, userId: string, now = nowSeconds()): Promise<Subscription> {
+  await refreshPlanSpecs(env); // limits come from the plans table (admin → Plans)
   const row = await env.DB
     .prepare('SELECT plan, api_addon, status, current_period_end, overage_enabled FROM subscriptions WHERE user_id = ?1')
     .bind(userId)
@@ -40,7 +41,7 @@ const bucket = (limit: number, used: number): UsageBucket => ({ limit, used, rem
 
 /** The full picture for `GET /api/usage` and `GET /api/v1/usage`. */
 export async function usageSummary(env: Env, userId: string, sub: Subscription, now = nowSeconds()): Promise<UsageSummary> {
-  const spec = PLANS[sub.plan];
+  const spec = specOf(sub.plan);
   const period = periodKey(sub.plan, now);
   const c = await loadCounters(env, userId, period);
   const lim = limitsFor(sub);
