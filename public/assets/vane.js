@@ -94,7 +94,8 @@
     try { data = await res.json(); } catch (e) { /* non-JSON */ }
     if (res.status === 401 && !opts.noRedirect) Vane.go(Vane.loginUrl());
     var ok = res.ok && !(data && data.ok === false);
-    return { ok: ok, status: res.status, data: data, error: ok ? null : ((data && data.error) || 'Request failed (' + res.status + ')') };
+    var gateway = res.status === 502 || res.status === 503 || res.status === 504;   // the platform's own error page: no JSON from us
+    return { ok: ok, status: res.status, data: data, error: ok ? null : ((data && data.error) || (gateway ? 'The server is not answering right now. Please try again in a moment.' : 'Request failed (' + res.status + ')')) };
   };
 
   /**

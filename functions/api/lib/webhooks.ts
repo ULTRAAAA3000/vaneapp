@@ -131,7 +131,7 @@ export async function deliverDueWebhooks(env: OutboxEnv, nowSec: number): Promis
         const ts = Math.floor(Date.now() / 1000);
         const res = await fetch(d.url, {
           method: 'POST',
-          redirect: 'error',
+          redirect: 'manual',   // Workers have no redirect: 'error'; a 3xx is not followed and counts as a failed delivery below
           signal: AbortSignal.timeout(TIMEOUT_MS),
           headers: {
             'Content-Type': 'application/json',

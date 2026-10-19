@@ -218,7 +218,7 @@ async function uploadImage(env: LinkedinEnv, creds: LinkedinCreds, mediaUrl: str
 
   let res: Response;
   try {
-    res = await fetch(uploadUrl, { method: 'PUT', headers: { Authorization: `Bearer ${creds.accessToken}`, 'Content-Type': 'application/octet-stream' }, body: img.bytes, redirect: 'error', signal: AbortSignal.timeout(30_000) });
+    res = await fetch(uploadUrl, { method: 'PUT', headers: { Authorization: `Bearer ${creds.accessToken}`, 'Content-Type': 'application/octet-stream' }, body: img.bytes, redirect: 'manual', signal: AbortSignal.timeout(30_000) });   // Workers have no redirect: 'error'; a 3xx is not followed and is not ok
   } catch {
     return fail('LinkedIn did not accept the image in time.', true);
   }
