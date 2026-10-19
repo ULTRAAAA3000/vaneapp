@@ -787,6 +787,16 @@
     textEl.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
+  // What assets/ai.js needs from the editor: the text, a way to replace it, and the networks of the selected channels.
+  Vane.composer = {
+    text: function () { return textEl.value; },
+    set: function (t) { textEl.value = String(t).slice(0, MAX_LEN); textEl.focus(); textEl.dispatchEvent(new Event('input', { bubbles: true })); },
+    networks: function () {
+      var seen = {};
+      return S.channels.filter(function (c) { return S.selected.has(c.id); }).map(function (c) { return c.platform; }).filter(function (p) { return !seen[p] && (seen[p] = 1); });
+    }
+  };
+
   // emoji picker: a small curated set, plus the ones you used last (kept in this browser)
   var EMOJI = ['😀','😁','😂','🤣','😊','😍','🥰','😎','🤩','🤔','😅','😉','🙂','😭','😤','🙌',
     '👏','🙏','💪','👍','🔥','✨','🎉','🚀','💡','📌','📢','🔔','✅','❌','⚡','💯',

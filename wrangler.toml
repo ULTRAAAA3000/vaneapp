@@ -14,6 +14,11 @@ database_id = "9e560592-ec8e-451d-97d3-c2d8082c527e"   # npx wrangler d1 create 
 binding = "MEDIA"
 bucket_name = "vane-media"
 
+# Workers AI: the AI tools in the post editor (hashtags, Make it clean, Smart Re-formatter, Post Generator, Tone, Hook & CTA).
+# Nothing to create: the binding is enough. Without it those buttons answer "AI is not enabled on this server".
+[ai]
+binding = "AI"
+
 [vars]
 TURNSTILE_SITE_KEY = "0x4AAAAAAFYNiz-h1o5Y-W8u"
 # Sender of the emailed 6-digit codes: a domain verified in Resend. A plain value, so it lives HERE (not in the

@@ -12,6 +12,8 @@ export interface Env {
   ASSETS: Fetcher;
   /** R2 bucket for post media and the Vane Studio video library */
   MEDIA?: R2Bucket;             // optional: uploads are enabled only when the R2 bucket is bound
+  /** Cloudflare Workers AI (wrangler.toml [ai]): the AI tools in the editor are off without it */
+  AI?: { run(model: string, input: unknown): Promise<unknown> };
 
   /** Secrets (wrangler secret put / Pages → Settings → Variables) */
   ENCRYPTION_KEY?: string;      // for encrypting channels.credentials (>= 32 random chars)
@@ -359,6 +361,15 @@ export interface UsageSummary {
   ui: UsageBucket;
   /** Free Trial only */
   shared: UsageBucket | null;
+  /** AI generations (Smart Re-formatter, Post Generator, Tone, Hook & CTA); the free tools are not counted */
+  ai: {
+    /** credits the plan includes; null = no fixed amount (unlimited, or billed per generation: see perGenerationUsd) */
+    limit: number | null;
+    used: number;
+    remaining: number | null;
+    /** set when every generation is billed (Developer API): USD per generation */
+    perGenerationUsd: number | null;
+  };
   /** may this account send live API requests? */
   apiAccess: boolean;
   overage: {
