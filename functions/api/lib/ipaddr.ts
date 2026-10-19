@@ -78,4 +78,15 @@ export function inCidr(ip: ParsedIp, c: ParsedCidr): boolean {
   return ip.n >> shift === c.n >> shift;
 }
 
+/** Loopback, private (RFC 1918), link-local and unique-local addresses: our own machines and internal proxies, never "attackers". */
+export function isPrivateIp(raw: string): boolean {
+  const ip = parseIp(raw);
+  if (!ip) return false;
+  if (ip.v === 4) {
+    const a = Number(ip.n >> 24n), b = Number((ip.n >> 16n) & 0xffn);
+    return a === 10 || a === 127 || a === 0 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254);
+  }
+  return ip.n === 1n || ip.n === 0n || (ip.n >> 121n) === 0x7en /* fc00::/7 */ || (ip.n >> 118n) === 0x3fan /* fe80::/10 */;
+}
+
 export const sameIp = (a: ParsedIp, b: ParsedIp): boolean => a.v === b.v && a.n === b.n;

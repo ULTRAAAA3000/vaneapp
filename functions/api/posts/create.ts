@@ -20,8 +20,12 @@ import type { D1PreparedStatement, PagesFunction } from '@cloudflare/workers-typ
 import type { ChannelRow, ChannelType, Env } from '../../../types';
 import { requireUser } from '../lib/auth';
 import { fail, isRecord, json, readJson, UUID_RE } from '../lib/http';
+import { mediaKindFromUrl } from '../lib/media';
 import { postUnits } from '../lib/plans';
+import { graphemeLength, mastodonLength, utf8Length } from '../lib/text';
 import { countUiPosts } from '../lib/usage';
+import { BLUESKY_TEXT_LIMIT, BLUESKY_TEXT_MAX_BYTES } from '../channels/bluesky';
+import { MASTODON_TEXT_LIMIT } from '../channels/mastodon';
 import { isValidMediaUrl, TELEGRAM_CAPTION_LIMIT } from '../channels/telegram';
 
 const MAX_CHANNELS = 20;
@@ -33,6 +37,9 @@ const CONTENT_LIMIT: Record<ChannelType, number> = {
   x: 280,
   linkedin: 3000,
   webhook: 10_000,
+  bluesky: BLUESKY_TEXT_LIMIT,   // counted in graphemes, see below
+  mastodon: MASTODON_TEXT_LIMIT,   // links count as 23 characters, see below
+  threads: 500,
 };
 const ABSOLUTE_MAX_CONTENT = 10_000;
 
@@ -116,9 +123,18 @@ export async function validateCreatePost(env: Env, userId: string, body: unknown
   // ── per-platform limits
   for (const ch of owned) {
     const limit = ch.type === 'telegram' && mediaUrl ? TELEGRAM_CAPTION_LIMIT : CONTENT_LIMIT[ch.type];
-    if (content.length > limit) {
+    // Bluesky counts what a person sees (an emoji is 1); Mastodon counts every link as 23 characters
+    const length = ch.type === 'bluesky' ? graphemeLength(content) : ch.type === 'mastodon' ? mastodonLength(content) : content.length;
+    if (length > limit) {
       const why = ch.type === 'telegram' && mediaUrl ? ' when the post has an image' : '';
-      return bad(fail(400, `Text is too long for ${ch.type}${why}: ${content.length}/${limit} characters`));
+      return bad(fail(400, `Text is too long for ${ch.type}${why}: ${length}/${limit} characters`));
+    }
+    if (ch.type === 'bluesky') {
+      if (utf8Length(content) > BLUESKY_TEXT_MAX_BYTES) return bad(fail(400, 'Text is too long for bluesky: too many emoji or symbols'));
+      if (mediaUrl && mediaKindFromUrl(mediaUrl) === 'video') return bad(fail(400, 'Bluesky posts with video are not supported yet. Attach an image or remove the media.'));
+    }
+    if (ch.type === 'mastodon' && mediaUrl && mediaKindFromUrl(mediaUrl) === 'video') {
+      return bad(fail(400, 'Mastodon posts with video are not supported yet. Attach an image or remove the media.'));
     }
   }
 
@@ -131,13 +147,14 @@ export type InsertResult =
 
 /**
  * Writes one row per channel (all sharing a group_id) in a single D1 batch: all-or-nothing.
- * `extra` builds statements that must succeed or fail together with the posts (e.g. the usage log row).
+ * `extra` builds statements that must succeed or fail together with the posts (the usage log row, the stored
+ * Idempotency-Key answer); it is given the group id and the posts it will be written next to.
  */
 export async function insertPostGroup(
   env: Env,
   userId: string,
   v: ValidatedPost,
-  extra: (groupId: string) => D1PreparedStatement[] = () => [],
+  extra: (groupId: string, posts: { id: string; channelId: string; status: 'scheduled' }[]) => D1PreparedStatement[] = () => [],
 ): Promise<InsertResult> {
   const groupId = crypto.randomUUID();
   const mediaKeys = JSON.stringify(v.mediaUrl ? [v.mediaUrl] : []);
@@ -150,7 +167,7 @@ export async function insertPostGroup(
   try {
     await env.DB.batch([
       ...posts.map((p) => insert.bind(p.id, groupId, userId, p.channelId, v.content, mediaKeys, v.scheduledAt, v.now)),
-      ...extra(groupId),
+      ...extra(groupId, posts),
     ]);
   } catch (err) {
     console.error('post insert failed', err instanceof Error ? err.message : 'unknown');

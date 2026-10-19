@@ -26,6 +26,8 @@
 
   var TG_LIMIT = 4096, CAPTION_LIMIT = 1024, MAX_LEN = 10000;
 
+  // small "opens elsewhere" arrow, shown on pills that link to the published post
+  var EXT = '<svg class="h-3 w-3 text-white/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M8 7h9v9"/></svg>';
   var ICON = {
     trash: '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6M10 11v6M14 11v6"/></svg>',
     clock: '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
@@ -36,7 +38,7 @@
   // ───────────────────────── networks ─────────────────────────
   // One entry per social network: icon, tile colour, text limit, preview background and the card in the connect dialog.
   // To open a network for connecting: set ready: true and add a <div data-step="<key>"> setup block to the dialog in app.html.
-  // Limits: Telegram 4096 (1024 under an image or video), LinkedIn 3000, Threads 500, Bluesky 300 (graphemes).
+  // Limits: Telegram 4096 (1024 under an image or video), LinkedIn 3000, Threads 500, Bluesky 300 (graphemes), Mastodon 500 (a link counts as 23).
   var NET = {
     telegram: {
       name: 'Telegram', ready: true, blurb: 'Channels and groups', setup: 'Choose how Vane should publish to your channel.',
@@ -54,12 +56,17 @@
       icon: { fill: true, d: 'M12.186 24h-.007c-3.581-.024-6.334-1.205-8.184-3.509C2.35 18.44 1.5 15.586 1.472 12.01v-.017c.03-3.579.879-6.43 2.525-8.482C5.845 1.205 8.6.024 12.18 0h.014c2.746.02 5.043.725 6.826 2.098 1.677 1.29 2.858 3.13 3.509 5.467l-2.04.569c-1.104-3.96-3.898-5.984-8.304-6.015-2.91.022-5.11.936-6.54 2.717C4.307 6.504 3.616 8.914 3.589 12c.027 3.086.718 5.496 2.057 7.164 1.43 1.783 3.631 2.698 6.54 2.717 2.623-.02 4.358-.631 5.8-2.045 1.647-1.613 1.618-3.593 1.09-4.798-.31-.71-.873-1.3-1.634-1.75-.192 1.352-.622 2.446-1.284 3.272-.886 1.102-2.14 1.704-3.73 1.79-1.202.065-2.361-.218-3.259-.801-1.063-.689-1.685-1.74-1.752-2.964-.065-1.19.408-2.285 1.33-3.082.88-.76 2.119-1.207 3.583-1.291a13.853 13.853 0 0 1 3.02.142c-.126-.742-.375-1.332-.75-1.757-.513-.586-1.308-.883-2.359-.89h-.029c-.844 0-1.992.232-2.721 1.32L7.734 7.847c.98-1.454 2.568-2.256 4.478-2.256h.044c3.194.02 5.097 1.975 5.287 5.388.108.046.216.094.321.142 1.49.7 2.58 1.761 3.154 3.07.797 1.82.871 4.79-1.548 7.158-1.85 1.81-4.094 2.628-7.277 2.65Zm1.003-11.69c-.242 0-.487.007-.739.021-1.836.103-2.98.946-2.916 2.143.067 1.256 1.452 1.839 2.784 1.767 1.224-.065 2.818-.543 3.086-3.71a10.5 10.5 0 0 0-2.215-.221z' }
     },
     bluesky: {
-      name: 'Bluesky', ready: false, blurb: 'Your Bluesky account', setup: 'Choose which account Vane should publish to.',
+      name: 'Bluesky', ready: true, blurb: 'Your Bluesky account', setup: 'Sign in with an app password. It never opens your main account.',
       tile: 'bg-cyan-400/15 text-cyan-300', limit: 300, bg: '#161e27', hint: 'Bluesky counts graphemes, so an emoji is one character.',
       icon: { fill: true, d: 'M12 10.8c-1.087-2.114-4.046-6.053-6.798-7.995C2.566.944 1.561 1.266.902 1.565.139 1.908 0 3.08 0 3.768c0 .69.378 5.65.624 6.479.815 2.736 3.713 3.66 6.383 3.364.136-.02.275-.039.415-.056-.138.022-.276.04-.415.056-3.912.58-7.387 2.005-2.83 7.078 5.013 5.19 6.87-1.113 7.823-4.308.953 3.195 2.05 9.271 7.733 4.308 4.267-4.308 1.172-6.498-2.74-7.078a8.741 8.741 0 0 1-.415-.056c.14.017.279.036.415.056 2.67.297 5.568-.628 6.383-3.364.246-.828.624-5.79.624-6.478 0-.69-.139-1.861-.902-2.206-.659-.298-1.664-.62-4.3 1.24C16.046 4.748 13.087 8.687 12 10.8z' }
+    },
+    mastodon: {
+      name: 'Mastodon', ready: true, blurb: 'Any Mastodon server', setup: 'Enter your server, then allow Vane to post on your server.',
+      tile: 'bg-indigo-500/15 text-indigo-300', limit: 500, bg: '#191b22', hint: 'Mastodon counts every link as 23 characters, however long it is.',
+      icon: { fill: true, d: 'M23.268 5.313c-.35-2.578-2.617-4.61-5.304-5.004C17.51.242 15.792 0 11.813 0h-.03c-3.98 0-4.835.242-5.288.309C3.882.692 1.496 2.518.917 5.127.64 6.412.61 7.837.661 9.143c.074 1.874.088 3.745.26 5.611.118 1.24.325 2.47.62 3.68.55 2.237 2.777 4.098 4.96 4.857 2.336.792 4.849.923 7.256.38.265-.061.527-.132.786-.213.585-.184 1.27-.39 1.774-.753a.057.057 0 0 0 .023-.043v-1.809a.052.052 0 0 0-.02-.041.053.053 0 0 0-.046-.01 20.282 20.282 0 0 1-4.709.545c-2.73 0-3.463-1.284-3.674-1.818a5.593 5.593 0 0 1-.319-1.433.053.053 0 0 1 .066-.054c1.517.363 3.072.546 4.632.546.376 0 .75 0 1.125-.01 1.57-.044 3.224-.124 4.768-.422.038-.008.077-.015.11-.024 2.435-.464 4.753-1.92 4.989-5.604.008-.145.03-1.52.03-1.67.002-.512.167-3.63-.024-5.545zm-3.748 9.195h-2.561V8.29c0-1.309-.55-1.976-1.67-1.976-1.23 0-1.846.79-1.846 2.35v3.403h-2.546V8.663c0-1.56-.617-2.35-1.848-2.35-1.112 0-1.668.668-1.67 1.977v6.218H4.822V8.102c0-1.31.337-2.35 1.011-3.12.696-.77 1.608-1.164 2.74-1.164 1.311 0 2.302.5 2.962 1.498l.638 1.06.638-1.06c.66-.999 1.65-1.498 2.96-1.498 1.13 0 2.043.395 2.74 1.164.675.77 1.012 1.81 1.012 3.12z' }
     }
   };
-  var NET_ORDER = ['telegram', 'linkedin', 'threads', 'bluesky'];
+  var NET_ORDER = ['telegram', 'linkedin', 'threads', 'bluesky', 'mastodon'];
   // channels of a network this dashboard has no entry for (for example "x" or "webhook") get the generic link icon
   var NET_OTHER = { tile: 'bg-white/[0.08] text-white/70', icon: { d: 'M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7' } };
 
@@ -108,6 +115,24 @@
     return diff >= 0 ? 'in ' + dur(diff) : (Math.abs(diff) < 60000 ? 'just now' : dur(-diff) + ' ago');
   }
 
+  // The server's "Authorize" page sends the browser back to /app?connect=mastodon&status=…: say what happened, then tidy the address bar.
+  var MASTODON_RESULT = {
+    ok: ['ok', 'Mastodon connected.'],
+    denied: ['err', 'Mastodon was not connected: access was not allowed.'],
+    expired: ['err', 'That sign-in took too long or was already used. Start again.'],
+    duplicate: ['err', 'This Mastodon account is already connected.'],
+    migrate: ['err', 'Mastodon is not enabled on this server yet. The database needs one update.'],
+    limit: ['err', 'Your plan has no room for another channel. Upgrade to connect more.'],
+    failed: ['err', 'Could not finish connecting Mastodon. Try again.']
+  };
+  function reportMastodonReturn() {
+    var q = new URLSearchParams(location.search);
+    if (q.get('connect') !== 'mastodon') return;
+    var res = MASTODON_RESULT[q.get('status')] || MASTODON_RESULT.failed;
+    Vane.toast(res[0], res[1]);
+    try { history.replaceState(null, '', location.pathname); } catch (e) { /* address bar left as it is */ }
+  }
+
   // ───────────────────────── boot ─────────────────────────
   async function boot() {
     var me = await Vane.api('GET', '/api/auth/me'); // 401 → /login
@@ -134,6 +159,7 @@
     setTab('upcoming');
     renderAll();
     if (restored) Vane.toast('info', 'Your unsent draft is back.');
+    reportMastodonReturn();
 
     setInterval(function () { renderStats(); renderPosts(); }, 30000);
     // live posts: poll while the tab is visible, and catch up the moment it is back in front
@@ -209,11 +235,16 @@
     }
     // everything below is derived from the same two lists: hashtag memory and the Insights card
     if (tags) tags.setPosts(S.history.concat(S.upcoming));
-    Vane.renderInsights($('insights'), S.history, S.upcoming, {
+    var ins = Vane.renderInsights($('insights'), S.history, S.upcoming, {
       limit: 200,                                   // the server returns at most 200 posts per list
       netIcon: netIcon,
       onTag: function (t) { tags.insert(t); }
     });
+    var pill = $('streakPill');
+    pill.textContent = '🔥 ' + ins.streak + ' days in a row';
+    pill.classList.toggle('hidden', ins.streak < 2);
+    syncUsual(ins.hour);
+    renderWeek();
   }
 
   // ───────────────────────── channels ─────────────────────────
@@ -238,7 +269,7 @@
             '<div class="truncate text-sm font-medium">' + esc(c.name) + '</div>' +
             '<div class="mt-0.5 text-xs text-white/40">Added ' + esc(new Date(c.createdAt * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })) + '</div>' +
           '</div>' +
-          '<button type="button" data-act="test" data-id="' + esc(c.id) + '" class="btn btn-ghost btn-sm shrink-0">Send test</button>' +
+          (c.platform === 'telegram' ? '<button type="button" data-act="test" data-id="' + esc(c.id) + '" class="btn btn-ghost btn-sm shrink-0">Send test</button>' : '') +
           (armed
             ? '<button type="button" data-act="del" data-id="' + esc(c.id) + '" class="btn btn-danger btn-sm shrink-0">Remove?</button>'
             : '<button type="button" data-act="del" data-id="' + esc(c.id) + '" class="icon-btn shrink-0" aria-label="Remove ' + esc(c.name) + '">' + ICON.trash + '</button>') +
@@ -457,6 +488,54 @@
     renderAll();
   });
 
+  // ---- Bluesky: handle + app password
+  $('bPassToggle').addEventListener('click', function () {
+    var show = $('bPass').type === 'password';
+    $('bPass').type = show ? 'text' : 'password';
+    this.textContent = show ? 'Hide' : 'Show';
+  });
+  $('bForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var btn = $('bSubmit');
+    hideErr($('bErr'));
+
+    var handle = $('bHandle').value.trim().replace(/^@/, '');
+    var pass = $('bPass').value.trim();
+    var name = $('bName').value.trim() || handle;
+    if (!handle) return showErr($('bErr'), $('bForm'), 'Enter your Bluesky handle, like alice.bsky.social.');
+    if (!pass) return showErr($('bErr'), $('bForm'), 'Paste the app password you created in Bluesky.');
+
+    btn.disabled = true; $('bSpin').classList.remove('hidden'); $('bLabel').textContent = 'Checking with Bluesky…';
+    var r = await Vane.api('POST', '/api/channels/add', { platform: 'bluesky', name: name, credentials: { identifier: handle, appPassword: pass } });
+    btn.disabled = false; $('bSpin').classList.add('hidden'); $('bLabel').textContent = 'Verify & connect';
+
+    if (!r.ok) return showErr($('bErr'), $('bForm'), r.error);
+    closeConnect();
+    Vane.toast('ok', 'Connected to ' + (r.data.bluesky && r.data.bluesky.handle ? '@' + r.data.bluesky.handle : 'Bluesky') + '.');
+    S.selected.add(r.data.channel.id);
+    await loadChannels();
+    renderAll();
+  });
+
+  // ---- Mastodon: the server address, then the server's own "Authorize" page
+  $('mForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var btn = $('mSubmit');
+    hideErr($('mErr'));
+
+    var instance = $('mInstance').value.trim();
+    if (!instance) return showErr($('mErr'), $('mForm'), 'Enter the address of your Mastodon server, like mastodon.social.');
+
+    btn.disabled = true; $('mSpin').classList.remove('hidden'); $('mLabel').textContent = 'Contacting your server…';
+    var r = await Vane.api('POST', '/api/channels/mastodon/start', { instance: instance, name: $('mName').value.trim() });
+    if (!r.ok) {
+      btn.disabled = false; $('mSpin').classList.add('hidden'); $('mLabel').textContent = 'Continue';
+      return showErr($('mErr'), $('mForm'), r.error);
+    }
+    $('mLabel').textContent = 'Opening ' + r.data.instance + '…';
+    Vane.go(r.data.authorizeUrl);
+  });
+
   // ---- steps: pick a network, then set it up (each network's setup is the block with its data-step)
   function renderNetGrid() {
     $('netGrid').innerHTML = NET_ORDER.map(function (k) {
@@ -483,7 +562,7 @@
   function openStep(step) {
     showStep(step);
     setTimeout(function () {
-      var first = step === 'telegram' ? ($('panelQuick').classList.contains('hidden') ? $('cName') : $('qChat')) : dlg.querySelector('.net-card:not(:disabled)');
+      var first = step === 'telegram' ? ($('panelQuick').classList.contains('hidden') ? $('cName') : $('qChat')) : step === 'bluesky' ? $('bHandle') : step === 'mastodon' ? $('mInstance') : dlg.querySelector('.net-card:not(:disabled)');
       if (first) first.focus();
     }, 60);
   }
@@ -497,6 +576,8 @@
   function openConnect(net) {
     $('connectForm').reset(); hideErr($('cErr'));
     $('cToken').type = 'password'; $('cTokenToggle').textContent = 'Show';
+    $('mForm').reset(); hideErr($('mErr')); $('mSubmit').disabled = false; $('mSpin').classList.add('hidden'); $('mLabel').textContent = 'Continue';
+    $('bForm').reset(); hideErr($('bErr')); $('bPass').type = 'password'; $('bPassToggle').textContent = 'Show';
     qReset(); $('qChat').value = '';
 
     $('qBot').textContent = S.systemBot;
@@ -511,14 +592,16 @@
   }
   function closeConnect() {
     qStopTimers();
-    $('cToken').value = ''; // don't leave the secret sitting in the DOM
+    $('cToken').value = ''; $('bPass').value = ''; // don't leave the secrets sitting in the DOM
     if (typeof dlg.close === 'function') dlg.close(); else dlg.removeAttribute('open');
   }
   $('connectBtn').addEventListener('click', function () { openConnect(); });
   $('connectClose').addEventListener('click', closeConnect);
   $('cCancel').addEventListener('click', closeConnect);
+  $('bCancel').addEventListener('click', closeConnect);
+  $('mCancel').addEventListener('click', closeConnect);
   dlg.addEventListener('click', function (e) { if (e.target === dlg) closeConnect(); });
-  dlg.addEventListener('close', function () { $('cToken').value = ''; qStopTimers(); });
+  dlg.addEventListener('close', function () { $('cToken').value = ''; $('bPass').value = ''; qStopTimers(); });
 
   // ───────────────────────── composer ─────────────────────────
   var textEl = $('text'), whenEl = $('when');
@@ -558,16 +641,65 @@
       { label: 'Tomorrow 09:00', value: toLocalInput(t9) },
       { label: 'Tomorrow 18:00', value: toLocalInput(t18) }
     ];
+    usualVal = undefined; // the "usual time" chip is rebuilt by the next stats render
+    whenEl.value = QUICK[1].value;
+    renderQuick();
+  }
+  function renderQuick() {
     $('quick').innerHTML = QUICK.map(function (q, i) {
       return '<button type="button" class="chip" data-i="' + i + '" aria-pressed="false">' + ICON.clock + '<span>' + esc(q.label) + '</span></button>';
     }).join('');
-    whenEl.value = QUICK[1].value;
     syncQuick();
   }
   function syncQuick() {
     var btns = $('quick').querySelectorAll('button');
     for (var i = 0; i < btns.length; i++) btns[i].setAttribute('aria-pressed', String(QUICK[i].value === whenEl.value));
+    renderWeek();
   }
+
+  // A 4th chip with the hour you post at most (from Insights): the next time that hour comes round. Hidden when it equals a chip already shown.
+  var usualVal;
+  function syncUsual(hour) {
+    var val = '', label = '';
+    if (hour !== null && hour !== undefined) {
+      var t = new Date(); t.setHours(hour, 0, 0, 0);
+      if (t.getTime() < Date.now() + 10 * 60000) t.setDate(t.getDate() + 1);
+      val = toLocalInput(t); label = 'Your usual ' + pad(hour) + ':00';
+    }
+    if (val && QUICK.slice(0, 3).some(function (q) { return q.value === val; })) val = '';
+    if (val === usualVal) return;
+    usualVal = val;
+    QUICK = QUICK.slice(0, 3);
+    if (val) QUICK.push({ label: label, value: val });
+    renderQuick();
+  }
+
+  // The next 7 days as tiles: a dot for every post already scheduled that day; a tap sets the day and keeps the time of day.
+  var fmtWd = new Intl.DateTimeFormat(undefined, { weekday: 'short' });
+  var ymd = function (d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+  function renderWeek() {
+    var box = $('week');
+    var counts = {};
+    groupPosts(S.upcoming).forEach(function (g) { var k = ymd(new Date(g[0].scheduledAt * 1000)); counts[k] = (counts[k] || 0) + 1; });
+    var sel = (whenEl.value || '').slice(0, 10), now = new Date(), html = '';
+    for (var i = 0; i < 7; i++) {
+      var d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i), k = ymd(d), n = counts[k] || 0, dots = '';
+      for (var j = 0; j < Math.min(n, 3); j++) dots += '<i></i>';
+      html += '<button type="button" class="day-tile" data-d="' + k + '" aria-pressed="' + (k === sel) + '" title="' + (n ? n + (n === 1 ? ' post' : ' posts') + ' scheduled' : 'Nothing scheduled') + '">' +
+        '<span class="day-wd">' + esc(fmtWd.format(d)) + '</span><span class="pixel day-num">' + pad(d.getDate()) + '</span><span class="day-dots">' + dots + '</span></button>';
+    }
+    box.innerHTML = html;
+  }
+  $('week').addEventListener('click', function (e) {
+    var b = e.target.closest('.day-tile');
+    if (!b) return;
+    var v = b.getAttribute('data-d') + 'T' + ((whenEl.value || '').slice(11, 16) || '09:00');
+    if (new Date(v).getTime() < Date.now() + 5 * 60000) { // today, and that time has gone: the next quarter of an hour
+      var n = new Date(Date.now() + 15 * 60000); n.setMinutes(Math.ceil(n.getMinutes() / 15) * 15, 0, 0); v = toLocalInput(n);
+    }
+    whenEl.value = v;
+    syncQuick(); renderPreview(); validate();
+  });
   $('quick').addEventListener('click', function (e) {
     var b = e.target.closest('button'); if (!b) return;
     whenEl.value = QUICK[Number(b.getAttribute('data-i'))].value;
@@ -598,6 +730,53 @@
 
   // text + counter
   textEl.addEventListener('input', function () { renderPreview(); validate(); });
+
+  // Inserts text where the caret is (replacing a selection), the way typing would.
+  function insertAtCaret(text) {
+    var v = textEl.value, a = textEl.selectionStart, b = textEl.selectionEnd;
+    if (typeof a !== 'number') a = b = v.length;
+    textEl.value = v.slice(0, a) + text + v.slice(b);
+    textEl.focus();
+    textEl.setSelectionRange(a + text.length, a + text.length);
+    textEl.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  // emoji picker: a small curated set, plus the ones you used last (kept in this browser)
+  var EMOJI = ['😀','😁','😂','🤣','😊','😍','🥰','😎','🤩','🤔','😅','😉','🙂','😭','😤','🙌',
+    '👏','🙏','💪','👍','🔥','✨','🎉','🚀','💡','📌','📢','🔔','✅','❌','⚡','💯',
+    '❤️','💙','🧡','💜','🌟','⭐','🎯','🏆','👀','📈','🛠️','💬','📅','⏰','🆕','🔗',
+    '☕','🌍','📸','🎬','🎧','👇','👉','➡️'];
+  var emojiBtn = $('emojiBtn'), emojiPop = $('emojiPop');
+  function recentEmoji() {
+    try { return JSON.parse(localStorage.getItem('vane:emoji') || '[]').filter(function (e) { return EMOJI.indexOf(e) > -1; }).slice(0, 8); }
+    catch (e) { return []; }
+  }
+  function rememberEmoji(e) {
+    try { localStorage.setItem('vane:emoji', JSON.stringify([e].concat(recentEmoji().filter(function (x) { return x !== e; })).slice(0, 8))); }
+    catch (err) { /* storage blocked: recents are a convenience */ }
+  }
+  function emojiCell(e) { return '<button type="button" class="emoji-cell" data-e="' + e + '" aria-label="' + e + '">' + e + '</button>'; }
+  function setEmojiOpen(open) {
+    if (open) {
+      var rec = recentEmoji();
+      emojiPop.innerHTML =
+        (rec.length ? '<div class="px-1 pb-1.5 text-[10px] font-medium uppercase tracking-widest text-white/35">Recent</div><div class="grid grid-cols-8 gap-0.5">' + rec.map(emojiCell).join('') + '</div><div class="my-2 h-px bg-white/10"></div>' : '') +
+        '<div class="no-scrollbar grid max-h-48 grid-cols-8 gap-0.5 overflow-y-auto">' + EMOJI.map(emojiCell).join('') + '</div>';
+    }
+    emojiPop.classList.toggle('hidden', !open);
+    emojiBtn.setAttribute('aria-expanded', String(open));
+  }
+  emojiBtn.addEventListener('mousedown', function (e) { e.preventDefault(); }); // keep the caret in the text box
+  emojiPop.addEventListener('mousedown', function (e) { e.preventDefault(); });
+  emojiBtn.addEventListener('click', function () { setEmojiOpen(emojiPop.classList.contains('hidden')); });
+  emojiPop.addEventListener('click', function (e) {
+    var c = e.target.closest('.emoji-cell');
+    if (!c) return;
+    var em = c.getAttribute('data-e');
+    insertAtCaret(em); rememberEmoji(em);
+  });
+  document.addEventListener('click', function (e) { if (!emojiPop.classList.contains('hidden') && !e.target.closest('#emojiBtn, #emojiPop')) setEmojiOpen(false); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !emojiPop.classList.contains('hidden')) { setEmojiOpen(false); emojiBtn.focus(); } });
 
   // hashtag memory: suggestions from past posts while you type "#" (assets/insights.js)
   var tags = Vane.createTagAssist(textEl, $('tagBar'));
@@ -639,13 +818,24 @@
     return worst || { net: 'telegram', len: raw.length, limit: media ? CAPTION_LIMIT : TG_LIMIT };
   }
 
+  // the little progress ring in the counter: it fills with the text and turns amber, then red, near the limit
+  var RING = 2 * Math.PI * 7;
+  function ring(ratio) {
+    var r = Math.max(0, Math.min(1, ratio));
+    return '<svg class="h-3.5 w-3.5 -rotate-90" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true">' +
+      '<circle cx="9" cy="9" r="7" stroke-opacity=".18"/>' +
+      (r > 0 ? '<circle cx="9" cy="9" r="7" stroke-linecap="round" stroke-dasharray="' + RING.toFixed(2) + '" stroke-dashoffset="' + (RING * (1 - r)).toFixed(2) + '"/>' : '') +
+      '</svg>';
+  }
+
   // validation (live: drives the hint and the button)
   function validate() {
     var text = textEl.value.trim(), media = currentMedia();
     var t = tightest(textEl.value, media), len = t.len, limit = t.limit;
     var counter = $('count');
-    counter.textContent = len + ' / ' + limit;
-    counter.className = 'rounded-full px-2.5 py-1 text-xs font-medium ' + (len > limit ? 'bg-red-500/15 text-red-300' : 'bg-white/[0.06] text-white/50');
+    counter.innerHTML = ring(limit ? len / limit : 0) + '<span>' + len + ' / ' + limit + '</span>';
+    counter.className = 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ' +
+      (len > limit ? 'bg-red-500/15 text-red-300' : len > limit * 0.9 ? 'bg-amber-400/10 text-amber-200' : 'bg-white/[0.06] text-white/50');
 
     var msg = '';
     if (picker.isBusy()) msg = 'Waiting for the upload to finish…';
@@ -666,6 +856,7 @@
   var segmenter = window.Intl && Intl.Segmenter ? new Intl.Segmenter(undefined, { granularity: 'grapheme' }) : null;
 
   function netLen(net, text) {
+    if (net === 'mastodon') return Array.from(text.replace(/https?:\/\/[^\s]+/g, 'x'.repeat(23))).length;
     return net === 'bluesky' && segmenter ? Array.from(segmenter.segment(text)).length : text.length;
   }
   function netLimit(net, hasMedia) {
@@ -734,7 +925,16 @@
         '<div class="mt-3 flex justify-between pr-6 text-white/40">' + PV_ACTIONS + '</div>' +
       '</div></div></div>';
   }
-  var PV_VIEW = { telegram: viewTelegram, linkedin: viewLinkedin, threads: viewThreads, bluesky: viewBluesky };
+  function viewMastodon(c) {
+    return '<div class="p-3.5"><div class="overflow-hidden rounded-xl bg-[#282c37] ring-1 ring-white/10"><div class="flex gap-2.5 p-3">' + pvAvatar(40, c.name) +
+      '<div class="min-w-0 flex-1">' +
+        '<div class="leading-tight"><div class="truncate text-[13px] font-semibold">' + esc(c.name) + '</div><div class="truncate text-[11.5px] text-white/45">@' + esc(c.handle) + (c.when ? ' · ' + esc(c.when) : '') + '</div></div>' +
+        '<div class="mt-2 break-words text-[13.5px] leading-snug">' + (c.text ? Vane.rich(c.text) : EMPTY) + '</div>' +
+        pvMedia(c.m, 'mt-2.5 max-h-56 w-full rounded-lg') +
+        '<div class="mt-3 flex justify-between pr-6 text-white/40">' + PV_ACTIONS + '</div>' +
+      '</div></div></div></div>';
+  }
+  var PV_VIEW = { telegram: viewTelegram, linkedin: viewLinkedin, threads: viewThreads, bluesky: viewBluesky, mastodon: viewMastodon };
 
   // tabs are built once, then only their pressed state changes (keeps keyboard focus)
   function syncPvTabs() {
@@ -858,9 +1058,16 @@
       var armed = !!S.armed['cancel:' + p.groupId];
       var errs = g.filter(function (x) { return x.status === 'failed' && x.error; });
 
+      // a sent post that has a link on its network turns its channel pill into a link to it
       var pills = g.map(function (x) {
-        return '<span class="inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-2.5 py-1 text-xs text-white/70">' +
-          '<span class="h-1.5 w-1.5 rounded-full" style="background:' + (DOT[x.status] || DOT.scheduled) + '"></span>' + netIcon(x.platform, 'h-3 w-3 text-white/50') + esc(x.channelName) + '</span>';
+        var link = x.status === 'sent' && typeof x.url === 'string' && x.url.indexOf('https://') === 0;
+        var inner = '<span class="h-1.5 w-1.5 rounded-full" style="background:' + (DOT[x.status] || DOT.scheduled) + '"></span>' +
+          netIcon(x.platform, 'h-3 w-3 text-white/50') + esc(x.channelName) + (link ? EXT : '');
+        var base = 'inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-2.5 py-1 text-xs text-white/70';
+        var net = NET[x.platform] ? NET[x.platform].name : 'the network';
+        return link
+          ? '<a href="' + esc(x.url) + '" target="_blank" rel="noopener noreferrer" class="' + base + ' transition-colors hover:bg-white/[0.14] hover:text-white" title="Open the post on ' + esc(net) + '" aria-label="Open the post on ' + esc(net) + ' (' + esc(x.channelName) + ')">' + inner + '</a>'
+          : '<span class="' + base + '">' + inner + '</span>';
       }).join('');
 
       return '<article class="flex gap-4 rounded-2xl bg-white/[0.04] p-4 ring-1 ring-white/5 transition-colors hover:bg-white/[0.06]">' +
@@ -1072,6 +1279,7 @@
       'curl -X POST ' + base + '/posts \\\n' +
       '  -H "Authorization: Bearer $VANE_API_KEY" \\\n' +
       '  -H "Content-Type: application/json" \\\n' +
+      '  -H "Idempotency-Key: $(uuidgen)" \\\n' +
       '  -d \'{"content":"Hello from the API","channelIds":["' + (first ? first.id : '<channel-id>') + '"],"scheduledAt":"' + when + '"}\'';
 
     var chans = S.channels.length
@@ -1087,11 +1295,15 @@
       '<div><span class="mb-2 block text-[0.7rem] font-medium uppercase tracking-widest text-white/40">Base URL</span>' +
         '<div class="flex items-center gap-2.5"><code class="field min-w-0 flex-1 truncate font-mono !text-[13px]">' + esc(base) + '</code>' +
         '<button type="button" data-copy="' + esc(base) + '" data-label="URL" class="btn btn-ghost btn-sm shrink-0">Copy</button></div></div>' +
+      '<div><span class="mb-2 block text-[0.7rem] font-medium uppercase tracking-widest text-white/40">OpenAPI spec</span>' +
+        '<div class="flex items-center gap-2.5"><code class="field min-w-0 flex-1 truncate font-mono !text-[13px]">' + esc(base + '/openapi.json') + '</code>' +
+        '<button type="button" data-copy="' + esc(base + '/openapi.json') + '" data-label="Spec URL" class="btn btn-ghost btn-sm shrink-0">Copy</button></div>' +
+        '<p class="mt-2 text-xs leading-relaxed text-white/45">Paste it into a Custom GPT (Actions → Import from URL), Postman or any tool that reads OpenAPI.</p></div>' +
       '<div><span class="mb-2 block text-[0.7rem] font-medium uppercase tracking-widest text-white/40">Channel IDs <span class="normal-case tracking-normal text-white/30">(use them as channelIds)</span></span><div class="space-y-2">' + chans + '</div></div>' +
       '<div><div class="flex items-center justify-between"><span class="block text-[0.7rem] font-medium uppercase tracking-widest text-white/40">Example request</span>' +
         '<button type="button" data-copy-snippet class="text-xs text-white/45 transition-colors hover:text-white">Copy</button></div>' +
         '<pre class="no-scrollbar mt-2 overflow-x-auto rounded-2xl bg-black/35 p-4 font-mono text-[12px] leading-relaxed text-white/80 ring-1 ring-white/10"><code id="apiSnippet"></code></pre></div>' +
-      '<p class="text-xs leading-relaxed text-white/45">In Make, add an <b class="font-semibold text-white/70">HTTP → Make a request</b> module, paste the URL, add the header <code class="rounded bg-white/10 px-1.5 py-0.5">Authorization: Bearer your-key</code> and send the body as JSON. When a run is out of quota the API answers <code class="rounded bg-white/10 px-1.5 py-0.5">402</code>.</p>';
+      '<p class="text-xs leading-relaxed text-white/45">In Make, add an <b class="font-semibold text-white/70">HTTP → Make a request</b> module, paste the URL, add the header <code class="rounded bg-white/10 px-1.5 py-0.5">Authorization: Bearer your-key</code> and send the body as JSON. Add an <code class="rounded bg-white/10 px-1.5 py-0.5">Idempotency-Key</code> header with a value that stays the same on a retry (for example the execution id), so a retried run never posts twice. When a run is out of quota the API answers <code class="rounded bg-white/10 px-1.5 py-0.5">402</code>.</p>';
     $('apiSnippet').textContent = quickSnippet;   // textContent: nothing from the server is ever parsed as HTML
   }
   $('apiQuickBody').addEventListener('click', function (e) {

@@ -14,11 +14,13 @@
  *  - FAIL SAFE. If ENCRYPTION_KEY is missing this run touches nothing (posts stay scheduled).
  *
  * No schema change needed: backoff reuses `updated_at` (a requeued post becomes due again at
- * updated_at + backoff). `sent_at` is the "published at" timestamp, `external_id` the Telegram
- * message id.
+ * updated_at + backoff). `sent_at` is the "published at" timestamp, `external_id` the id of the post
+ * on the network (Telegram message id, Bluesky at:// uri, Mastodon status url).
  */
 import type { ChannelRow, CronEnv } from '../../types';
 import { CREDS_ERROR, loadTelegramCreds, type TelegramCreds } from '../../functions/api/channels/credentials';
+import { loadBlueskyCreds, openBlueskySession, sendBlueskyPost, type BlueskySession } from '../../functions/api/channels/bluesky';
+import { loadMastodonCreds, sendMastodonPost } from '../../functions/api/channels/mastodon';
 import { isValidMediaUrl, sendTelegramPost } from '../../functions/api/channels/telegram';
 
 export const BATCH_SIZE = 20;               // per run: keeps us inside Workers' subrequest limits
@@ -135,17 +137,17 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
   }
 
   // ── 5) Deliver, one post at a time (Telegram allows ~20 messages/min per channel).
-  async function finish(post: Claimed, outcome: Outcome, error: string | null, extra: { messageId?: number; retryAfter?: number } = {}): Promise<void> {
+  async function finish(post: Claimed, outcome: Outcome, error: string | null, extra: { externalId?: string; network?: string; retryAfter?: number } = {}): Promise<void> {
     const base = { id: post.id, user_id: post.user_id, channel_id: post.channel_id };
     if (outcome === 'sent') {
       await env.DB.batch([
         env.DB.prepare(`UPDATE posts SET status = 'sent', sent_at = ?1, external_id = ?2, error = NULL, updated_at = ?1 WHERE id = ?3 AND status = 'processing'`)
-          .bind(nowSec, String(extra.messageId ?? ''), post.id),
-        log(base, 'info', 'post.sent', 'Published to Telegram', { attempt: post.attempts, messageId: extra.messageId }),
+          .bind(nowSec, extra.externalId ?? '', post.id),
+        log(base, 'info', 'post.sent', `Published to ${extra.network ?? 'Telegram'}`, { attempt: post.attempts, externalId: extra.externalId }),
       ]);
     } else if (outcome === 'retry') {
-      // Due again at updated_at + backoff(attempts). For Telegram's retry_after, push updated_at
-      // into the future by the difference so the next try is never earlier than Telegram asked.
+      // Due again at updated_at + backoff(attempts). For the network's retry_after (Telegram, Bluesky), push updated_at
+      // into the future by the difference so the next try is never earlier than the network asked.
       const wait = backoffSeconds(post.attempts);
       const bump = Math.max(0, (extra.retryAfter ?? 0) - wait);
       await env.DB.batch([
@@ -166,6 +168,8 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
     const ch = channels.get(post.channel_id);
     if (!ch) return finish(post, 'failed', 'The channel no longer exists.');
     if (!ch.is_active) return finish(post, 'failed', 'The channel is disabled.');
+    if (ch.type === 'bluesky') return deliverBluesky(post, ch);
+    if (ch.type === 'mastodon') return deliverMastodon(post, ch);
     if (ch.type !== 'telegram') return finish(post, 'failed', `Publishing to ${ch.type} is not supported yet.`);
 
     const resolved = await credsFor(ch);
@@ -188,7 +192,79 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
     }
 
     const res = await sendTelegramPost(creds.botToken, creds.chatId, post.content, mediaUrl);
-    if (res.ok) return finish(post, 'sent', null, { messageId: res.messageId });
+    if (res.ok) return finish(post, 'sent', null, { externalId: String(res.messageId), network: 'Telegram' });
+    if (res.retryable && post.attempts < MAX_ATTEMPTS) return finish(post, 'retry', res.error, { retryAfter: res.retryAfter });
+    return finish(post, 'failed', res.retryable ? `${res.error} (gave up after ${post.attempts} attempts)` : res.error);
+  }
+
+  // One Bluesky session per channel per run (Bluesky limits how often an account may sign in).
+  const bskySessions = new Map<string, { session: BlueskySession } | { error: string; retryable: boolean; retryAfter?: number }>();
+
+  async function bskySessionFor(ch: ChannelInfo) {
+    const cached = bskySessions.get(ch.id);
+    if (cached) return cached;
+    let outcome: { session: BlueskySession } | { error: string; retryable: boolean; retryAfter?: number };
+    const creds = await loadBlueskyCreds(ch.credentials, env.ENCRYPTION_KEY);
+    if (!creds) {
+      console.error(`vane-cron: could not decrypt credentials of channel ${ch.id} (wrong ENCRYPTION_KEY or corrupt data)`);
+      outcome = { error: CREDS_ERROR.unreadable, retryable: true };
+    } else {
+      const opened = await openBlueskySession(creds.identifier, creds.appPassword);
+      if (opened.ok) outcome = { session: opened.session };
+      else if (opened.code === 'bad_login') outcome = { error: 'Bluesky no longer accepts the saved app password. Reconnect the account.', retryable: false };
+      else outcome = { error: opened.error, retryable: true, retryAfter: opened.retryAfter };
+    }
+    bskySessions.set(ch.id, outcome);
+    return outcome;
+  }
+
+  async function deliverBluesky(post: Claimed, ch: ChannelInfo): Promise<void> {
+    const opened = await bskySessionFor(ch);
+    if ('error' in opened) {
+      if (opened.retryable && post.attempts < MAX_ATTEMPTS) return finish(post, 'retry', opened.error, { retryAfter: opened.retryAfter });
+      return finish(post, 'failed', opened.error);
+    }
+
+    let mediaUrl: string | undefined;
+    try {
+      const first = (JSON.parse(post.media_keys) as unknown[])[0];
+      if (first !== undefined) {
+        const url = resolveMediaUrl(first, env.APP_URL);
+        if (!url) return finish(post, 'failed', 'The attached image reference is invalid.');
+        mediaUrl = url;
+      }
+    } catch {
+      return finish(post, 'failed', 'The attached image reference is invalid.');
+    }
+
+    const res = await sendBlueskyPost(opened.session, post.content, mediaUrl);
+    if (res.ok) return finish(post, 'sent', null, { externalId: res.uri, network: 'Bluesky' });
+    if (res.retryable && post.attempts < MAX_ATTEMPTS) return finish(post, 'retry', res.error, { retryAfter: res.retryAfter });
+    return finish(post, 'failed', res.retryable ? `${res.error} (gave up after ${post.attempts} attempts)` : res.error);
+  }
+
+  async function deliverMastodon(post: Claimed, ch: ChannelInfo): Promise<void> {
+    const creds = await loadMastodonCreds(ch.credentials, env.ENCRYPTION_KEY);
+    if (!creds) {
+      console.error(`vane-cron: could not read credentials of channel ${ch.id} (wrong ENCRYPTION_KEY or corrupt data)`);
+      return finish(post, post.attempts < MAX_ATTEMPTS ? 'retry' : 'failed', CREDS_ERROR.unreadable);
+    }
+
+    let mediaUrl: string | undefined;
+    try {
+      const first = (JSON.parse(post.media_keys) as unknown[])[0];
+      if (first !== undefined) {
+        const url = resolveMediaUrl(first, env.APP_URL);
+        if (!url) return finish(post, 'failed', 'The attached image reference is invalid.');
+        mediaUrl = url;
+      }
+    } catch {
+      return finish(post, 'failed', 'The attached image reference is invalid.');
+    }
+
+    // The post id is the Idempotency-Key: if a try times out after Mastodon already posted, the next try gets the same status back instead of a duplicate.
+    const res = await sendMastodonPost(creds, post.content, mediaUrl, post.id);
+    if (res.ok) return finish(post, 'sent', null, { externalId: res.url, network: 'Mastodon' });
     if (res.retryable && post.attempts < MAX_ATTEMPTS) return finish(post, 'retry', res.error, { retryAfter: res.retryAfter });
     return finish(post, 'failed', res.retryable ? `${res.error} (gave up after ${post.attempts} attempts)` : res.error);
   }

@@ -6,8 +6,8 @@ export interface Settings {
   block_tor: boolean;           // refuse Tor exit nodes (Cloudflare reports them as country "T1")
   block_vpn_api: boolean;       // ask the VPN/proxy lookup API about every address (needs PROXYCHECK_KEY)
   auto_ban: boolean;            // ban addresses that brute-force or mass-register
-  auto_ban_login_fails: number; // failed sign-ins from one address within 15 min
-  auto_ban_registers: number;   // sign-up attempts from one address within 1 h
+  auto_ban_login_fails: number; // failed sign-ins from one address within 15 min (the soft throttle is 30, so this is sustained abuse)
+  auto_ban_registers: number;   // sign-up attempts from one address within 1 h (the soft throttle is 10)
   auto_ban_hours: number;       // how long an automatic ban lasts
   registration_open: boolean;   // kill switch for new sign-ups
   track_visits: boolean;        // record page views for the Traffic tab
@@ -19,8 +19,8 @@ export const DEFAULT_SETTINGS: Settings = {
   block_tor: true,
   block_vpn_api: true,
   auto_ban: true,
-  auto_ban_login_fails: 15,
-  auto_ban_registers: 6,
+  auto_ban_login_fails: 60,
+  auto_ban_registers: 20,
   auto_ban_hours: 24,
   registration_open: true,
   track_visits: true,

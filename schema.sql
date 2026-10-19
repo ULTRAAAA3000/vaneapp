@@ -26,12 +26,13 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- ───────────────────────── Channels ─────────────────────────
--- One row = one connected destination (Telegram chat, X account, LinkedIn profile, webhook URL)
+-- One row = one connected destination (Telegram chat, Bluesky / Mastodon / Threads account, X account, LinkedIn profile, webhook URL)
+-- A database created before 'bluesky' existed has the older CHECK: run `npm run db:migrate:networks` once (see migrations/).
 CREATE TABLE IF NOT EXISTS channels (
   id           TEXT    PRIMARY KEY,                         -- uuid
   user_id      TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   type         TEXT    NOT NULL
-               CHECK (type IN ('telegram', 'x', 'linkedin', 'webhook')),
+               CHECK (type IN ('telegram', 'x', 'linkedin', 'webhook', 'bluesky', 'mastodon', 'threads')),
   name         TEXT    NOT NULL,                            -- display label, e.g. "@vane_dev"
   credentials  TEXT    NOT NULL,                            -- JSON, encrypted at app level (tokens, chat_id, url, secret)
   is_active    INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
@@ -456,3 +457,48 @@ CREATE TABLE IF NOT EXISTS admin_audit (
 );
 CREATE INDEX IF NOT EXISTS idx_audit_ts ON admin_audit(ts);
 CREATE INDEX IF NOT EXISTS idx_wv_user ON web_views(user_id);
+
+-- ───────────────────────── Public API: Idempotency-Key (API part 3) ─────────────────────────
+-- A retried POST /api/v1/posts (Make and Zapier retry on timeouts) carrying the same Idempotency-Key must not create a
+-- second post or take a second unit of quota: the first answer is stored here and replayed.
+--   idem_key      "<live|test>:<the client's key>"  (a test run never collides with a live one)
+--   request_hash  sha256 of the canonical request body: the same key with a DIFFERENT body is refused (422)
+--   state         'processing' while the first request runs, 'done' once its answer is stored
+--   locked_at     when the claim was taken (a claim older than a minute is treated as abandoned)
+--   expires_at    keys are remembered for 24 hours
+CREATE TABLE IF NOT EXISTS idempotency_keys (
+  user_id          TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  idem_key         TEXT    NOT NULL,
+  request_hash     TEXT    NOT NULL,
+  state            TEXT    NOT NULL CHECK (state IN ('processing', 'done')),
+  response_status  INTEGER,
+  response_body    TEXT,
+  locked_at        INTEGER NOT NULL,
+  expires_at       INTEGER NOT NULL,
+  PRIMARY KEY (user_id, idem_key)
+);
+CREATE INDEX IF NOT EXISTS idx_idempotency_expires ON idempotency_keys(expires_at);
+
+-- ───────────────────────── Mastodon: the app Vane registered on each server, and sign-in attempts ─────────────────────────
+-- Every Mastodon server hands out its own client_id / client_secret: Vane registers itself once per server (and per callback address) and reuses it.
+CREATE TABLE IF NOT EXISTS mastodon_apps (
+  instance      TEXT    NOT NULL,                           -- host, lowercase, e.g. "mastodon.social"
+  redirect_uri  TEXT    NOT NULL,
+  client_id     TEXT    NOT NULL,
+  client_secret TEXT    NOT NULL,                           -- encrypted at app level, like channel credentials
+  created_at    INTEGER NOT NULL DEFAULT (unixepoch()),
+  PRIMARY KEY (instance, redirect_uri)
+);
+
+-- One row = a person who was sent to a server's "Allow access" page and has not come back yet. Single use, 10 minutes.
+-- Only the SHA-256 of the `state` is stored; the callback must come from the SAME signed-in user who started it.
+CREATE TABLE IF NOT EXISTS oauth_states (
+  state_hash  TEXT    PRIMARY KEY,
+  user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  provider    TEXT    NOT NULL,                             -- 'mastodon'
+  instance    TEXT    NOT NULL,
+  name        TEXT    NOT NULL DEFAULT '',                  -- display name chosen in the dashboard ('' = use the account name)
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+  expires_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_states_expiry ON oauth_states(expires_at);

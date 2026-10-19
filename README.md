@@ -109,6 +109,29 @@ npx wrangler pages secret put GSC_SITE_URL        --project-name=vaneapp   # sc-
 
 **Why the one-time code?** The shared bot is an admin in many channels, so "the bot can post there" says nothing about who owns the channel. Only an admin can post the code, and the bot sees it through the webhook, so ownership is proven before the channel is connected.
 
+## Bluesky connection
+
+Connect it in the dashboard: *Connect → Bluesky*, then handle + **app password** (Bluesky → Settings → Privacy and security → App passwords). A normal password is refused on purpose; an app password can only post, and deleting it in Bluesky disconnects Vane.
+
+- **Deploy order:** a database made before Bluesky existed refuses the new channel type. Run **`npm run db:migrate:networks` once** (it rebuilds `channels` with the wider CHECK and puts every post and log back; safe to repeat). Until then connecting Bluesky answers `503` with that command, nothing else is affected. A fresh `npm run db:remote` already has the new CHECK.
+- Deploy the Pages project **and** the cron Worker (`npm run cron:deploy`): the Worker does the publishing. `ENCRYPTION_KEY` must be the same on both, as for Telegram.
+- Text: 300 graphemes (an emoji counts as 1) and at most 3000 bytes. Links and `#tags` become clickable. One image per post (JPEG, PNG, WebP or GIF, **up to 1 MB**, a Bluesky limit); video is not supported yet and is refused when scheduling.
+- Only `bsky.social` accounts and custom handles hosted there are supported. A self-hosted server address is deliberately not accepted.
+- The worker signs in once per channel per run. A revoked app password fails the post with "Reconnect the account"; Bluesky 429/5xx are retried like Telegram's.
+- `external_id` of a sent post is its `at://` address. "Send test" is Telegram-only: a test would be a public post.
+
+## Mastodon connection
+
+Connect it in the dashboard: *Connect → Mastodon*, type your server (`mastodon.social`; a pasted profile link or `@me@server` works too), press **Authorize** on your server, and you land back in Vane. There is nothing to create or approve in advance: Vane registers itself on each server the first time someone uses it (`POST /api/v1/apps`) and remembers that registration.
+
+- **Deploy order:** the flow needs two new tables (`mastodon_apps`, `oauth_states`): run `npm run db:remote` (safe to repeat). It also needs the `channels` CHECK from the Bluesky update (`npm run db:migrate:networks`, once). Without them the dashboard says what is missing; nothing else is affected.
+- **Callback address:** `<APP_URL>/api/channels/mastodon/callback` (falls back to the address the request came to). It is registered on each server together with the app, so change `APP_URL` only on purpose: a new address means a fresh registration.
+- **Permissions asked for:** `read:accounts write:statuses write:media` only. Vane cannot read the timeline, follow, block or edit the account. The person can withdraw access any time in their server's *Preferences → Account → Authorized apps*.
+- **Safety:** the server name is checked before anything is fetched (public DNS name only: no IP addresses, ports, `localhost`, `.local`/`.internal` names, or Vane itself) and redirects are never followed. The `state` is random, single use, valid 10 minutes, stored only as a hash and tied to the user who started it. Access token and per-server client secret are encrypted like every channel secret. 10 starts per user and 30 per IP per hour.
+- **Posting:** public posts, text up to **500 characters with every link counted as 23** (the real limit of a server can be higher; we use the common default). One image per post (JPEG, PNG, WebP or GIF, up to 8 MB); video is not supported yet and is refused when scheduling. Each post is sent with an `Idempotency-Key` equal to its id, so a retry after a lost answer can't publish twice. `external_id` is the status URL.
+- **Servers whose web address differs from the account domain** (a `WEB_DOMAIN` redirect) are not followed: use the address of the server's web site.
+- "Send test" is Telegram-only (a test would be a public post).
+
 ## Local development
 
 ```
@@ -132,7 +155,8 @@ Spec: `ECONOMY_AND_FINANCE.md` §2 and §6, `SECURITY_ARCHITECTURE.md` §2-3. Bu
 |---|---|---|
 | 1 | Tables, key generation and hashing, key auth, scopes, test mode, quota engine with 402, `/api/v1/*`, usage | done |
 | 2 | "API access" section in the dashboard: create / revoke keys, quota meter, quick start | done |
-| 3 | OpenAPI spec, `Idempotency-Key` (safe retries from Make / Zapier), webhooks | next |
+| 3a | OpenAPI spec and `Idempotency-Key` (safe retries from Make / Zapier) | done |
+| 3b | Webhooks: signed `post.sent` / `post.failed` / `post.cancelled` events, retries | next |
 | 4 | Payments (Monobank, USDT/USDC) that grant the plan and issue keys automatically | |
 | 5 | AI endpoints on Workers AI (reformat, tone, hooks) with their own metering | |
 
@@ -168,6 +192,7 @@ curl -X POST https://vaneapp.dev/api/keys -H "Authorization: Bearer <jwt>" -H "C
 
 | | |
 |---|---|
+| `GET /api/v1/openapi.json` | the OpenAPI 3.1 description (no key needed) |
 | `GET /api/v1/me` | is the key valid, which plan (the "test connection" call for Make / Zapier) |
 | `GET /api/v1/usage` | plan, quota, what is left, what extra posts cost |
 | `GET /api/v1/channels` | my channels; their `id`s go into `channelIds` |
@@ -177,7 +202,7 @@ curl -X POST https://vaneapp.dev/api/keys -H "Authorization: Bearer <jwt>" -H "C
 | `DELETE /api/v1/posts/:id` | cancel while still `scheduled` |
 
 Every metered response carries `X-Vane-Quota-Limit`, `X-Vane-Quota-Remaining` and `X-Vane-Quota-Reset`. Errors are `{ "ok": false, "error": "…", "code": "…" }`; branch on `code`:
-`invalid_api_key` (401) · `wrong_key_scope` (403) · `api_not_in_plan` (403) · `quota_exceeded` (402) · `rate_limited` (429) · `too_many_keys` (409).
+`invalid_api_key` (401) · `wrong_key_scope` (403) · `api_not_in_plan` (403) · `quota_exceeded` (402) · `rate_limited` (429) · `too_many_keys` (409) · `invalid_idempotency_key` (400) · `idempotency_key_reuse` (422) · `idempotency_in_progress` (409).
 
 **OpenAPI spec:** `https://vaneapp.dev/vane-openapi.json` (OpenAPI 3.0, served from `public/`) describes all of the above, so a tool can import it instead of being set up by hand.
 - *ChatGPT Custom GPT*: Configure → Actions → *Import from URL* with the address above → Authentication *API Key* → *Bearer*, paste a `cpost_…` key. Use a `cpost_test_` key while trying it out.
@@ -187,6 +212,23 @@ Every metered response carries `X-Vane-Quota-Limit`, `X-Vane-Quota-Remaining` an
 **Make custom app:** a ready app definition lives in `integrations/make/` (modules: Schedule / Get / Cancel a Post, List Posts, List Channels; channels come as a dropdown). Setup is in its README; `npm run check:integrations` checks it still matches the spec.
 
 Make.com: *HTTP → Make a request*, URL `https://vaneapp.dev/api/v1/posts`, header `Authorization: Bearer <key>`, body type *Raw / JSON*. A scenario that runs on a key that is out of quota gets `402`, which Make shows as an error you can route.
+
+### Safe retries: `Idempotency-Key`
+
+Make and Zapier retry a request that timed out. Send `Idempotency-Key: <unique value>` on `POST /api/v1/posts` (a UUID, or something that stays the same on a retry, such as the scenario's execution id; 1-255 printable characters) and a retry can never create a second post or take a second unit of quota.
+
+| Request | Answer |
+|---|---|
+| first | runs normally; its 201 answer is remembered for 24 hours |
+| same key, same body | the first answer again (same group and post ids), header `Idempotent-Replayed: true`, **no quota taken** (it works even when the quota is spent) |
+| same key, different body | `422 idempotency_key_reuse` |
+| same key while the first is still running | `409 idempotency_in_progress` (`Retry-After: 1`) |
+
+Only a **successful** answer is remembered: a request that failed (400, 402, 5xx) frees the key, so the retry, after fixing the input or upgrading, simply runs. Key order inside the JSON does not matter. Live and test keys have separate key spaces, and test keys replay too (handy for testing retry logic). The stored answer is written in the same database batch as the post, so there is no moment where the post exists and the key does not know it; a claim abandoned for over a minute (a crashed request) can be taken over. Expired keys are removed by the cron worker. Code: `functions/api/lib/idempotency.ts`.
+
+### OpenAPI / Custom GPT
+
+`GET /api/v1/openapi.json` serves an OpenAPI 3.1 description of this API (public, CORS-enabled, nothing private in it). The dashboard's Quick start shows the URL with a Copy button. In ChatGPT: *Create a GPT → Configure → Actions → Import from URL*, then set Authentication to *API Key / Bearer* and paste a `cpost_live_…` key. Postman and Make read it too. The spec lives in `functions/api/lib/openapi.ts` (the only hand-written description); `npm run test:api` validates its structure and **fails if a route under `functions/api/v1` is not documented or a documented route does not exist** (the Video Engine has its own document, `documentation/VIDEO_ENGINE.md`).
 
 ### How the quota works
 
@@ -215,7 +257,7 @@ npm run plan:set -- me@example.com pro --addon --forever --remote   # production
 
 ### Test it
 
-`npm run db:local && npm run dev` in one terminal, `npm run test:api` in another: 66 checks that walk through keys, scopes, test mode, the Free Trial, every plan, the parallel-request race, overage, revoking and the rate limit. It only schedules posts for a placeholder channel; nothing is sent anywhere.
+`npm run db:local && npm run dev` in one terminal, `npm run test:api` in another: 101 checks that walk through keys, scopes, test mode, the Free Trial, every plan, the parallel-request race, overage, revoking, the rate limit, Idempotency-Key (retries, races, expiry) and the OpenAPI document. It only schedules posts for a placeholder channel; nothing is sent anywhere.
 
 ## Vane Studio / Video Engine (a separate dashboard)
 
@@ -262,3 +304,4 @@ All of it is computed in the browser from the two post lists the dashboard alrea
 - **No view counts:** Telegram's Bot API does not report how many people saw a channel post, so there is nothing honest to show. Add it when a network that reports it (LinkedIn, Threads, Bluesky) is opened.
 - **Draft:** the editor text is kept in this browser's `localStorage` (key `vane:draft:<userId>`), restored on the next visit, removed once the post is scheduled and on sign-out.
 - **Reuse** (History): copies a finished post's text and channels back into the editor. **Ctrl / ⌘ + Enter** schedules.
+- **Open a sent post:** in History a channel pill of a sent post is a link to the post on its network (Mastodon: the post URL, Bluesky: `bsky.app/profile/<did>/post/<id>`, Telegram: `t.me/<channel>/<id>` for an `@name` channel, `t.me/c/<id>/<id>` for one saved by its numeric id, which opens for members). The same `url` field is in `GET /api/v1/posts`. It is built on read from `posts.external_id` (`functions/api/lib/postlink.ts`), nothing new is stored, and it is `null` where a network gives no stable link (private chats, groups).

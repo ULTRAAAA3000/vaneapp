@@ -765,6 +765,11 @@
           "sentAt": {
             "type": "integer",
             "nullable": true
+          },
+          "url": {
+            "type": "string",
+            "nullable": true,
+            "description": "Link to the published post on its network (https). Null until sent, or when the network gives no link."
           }
         }
       }

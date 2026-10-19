@@ -1,6 +1,7 @@
 /** The sign-in / sign-up attempt log, plus the automatic ban for addresses that abuse it. */
 import type { Env } from '../../../types';
 import { clientOf, invalidateGuardCache } from './guard';
+import { isPrivateIp } from './ipaddr';
 import { getSettings } from './settings';
 
 export type AttemptKind = 'login' | 'register' | 'admin_login';
@@ -41,7 +42,7 @@ export async function maybeAutoBan(env: Env, request: Request, kind: AttemptKind
   try {
     const settings = await getSettings(env);
     const { ip } = clientOf(request);
-    if (!settings.auto_ban || ip === 'unknown') return false;
+    if (!settings.auto_ban || ip === 'unknown' || isPrivateIp(ip)) return false;   // never ban our own / internal addresses
     const now = Math.floor(Date.now() / 1000);
 
     let count: number;
