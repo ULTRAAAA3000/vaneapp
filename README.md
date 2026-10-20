@@ -337,7 +337,7 @@ Full setup, redirect URLs, review checklist and the screencast script: `document
 - Code: `functions/api/channels/linkedin.ts` and `threads.ts` (API calls), `social-oauth.ts` (the start/callback flow for both), `threads-hooks.ts` (Meta's deauthorize and data-deletion calls), `worker/src/dispatch.ts` (publishing) and `worker/src/tokens.ts` (daily Threads sign-in renewal).
 - Sign-ins last 60 days. Threads renews itself; LinkedIn (no refresh token for ordinary apps) shows **Reconnect** on the channel card a week before, and reconnecting renews the same channel in place.
 - A sent post's `url` (History link, `GET /api/v1/posts`): LinkedIn `linkedin.com/feed/update/<urn>/`, Threads its permalink.
-- Pages: `/privacy` and `/data-deletion` (fill in the legal name and contact email before submitting for review).
+- Pages: `/privacy`, `/terms` and `/data-deletion`. The yellow `[…]` marks in them are the owner's details still to fill in (operator name and address, contact email, effective date, governing law and courts, retention periods): search the three files for `class="todo"`. They are generated from the finished product (all plans, Studio, AI, API, payments), not from the current state.
 
 ## Webhooks
 

@@ -15,6 +15,7 @@
 | Threads → Deauthorize Callback URL | `https://vaneapp.dev/api/channels/threads/deauthorize` |
 | Threads → Data Deletion Request URL | `https://vaneapp.dev/api/channels/threads/delete` |
 | Privacy Policy URL (оба портала) | `https://vaneapp.dev/privacy` |
+| Terms of Service URL (Google OAuth consent screen, Meta, TikTok) | `https://vaneapp.dev/terms` |
 | Инструкция по удалению данных (Meta) | `https://vaneapp.dev/data-deletion` |
 
 > В старой заметке `SOCIAL_PLATFORMS_VERIFICATION.md` был адрес `api.vaneapp.dev/v1/channels/linkedin/callback`. Он не используется: callback живёт на основном домене.
@@ -68,7 +69,7 @@
 
 Чек-лист перед отправкой:
 
-- [ ] В `public/privacy.html` и `public/data-deletion.html` заполнены **юридическое имя** и **контактный email** (места подсвечены жёлтым, ищи `todo`; плашку «TODO» с текста тоже убрать).
+- [ ] В `public/privacy.html`, `public/terms.html` и `public/data-deletion.html` заполнены все места, подсвеченные жёлтым (`class="todo"`): юридическое имя и адрес, контактный email, дата вступления в силу, применимое право и суд, сроки хранения.
 - [ ] Privacy Policy и Terms (если требуются) открываются без входа по `https://vaneapp.dev/privacy`.
 - [ ] Иконка 1024×1024 (Meta), логотип 300×300 (LinkedIn), описание продукта, домен `vaneapp.dev` подтверждён.
 - [ ] Тестовый аккаунт для ревьюера: логин и пароль в поле «Notes for the reviewer», в аккаунте уже подключены Threads/LinkedIn.
