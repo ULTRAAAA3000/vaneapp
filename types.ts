@@ -13,6 +13,8 @@ export interface Env {
   /** R2 bucket for post media and the Vane Studio video library */
   MEDIA?: R2Bucket;             // optional: uploads are enabled only when the R2 bucket is bound
   /** Cloudflare Workers AI (wrangler.toml [ai]): the AI tools in the editor are off without it */
+  /** optional: the Workers AI model id to use instead of the built-in one */
+  AI_MODEL?: string;
   AI?: { run(model: string, input: unknown): Promise<unknown> };
 
   /** Secrets (wrangler secret put / Pages → Settings → Variables) */
@@ -371,6 +373,8 @@ export interface UsageSummary {
     perGenerationUsd: number | null;
     /** can a premium generation run for this account right now? false = Developer API without extra-usage billing */
     billable: boolean;
+    /** extra credits an admin gave to this account (already included in `remaining`) */
+    bonus: number;
   };
   /** may this account send live API requests? */
   apiAccess: boolean;

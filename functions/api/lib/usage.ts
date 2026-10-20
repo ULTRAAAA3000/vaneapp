@@ -41,12 +41,20 @@ async function loadCounters(env: Env, userId: string, period: string): Promise<C
 const bucket = (limit: number, used: number): UsageBucket => ({ limit, used, remaining: Math.max(limit - used, 0) });
 
 /** AI credits as the dashboard shows them. See aiMode() for how a plan's `aiCredits` is read. */
-function aiBucket(spec: PlanSpec, sub: Subscription, used: number): UsageSummary['ai'] {
+function aiBucket(spec: PlanSpec, sub: Subscription, used: number, bonus = 0): UsageSummary['ai'] {
   const mode = aiMode(spec);
-  const billable = !!overageRates(sub);
-  if (mode.kind === 'credits') return { limit: mode.credits, used, remaining: Math.max(mode.credits - used, 0), perGenerationUsd: null, billable: mode.credits > used || billable };
-  if (mode.kind === 'per_generation') return { limit: null, used, remaining: null, perGenerationUsd: microToUsd(mode.priceMicro), billable };
-  return { limit: null, used, remaining: null, perGenerationUsd: null, billable: true };
+  const billable = !!overageRates(sub) || bonus > 0;
+  if (mode.kind === 'credits') return { limit: mode.credits, used, remaining: Math.max(mode.credits - used, 0) + bonus, perGenerationUsd: null, billable: mode.credits > used || billable, bonus };
+  if (mode.kind === 'per_generation') return { limit: null, used, remaining: null, perGenerationUsd: microToUsd(mode.priceMicro), billable, bonus };
+  return { limit: null, used, remaining: null, perGenerationUsd: null, billable: true, bonus };
+}
+
+/** Credits an admin gave to this account (0 when none, or when the table is not there yet). */
+export async function loadAiBonus(env: Env, userId: string): Promise<number> {
+  try {
+    const row = await env.DB.prepare('SELECT credits FROM user_ai_bonus WHERE user_id = ?1').bind(userId).first<{ credits: number }>();
+    return row?.credits ?? 0;
+  } catch { return 0; }
 }
 
 /** The full picture for `GET /api/usage` and `GET /api/v1/usage`. */
@@ -68,7 +76,7 @@ export async function usageSummary(env: Env, userId: string, sub: Subscription, 
     api: shared ?? bucket(lim.api, c.api_posts),
     ui: shared ?? bucket(lim.ui, c.ui_posts),
     shared,
-    ai: aiBucket(spec, sub, c.ai_generations),
+    ai: aiBucket(spec, sub, c.ai_generations, await loadAiBonus(env, userId)),
     apiAccess: apiAllowed(sub),
     overage: {
       enabled: rates !== null,
@@ -197,7 +205,7 @@ export function quotaHeaders(u: UsageSummary): Record<string, string> {
 // ───────────────────────── AI generations ─────────────────────────
 
 export type AiReservation =
-  | { ok: true; overage: boolean; costMicro: number; period: string }
+  | { ok: true; overage: boolean; costMicro: number; period: string; bonus?: boolean }
   | { ok: false; code: 'ai_not_in_plan' | 'ai_quota_exceeded' };
 
 /**
@@ -222,6 +230,13 @@ export async function reserveAiGeneration(env: Env, userId: string, sub: Subscri
       .bind(userId, period, now, mode.credits)
       .run();
     if ((res.meta?.changes ?? 0) > 0) return { ok: true, overage: false, costMicro: 0, period };
+  }
+  // Credits an admin gave to this account: spent after the plan's own, before any billing.
+  if (mode.kind !== 'unlimited') {
+    try {
+      const b = await env.DB.prepare('UPDATE user_ai_bonus SET credits = credits - 1, updated_at = ?2 WHERE user_id = ?1 AND credits > 0').bind(userId, now).run();
+      if ((b.meta?.changes ?? 0) > 0) return { ok: true, overage: false, costMicro: 0, period, bonus: true };
+    } catch { /* the table is not there yet (schema.sql not re-run): no bonus */ }
   }
   if (mode.kind === 'unlimited') {
     await env.DB
@@ -248,6 +263,10 @@ export async function reserveAiGeneration(env: Env, userId: string, sub: Subscri
 /** The generation failed on our side (the model did not answer): give the credit back. */
 export async function releaseAiGeneration(env: Env, userId: string, r: Extract<AiReservation, { ok: true }>): Promise<void> {
   try {
+    if (r.bonus) {
+      await env.DB.prepare('UPDATE user_ai_bonus SET credits = credits + 1 WHERE user_id = ?1').bind(userId).run();
+      return;
+    }
     await env.DB
       .prepare(
         `UPDATE usage_counters SET ai_generations = MAX(ai_generations - 1, 0), overage_micro_usd = MAX(overage_micro_usd - ?3, 0), updated_at = ?4

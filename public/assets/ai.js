@@ -41,7 +41,7 @@
   function credits() {
     var el = $('aiCredits'), ai = A.ai;
     if (!ai) { el.textContent = ''; return; }
-    if (ai.limit !== null) el.textContent = ai.remaining + ' AI credit' + (ai.remaining === 1 ? '' : 's') + ' left';
+    if (ai.limit !== null || ai.bonus > 0) el.textContent = (ai.remaining === null ? ai.bonus : ai.remaining) + ' AI credit' + ((ai.remaining === null ? ai.bonus : ai.remaining) === 1 ? '' : 's') + ' left';
     else if (ai.perGenerationUsd) el.textContent = ai.billable ? '$' + ai.perGenerationUsd + ' per AI Pass use' : 'AI Pass needs extra-usage billing';
     else el.textContent = '';
   }

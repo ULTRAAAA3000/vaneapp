@@ -11,7 +11,9 @@ import type { ChannelType, Env } from '../../../types';
 import { CONTENT_LIMIT } from '../posts/create';
 import { graphemeLength, mastodonLength, threadsLength } from './text';
 
-export const AI_MODEL = '@cf/meta/llama-3.1-8b-instruct';
+/** The model the AI tools run on. Cloudflare retires models from time to time: set AI_MODEL (a Pages variable) to switch without a code change. */
+export const AI_MODEL = '@cf/meta/llama-3.1-8b-instruct-fp8';
+export const modelOf = (env: Env): string => (typeof env.AI_MODEL === 'string' && /^@cf\/[\w.\/-]+$/.test(env.AI_MODEL.trim()) ? env.AI_MODEL.trim() : AI_MODEL);
 export const FREE_TOOLS = ['clean', 'hashtags'] as const;
 export const PREMIUM_TOOLS = ['tone', 'hook', 'cta', 'reformat', 'generate', 'plan'] as const;
 export type AiTool = (typeof FREE_TOOLS)[number] | (typeof PREMIUM_TOOLS)[number];
@@ -75,7 +77,7 @@ export async function ask(env: Env, system: string, user: string, maxTokens = 70
     if (attempt) await new Promise((r) => setTimeout(r, 700));
     try {
       out = await Promise.race([
-        ai.run(AI_MODEL, { messages: [{ role: 'system', content: system }, { role: 'user', content: user }], max_tokens: maxTokens, temperature }),
+        ai.run(modelOf(env), { messages: [{ role: 'system', content: system }, { role: 'user', content: user }], max_tokens: maxTokens, temperature }),
         new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), TIMEOUT_MS)),
       ]);
     } catch (err) {
@@ -85,6 +87,7 @@ export async function ask(env: Env, system: string, user: string, maxTokens = 70
     }
   }
   if (out === undefined) {
+    if (/deprecated|5028/i.test(lastError)) throw new AiError('ai_failed', 'The AI model of this server was retired by Cloudflare. The owner needs to set AI_MODEL to a current model.', 503);
     if (/4006|neurons|allocation|daily/i.test(lastError)) throw new AiError('ai_failed', 'The free daily AI allowance of this server is used up. It resets at 00:00 UTC.', 503);
     if (lastError === 'timeout') throw new AiError('ai_failed', 'The AI took too long. Try again in a moment.', 504);
     throw new AiError('ai_failed', `The AI did not answer (${lastError.replace(/\s+/g, ' ').slice(0, 120) || 'no details'}). Try again in a moment.`, 500);

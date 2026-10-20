@@ -302,6 +302,10 @@
           field('gDays', 'For (days)', '', { ph: 'empty = no end date', type: 'number', attrs: 'min="1" max="3650"' }) + field('gNote', 'Note (kept in Activity)', '', { ph: 'e.g. beta tester' }) +
           '<div id="gAddonRow" class="col-span-2 flex flex-wrap gap-x-5 gap-y-2">' + check('gAddon', 'Add the API add-on (Pro only)', false) + check('gOver', 'Bill posts over the quota instead of stopping', false) + '</div>' +
           '<div class="col-span-2 flex items-center justify-between gap-3"><p class="text-xs text-white/40">Same as <code>npm run plan:set</code>. A granted plan is free and never counted as revenue; it replaces the current plan.</p><button class="btn btn-white btn-sm" type="submit">Give plan</button></div></form>' +
+        '<h3 class="mt-7 text-sm font-semibold">AI credits</h3>' +
+        '<form id="aiForm" class="mt-3 grid grid-cols-2 gap-3" data-id="' + esc(u.id) + '"><p class="col-span-2 text-xs text-white/55">' + (d.usage ? 'Plan: ' + (d.usage.ai.limit !== null ? num(d.usage.ai.used) + ' of ' + num(d.usage.ai.limit) + ' used' : num(d.usage.ai.used) + ' used') + ' · extra credits you gave: <b class="text-white">' + num(d.usage.ai.bonus) + '</b>' : '') + '</p>' +
+          field('aCredits', 'Add credits', '', { ph: 'e.g. 100 (negative takes away)', type: 'number', attrs: 'step="1"' }) + field('aNote', 'Note (kept in Activity)', '', { ph: 'e.g. testing' }) +
+          '<div class="col-span-2 flex items-center justify-between gap-3"><p class="text-xs text-white/40">Spent after the plan\'s own AI credits, before any billing. Works on any plan.</p><button class="btn btn-white btn-sm" type="submit">Add credits</button></div></form>' +
         '<h3 class="mt-7 text-sm font-semibold">Where they came from</h3><p class="mt-2 text-sm text-white/70">' + (a ? esc((a.ref_host || 'direct') + (a.utm_source ? ' · utm ' + a.utm_source : '') + ' · landed on ' + (a.landing_path || '?')) + ' · ' + flag(a.country) + ' ' + esc(a.country || '??') : 'Unknown.') + '</p>' +
         '<h3 class="mt-7 text-sm font-semibold">Channels (' + d.channels.length + ')</h3><div class="mt-2 flex flex-wrap gap-2">' + (d.channels.length ? d.channels.map(function (c) { return tag(c.type + ' · ' + c.name, c.is_active ? '' : 'warn'); }).join('') : '<span class="text-sm text-white/40">No channels.</span>') + '</div>' +
         '<h3 class="mt-7 text-sm font-semibold">Pages they open</h3>' + (d.pages.length ? d.pages.map(function (p) { return hbar(esc(p.path), p.views, d.pages[0].views, num(p.views) + ' views · ' + dur(p.avg_time) + ' avg'); }).join('') : '<p class="mt-2 text-sm text-white/40">No tracked visits.</p>') +
@@ -313,6 +317,14 @@
           : '<button class="btn btn-danger" type="button" data-act="disable" data-id="' + esc(u.id) + '" data-email="' + esc(u.email) + '">Disable account…</button><p class="mt-2 text-xs text-white/40">Signs them out everywhere and refuses their sign-in. Their data is kept.</p>') + '</div>');
       var syncAddon = function () { $('gAddon').closest('label').style.display = $('gPlan').value === 'pro' ? '' : 'none'; };
       $('gPlan').addEventListener('change', syncAddon); syncAddon();
+      $('aiForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var n = Number($('aCredits').value);
+        if (!n || n % 1) { Vane.toast('err', 'Enter a whole number of credits, for example 100.'); return; }
+        call('POST', '/api/admin/users', { action: 'ai_credits', userId: e.target.dataset.id, credits: n, note: $('aNote').value.trim() }).then(function (g) {
+          if (g.ok) { Vane.toast('ok', 'Done. Extra AI credits now: ' + g.data.balance); openUser(id); } else Vane.toast('err', g.error);
+        });
+      });
       $('grantForm').addEventListener('submit', function (e) {
         e.preventDefault();
         var days = $('gDays').value.trim();
