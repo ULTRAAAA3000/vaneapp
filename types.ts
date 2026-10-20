@@ -12,6 +12,8 @@ export interface Env {
   ASSETS: Fetcher;
   /** R2 bucket for post media and the Vane Studio video library */
   MEDIA?: R2Bucket;             // optional: uploads are enabled only when the R2 bucket is bound
+  /** Local dev and tests only: lets a channel whose credentials say {"mock": …} act as a fake network (see functions/api/lib/videopublishers.ts). Never set in production. */
+  VIDEO_PUBLISH_MOCK?: string;
   /** Cloudflare Workers AI (wrangler.toml [ai]): the AI tools in the editor are off without it */
   /** optional: the Workers AI model id to use instead of the built-in one */
   AI_MODEL?: string;
@@ -271,6 +273,8 @@ export type ListPostsResponse = { ok: true; posts: PostPublic[] } | ApiError;
 /** Bindings of the separate `vane-cron` Worker (see worker/wrangler.toml). */
 export interface CronEnv {
   DB: D1Database;
+  MEDIA?: R2Bucket;          // the video library: a network's publisher reads the file from here (see worker/wrangler.toml)
+  VIDEO_PUBLISH_MOCK?: string; // local dev only, see Env
   ENCRYPTION_KEY?: string;   // MUST be the same value as on the Pages project
   SYSTEM_BOT_TOKEN?: string; // MUST be the same as on Pages: needed to publish to Quick Connect channels
   APP_URL?: string;          // public origin, used to turn stored R2 keys into URLs
@@ -477,3 +481,28 @@ export type StartVideoUploadResponse =
       simulated?: true;
     }
   | ApiError;
+
+// ───────────────────────── Vane Studio publishing ─────────────────────────
+export type VideoPrivacy = 'private' | 'unlisted' | 'public';
+export type VideoPublicationStatus = 'queued' | 'publishing' | 'published' | 'failed';
+
+export interface VideoPublicationPublic {
+  id: string;
+  videoId: string;
+  videoTitle: string | null;
+  platform: 'youtube' | 'tiktok' | 'instagram';
+  channelName: string;
+  title: string;
+  description: string;
+  privacy: VideoPrivacy;
+  status: VideoPublicationStatus;
+  attempts: number;
+  maxAttempts: number;
+  /** only while queued: when the next attempt is due (unix seconds) */
+  nextAttemptAt: number | null;
+  error: string | null;
+  /** where the published video lives on the network */
+  url: string | null;
+  createdAt: number;
+  publishedAt: number | null;
+}

@@ -14,6 +14,8 @@
     uploadsOn: true,      // the server has video storage bound
     videos: [],
     channels: [],         // connected video channels
+    publications: [],     // the publishing history
+    pubTimer: null,       // polls while anything is queued or publishing
     platforms: [],        // the networks the server knows, with whether each is open yet
     armed: {},            // two-step delete: ids waiting for the second click
     file: null,           // the file chosen in the uploader
@@ -98,6 +100,7 @@
     var actions = '';
     if (v.status === 'ready') {
       actions = '<button class="btn btn-ghost btn-sm" data-act="share" data-id="' + v.id + '">' + (v.publicUrl ? 'Link' : 'Share') + '</button>' +
+        '<button class="btn btn-ghost btn-sm" data-act="publish" data-id="' + v.id + '">Publish</button>' +
         '<button class="btn btn-ghost btn-sm" data-act="announce" data-id="' + v.id + '">Announce</button>' +
         '<button class="btn btn-ghost btn-sm" data-act="edit" data-id="' + v.id + '">Edit</button>' +
         '<button class="btn btn-danger btn-sm" data-act="delete" data-id="' + v.id + '">Delete</button>';
@@ -139,6 +142,7 @@
     if (act === 'play') openPlayer(v);
     else if (act === 'edit') openEditor(v);
     else if (act === 'share') openShare(v);
+    else if (act === 'publish') openPublish(v);
     else if (act === 'announce') openAnnounce(v);
     else if (act === 'delete') await removeVideo(v, btn);
   });
@@ -342,6 +346,135 @@
     var b = e.target.closest('[data-net]');
     if (b && !b.disabled) Vane.toast('info', netName(b.getAttribute('data-net')) + ' cannot be connected yet.');
   });
+
+  // ───────────────────────── publishing (the queue is network-agnostic; the networks plug in behind it) ─────────────────────────
+  var PRIVACY_TEXT = {
+    private: 'Only you can see it.',
+    unlisted: 'Anyone with the link can see it, but it is not listed.',
+    public: 'Everyone can find and watch it.'
+  };
+  var PUB_BADGE = {
+    queued: ['badge-scheduled', 'Queued'],
+    publishing: ['badge-processing', 'Publishing'],
+    published: ['badge-sent', 'Published'],
+    failed: ['badge-failed', 'Failed']
+  };
+
+  function untilText(ts) {
+    var s = Math.max(0, ts - Math.floor(Date.now() / 1000));
+    if (s < 60) return 'in ' + s + ' s';
+    if (s < 3600) return 'in ' + Math.round(s / 60) + ' min';
+    return 'in ' + Math.round(s / 3600) + ' h';
+  }
+
+  function renderPublications() {
+    var box = $('publications');
+    if (!S.publications.length) {
+      box.innerHTML = '<p class="rounded-2xl border border-dashed border-white/10 px-5 py-6 text-center text-xs leading-relaxed text-white/45">Nothing published yet. Use <span class="font-medium text-white/70">Publish</span> on a video once a channel is connected.</p>';
+      return;
+    }
+    box.innerHTML = S.publications.map(function (p) {
+      var b = PUB_BADGE[p.status];
+      var detail = '';
+      if (p.status === 'queued') detail = (p.error ? esc(p.error) + ' ' : '') + 'Next try ' + untilText(p.nextAttemptAt) + ' (attempt ' + (p.attempts + 1) + ' of ' + p.maxAttempts + ').';
+      else if (p.status === 'publishing') detail = 'Uploading to ' + esc(netName(p.platform)) + '…';
+      else if (p.status === 'failed') detail = esc(p.error || 'Something went wrong.');
+      var actions = '';
+      if (p.status === 'published' && p.url) actions += '<a class="btn btn-ghost btn-sm" href="' + esc(p.url) + '" target="_blank" rel="noopener noreferrer">View</a>';
+      if (p.status === 'failed') actions += '<button class="btn btn-white btn-sm" data-act="retry" data-id="' + esc(p.id) + '">Retry</button>';
+      if (p.status !== 'publishing') actions += '<button class="icon-btn" data-act="remove" data-id="' + esc(p.id) + '" aria-label="' + (p.status === 'queued' ? 'Cancel' : 'Remove from history') + '" title="' + (p.status === 'queued' ? 'Cancel' : 'Remove from history') + '">' + TRASH + '</button>';
+      return '<div class="flex flex-wrap items-center gap-3 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/5">' +
+        '<div class="net-tile ' + netTile(p.platform) + '">' + netIcon(p.platform, 'h-5 w-5') + '</div>' +
+        '<div class="min-w-0 flex-1">' +
+          '<div class="flex flex-wrap items-center gap-2"><span class="truncate text-sm font-medium">' + esc(p.title) + '</span><span class="badge ' + b[0] + '">' + b[1] + '</span></div>' +
+          '<div class="mt-0.5 truncate text-xs text-white/45">' + esc(netName(p.platform)) + ' · ' + esc(p.channelName) + ' · ' + esc(p.privacy) + ' · ' + esc(fmtDate(p.createdAt)) + '</div>' +
+          (detail ? '<div class="mt-1 text-xs ' + (p.status === 'failed' ? 'text-red-200/80' : 'text-white/50') + '">' + detail + '</div>' : '') +
+        '</div>' +
+        '<div class="flex shrink-0 items-center gap-2">' + actions + '</div></div>';
+    }).join('');
+  }
+
+  /** Reloads the history. While something is queued or publishing it keeps itself fresh (the server also nudges due retries on each call). */
+  async function loadPublications() {
+    var r = await Vane.api('GET', '/api/video/publications');
+    if (!r.ok) return;
+    S.publications = r.data.publications;
+    renderPublications();
+    var busy = S.publications.some(function (p) { return p.status === 'queued' || p.status === 'publishing'; });
+    $('pubLive').classList.toggle('hidden', !busy);
+    clearTimeout(S.pubTimer);
+    S.pubTimer = busy ? setTimeout(loadPublications, 4000) : null;
+  }
+
+  $('publications').addEventListener('click', async function (e) {
+    var btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    var id = btn.getAttribute('data-id'), act = btn.getAttribute('data-act');
+    btn.disabled = true;
+    var r = act === 'retry' ? await Vane.api('POST', '/api/video/publications/' + id + '/retry', {}) : await Vane.api('DELETE', '/api/video/publications/' + id);
+    if (!r.ok) { btn.disabled = false; Vane.toast('err', r.error); return; }
+    Vane.toast('ok', act === 'retry' ? 'Trying again' : 'Removed');
+    await loadPublications();
+  });
+
+  /** The publish dialog: which channels, and the title, description and privacy for them. */
+  async function openPublish(v) {
+    openModal('<h3 class="mb-3 break-words text-base font-semibold">Publish "' + esc(v.title) + '"</h3><p class="text-sm text-white/50">Loading your channels…</p>');
+    var r = await Vane.api('GET', '/api/video/channels');
+    if (!r.ok) { closeModal(); Vane.toast('err', r.error); return; }
+    S.channels = r.data.channels; S.platforms = r.data.platforms;
+    var channels = S.channels.filter(function (c) { return c.isActive; });
+
+    if (!channels.length) {
+      openModal('<h3 class="mb-2 text-base font-semibold">Publish "' + esc(v.title) + '"</h3>' +
+        '<p class="text-sm leading-relaxed text-white/60">You have no video channels yet. YouTube, TikTok and Instagram Reels open one by one as each network approves Vane. Once a channel is connected, publishing is one click here.</p>' +
+        '<div class="mt-5 flex justify-end gap-2"><button class="btn btn-ghost btn-sm" id="mClose">Close</button><button class="btn btn-white btn-sm" id="pubNets">See the networks</button></div>');
+      $('mClose').addEventListener('click', closeModal);
+      $('pubNets').addEventListener('click', function () { closeModal(); openConnect(); });
+      return;
+    }
+
+    openModal('<h3 class="mb-1 break-words text-base font-semibold">Publish "' + esc(v.title) + '"</h3>' +
+      '<p class="text-xs text-white/45">The video goes up in the background. If a network is busy, Vane tries again by itself.</p>' +
+      '<fieldset class="mt-4"><legend class="mb-2 text-xs text-white/55">Channels</legend><div id="pubChannels" class="flex flex-wrap gap-2">' +
+        channels.map(function (c) {
+          return '<label class="flex cursor-pointer items-center gap-2 rounded-full bg-white/[0.06] px-3 py-1.5 text-sm ring-1 ring-white/10 has-[:checked]:bg-white has-[:checked]:text-black">' +
+            '<input type="checkbox" class="sr-only" value="' + esc(c.id) + '" />' +
+            '<span class="font-medium">' + esc(netName(c.platform)) + '</span><span class="opacity-60">' + esc(c.name) + '</span></label>';
+        }).join('') + '</div></fieldset>' +
+      '<div class="mt-4 space-y-3">' +
+        '<div><label for="pubName" class="mb-1 block text-xs text-white/55">Title</label><input id="pubName" class="field" maxlength="100" value="' + esc(v.title) + '" /></div>' +
+        '<div><label for="pubDesc" class="mb-1 block text-xs text-white/55">Description</label><textarea id="pubDesc" class="field" rows="4" maxlength="5000">' + esc(v.description) + '</textarea></div>' +
+        '<div><label for="pubPrivacy" class="mb-1 block text-xs text-white/55">Who can see it</label><select id="pubPrivacy" class="field"><option value="private">Private</option><option value="unlisted">Unlisted</option><option value="public">Public</option></select>' +
+          '<p id="pubPrivacyHint" class="mt-1.5 text-xs text-white/45"></p></div>' +
+      '</div>' +
+      '<div class="mt-5 flex justify-end gap-2"><button class="btn btn-ghost btn-sm" id="mClose">Cancel</button><button class="btn btn-white btn-sm" id="pubSend" disabled>Publish</button></div>');
+
+    function picked() { return Array.prototype.slice.call(document.querySelectorAll('#pubChannels input:checked')); }
+    function sync() {
+      $('pubPrivacyHint').textContent = PRIVACY_TEXT[$('pubPrivacy').value];
+      $('pubSend').disabled = !picked().length || !$('pubName').value.trim();
+    }
+    $('pubChannels').addEventListener('change', sync);
+    $('pubName').addEventListener('input', sync);
+    $('pubPrivacy').addEventListener('change', sync);
+    $('mClose').addEventListener('click', closeModal);
+    sync();
+
+    $('pubSend').addEventListener('click', async function () {
+      var btn = this;
+      btn.disabled = true;
+      var res = await Vane.api('POST', '/api/video/videos/' + v.id + '/publish', {
+        channelIds: picked().map(function (i) { return i.value; }),
+        title: $('pubName').value.trim(), description: $('pubDesc').value, privacy: $('pubPrivacy').value
+      });
+      if (!res.ok) { btn.disabled = false; Vane.toast('err', res.error); return; }
+      closeModal();
+      var n = res.data.publications.length;
+      Vane.toast('ok', 'Publishing to ' + n + (n === 1 ? ' channel' : ' channels') + ' has started.');
+      await loadPublications();
+    });
+  }
 
   // ───────────────────────── announce in Vane Post (the Studio → Post hand-off) ─────────────────────────
   // The text and the channels are chosen here; the server writes the post with the same code as Vane Post, so the same limits
@@ -783,7 +916,7 @@
     S.user = me.data.user;
     $('userEmail').textContent = S.user.email;
     $('avatar').textContent = (S.user.name || S.user.email).charAt(0).toUpperCase();
-    await Promise.all([loadLibrary(), Keys.refresh(), loadChannels()]);
+    await Promise.all([loadLibrary(), Keys.refresh(), loadChannels(), loadPublications()]);
     $('app').classList.remove('opacity-0');
   })();
 })();

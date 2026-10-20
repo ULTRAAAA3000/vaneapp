@@ -213,6 +213,18 @@
       <p id="libEmpty" class="glass-d hidden rounded-2xl p-6 text-sm text-white/55">No videos yet. Your uploads will appear here.</p>
     </section>
 
+    <!-- ═══════════ PUBLISHING HISTORY ═══════════ -->
+    <section class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-6" style="animation-delay:.16s" aria-labelledby="pubTitle">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 id="pubTitle" class="text-lg font-semibold tracking-tight">Publishing</h2>
+          <p class="mt-0.5 text-xs text-white/45">Where each video went, and how it is going.</p>
+        </div>
+        <span id="pubLive" class="hidden text-xs text-white/40" aria-live="polite">Updating…</span>
+      </div>
+      <div id="publications" class="mt-4 space-y-2.5"><div class="skeleton h-16"></div></div>
+    </section>
+
     <!-- ═══════════ API ACCESS (same section as in Vane Post: assets/apikeys.js) ═══════════ -->
     <section id="api" class="fade-up glass-d mt-5 scroll-mt-20 rounded-3xl p-5 sm:p-7" style="animation-delay:.18s" aria-labelledby="apiTitle">
       <div class="flex flex-wrap items-start justify-between gap-3">
@@ -329,7 +341,7 @@
 
   <script src="/assets/vane.js?v=20261019d"></script>
   <script src="/assets/apikeys.js?v=20261019a"></script>
-  <script src="/assets/studio.js?v=20261019e"></script>
+  <script src="/assets/studio.js?v=20261019f"></script>
   <script src="/assets/studio-ai.js?v=20261019a"></script>
 </body>
 </html>

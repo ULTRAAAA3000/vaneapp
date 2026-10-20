@@ -13,6 +13,10 @@ binding = "DB"
 database_name = "vane-db"
 database_id = "9e560592-ec8e-451d-97d3-c2d8082c527e"
 
+[[r2_buckets]]
+binding = "MEDIA"              # the video library: Vane Studio's publishers read the files from here
+bucket_name = "vane-media"
+
 [vars]
 APP_URL = "https://vaneapp.dev"   # turns stored R2 keys into public image links
 

@@ -394,11 +394,147 @@ try {
   sql(`DELETE FROM video_channels WHERE id = '${vcOther}'`);
 
   // ───────────────────────────────────────────────────────────────
+  section('Publishing queue (network-agnostic: tested on a fake network, VIDEO_PUBLISH_MOCK=1)');
+  const mockCh = (platform, name, creds, owner = u.id) => { const cid = randomUUID(); sql(`INSERT INTO video_channels (id, user_id, platform, name, account_ref, credentials) VALUES ('${cid}', '${owner}', '${platform}', '${name}', '${cid}', '${creds.replace(/'/g, "''")}')`); return cid; };
+  const chOk = mockCh('youtube', 'Mock YouTube', '{"mock":"ok"}');
+  const chFlaky = mockCh('tiktok', 'Mock TikTok', '{"mock":"flaky","failures":2}');
+  const chFail = mockCh('instagram', 'Mock Instagram', '{"mock":"fail","retryable":false,"error":"Quota exceeded"}');
+  const chTemp = mockCh('youtube', 'Mock Temp', '{"mock":"fail","retryable":true,"error":"Temporary"}');
+  const chReal = mockCh('tiktok', 'Real network', 'encrypted-blob-of-a-real-account');
+  const chOther = mockCh('youtube', 'Not mine', '{"mock":"ok"}', other.id);
+  const pubReq = (auth, vid, body) => http('POST', `/api/video/videos/${vid}/publish`, { ...auth, body });
+  const pubList = async (q = '') => (await http('GET', `/api/video/publications${q}`, me)).json?.publications ?? [];
+  const nowSec = () => Math.floor(Date.now() / 1000);
+  async function waitFor(pid, pred, ms = 12000) { const t0 = Date.now(); let last = null; while (Date.now() - t0 < ms) { last = (await pubList()).find((p) => p.id === pid); if (last && pred(last)) return last; await new Promise((r) => setTimeout(r, 250)); } return last; }
+  const makeDue = (pid) => sql(`UPDATE video_publications SET next_attempt_at = 0 WHERE id = '${pid}'`);
+
+  check('publishing needs a session (401)', (await http('POST', `/api/video/videos/${id}/publish`, { body: { channelIds: [chOk] } })).status === 401 && (await http('GET', '/api/video/publications')).status === 401);
+  check('no channels → 400', (await pubReq(me, id, { channelIds: [] })).status === 400 && (await pubReq(me, id, {})).status === 400);
+  check('a bad privacy value → 400', (await pubReq(me, id, { channelIds: [chOk], privacy: 'everyone' })).status === 400);
+  check('a 101-character title → 400', (await pubReq(me, id, { channelIds: [chOk], title: 'x'.repeat(101) })).status === 400);
+  check('an unknown channel → 404, and so is another user\'s channel', (await pubReq(me, id, { channelIds: [randomUUID()] })).status === 404 && (await pubReq(me, id, { channelIds: [chOther] })).status === 404);
+  check("another user's video → 404", (await pubReq({ cookie: other.cookie }, id, { channelIds: [chOther] })).status === 404);
+  const unfinished2 = await start(me, 5000);
+  check('an unfinished upload cannot be published → 409 not_ready', (await pubReq(me, unfinished2.json.videoId, { channelIds: [chOk] })).json?.code === 'not_ready');
+  await http('DELETE', `/api/video/uploads/${unfinished2.json.videoId}`, me);
+
+  // ── success: what the user chose reaches the publisher, and the result is recorded
+  const pkOk = await pubReq(me, id, { channelIds: [chOk], title: 'Custom title', description: 'About it', privacy: 'unlisted' });
+  check('publish → 201 with one publication for the channel', pkOk.status === 201 && pkOk.json?.publications?.length === 1 && pkOk.json.publications[0].platform === 'youtube' && pkOk.json.publications[0].channelName === 'Mock YouTube' && pkOk.json.publications[0].privacy === 'unlisted', JSON.stringify(pkOk.json));
+  const okId = pkOk.json?.publications?.[0]?.id;
+  const done1 = await waitFor(okId, (p) => p.status === 'published' || p.status === 'failed');
+  check('it is published at once, in the background (the file was read from storage)', done1?.status === 'published' && done1.attempts === 1 && done1.error === null && typeof done1.publishedAt === 'number', JSON.stringify(done1));
+  check('the network received the title, privacy and size the user chose', new URL(done1?.url ?? 'http://x').searchParams.get('title') === 'Custom title' && new URL(done1.url).searchParams.get('privacy') === 'unlisted' && Number(new URL(done1.url).searchParams.get('size')) === FILE.length && done1.title === 'Custom title' && done1.description === 'About it', done1?.url);
+  const second = await pubReq(me, id, { channelIds: [chOk] });
+  check('publishing the same video to the same channel AGAIN after it finished is allowed', second.status === 201);
+  const secondDone = await waitFor(second.json?.publications?.[0]?.id, (p) => p.status === 'published');
+  check('and the defaults apply: the video title, and private', secondDone?.title === 'Trip to the sea' && secondDone?.privacy === 'private', JSON.stringify(secondDone));
+
+  // ── temporary failures: retried with a growing pause, then it works
+  const flakyPub = await pubReq(me, id, { channelIds: [chFlaky] });
+  const flakyId = flakyPub.json?.publications?.[0]?.id;
+  const f1 = await waitFor(flakyId, (p) => p.status === 'queued' && p.attempts === 1);
+  check('a temporary failure is queued again after ~30 s, with the reason', f1?.status === 'queued' && /temporary failure \(attempt 1\)/i.test(f1.error ?? '') && f1.nextAttemptAt >= nowSec() + 20 && f1.nextAttemptAt <= nowSec() + 40, JSON.stringify(f1));
+  check('the same video to the same channel while it is queued → 409 already_queued', (await pubReq(me, id, { channelIds: [chFlaky] })).json?.code === 'already_queued');
+  makeDue(flakyId); await pubList();
+  const f2 = await waitFor(flakyId, (p) => p.attempts === 2 && p.status === 'queued');
+  check('the second try fails too, and the pause grows to ~2 min', f2?.attempts === 2 && f2.nextAttemptAt >= nowSec() + 100 && f2.nextAttemptAt <= nowSec() + 130, JSON.stringify(f2));
+  makeDue(flakyId); await pubList();
+  const f3 = await waitFor(flakyId, (p) => p.status === 'published');
+  check('the third try succeeds: published after 3 attempts, the error is cleared', f3?.status === 'published' && f3.attempts === 3 && f3.error === null && f3.nextAttemptAt === null, JSON.stringify(f3));
+
+  // ── a permanent failure is not retried; "Retry" starts over
+  const failPub = await pubReq(me, id, { channelIds: [chFail] });
+  const failId = failPub.json?.publications?.[0]?.id;
+  const fail1 = await waitFor(failId, (p) => p.status === 'failed');
+  check('a permanent failure → failed at once, with the network\'s reason, no retry scheduled', fail1?.status === 'failed' && fail1.attempts === 1 && fail1.error === 'Quota exceeded' && fail1.nextAttemptAt === null, JSON.stringify(fail1));
+  check('Retry on a published one → 409 not_failed', (await http('POST', `/api/video/publications/${okId}/retry`, me)).json?.code === 'not_failed');
+  check("another user cannot retry or remove mine (404)", (await http('POST', `/api/video/publications/${failId}/retry`, { cookie: other.cookie })).status === 404 && (await http('DELETE', `/api/video/publications/${failId}`, { cookie: other.cookie })).status === 404);
+  const retryRes = await http('POST', `/api/video/publications/${failId}/retry`, me);
+  check('Retry on a failed one → 200, back in the queue with the tries reset', retryRes.status === 200 && ['queued', 'publishing', 'failed'].includes(retryRes.json?.publication?.status), JSON.stringify(retryRes.json));
+  const fail2 = await waitFor(failId, (p) => p.status === 'failed' && p.attempts === 1, 8000);
+  check('it ran again (and failed again, as this fake network always does)', fail2?.status === 'failed' && fail2.attempts === 1 && fail2.error === 'Quota exceeded');
+
+  // ── the tries run out
+  const tempPub = await pubReq(me, id, { channelIds: [chTemp] });
+  const tempId = tempPub.json?.publications?.[0]?.id;
+  let temp = await waitFor(tempId, (p) => p.attempts === 1 && p.status === 'queued');
+  for (let n = 2; n <= 5; n++) { makeDue(tempId); await pubList(); temp = await waitFor(tempId, (p) => p.attempts === n && (p.status === 'queued' || p.status === 'failed')); }
+  check('a temporary failure that never goes away is given up after 5 tries → failed', temp?.status === 'failed' && temp.attempts === 5 && temp.error === 'Temporary', JSON.stringify(temp));
+
+  // ── a network that has no publisher yet
+  const realPub = await pubReq(me, id, { channelIds: [chReal] });
+  const realDone = await waitFor(realPub.json?.publications?.[0]?.id, (p) => p.status === 'failed');
+  check('a real network without a publisher fails at once: "not available yet" (and is not retried)', realDone?.status === 'failed' && realDone.attempts === 1 && /not available yet/.test(realDone.error ?? ''), JSON.stringify(realDone));
+
+  // ── several channels in one go are independent
+  const multi = await pubReq(me, id, { channelIds: [chOk, chFail] });
+  check('two channels → two publications', multi.status === 201 && multi.json?.publications?.length === 2);
+  const mIds = multi.json.publications.map((p) => p.id);
+  const mDone = await Promise.all(mIds.map((m) => waitFor(m, (p) => p.status === 'published' || p.status === 'failed')));
+  check('each ends on its own: one published, one failed', mDone.map((p) => p?.status).sort().join() === 'failed,published', JSON.stringify(mDone.map((p) => p?.status)));
+
+  // ── history
+  const hist = await pubList();
+  check('the history lists everything, newest first, with the video title', hist.length >= 8 && hist.every((p, i) => i === 0 || hist[i - 1].createdAt >= p.createdAt) && hist.every((p) => p.videoTitle === 'Trip to the sea'), `${hist.length}`);
+  check('filtering by video works, and a bad id → 400', (await pubList(`?videoId=${id}`)).length === hist.length && (await http('GET', '/api/video/publications?videoId=nope', me)).status === 400);
+  check("another user's history is empty", ((await http('GET', '/api/video/publications', { cookie: other.cookie })).json?.publications ?? []).length === 0);
+
+  // ── cancel and remove
+  const cancelMe = await pubReq(me, id, { channelIds: [chFlaky] });
+  const cancelId = cancelMe.json?.publications?.[0]?.id;
+  await waitFor(cancelId, (p) => p.status === 'queued');
+  check('a queued publication can be cancelled', (await http('DELETE', `/api/video/publications/${cancelId}`, me)).status === 200 && !(await pubList()).some((p) => p.id === cancelId));
+  check('a finished one can be removed from the history', (await http('DELETE', `/api/video/publications/${failId}`, me)).status === 200 && !(await pubList()).some((p) => p.id === failId));
+  const busyId = randomUUID();
+  sql(`INSERT INTO video_publications (id, user_id, video_id, channel_id, platform, channel_name, title, status, attempts, next_attempt_at, claimed_at) VALUES ('${busyId}', '${u.id}', '${id}', '${chOk}', 'youtube', 'Mock YouTube', 'In flight', 'publishing', 1, 0, ${nowSec()})`);
+  check('one that is being published right now cannot be removed → 409 in_progress', (await http('DELETE', `/api/video/publications/${busyId}`, me)).json?.code === 'in_progress');
+
+  // ── a worker that died mid-publication: its claim is released after 10 minutes and the row runs again
+  const stuckId = randomUUID();
+  sql(`INSERT INTO video_publications (id, user_id, video_id, channel_id, platform, channel_name, title, status, attempts, next_attempt_at, claimed_at) VALUES ('${stuckId}', '${u.id}', '${id}', '${chOk}', 'youtube', 'Mock YouTube', 'Stuck', 'publishing', 1, 0, ${nowSec() - 700})`);
+  sql(`DELETE FROM video_publications WHERE id = '${busyId}'`);
+  const chOk2 = mockCh('youtube', 'Mock YouTube 2', '{"mock":"ok"}');
+  const kick = await pubReq(me, id, { channelIds: [chOk2] });        // any run releases stale claims first (another channel: chOk has the stuck row in flight)
+  await waitFor(kick.json?.publications?.[0]?.id, (p) => p.status === 'published');
+  const stuckBack = await waitFor(stuckId, (p) => p.status === 'published', 12000);
+  check('a claim stuck for 10+ minutes is released and the publication completes (attempt 2)', stuckBack?.status === 'published' && stuckBack.attempts === 2, JSON.stringify(stuckBack));
+
+  // ── the channel is disconnected while a publication waits
+  const waitCh = mockCh('tiktok', 'Soon gone', '{"mock":"flaky","failures":1}');
+  const waitPub = await pubReq(me, id, { channelIds: [waitCh] });
+  const waitId = waitPub.json?.publications?.[0]?.id;
+  await waitFor(waitId, (p) => p.status === 'queued');
+  const disc = await http('DELETE', `/api/video/channels/${waitCh}`, me);
+  check('disconnecting the channel works (200)', disc.status === 200, JSON.stringify(disc.json));
+  const afterDisc = (await pubList()).find((p) => p.id === waitId);
+  check('and the history stays readable (the channel name is kept)', afterDisc?.channelName === 'Soon gone', JSON.stringify(afterDisc));
+  makeDue(waitId); await pubList();
+  const goneDone = await waitFor(waitId, (p) => p.status === 'failed');
+  check('and the waiting publication fails with a clear reason instead of retrying forever', goneDone?.status === 'failed' && /disconnected/.test(goneDone.error ?? ''), JSON.stringify(goneDone));
+
+  // ── deleting the video removes its history
+  const small = makeMp4(5000);
+  const smallUp = await start(me, small.length, { title: 'Small one' });
+  await putPart(me, smallUp.json.videoId, 1, small);
+  await complete(me, smallUp.json.videoId);
+  const smPub = await pubReq(me, smallUp.json.videoId, { channelIds: [chOk] });
+  await waitFor(smPub.json?.publications?.[0]?.id, (p) => p.status === 'published');
+  await http('DELETE', `/api/video/videos/${smallUp.json.videoId}`, me);
+  check('deleting a video removes its publications from the history', sql(`SELECT COUNT(*) AS n FROM video_publications WHERE video_id = '${smallUp.json.videoId}'`)[0].n === 0);
+
+  // ───────────────────────────────────────────────────────────────
   section('Switching the Video Engine off');
   videoEngine(u.email, '--off');
   check('a live video key stops working (403 video_engine_required)', (await http('GET', '/api/v1/video/me', { key: (await http('POST', '/api/keys', { ...me, body: { name: 'x', scope: 'video', mode: 'test' } })).json?.secret })).status === 200
     && (await http('GET', '/api/v1/video/videos', { key: liveKey })).json?.code === 'video_engine_required');
   check('the dashboard says it lapsed, and uploads are refused', (await http('GET', '/api/video/me', me)).json?.entitlement?.lapsed === true && (await start(me, 5000)).json?.code === 'video_engine_required');
+  check('without Vane Studio a new publication is refused (403 video_engine_required)', (await pubReq(me, id, { channelIds: [chOk] })).json?.code === 'video_engine_required');
+  const lapsedId = randomUUID();
+  sql(`INSERT INTO video_publications (id, user_id, video_id, channel_id, platform, channel_name, title, status, attempts, next_attempt_at) VALUES ('${lapsedId}', '${u.id}', '${id}', '${chOk}', 'youtube', 'Mock YouTube', 'Late one', 'queued', 0, 0)`);
+  await http('GET', '/api/video/publications', me);
+  const lapsed = await waitFor(lapsedId, (p) => p.status === 'failed');
+  check('a publication that was queued before the subscription ended fails with that reason', lapsed?.status === 'failed' && /not active/.test(lapsed.error ?? ''), JSON.stringify(lapsed));
   check('without Vane Studio an announcement is refused (403 video_engine_required)', (await ann(me, id, { text: 'Hi {link}', channelIds: [randomUUID()] })).json?.code === 'video_engine_required');
   check('without Vane Studio a public link cannot be made, but it can still be removed', (await http('POST', `/api/video/videos/${id}/link`, me)).json?.code === 'video_engine_required' && (await http('DELETE', `/api/video/videos/${id}/link`, me)).status === 200 && (await fetch(finalLink)).status === 404);
   const gone = id;

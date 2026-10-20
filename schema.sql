@@ -581,3 +581,32 @@ CREATE TABLE IF NOT EXISTS user_ai_bonus (
   credits     INTEGER NOT NULL DEFAULT 0 CHECK (credits >= 0),
   updated_at  INTEGER NOT NULL DEFAULT (unixepoch())
 );
+
+-- ───────────────────────── Vane Studio publishing queue ─────────────────────────
+-- One row = one video going to one channel. The queue is network-agnostic: a network's own publisher (YouTube, TikTok,
+-- Instagram) is plugged in behind it (functions/api/lib/videopublishers.ts), so retries, history and the dashboard are the
+-- same for all of them. Rows are claimed atomically (queued → publishing), retried with a growing pause, and kept as history.
+CREATE TABLE IF NOT EXISTS video_publications (
+  id               TEXT    PRIMARY KEY,                                         -- uuid
+  user_id          TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  video_id         TEXT    NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+  channel_id       TEXT    REFERENCES video_channels(id) ON DELETE SET NULL,    -- NULL once the channel was disconnected
+  platform         TEXT    NOT NULL CHECK (platform IN ('youtube', 'tiktok', 'instagram')),
+  channel_name     TEXT    NOT NULL,                                            -- kept, so the history still reads well after a disconnect
+  title            TEXT    NOT NULL,
+  description      TEXT    NOT NULL DEFAULT '',
+  privacy          TEXT    NOT NULL DEFAULT 'private' CHECK (privacy IN ('private', 'unlisted', 'public')),
+  status           TEXT    NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'publishing', 'published', 'failed')),
+  attempts         INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at  INTEGER NOT NULL,                                            -- when a queued row is next due (unix seconds)
+  claimed_at       INTEGER,                                                     -- when a worker took it (a stuck claim is released after 10 minutes)
+  last_error       TEXT,
+  external_id      TEXT,                                                        -- the network's id of the published video
+  external_url     TEXT,
+  created_at       INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at       INTEGER NOT NULL DEFAULT (unixepoch()),
+  published_at     INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_video_publications_due  ON video_publications(status, next_attempt_at);
+CREATE INDEX IF NOT EXISTS idx_video_publications_user ON video_publications(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_video_publications_video ON video_publications(video_id);

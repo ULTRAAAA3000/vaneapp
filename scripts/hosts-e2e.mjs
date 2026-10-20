@@ -62,6 +62,7 @@ try {
   check('the video API is served (401 without a session)', (await req(STUDIO, 'GET', '/api/video/me')).status === 401 && (await req(STUDIO, 'GET', '/api/v1/video/me')).status === 401);
   check('the announce routes are served here, and only here (401 on studio., 404 on post.)', (await req(STUDIO, 'GET', '/api/video/announce')).status === 401 && (await req(POST, 'GET', '/api/video/announce')).status === 404 && (await req(STUDIO, 'POST', '/api/video/videos/x/announce')).status !== 404);
   check('the video channels routes are served on studio. only (401 / 404)', (await req(STUDIO, 'GET', '/api/video/channels')).status === 401 && (await req(POST, 'GET', '/api/video/channels')).status === 404);
+  check('the publishing routes are served on studio. only (401 / 404)', (await req(STUDIO, 'GET', '/api/video/publications')).status === 401 && (await req(POST, 'GET', '/api/video/publications')).status === 404 && (await req(STUDIO, 'POST', '/api/video/videos/x/publish')).status !== 404 && (await req(POST, 'POST', '/api/video/videos/x/publish')).status === 404);
   check('sign-in and keys are served', (await req(STUDIO, 'GET', '/api/auth/config')).status === 200 && (await req(STUDIO, 'GET', '/api/keys?scope=video')).status === 401);
   for (const p of ['/api/posts', '/api/channels', '/api/usage', '/api/v1/posts', '/api/v1/me', '/api/media/upload']) {
     const r = await req(STUDIO, p === '/api/media/upload' ? 'POST' : 'GET', p);

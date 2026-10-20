@@ -277,6 +277,7 @@ They share the account and the sign-in, nothing else; each host answers 404 to t
   ON CONFLICT(user_id) DO UPDATE SET status = 'active', current_period_end = NULL, updated_at = unixepoch();
   ```
   To switch it off again: `UPDATE video_subscriptions SET status = 'canceled' WHERE user_id = (SELECT id FROM users WHERE email = 'me@example.com');`
+- **Publishing queue:** ships with the cron worker, so run `npm run cron:deploy` once after this release (the worker gained an R2 binding to read the video files). Locally, put `VIDEO_PUBLISH_MOCK=1` in `.dev.vars` to try publishing on a fake network; never set it in production.
 - **Sign-in:** the sign-in page has a **Vane Post / Vane Studio** switch (one account works for both); the choice decides where you land. Signing up does not switch Studio on: that is the grant above (until payments exist).
 - **Upload flow** (chunks of 8 MiB, resumable): `POST /api/video/uploads` → `PUT …/uploads/:id/parts/:n` → `POST …/uploads/:id/complete`.
 - **Test it locally:** `npm run db:local && npm run dev`, then `npm run test:video` (API) and `npm run test:hosts` (subdomain routing).

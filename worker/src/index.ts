@@ -4,6 +4,7 @@
  */
 import type { CronEnv } from '../../types';
 import { purgeExpiredIdempotencyKeys } from '../../functions/api/lib/idempotency';
+import { runDueVideoPublications } from '../../functions/api/lib/videopublish';
 import { deliverDueWebhooks, purgeOldWebhookDeliveries } from '../../functions/api/lib/webhooks';
 import { runDuePosts } from './dispatch';
 import { isRenewalMinute, renewExpiringTokens } from './tokens';
@@ -16,6 +17,9 @@ export default {
           // Don't rethrow: the next minute simply tries again.
           console.error('vane-cron: run failed:', err instanceof Error ? err.message : 'unknown');
         })
+        // Vane Studio: publish queued videos to their channels, retry the ones whose pause is over (never blocks or breaks posting).
+        .then(() => runDueVideoPublications(env, Math.floor(Date.now() / 1000)))
+        .catch((err) => console.error('vane-cron: video publishing failed:', err instanceof Error ? err.message : 'unknown'))
         // Housekeeping: Idempotency-Keys are remembered for 24 hours (a no-op when none has expired, and when the table is not there yet).
         .then(() => purgeExpiredIdempotencyKeys(env, Math.floor(Date.now() / 1000)))
         .catch(() => undefined)
