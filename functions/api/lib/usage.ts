@@ -43,9 +43,10 @@ const bucket = (limit: number, used: number): UsageBucket => ({ limit, used, rem
 /** AI credits as the dashboard shows them. See aiMode() for how a plan's `aiCredits` is read. */
 function aiBucket(spec: PlanSpec, sub: Subscription, used: number): UsageSummary['ai'] {
   const mode = aiMode(spec);
-  if (mode.kind === 'credits') return { limit: mode.credits, used, remaining: Math.max(mode.credits - used, 0), perGenerationUsd: null };
-  if (mode.kind === 'per_generation') return { limit: null, used, remaining: null, perGenerationUsd: microToUsd(mode.priceMicro) };
-  return { limit: null, used, remaining: null, perGenerationUsd: null };
+  const billable = !!overageRates(sub);
+  if (mode.kind === 'credits') return { limit: mode.credits, used, remaining: Math.max(mode.credits - used, 0), perGenerationUsd: null, billable: mode.credits > used || billable };
+  if (mode.kind === 'per_generation') return { limit: null, used, remaining: null, perGenerationUsd: microToUsd(mode.priceMicro), billable };
+  return { limit: null, used, remaining: null, perGenerationUsd: null, billable: true };
 }
 
 /** The full picture for `GET /api/usage` and `GET /api/v1/usage`. */

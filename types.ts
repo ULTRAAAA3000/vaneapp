@@ -369,6 +369,8 @@ export interface UsageSummary {
     remaining: number | null;
     /** set when every generation is billed (Developer API): USD per generation */
     perGenerationUsd: number | null;
+    /** can a premium generation run for this account right now? false = Developer API without extra-usage billing */
+    billable: boolean;
   };
   /** may this account send live API requests? */
   apiAccess: boolean;
