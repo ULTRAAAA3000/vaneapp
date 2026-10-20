@@ -330,6 +330,33 @@ INSERT OR IGNORE INTO plans (id, kind, name, tagline, price_cents, limits, is_ac
   ('api-addon', 'addon', 'Need the dashboard and the API?', 'Add the API to Pro for {price} a month. It adds 180 API posts and keeps Pro’s low overage rates.', 299,
    '{"apiPostsPerMonth":180}', 0, 50);
 
+-- ───────────────────────── Social links ─────────────────────────
+-- The "Follow Vane" section of the landing page. Edited in /admin → Social: the words, the links and the order are data, the
+-- card design is fixed. The section's own heading and intro live in `settings` under the key 'landing.socials'.
+--   network    picks the icon: telegram, bluesky, mastodon, threads, linkedin, x, instagram, youtube, tiktok, facebook, github,
+--              discord, reddit, other (the list is in lib/socials.ts, the icons in index.html)
+--   is_public  shown on the landing page
+-- Seeded only while the table is empty, so a link the admin deleted does not come back when this file is run again.
+CREATE TABLE IF NOT EXISTS social_links (
+  id           TEXT    PRIMARY KEY,                -- 'telegram', 'bluesky'… for the seeded rows, '<network>-<hex>' for new ones
+  network      TEXT    NOT NULL,
+  name         TEXT    NOT NULL,
+  handle       TEXT    NOT NULL DEFAULT '',
+  description  TEXT    NOT NULL DEFAULT '',
+  url          TEXT    NOT NULL,
+  cta_label    TEXT    NOT NULL DEFAULT 'Follow',
+  is_public    INTEGER NOT NULL DEFAULT 1 CHECK (is_public IN (0, 1)),
+  sort         INTEGER NOT NULL DEFAULT 100,
+  created_at   INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at   INTEGER NOT NULL DEFAULT (unixepoch())
+);
+INSERT INTO social_links (id, network, name, handle, description, url, sort)
+SELECT * FROM (
+  SELECT 'telegram' AS id, 'telegram' AS network, 'Telegram' AS name, '@vanenews' AS handle, 'News and releases from Vane.' AS description, 'https://t.me/vanenews' AS url, 10 AS sort
+  UNION ALL SELECT 'bluesky', 'bluesky', 'Bluesky', '@vaneapp.bsky.social', 'Product updates and tips.', 'https://bsky.app/profile/vaneapp.bsky.social', 20
+  UNION ALL SELECT 'mastodon', 'mastodon', 'Mastodon', '@vaneapp@mastodon.social', 'Updates for the fediverse.', 'https://mastodon.social/@vaneapp', 30
+) WHERE NOT EXISTS (SELECT 1 FROM social_links);
+
 -- Accounts the admin switched off (login and every API call are refused; sessions are deleted).
 CREATE TABLE IF NOT EXISTS user_flags (
   user_id      TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
