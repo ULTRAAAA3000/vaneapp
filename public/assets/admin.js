@@ -302,6 +302,10 @@
           field('gDays', 'For (days)', '', { ph: 'empty = no end date', type: 'number', attrs: 'min="1" max="3650"' }) + field('gNote', 'Note (kept in Activity)', '', { ph: 'e.g. beta tester' }) +
           '<div id="gAddonRow" class="col-span-2 flex flex-wrap gap-x-5 gap-y-2">' + check('gAddon', 'Add the API add-on (Pro only)', false) + check('gOver', 'Bill posts over the quota instead of stopping', false) + '</div>' +
           '<div class="col-span-2 flex items-center justify-between gap-3"><p class="text-xs text-white/40">Same as <code>npm run plan:set</code>. A granted plan is free and never counted as revenue; it replaces the current plan.</p><button class="btn btn-white btn-sm" type="submit">Give plan</button></div></form>' +
+        '<h3 class="mt-7 text-sm font-semibold">AI Pass</h3>' +
+        '<form id="passForm" class="mt-3 grid grid-cols-2 gap-3" data-id="' + esc(u.id) + '"><p class="col-span-2 text-sm">' + (d.aiPass && d.aiPass.active ? tag('active', 'ok') + ' ' + num(d.usage.ai.pass.used) + ' of ' + num(d.usage.ai.pass.credits) + ' credits used this month · ' + (d.aiPass.endsAt ? 'until ' + esc(when(d.aiPass.endsAt)) : 'no end date') : '<span class="text-white/55">Not active.</span>') + '</p>' +
+          field('pDays', 'For (days)', '', { ph: 'empty = no end date', type: 'number', attrs: 'min="1" max="3650"' }) +
+          '<div class="flex items-end justify-end gap-2">' + (d.aiPass && d.aiPass.active ? '<button class="btn btn-danger btn-sm" type="button" id="passOff">Switch off</button>' : '') + '<button class="btn btn-white btn-sm" type="submit">' + (d.aiPass && d.aiPass.active ? 'Renew' : 'Switch on') + '</button></div></form>' +
         '<h3 class="mt-7 text-sm font-semibold">AI credits</h3>' +
         '<form id="aiForm" class="mt-3 grid grid-cols-2 gap-3" data-id="' + esc(u.id) + '"><p class="col-span-2 text-xs text-white/55">' + (d.usage ? 'Plan: ' + (d.usage.ai.limit !== null ? num(d.usage.ai.used) + ' of ' + num(d.usage.ai.limit) + ' used' : num(d.usage.ai.used) + ' used') + ' · extra credits you gave: <b class="text-white">' + num(d.usage.ai.bonus) + '</b>' : '') + '</p>' +
           field('aCredits', 'Add credits', '', { ph: 'e.g. 100 (negative takes away)', type: 'number', attrs: 'step="1"' }) + field('aNote', 'Note (kept in Activity)', '', { ph: 'e.g. testing' }) +
@@ -317,6 +321,14 @@
           : '<button class="btn btn-danger" type="button" data-act="disable" data-id="' + esc(u.id) + '" data-email="' + esc(u.email) + '">Disable account…</button><p class="mt-2 text-xs text-white/40">Signs them out everywhere and refuses their sign-in. Their data is kept.</p>') + '</div>');
       var syncAddon = function () { $('gAddon').closest('label').style.display = $('gPlan').value === 'pro' ? '' : 'none'; };
       $('gPlan').addEventListener('change', syncAddon); syncAddon();
+      function pass(enabled) {
+        var days = $('pDays').value.trim();
+        call('POST', '/api/admin/users', { action: 'ai_pass', userId: id, enabled: enabled, days: days ? Number(days) : null }).then(function (g) {
+          if (g.ok) { Vane.toast('ok', enabled ? 'AI Pass is on.' : 'AI Pass is off.'); openUser(id); } else Vane.toast('err', g.error);
+        });
+      }
+      $('passForm').addEventListener('submit', function (e) { e.preventDefault(); pass(true); });
+      if ($('passOff')) $('passOff').addEventListener('click', function () { pass(false); });
       $('aiForm').addEventListener('submit', function (e) {
         e.preventDefault();
         var n = Number($('aCredits').value);
