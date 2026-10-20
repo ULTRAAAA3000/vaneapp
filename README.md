@@ -316,6 +316,8 @@ All of it is computed in the browser from the two post lists the dashboard alrea
 
 `POST /api/ai` (dashboard session) runs on Cloudflare Workers AI (`@cf/meta/llama-3.1-8b-instruct`). The binding is declared in `wrangler.toml` (`[ai] binding = "AI"`); if it does not show up after a deploy, add it in Pages → Settings → Bindings → Workers AI with the variable name `AI`. Without it the AI bar stays hidden and `/api/ai` answers 503.
 
+- The model is `@cf/meta/llama-3.1-8b-instruct-fp8`. Cloudflare retires models now and then (the old `llama-3.1-8b-instruct` stopped working on 2026-05-30): if the AI says the model was retired, set a Pages variable `AI_MODEL` to a current model id from the Workers AI catalog (Settings → Variables and Secrets, e.g. `@cf/meta/llama-3.3-70b-instruct-fp8-fast`) and redeploy. No code change needed.
+- Extra AI credits for one account: `/admin` → Users → the user → **AI credits** (needs `schema.sql` re-run once for the `user_ai_bonus` table). They work on any plan and are spent after the plan's own credits.
 - Free for everyone: **Make it clean** (typos, emoji) and **Hashtags**.
 - AI Pass (counts against `aiCredits` of the plan): tone, hooks, CTAs, a version per selected channel, a post from an idea, a week plan. Free plan = the credits set in the plan catalog (set `aiCredits` to 0 in the admin panel to make them Pro-only); API plan pays per generation; Pro has a monthly allowance.
 - Links in the text are kept as they are, and every result is fitted to the limit of the network.

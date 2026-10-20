@@ -574,3 +574,10 @@ CREATE TABLE IF NOT EXISTS video_ai_usage (
   used     INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (user_id, period)
 );
+
+-- Extra AI credits an admin gave to one account (admin → user → AI credits). Spent after the plan's own credits, before any billing.
+CREATE TABLE IF NOT EXISTS user_ai_bonus (
+  user_id     TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  credits     INTEGER NOT NULL DEFAULT 0 CHECK (credits >= 0),
+  updated_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);

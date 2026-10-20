@@ -4,6 +4,7 @@
  * POST /api/admin/users  { action, … }
  *        grant   { userId, planId, days?, addon?, overage?, note? }   give a plan by hand (same as `npm run plan:set`):
  *                                                   days empty = no end date, addon = Pro + API add-on; never counted as revenue
+ *        ai_credits { userId, credits, note? }        add (or, negative, take away) AI credits for one account; they are spent after the plan's own credits
  *        revoke  { userId }                         end their plan now (they fall back to the Free Trial)
  *        disable { userId, reason? }                switch the account off and sign it out everywhere
  *        enable  { userId }
@@ -135,6 +136,30 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     }
     await audit(env, request, 'user.grant_plan', user.email, { plan: plan.id, addon, overage, days, note });
     return json({ ok: true }, 201);
+  }
+
+  if (b.action === 'ai_credits') {
+    if (typeof b.userId !== 'string' || !UUID_RE.test(b.userId)) return fail(400, 'userId is invalid.');
+    const delta = Number(b.credits);
+    if (!Number.isInteger(delta) || delta === 0 || Math.abs(delta) > 100_000) return fail(400, 'credits must be a whole number other than 0 (up to 100000); negative takes credits away.');
+    const user = await env.DB.prepare('SELECT email FROM users WHERE id = ?1').bind(b.userId).first<{ email: string }>();
+    if (!user) return fail(404, 'User not found.');
+    const note = typeof b.note === 'string' ? b.note.trim().slice(0, 200) : null;
+    try {
+      await env.DB
+        .prepare(
+          `INSERT INTO user_ai_bonus (user_id, credits, updated_at) VALUES (?1, MAX(?2, 0), ?3)
+           ON CONFLICT(user_id) DO UPDATE SET credits = MAX(credits + ?2, 0), updated_at = ?3`,
+        )
+        .bind(b.userId, delta, now)
+        .run();
+    } catch (err) {
+      if (/no such table/i.test(err instanceof Error ? err.message : '')) return fail(409, 'The database does not have the AI credits table yet. Run the whole schema.sql in the D1 Console (it is safe to run again), then try once more.');
+      throw err;
+    }
+    const row = await env.DB.prepare('SELECT credits FROM user_ai_bonus WHERE user_id = ?1').bind(b.userId).first<{ credits: number }>();
+    await audit(env, request, 'user.ai_credits', user.email, { delta, balance: row?.credits ?? 0, note });
+    return json({ ok: true, balance: row?.credits ?? 0 });
   }
 
   if (b.action === 'revoke') {
