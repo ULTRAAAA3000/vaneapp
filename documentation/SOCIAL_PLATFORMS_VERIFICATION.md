@@ -1,135 +1,207 @@
-# Vane — Social Platforms & Verification Specification
+Vane — Social Platforms & Verification Specification
 
-**Версия документа:** 1.3.0
+Версия документа: 1.4.0
 
-**Статус:** Утвержденный реестр платформ
+Статус: Утвержденный реестр платформ
 
-**Назначение:** Полная спецификация подключенных и планируемых социальных сетей, требований к API, процессов авторизации, условий верификации и статусов готовности.
+Назначение: Полная спецификация подключенных и планируемых социальных сетей, требований к API, процессов авторизации, условий верификации и статусов готовности.
+1. Децентрализованные Сети (Без Верификации)
+1.1. Bluesky (AT Protocol)
 
----
+    Назначение: Vane Post & Vane Studio (post.vaneapp.dev, studio.vaneapp.dev).
 
-## 1. Децентрализованные Сети (Без Верификации)
+    Тип авторизации: App Passwords (identifier + App Password).
 
-### 1.1. Bluesky (AT Protocol)
+    Требуется ли регистрация приложения / App Review: Нет.
 
-* **Назначение:** Vane Post (`post.vaneapp.dev`).
-* **Тип авторизации:** App Passwords (`identifier` + `App Password`).
-* **Требуется ли регистрация приложения / App Review:** Нет. Сеть полностью открытая.
-* **Эндпоинты:**
-* Сессия: `POST [https://bsky.social/xrpc/com.atproto.server.createSession](https://bsky.social/xrpc/com.atproto.server.createSession)`
-* Постинг: `POST [https://bsky.social/xrpc/com.atproto.repo.createRecord](https://bsky.social/xrpc/com.atproto.repo.createRecord)`
+    Эндпоинты:
 
+        Сессия: POST [https://bsky.social/xrpc/com.atproto.server.createSession](https://bsky.social/xrpc/com.atproto.server.createSession)
 
-* **Лимит символов:** 300 символов.
-* **Статус:** Полностью готов и протестирован.
+        Загрузка медиа/видео: POST [https://bsky.social/xrpc/com.atproto.repo.uploadBlob](https://bsky.social/xrpc/com.atproto.repo.uploadBlob)
 
-### 1.2. Mastodon (REST / ActivityPub)
+        Постинг: POST [https://bsky.social/xrpc/com.atproto.repo.createRecord](https://bsky.social/xrpc/com.atproto.repo.createRecord)
 
-* **Назначение:** Vane Post (`post.vaneapp.dev`).
-* **Тип авторизации:** Dynamic App Registration + OAuth 2.0 (`read write`).
-* **Требуется ли регистрация приложения / App Review:** Нет. Приложение Vane регистрируется на инстансе пользователя на лету через `POST /api/v1/apps`.
-* **Эндпоинты:**
-* Динамическая регистрация: `POST https://{instance}/api/v1/apps`
-* Публикация статуса: `POST https://{instance}/api/v1/statuses`
-* Загрузка медиа: `POST https://{instance}/api/v2/media`
+    Лимит символов / медиа: 300 символов, поддержка видеоклипов.
 
+    Статус: Полностью готов и протестирован.
 
-* **Лимит символов:** 500 символов (по умолчанию на большинстве инстансов).
-* **Статус:** Полностью готов.
+1.2. Mastodon (REST / ActivityPub)
 
----
+    Назначение: Vane Post (post.vaneapp.dev).
 
-## 2. Экосистема Meta (Facebook Pages & Threads)
+    Тип авторизации: Dynamic App Registration + OAuth 2.0 (read write).
 
-### 2.1. Facebook Pages (Meta Graph API)
+    Требуется ли регистрация приложения / App Review: Нет. Приложение регистрируется на инстансе пользователя на лету.
 
-* **Назначение:** Vane Post (`post.vaneapp.dev`) — публикации текстов, ссылок с Open Graph превью и изображений на бизнес-страницах.
-* **Тип авторизации:** OAuth 2.0 via Meta Developer Portal.
-* **Необходимые Scopes (Права):**
-* `pages_manage_posts` — публикация и редактирование постов от имени страницы.
-* `pages_read_engagement` — просмотр вовлеченности.
-* `pages_show_list` — выбор доступных бизнес-страниц пользователя.
+    Эндпоинты:
 
+        Динамическая регистрация: POST https://{instance}/api/v1/apps
 
-* **Статус верификации (App Review):**
-* **Development Mode (Тестирование):** Без модерации. Работает мгновенно для личных страниц администратора приложения.
-* **Live Mode (Публичный запуск):** Требуется Meta App Review (видеозапись авторизации и отправки поста + Privacy Policy). Проверка занимает 1–5 рабочих дней.
+        Публикация статуса: POST https://{instance}/api/v1/statuses
 
+        Загрузка медиа: POST https://{instance}/api/v2/media
 
-* **Эндпоинт публикации:** `POST [https://graph.facebook.com/v19.0/](https://graph.facebook.com/v19.0/){page-id}/feed`
-* **Статус:** Планируется к интеграции (Единый контур с Threads в Meta Portal).
+    Лимит символов: 500 символов.
 
-### 2.2. Threads (Meta Graph API)
+    Статус: Полностью готов.
 
-* **Назначение:** Vane Post (`post.vaneapp.dev`).
-* **Тип авторизации:** OAuth 2.0 via Meta Developer Portal.
-* **Необходимые Scopes:** `threads_basic`, `threads_content_publish`.
-* **Статус верификации (App Review):**
-* **Development Mode:** Без модерации (добавление тестеров в панели Meta).
-* **Live Mode:** Прохождение Meta App Review (скринкаст работы авторизации и публикации).
+2. Легкие Платформы для Быстрого Роста Аудитории (Без Модерации)
+2.1. Reddit API (Постинг и Сообщества)
 
+    Назначение: Vane Post (post.vaneapp.dev) — публикация анонсов, ссылок и апдейтов в тематические сабреддиты (r/buildinpublic, r/webdev, r/SaaS).
 
-* **Статус:** В процессе настройки в Development Mode.
+    Тип авторизации: OAuth 2.0 (Script App / Web App).
 
----
+    Требуется ли регистрация приложения / App Review: Нет. Ключи client_id и client_secret выдаются мгновенно в настройках профиля.
 
-## 3. Pinterest API v5 (Vane Studio)
+    Эндпоинты:
 
-### 3.1. Pinterest Video Pins & Idea Pins
+        Авторизация: POST [https://www.reddit.com/api/v1/access_token](https://www.reddit.com/api/v1/access_token)
 
-* **Назначение:** Vane Studio (`studio.vaneapp.dev`) — выгрузка коротких видеороликов (Shorts/Reels) в формате Video Pins со ссылкой на сайт/продукт для генерации SEO-трафика.
-* **Тип авторизации:** OAuth 2.0 (Pinterest Developers Portal).
-* **Необходимые Scopes:** `pins:read`, `pins:write`, `boards:read`, `boards:write`.
-* **Статус верификации:**
-* **Sandbox / Trial Access (Тестирование):** Мгновенно без модерации. Выдается лимит до 200 запросов/день и привязка до 5 тестовых аккаунтов. Идеально для отладки R2-видеозагрузок.
-* **Standard Access (Публичный запуск):** Заполнение формы с описанием продукта и ссылкой на рабочий сайт. Рассмотрение занимает 2–4 рабочих дня.
+        Постинг: POST [https://oauth.reddit.com/api/submit](https://oauth.reddit.com/api/submit)
 
+    Статус: Запланирован к интеграции.
 
-* **Эндпоинты:**
-* Регистрация загрузки медиа: `POST [https://api.pinterest.com/v5/media](https://api.pinterest.com/v5/media)`
-* Создание Пина: `POST [https://api.pinterest.com/v5/pins](https://api.pinterest.com/v5/pins)`
+2.2. Dev.to API (IT-Сообщество)
 
+    Назначение: Vane Post (post.vaneapp.dev) — кросс-постинг технических статей и dev-логов для разработчиков.
 
-* **Статус:** Запланирован для Vane Studio (Sandbox доступ).
+    Тип авторизации: API Key (Personal Access Token).
 
----
+    Требуется ли регистрация приложения / App Review: Нет. Токен генерируется мгновенно в настройках аккаунта.
 
-## 4. Классические Социальные Сети и Мессенджеры
+    Эндпоинт: POST [https://dev.to/api/articles](https://dev.to/api/articles) (Заголовок api-key).
 
-### 4.1. Telegram (Bot API)
+    Статус: Запланирован к интеграции.
 
-* **Назначение:** Vane Post (`post.vaneapp.dev`).
-* **Тип авторизации:** Bot Token (`bot_token`).
-* **Требуется ли регистрация приложения / App Review:** Нет. Токен создается мгновенно через `@BotFather`.
-* **Эндпоинт:** `POST [https://api.telegram.org/bot](https://api.telegram.org/bot){token}/sendMessage`
-* **Статус:** Полностью готов и протестирован.
+2.3. Discord Webhooks & Bot API
 
-### 4.2. X / Twitter (API v2)
+    Назначение: Vane Post & Vane Studio (post.vaneapp.dev, studio.vaneapp.dev) — авто-публикация апдейтов и видеофайлов в Discord-каналы.
 
-* **Назначение:** Vane Post (`post.vaneapp.dev`).
-* **Тип авторизации:** OAuth 2.0 PKCE / Bearer Token.
-* **Статус верификации:** Требует настраиваемого App в Developer Portal с доступами Free/Basic Tier.
-* **Эндпоинт:** `POST [https://api.twitter.com/2/tweets](https://api.twitter.com/2/tweets)`
-* **Статус:** Полностью готов.
+    Тип авторизации: Webhook URL или Bot Token.
 
-### 4.3. LinkedIn (Community Management API)
+    Требуется ли регистрация приложения / App Review: Нет. Webhook создается за 5 секунд, бот создается мгновенно без проверок.
 
-* **Назначение:** Vane Post (`post.vaneapp.dev`).
-* **Тип авторизации:** OAuth 2.0 (`w_member_social`).
-* **Статус верификации:** Для личных постов доступ открыт сразу. Для публикации от имени сторонних компании требуется дополнительное согласование.
-* **Эндпоинт:** `POST [https://api.linkedin.com/v2/ugcPosts](https://api.linkedin.com/v2/ugcPosts)`
-* **Статус:** Полностью готов.
+    Эндпоинт: POST [https://discord.com/api/webhooks/](https://discord.com/api/webhooks/){id}/{token}
 
----
+    Статус: Запланирован к интеграции.
 
-## 5. Сводная Матрица Верификационных Статусов
+2.4. Medium API (SEO & Длинный Контент)
 
-* **Telegram (Vane Post):** Доступен сразу в Dev и Live режимах. Модерация: 0 дней (через BotFather).
-* **Bluesky (Vane Post):** Доступен сразу в Dev и Live режимах. Модерация: 0 дней (AT Protocol).
-* **Mastodon (Vane Post):** Доступен сразу в Dev и Live режимах. Модерация: 0 дней (Dynamic OAuth).
-* **LinkedIn (Vane Post):** Доступен сразу в Dev и Live режимах (для постов личного профиля). Модерация: 0 дней.
-* **Facebook Pages (Vane Post):** В Dev Mode доступен сразу; в Live требует Meta App Review. Модерация: 1–5 дней.
-* **Threads (Vane Post):** В Dev Mode доступен сразу; в Live требует Meta App Review. Модерация: 1–5 дней.
-* **Pinterest API (Vane Studio):** В Sandbox доступен сразу (до 200 req/day); в Live требует Standard Access Review. Модерация: 2–4 дня.
-* **YouTube API (Vane Studio):** В Dev Audit Mode; в Live требует Google Cloud App Verification. Модерация: 1–2 недели.
-* **TikTok Direct (Vane Studio):** В Sandbox Mode; в Live требует TikTok Partner Review. Модерация: 3–7 дней.
+    Назначение: Vane Post (post.vaneapp.dev) — авто-публикация статей и туториалов.
+
+    Тип авторизации: Integration Tokens / OAuth 2.0.
+
+    Требуется ли регистрация приложения / App Review: Нет для публикаций от своего имени.
+
+    Эндпоинт: POST [https://api.medium.com/v1/users/](https://api.medium.com/v1/users/){userId}/posts
+
+    Статус: Запланирован к интеграции.
+
+3. Экосистема Meta (Facebook Pages & Threads)
+3.1. Facebook Pages (Meta Graph API)
+
+    Назначение: Vane Post (post.vaneapp.dev).
+
+    Тип авторизации: OAuth 2.0 via Meta Developer Portal.
+
+    Необходимые Scopes: pages_manage_posts, pages_read_engagement, pages_show_list.
+
+    Статус верификации: Dev Mode — мгновенно; Live Mode — Meta App Review (1–5 дней).
+
+    Эндпоинт: POST [https://graph.facebook.com/v19.0/](https://graph.facebook.com/v19.0/){page-id}/feed
+
+    Статус: Планируется к интеграции.
+
+3.2. Threads (Meta Graph API)
+
+    Назначение: Vane Post (post.vaneapp.dev).
+
+    Тип авторизации: OAuth 2.0 via Meta Developer Portal.
+
+    Необходимые Scopes: threads_basic, threads_content_publish.
+
+    Статус верификации: Dev Mode — мгновенно; Live Mode — Meta App Review (1–5 дней).
+
+    Статус: В процессе настройки в Dev Mode.
+
+4. Pinterest API v5 (Vane Studio)
+4.1. Pinterest Video Pins & Idea Pins
+
+    Назначение: Vane Studio (studio.vaneapp.dev) — выгрузка видеороликов (Video Pins) со ссылкой на сайт для SEO-трафика.
+
+    Тип авторизации: OAuth 2.0.
+
+    Необходимые Scopes: pins:read, pins:write, boards:read, boards:write.
+
+    Статус верификации: Sandbox — мгновенно (до 200 req/day); Live — Standard Access Review (2–4 дня).
+
+    Эндпоинты: POST [https://api.pinterest.com/v5/media](https://api.pinterest.com/v5/media), POST [https://api.pinterest.com/v5/pins](https://api.pinterest.com/v5/pins)
+
+    Статус: Запланирован для Vane Studio.
+
+5. Классические Социальные Сети и Мессенджеры
+5.1. Telegram (Bot API)
+
+    Назначение: Vane Post & Vane Studio (post.vaneapp.dev, studio.vaneapp.dev).
+
+    Тип авторизации: Bot Token (bot_token).
+
+    Требуется ли регистрация приложения / App Review: Нет.
+
+    Эндпоинты: POST /sendMessage, POST /sendVideo
+
+    Статус: Полностью готов и протестирован.
+
+5.2. X / Twitter (API v2)
+
+    Назначение: Vane Post (post.vaneapp.dev).
+
+    Тип авторизации: OAuth 2.0 PKCE / Bearer Token.
+
+    Статус верификации: Требует настраиваемого App в Developer Portal (Free/Basic Tier).
+
+    Эндпоинт: POST [https://api.twitter.com/2/tweets](https://api.twitter.com/2/tweets)
+
+    Статус: Полностью готов.
+
+5.3. LinkedIn (Community Management API)
+
+    Назначение: Vane Post (post.vaneapp.dev).
+
+    Тип авторизации: OAuth 2.0 (w_member_social).
+
+    Статус верификации: Для личного профиля — мгновенно (0 дней).
+
+    Эндпоинт: POST [https://api.linkedin.com/v2/ugcPosts](https://api.linkedin.com/v2/ugcPosts)
+
+    Статус: Полностью готов.
+
+6. Сводная Матрица Верификационных Статусов
+
+    Telegram (Vane Post / Studio): Доступен сразу (0 дней).
+
+    Bluesky (Vane Post / Studio): Доступен сразу (0 дней).
+
+    Mastodon (Vane Post): Доступен сразу (0 дней).
+
+    Reddit API (Vane Post): Доступен сразу (0 дней).
+
+    Dev.to API (Vane Post): Доступен сразу (0 дней).
+
+    Discord Webhooks (Vane Post / Studio): Доступен сразу (0 дней).
+
+    Medium API (Vane Post): Доступен сразу (0 дней).
+
+    LinkedIn (Vane Post): Доступен сразу для личных постов (0 дней).
+
+    Pinterest API (Vane Studio): Sandbox — сразу (200 req/day); Live — Review (2–4 дня).
+
+    Facebook Pages (Vane Post): Dev Mode — сразу; Live — Meta App Review (1–5 дней).
+
+    Threads (Vane Post): Dev Mode — сразу; Live — Meta App Review (1–5 дней).
+
+    YouTube API (Vane Studio): Dev Audit Mode; Live — Google Verification (1–2 недели).
+
+    TikTok Direct (Vane Studio): Sandbox Mode; Live — Partner Review (3–7 дней).
