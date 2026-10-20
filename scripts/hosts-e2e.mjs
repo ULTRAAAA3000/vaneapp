@@ -20,7 +20,7 @@ function req(host, method, path, { body, cookie } = {}) {
   return new Promise((resolve, reject) => {
     const data = body === undefined ? null : JSON.stringify(body);
     const r = http.request(
-      { host: '127.0.0.1', port: PORT, method, path, headers: { host, ...(data ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) } : {}), ...(cookie ? { cookie } : {}) } },
+      { host: '127.0.0.1', port: PORT, method, path, headers: { host, 'user-agent': 'vane-hosts-e2e', ...(data ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) } : {}), ...(cookie ? { cookie } : {}) } },
       (res) => {
         const chunks = [];
         res.on('data', (c) => chunks.push(c));
