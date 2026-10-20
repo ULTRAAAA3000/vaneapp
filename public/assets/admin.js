@@ -4,7 +4,7 @@
 
   var $ = function (id) { return document.getElementById(id); };
   var esc = Vane.esc;
-  var S = { signedIn: false, seq: 0, days: 30, gscDays: 28, usersQ: '', usersPage: 1, att: { kind: '', ok: '', q: '', ip: '', page: 1 }, plans: [] };
+  var S = { signedIn: false, seq: 0, days: 30, gscDays: 28, usersQ: '', usersPage: 1, att: { kind: '', ok: '', q: '', ip: '', page: 1 }, plans: [], social: null };
 
   // ───────────────────────── helpers ─────────────────────────
   function call(method, path, body) {
@@ -178,7 +178,7 @@
   $('logout').addEventListener('click', function () { call('POST', '/api/admin/logout').then(function () { toGate('Signed out.'); }); });
 
   // ───────────────────────── navigation ─────────────────────────
-  var TABS = [['overview', 'Overview'], ['users', 'Users'], ['plans', 'Plans'], ['traffic', 'Traffic'], ['search', 'Search'], ['security', 'Security'], ['settings', 'Settings'], ['activity', 'Activity']];
+  var TABS = [['overview', 'Overview'], ['users', 'Users'], ['plans', 'Plans'], ['social', 'Social'], ['traffic', 'Traffic'], ['search', 'Search'], ['security', 'Security'], ['settings', 'Settings'], ['activity', 'Activity']];
   function route() {
     var tab = (location.hash || '#overview').slice(1);
     if (!TABS.some(function (t) { return t[0] === tab; })) tab = 'overview';
@@ -447,6 +447,88 @@
     });
   }
 
+  // ── Social links: the landing page's "Follow Vane" section. The words, links and order are edited here; the card design is fixed.
+  function netName(list, id) { var n = list.filter(function (x) { return x.id === id; })[0]; return n ? n.name : id; }
+  VIEWS.social = function (seq) {
+    call('GET', '/api/admin/socials').then(function (r) {
+      if (!alive(seq)) return;
+      if (!r.ok) return show(seq, errorBox(r.error));
+      var d = S.social = r.data, sec = d.section;
+      var cards = d.links.map(function (l) {
+        return '<article class="glass-d flex flex-col rounded-3xl p-5">' +
+          '<div class="flex items-start justify-between gap-2"><div class="min-w-0"><div class="text-[11px] font-medium uppercase tracking-wider text-white/40">' + esc(netName(d.networks, l.network)) + '</div><h3 class="mt-1 truncate text-lg font-semibold">' + esc(l.name) + '</h3></div>' +
+          (l.isPublic ? tag('on landing', 'ok') : tag('hidden')) + '</div>' +
+          '<p class="mt-3 text-sm font-medium">' + (l.handle ? esc(l.handle) : '<span class="text-white/35">no handle</span>') + '</p>' +
+          '<p class="mt-1 text-xs leading-relaxed text-white/55">' + (l.description ? esc(l.description) : 'No description') + '</p>' +
+          '<a class="mt-2 truncate text-xs text-white/45 underline-offset-2 hover:underline" href="' + esc(l.url) + '" target="_blank" rel="noopener noreferrer">' + esc(l.url) + '</a>' +
+          '<p class="mt-2 text-xs text-white/40">Button: ' + esc(l.ctaLabel) + ' · order ' + esc(l.sort) + '</p>' +
+          '<div class="mt-auto pt-4"><button class="btn btn-ghost btn-sm w-full" type="button" data-act="soc-edit" data-id="' + esc(l.id) + '">Edit</button></div></article>';
+      }).join('');
+      show(seq, title('Social links', 'The \"Follow\" section of the landing page. You change the words, the links and the order; the design stays as it is. Public changes appear within a minute.',
+        '<button class="btn btn-white btn-sm" type="button" data-act="soc-new"' + (d.links.length >= d.max ? ' disabled' : '') + '>+ Add link</button>') +
+        card('Words above the cards',
+          '<form id="socSectionForm" novalidate><div class="grid gap-4 sm:grid-cols-2">' +
+            field('sEyebrow', 'Small label (empty hides it)', sec.eyebrow, { attrs: 'maxlength="40"' }) +
+            field('sTitle', 'Heading', sec.title, { attrs: 'maxlength="120"' }) +
+            field('sIntro', 'Intro text (empty hides it)', sec.intro, { cls: 'sm:col-span-2', attrs: 'maxlength="300"' }) +
+          '</div><div id="socSectionErr" role="alert" class="mt-4 hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>' +
+          '<div class="mt-4 flex justify-end"><button class="btn btn-white btn-sm" type="submit">Save text</button></div></form>') +
+        '<div class="mt-4 ' + (d.links.length ? 'grid gap-4 sm:grid-cols-2 xl:grid-cols-3' : '') + '">' + (cards || card('', empty('No links yet. Without any public link the section is hidden on the landing page.'))) + '</div>' +
+        card('How this works', '<ul class="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-white/60"><li>The landing page reads these rows from <code>/api/socials</code>. If none is public, the whole section disappears; if the API is unreachable, the links written into the page stay.</li>' +
+          '<li>The network decides the icon and colour. Pick <b>Other</b> for anything without its own icon.</li><li>Links must be full <code>https://</code> addresses. Up to ' + d.max + ' links; a lower order number goes first.</li></ul>', '', 'mt-4'));
+      $('socSectionForm').addEventListener('submit', saveSocSection);
+    });
+  };
+  function saveSocSection(e) {
+    e.preventDefault();
+    var box = $('socSectionErr'), btn = $('socSectionForm').querySelector('button[type=submit]');
+    btn.disabled = true;
+    call('PUT', '/api/admin/socials?part=section', { eyebrow: $('sEyebrow').value.trim(), title: $('sTitle').value.trim(), intro: $('sIntro').value.trim() }).then(function (r) {
+      btn.disabled = false;
+      box.textContent = r.ok ? '' : r.error; box.classList.toggle('hidden', r.ok);
+      if (r.ok) Vane.toast('ok', 'Text saved.');
+    });
+  }
+  function socForm(l) {
+    var creating = !l, d = S.social;
+    l = l || { id: '', network: 'telegram', name: 'Telegram', handle: '', description: '', url: '', ctaLabel: 'Follow', isPublic: true, sort: (d.links.length ? Math.max.apply(null, d.links.map(function (x) { return x.sort; })) + 10 : 10) };
+    openModal('<form id="socLinkForm" novalidate><h3 class="text-xl font-semibold">' + (creating ? 'Add a link' : 'Edit ' + esc(l.name)) + '</h3>' +
+      '<div class="mt-5 grid gap-4 sm:grid-cols-2">' +
+        '<div><label class="lbl" for="lNet">Network (icon and colour)</label><select id="lNet" class="field">' + d.networks.map(function (n) { return '<option value="' + esc(n.id) + '"' + (l.network === n.id ? ' selected' : '') + '>' + esc(n.name) + '</option>'; }).join('') + '</select></div>' +
+        field('lName', 'Name (small caps above)', l.name, { ph: 'Telegram', attrs: 'maxlength="40"' }) +
+        field('lHandle', 'Handle (the big line)', l.handle, { ph: '@vanenews', attrs: 'maxlength="60"' }) +
+        field('lCta', 'Button text', l.ctaLabel, { attrs: 'maxlength="30"' }) +
+        field('lDesc', 'Description', l.description, { cls: 'sm:col-span-2', ph: 'One short line', attrs: 'maxlength="160"' }) +
+        field('lUrl', 'Link', l.url, { cls: 'sm:col-span-2', type: 'url', ph: 'https://t.me/vanenews', attrs: 'maxlength="300"' }) +
+        field('lSort', 'Order (lower = first)', l.sort, { type: 'number' }) +
+        '<div class="flex items-end pb-2">' + check('lPublic', 'Show on the landing page', l.isPublic) + '</div>' +
+      '</div>' +
+      '<div id="socErr" role="alert" class="mt-5 hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>' +
+      '<div class="mt-6 flex items-center justify-between gap-3"><div>' + (creating ? '' : '<button class="btn btn-danger btn-sm" type="button" data-act="soc-delete" data-id="' + esc(l.id) + '" data-name="' + esc(l.name) + '">Delete</button>') + '</div>' +
+      '<div class="flex gap-2"><button class="btn btn-ghost" type="button" data-act="modal-close">Cancel</button><button class="btn btn-white" type="submit">' + (creating ? 'Add link' : 'Save changes') + '</button></div></div></form>');
+    // picking another network renames the card for you, as long as the name is still the previous network's
+    var lastNet = l.network;
+    $('lNet').addEventListener('change', function () {
+      var prev = netName(d.networks, lastNet), cur = $('lName').value.trim();
+      lastNet = $('lNet').value;
+      if (!cur || cur === prev) $('lName').value = lastNet === 'other' ? '' : netName(d.networks, lastNet);
+    });
+    $('socLinkForm').addEventListener('submit', function (e) { e.preventDefault(); saveSocLink(creating, l.id); });
+  }
+  function saveSocLink(creating, id) {
+    var err = function (m) { var b = $('socErr'); b.textContent = m; b.classList.toggle('hidden', !m); };
+    var body = {
+      network: $('lNet').value, name: $('lName').value.trim(), handle: $('lHandle').value.trim(), description: $('lDesc').value.trim(),
+      url: $('lUrl').value.trim(), ctaLabel: $('lCta').value.trim(), sort: Math.round(Number($('lSort').value) || 0), isPublic: $('lPublic').checked
+    };
+    var btn = $('socLinkForm').querySelector('button[type=submit]'); btn.disabled = true;
+    call(creating ? 'POST' : 'PUT', '/api/admin/socials' + (creating ? '' : '?id=' + encodeURIComponent(id)), body).then(function (r) {
+      btn.disabled = false;
+      if (!r.ok) return err(r.error);
+      closeModal(); Vane.toast('ok', creating ? 'Link added.' : 'Link saved.'); route();
+    });
+  }
+
   // ── Traffic
   VIEWS.traffic = function (seq) {
     call('GET', '/api/admin/traffic?days=' + S.days).then(function (r) {
@@ -692,6 +774,11 @@
     else if (a === 'plan-edit') planForm(S.plans.filter(function (p) { return p.id === el.dataset.id; })[0]);
     else if (a === 'plan-delete') confirmBox('Delete the plan <b>' + esc(el.dataset.id) + '</b>? This only works if nobody ever had it.', 'Delete plan', function () {
       call('DELETE', '/api/admin/plans?id=' + encodeURIComponent(el.dataset.id)).then(function (r) { if (r.ok) { Vane.toast('ok', 'Plan deleted.'); route(); } else Vane.toast('err', r.error); });
+    }, true);
+    else if (a === 'soc-new') socForm(null);
+    else if (a === 'soc-edit') socForm(S.social.links.filter(function (l) { return l.id === el.dataset.id; })[0]);
+    else if (a === 'soc-delete') confirmBox('Remove <b>' + esc(el.dataset.name) + '</b> from the landing page? You can add it again later.', 'Remove link', function () {
+      call('DELETE', '/api/admin/socials?id=' + encodeURIComponent(el.dataset.id)).then(function (r) { if (r.ok) { Vane.toast('ok', 'Link removed.'); route(); } else Vane.toast('err', r.error); });
     }, true);
     else if (a === 'revoke') confirmBox('End this plan now? The user falls back to the Free Trial limits.', 'End plan', function () {
       call('POST', '/api/admin/users', { action: 'revoke', userId: el.dataset.id }).then(function (r) { if (r.ok) { Vane.toast('ok', 'Plan ended.'); openUser(el.dataset.id); if (location.hash === '#users') loadUsers(S.seq); } else Vane.toast('err', r.error); });
