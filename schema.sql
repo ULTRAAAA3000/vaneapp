@@ -566,3 +566,11 @@ CREATE TABLE IF NOT EXISTS video_channels (
 );
 CREATE INDEX IF NOT EXISTS idx_video_channels_user ON video_channels(user_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_video_channels_account ON video_channels(user_id, platform, account_ref);
+
+-- Vane Studio AI (script, titles, descriptions, tags, chapters): one row per account and month. The allowance itself lives in code (videoai.ts).
+CREATE TABLE IF NOT EXISTS video_ai_usage (
+  user_id  TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  period   TEXT    NOT NULL,                                                    -- 'YYYY-MM' (UTC)
+  used     INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (user_id, period)
+);

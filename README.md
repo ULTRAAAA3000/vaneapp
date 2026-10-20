@@ -281,6 +281,12 @@ They share the account and the sign-in, nothing else; each host answers 404 to t
 - **Upload flow** (chunks of 8 MiB, resumable): `POST /api/video/uploads` → `PUT …/uploads/:id/parts/:n` → `POST …/uploads/:id/complete`.
 - **Test it locally:** `npm run db:local && npm run dev`, then `npm run test:video` (API) and `npm run test:hosts` (subdomain routing).
 
+### Studio AI writer
+
+`POST /api/video/ai` (needs an active Vane Studio; `GET` shows the allowance) runs on the same Workers AI binding as the post editor:
+`script` (hook, body and CTA for Shorts/TikTok/Reels/YouTube), `metadata` (titles, description, tags, hashtags) and `chapters` (YouTube timecodes, estimated from where each part sits in the script). One generation is one credit of 250 per month (`VIDEO_AI_MONTHLY` in `functions/api/lib/videoai.ts`), given back if the model fails.
+It needs one new table: run the whole `schema.sql` in the D1 Console again (it is idempotent), or only the `video_ai_usage` block at its end.
+
 ## Landing video demo
 
 The "Publish videos like you publish posts" section (`#videos` in `public/index.html`) is an iPad showing a YouTube-style channel feed plus a mini dashboard under it. Typing a title and pressing "Publish video" adds a non-clickable card to the feed (up to 3 uploads, then "Reset demo"). It is a pure front-end simulation: the filler videos are in `YT_OLD` and the upload limit is `YT_MAX` in the page script.
