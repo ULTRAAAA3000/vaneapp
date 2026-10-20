@@ -145,6 +145,61 @@
       <div id="channels" class="mt-4 space-y-2.5"><div class="skeleton h-16"></div></div>
     </section>
 
+    <!-- ═══════════ AI WRITER (assets/studio-ai.js): hidden until the server says it is available ═══════════ -->
+    <section id="aiStudio" class="fade-up glass-d mt-5 hidden rounded-3xl p-5 sm:p-7" style="animation-delay:.12s" aria-labelledby="aiTitle">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 id="aiTitle" class="text-lg font-semibold">AI writer</h2>
+          <p class="mt-1 text-xs text-white/45">A script from an idea, then titles, description and tags, and chapter timecodes for long videos.</p>
+        </div>
+        <span id="aiLeft" class="text-xs text-white/45"></span>
+      </div>
+
+      <div class="mt-5 grid gap-3 sm:grid-cols-3">
+        <div>
+          <label for="aiPlatform" class="mb-1 block text-xs text-white/55">Where it goes</label>
+          <select id="aiPlatform" class="field">
+            <option value="shorts">YouTube Shorts</option>
+            <option value="tiktok">TikTok</option>
+            <option value="reels">Instagram Reels</option>
+            <option value="youtube">YouTube (long video)</option>
+          </select>
+        </div>
+        <div>
+          <label for="aiTone" class="mb-1 block text-xs text-white/55">Tone</label>
+          <select id="aiTone" class="field">
+            <option value="">Natural</option>
+            <option value="friendly">Friendly</option>
+            <option value="viral">Viral / hook-driven</option>
+            <option value="professional">Professional</option>
+            <option value="tech">Tech / indie hacker</option>
+          </select>
+        </div>
+        <div>
+          <label for="aiLength" id="aiLengthLabel" class="mb-1 block text-xs text-white/55">Length, seconds</label>
+          <input id="aiLength" type="number" inputmode="numeric" min="10" max="60" value="30" class="field" />
+        </div>
+      </div>
+
+      <div class="mt-3">
+        <label for="aiIdea" class="mb-1 block text-xs text-white/55">The idea of the video</label>
+        <textarea id="aiIdea" class="field" rows="2" maxlength="2000" placeholder="For example: 3 mistakes beginners make when learning guitar"></textarea>
+      </div>
+      <button id="aiWrite" type="button" class="btn btn-white btn-sm mt-3">Write the script</button>
+
+      <div class="mt-5">
+        <div class="mb-1 flex items-center justify-between text-xs text-white/55"><label for="aiScript">Script (edit it, or paste your own)</label><span id="aiWords" class="text-white/35"></span></div>
+        <textarea id="aiScript" class="field" rows="7" maxlength="12000" placeholder="The script appears here"></textarea>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <button id="aiMeta" type="button" class="btn btn-ghost btn-sm">Titles, description and tags</button>
+          <button id="aiChapters" type="button" class="btn btn-ghost btn-sm hidden">Chapters with timecodes</button>
+          <button id="aiCopyScript" type="button" class="btn btn-ghost btn-sm">Copy script</button>
+        </div>
+      </div>
+
+      <div id="aiOut" class="mt-5 hidden space-y-4" aria-live="polite"></div>
+    </section>
+
     <!-- offered after an upload when channels are connected (Studio → Post hand-off) -->
     <section id="announceBanner" class="fade-up glass-d mt-5 hidden items-center justify-between gap-3 rounded-2xl p-4 sm:p-5" role="status">
       <p class="min-w-0 text-sm text-white/80"><span class="font-medium text-white">Video uploaded.</span> Announce it in your social channels?</p>
@@ -275,5 +330,6 @@
   <script src="/assets/vane.js?v=20261019d"></script>
   <script src="/assets/apikeys.js?v=20261019a"></script>
   <script src="/assets/studio.js?v=20261019e"></script>
+  <script src="/assets/studio-ai.js?v=20261019a"></script>
 </body>
 </html>
