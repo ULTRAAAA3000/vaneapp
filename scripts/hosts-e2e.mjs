@@ -78,6 +78,30 @@ try {
   check('www. behaves the same', (await req('www.vaneapp.dev', 'GET', '/app')).headers.location === `https://${POST}/`);
   check('the whole API still answers here, so existing integrations keep working', (await req(APEX, 'GET', '/api/v1/me')).status === 401 && (await req(APEX, 'GET', '/api/v1/video/me')).status === 401);
 
+  section('Legal pages (needed by Google, TikTok and Meta before they review the apps)');
+  for (const host of [APEX, POST, STUDIO]) {
+    const got = await Promise.all(['/privacy', '/terms', '/data-deletion'].map((p) => req(host, 'GET', p)));
+    check(`${host}: /privacy, /terms and /data-deletion open`, got.every((g) => g.status === 200) && /Privacy Policy/i.test(title(got[0])) && /Terms of Service/i.test(title(got[1])) && /Data deletion/i.test(title(got[2])), got.map((g) => `${g.status} ${title(g)}`).join(' | '));
+  }
+  const [privacy, terms, deletion] = await Promise.all(['/privacy', '/terms', '/data-deletion'].map((p) => req(APEX, 'GET', p)));
+  check("the privacy policy carries Google's Limited Use statement (YouTube verification is refused without it)", /Google API Services User Data Policy/.test(privacy.text) && /Limited Use/.test(privacy.text));
+  check('and links the YouTube Terms of Service, the Google Privacy Policy and the page where access is revoked', ['youtube.com/t/terms', 'policies.google.com/privacy', 'myaccount.google.com/permissions'].every((u) => privacy.text.includes(u)));
+  check('the privacy policy covers Vane Studio, YouTube, TikTok and Instagram', ['Vane Studio', 'YouTube', 'TikTok', 'Instagram'].every((x) => privacy.text.includes(x)));
+  check('the data deletion page covers videos and the networks', ['YouTube', 'Instagram'].every((x) => deletion.text.includes(x)) && /video/i.test(deletion.text));
+  check('Terms covers connecting networks and content', /Connecting social networks/.test(terms.text) && /Your content/.test(terms.text));
+  check('all three pages link to each other in the footer', [privacy, terms, deletion].every((g) => ['/privacy', '/terms', '/data-deletion'].every((l) => g.text.includes(`href="${l}"`))));
+
+  // Not failures: what is still open before submitting (see documentation/VIDEO_NETWORKS_SETUP.md §1).
+  const todos = [privacy, terms, deletion].map((g) => (g.text.match(/class="todo"/g) || []).length);
+  console.log(`  ℹ  yellow "todo" marks left for the owner to fill in: privacy ${todos[0]}, terms ${todos[1]}, data deletion ${todos[2]}`);
+  const gaps = [
+    [/temporary (public )?link/i.test(privacy.text), 'privacy: say that a temporary public link is made for TikTok/Instagram and removed once they fetched the video'],
+    [['video.publish', 'instagram_business_content_publish'].every((x) => privacy.text.includes(x)), 'privacy: name the TikTok and Instagram permissions asked'],
+    [deletion.text.includes('TikTok'), 'data deletion: how to remove Vane in TikTok'],
+    [/delete a video/i.test(deletion.text), 'data deletion: a step to delete a video in Studio'],
+  ].filter(([ok]) => !ok).map(([, what]) => what);
+  for (const g of gaps) console.log(`  ℹ  before submitting to the networks, add → ${g}`);
+
   section('Local dev and previews are left alone');
   const lr = await req('localhost:8788', 'GET', '/app');
   check('/app is served directly on localhost', lr.status === 200 && title(lr) === 'Dashboard — Vane', `${lr.status}`);
