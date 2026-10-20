@@ -40,11 +40,62 @@
 
   function credits() {
     var el = $('aiCredits'), ai = A.ai;
-    if (!ai) { el.textContent = ''; return; }
-    if (ai.limit !== null || ai.bonus > 0) el.textContent = (ai.remaining === null ? ai.bonus : ai.remaining) + ' AI credit' + ((ai.remaining === null ? ai.bonus : ai.remaining) === 1 ? '' : 's') + ' left';
-    else if (ai.perGenerationUsd) el.textContent = ai.billable ? '$' + ai.perGenerationUsd + ' per AI Pass use' : 'AI Pass needs extra-usage billing';
-    else el.textContent = '';
+    if (!ai || ai.remaining === null) { el.textContent = ''; banner(); return; }
+    el.textContent = ai.remaining + ' AI credit' + (ai.remaining === 1 ? '' : 's') + ' left';
+    banner();
   }
+
+  // The card under the editor: the AI Pass offer, or the credits and the "when they run out" switch.
+  var bn = $('aiBanner');
+  function money(n) { return '$' + (Math.round(n * 1000) / 1000); }
+  function banner() {
+    var ai = A.ai;
+    if (!ai || !bn) return;
+    var html = '';
+    var planCredits = ai.limit || 0;
+    if (ai.offer && planCredits < ai.offer.credits) {
+      html += '<div class="mb-2 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.05] p-4">' +
+        '<div class="min-w-0"><div class="text-sm font-semibold">Get the Vane AI Pass for ' + money(ai.offer.priceUsd) + ' a ' + esc(ai.offer.interval === 'year' ? 'year' : 'month') + '</div>' +
+        '<p class="mt-0.5 text-xs leading-relaxed text-white/55">' + ai.offer.credits + ' AI credits: tone, hooks, calls to action, a version for each channel, a post from an idea. Make it clean and hashtags stay free.' +
+        (ai.remaining ? ' You have ' + ai.remaining + ' credit' + (ai.remaining === 1 ? '' : 's') + ' left now.' : '') + '</p></div>' +
+        '<button type="button" id="aiBuy" class="btn btn-white btn-sm shrink-0">Buy AI Pass · ' + money(ai.offer.priceUsd) + '</button></div>';
+    }
+    if (ai.remaining !== null || ai.extra.rateUsd !== null) {
+      var parts = [];
+      if (ai.pass.active) parts.push('AI Pass: ' + ai.pass.remaining + ' of ' + ai.pass.credits + ' left this month');
+      if (ai.limit !== null) parts.push('plan: ' + Math.max(ai.limit - ai.used, 0) + ' of ' + ai.limit + ' left');
+      if (ai.bonus) parts.push('extra from us: ' + ai.bonus);
+      html += '<div class="rounded-2xl border border-white/10 bg-white/[0.04] p-4"><div class="flex flex-wrap items-center justify-between gap-3">' +
+        '<div class="text-sm"><span class="font-semibold">' + (ai.remaining === null ? 'AI credits' : ai.remaining + ' AI credit' + (ai.remaining === 1 ? '' : 's') + ' left') + '</span>' +
+        (parts.length ? '<span class="ml-2 text-xs text-white/50">' + esc(parts.join(' · ')) + '</span>' : '') + '</div>';
+      if (ai.extra.rateUsd !== null) {
+        html += '<div class="flex flex-wrap items-center gap-2" role="group" aria-label="When AI credits run out">' +
+          '<span class="text-xs text-white/50">When they run out:</span>' +
+          '<button type="button" class="chip" data-extra="0" aria-pressed="' + (!ai.extra.enabled) + '"><span>Stop</span></button>' +
+          '<button type="button" class="chip" data-extra="1" aria-pressed="' + ai.extra.enabled + '"><span>Pay ' + money(ai.extra.rateUsd) + ' per credit</span></button></div>';
+      }
+      html += '</div>' + (ai.extra.rateUsd !== null ? '<p class="mt-2 text-xs leading-relaxed text-white/40">' + (ai.extra.enabled ? 'Extra credits are billed per use at ' + money(ai.extra.rateUsd) + ' each. The same switch applies to extra posts over your plan.' : 'Nothing is charged: when your credits run out, AI requests are refused.') + '</p>' : '') + '</div>';
+    }
+    bn.innerHTML = html;
+    bn.classList.toggle('hidden', !html);
+  }
+  if (bn) bn.addEventListener('click', async function (e) {
+    if (e.target.closest('#aiBuy')) {
+      var o = A.ai.offer;
+      show('Vane AI Pass', '<p class="text-sm leading-relaxed text-white/80">' + money(o.priceUsd) + ' a ' + esc(o.interval === 'year' ? 'year' : 'month') + ' for ' + o.credits + ' AI credits on top of your plan. ' +
+        (o.overageUsd ? 'Need more? Extra credits cost ' + money(o.overageUsd) + ' each, and only if you switch that on.' : '') + '</p>' +
+        '<p class="mt-3 rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-sm leading-relaxed text-amber-200">Online checkout is not open yet. For now the AI Pass is switched on by hand: it will appear here as soon as it is active on your account.</p>');
+      return;
+    }
+    var b = e.target.closest('[data-extra]');
+    if (!b) return;
+    var on = b.getAttribute('data-extra') === '1';
+    if (on === A.ai.extra.enabled) return;
+    var r = await Vane.api('POST', '/api/usage/overage', { enabled: on });
+    if (!r.ok) { Vane.toast('err', r.error); return; }
+    A.ai = r.data.ai; credits();
+    Vane.toast('ok', on ? 'Extra credits will be billed per use.' : 'Stopped: nothing is charged over your limit.');
+  });
 
   // ───────────────────────── panel ─────────────────────────
   function shell(title, body) {

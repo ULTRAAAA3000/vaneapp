@@ -51,6 +51,16 @@ export const PLANS: Record<string, PlanSpec> = {
 export const API_ADDON_POSTS = 180;
 let addonPosts = API_ADDON_POSTS;
 
+/**
+ * Vane AI Pass: a stand-alone add-on (catalog row 'ai-pass', kind 'addon', never shown on the landing page) that gives monthly AI credits
+ * to any account, whatever its posting plan. Price, credits and the extra-credit rate are edited in /admin → Plans.
+ * Without the row (schema.sql not re-run) it is off.
+ */
+export interface AiPassSpec { active: boolean; priceCents: number; interval: string; credits: number; overageMicro: number | null }
+const NO_AI_PASS: AiPassSpec = { active: false, priceCents: 299, interval: 'month', credits: 150, overageMicro: 0.02 * USD };
+let aiPassSpec: AiPassSpec = { ...NO_AI_PASS };
+export const aiPassOffer = (): AiPassSpec => aiPassSpec;
+
 /** The spec of a plan id; an unknown id (a plan that was removed) is served the Free Trial limits. */
 export const specOf = (id: string): PlanSpec => PLANS[id] ?? PLANS.free;
 
@@ -191,14 +201,19 @@ export async function refreshPlanSpecs(env: { DB: D1Database }): Promise<void> {
   if (Date.now() - loadedAt < 15_000) return;
   loadedAt = Date.now(); // set first: a failing query is not retried on every request
   try {
-    const { results } = await env.DB.prepare('SELECT id, kind, name, limits FROM plans').all<{ id: string; kind: string; name: string; limits: string }>();
+    const { results } = await env.DB.prepare('SELECT id, kind, name, limits, price_cents, is_active, interval FROM plans').all<{ id: string; kind: string; name: string; limits: string; price_cents: number; is_active: number; interval: string }>();
     const next: Record<string, PlanSpec> = { ...BUILTIN };
     let addon = API_ADDON_POSTS;
+    let pass: AiPassSpec = { ...NO_AI_PASS };
     for (const r of results) {
       let limits: Record<string, unknown> = {};
       try { limits = JSON.parse(r.limits) as Record<string, unknown>; } catch { /* corrupt row: no limits */ }
       if (r.kind === 'addon') {
         if (r.id === 'api-addon') addon = num(limits.apiPostsPerMonth) ?? addon;
+        if (r.id === 'ai-pass') {
+          const extra = num(limits.overageAiPostUsd);
+          pass = { active: r.is_active === 1, priceCents: r.price_cents, interval: r.interval, credits: Math.max(0, Math.floor(num(limits.aiCredits) ?? NO_AI_PASS.credits)), overageMicro: extra !== null && extra > 0 ? Math.round(extra * USD) : null };
+        }
         continue;
       }
       next[r.id] = specFromCatalog(r.id, r.name, limits);
@@ -206,6 +221,7 @@ export async function refreshPlanSpecs(env: { DB: D1Database }): Promise<void> {
     for (const k of Object.keys(PLANS)) delete PLANS[k];
     Object.assign(PLANS, next);
     addonPosts = addon;
+    aiPassSpec = pass;
   } catch {
     /* plans table missing (schema not applied yet): the built-in numbers stay */
   }
