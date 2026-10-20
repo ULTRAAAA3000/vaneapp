@@ -86,7 +86,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         402, reservation.code,
         reservation.code === 'ai_quota_exceeded'
           ? `You have used all ${usage.ai.limit} AI credits. They renew with your plan period, or turn on extra-usage billing in your plan.`
-          : 'Your plan has no AI credits. The free tools (Make it clean, hashtags) still work; choose a plan with the AI Pass for the rest.',
+          : usage.ai.perGenerationUsd
+            ? `On your plan every AI Pass generation costs $${usage.ai.perGenerationUsd}, and extra-usage billing is not switched on for your account yet, so it cannot run. Make it clean and hashtags are free.`
+            : 'Your plan has no AI credits. The free tools (Make it clean, hashtags) still work; choose a plan with the AI Pass for the rest.',
         { ai: usage.ai },
       );
     }

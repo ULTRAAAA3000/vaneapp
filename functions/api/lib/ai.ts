@@ -67,19 +67,31 @@ const TIMEOUT_MS = 25_000;
 
 export async function ask(env: Env, system: string, user: string, maxTokens = 700, temperature = 0.6): Promise<string> {
   if (!env.AI) throw new AiError('ai_unavailable', 'AI is not enabled on this server yet.', 503);
+  const ai = env.AI;
   let out: unknown;
-  try {
-    out = await Promise.race([
-      env.AI.run(AI_MODEL, { messages: [{ role: 'system', content: system }, { role: 'user', content: user }], max_tokens: maxTokens, temperature }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), TIMEOUT_MS)),
-    ]);
-  } catch (err) {
-    console.error('workers ai failed', err instanceof Error ? err.message : 'unknown');
-    throw new AiError('ai_failed', 'The AI did not answer. Try again in a moment.', 502);
+  let lastError = '';
+  // Workers AI sometimes answers with a short capacity error: one more try after a moment.
+  for (let attempt = 0; attempt < 2 && out === undefined; attempt++) {
+    if (attempt) await new Promise((r) => setTimeout(r, 700));
+    try {
+      out = await Promise.race([
+        ai.run(AI_MODEL, { messages: [{ role: 'system', content: system }, { role: 'user', content: user }], max_tokens: maxTokens, temperature }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), TIMEOUT_MS)),
+      ]);
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : 'unknown';
+      console.error('workers ai failed', lastError);
+      if (lastError === 'timeout') break;
+    }
+  }
+  if (out === undefined) {
+    if (/4006|neurons|allocation|daily/i.test(lastError)) throw new AiError('ai_failed', 'The free daily AI allowance of this server is used up. It resets at 00:00 UTC.', 503);
+    if (lastError === 'timeout') throw new AiError('ai_failed', 'The AI took too long. Try again in a moment.', 504);
+    throw new AiError('ai_failed', `The AI did not answer (${lastError.replace(/\s+/g, ' ').slice(0, 120) || 'no details'}). Try again in a moment.`, 500);
   }
   const r = out && typeof out === 'object' ? (out as { response?: unknown }).response : null;
   const text = typeof r === 'string' ? r : '';
-  if (!text.trim()) throw new AiError('ai_failed', 'The AI did not answer. Try again in a moment.', 502);
+  if (!text.trim()) throw new AiError('ai_failed', 'The AI sent an empty answer. Try again.', 502);
   return text;
 }
 
