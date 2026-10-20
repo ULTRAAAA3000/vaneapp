@@ -15,7 +15,7 @@
 import type { Env, KeyMode, KeyScope } from '../../../types';
 import { failCode } from './http';
 import { apiAllowed, refreshPlanSpecs, resolveSubscription, type Subscription, type SubscriptionRow } from './plans';
-import { bump, retryAfter } from './throttle';
+import { bump, clientIp, retryAfter } from './throttle';
 import { loadVideoSubscription, videoEngineRequired } from './videoplans';
 
 /** Random characters in a key (62 symbols each, so ~143 bits; the spec asks for at least 16). */
@@ -96,6 +96,17 @@ interface KeyRow extends SubscriptionRow {
 }
 
 const WWW = { 'WWW-Authenticate': 'Bearer' };
+
+/** Wrong API keys one address may send in a window before it is asked to wait (shield.ts covers the rest of the API). */
+export const BAD_KEYS_PER_WINDOW = 30;
+const BAD_KEY_WINDOW_SECONDS = 600;
+/** Hashes of keys that were valid a moment ago (this isolate only); they only skip the wrong-key limit, never the database check. */
+const validKeys = new Map<string, number>();
+const recentlyValid = (hash: string): boolean => (validKeys.get(hash) ?? 0) > Date.now();
+function rememberValid(hash: string): void {
+  if (validKeys.size > 1000) validKeys.clear();
+  validKeys.set(hash, Date.now() + 60_000);
+}
 const LAST_USED_GRANULARITY = 60;
 
 /**
@@ -125,6 +136,17 @@ export async function requireApiKey(request: Request, env: Env, need: KeyScope):
     };
   }
 
+  // Guessing keys: every wrong (well-formed) key costs a database read, so an address that sends too many wrong ones is told to wait.
+  // A key that worked a moment ago on this server is not held up by it (customers share addresses, e.g. Zapier's).
+  const keyHash = await hashApiKey(bearer[1]);
+  const ip = clientIp(request);
+  if (ip !== 'unknown' && !recentlyValid(keyHash)) {
+    const wait = await retryAfter(env, `apikey-bad:${ip}`, BAD_KEYS_PER_WINDOW);
+    if (wait) {
+      return { ok: false, response: failCode(429, 'rate_limited', 'Too many invalid API keys from this address. Try again later.', { retryAfter: wait }, { 'Retry-After': String(wait) }) };
+    }
+  }
+
   const row = await env.DB
     .prepare(
       `SELECT k.id, k.user_id, k.name, k.scope, k.mode, k.last_used_at,
@@ -132,9 +154,13 @@ export async function requireApiKey(request: Request, env: Env, need: KeyScope):
          FROM api_keys k LEFT JOIN subscriptions s ON s.user_id = k.user_id
         WHERE k.key_hash = ?1 AND k.revoked_at IS NULL`,
     )
-    .bind(await hashApiKey(bearer[1]))
+    .bind(keyHash)
     .first<KeyRow>();
-  if (!row) return { ok: false, response: failCode(401, 'invalid_api_key', 'Invalid API key.', {}, WWW) };
+  if (!row) {
+    if (ip !== 'unknown') await bump(env, `apikey-bad:${ip}`, BAD_KEY_WINDOW_SECONDS);
+    return { ok: false, response: failCode(401, 'invalid_api_key', 'Invalid API key.', {}, WWW) };
+  }
+  rememberValid(keyHash);
 
   // Rate limit per key (fixed one-minute window).
   const rlKey = `apikey:${row.id}`;

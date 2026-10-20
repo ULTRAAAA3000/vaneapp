@@ -16,6 +16,8 @@ import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env } from '../types';
 import { fail } from './api/lib/http';
 import { productUrl, siteOf } from './api/lib/hosts';
+import { clientOf } from './api/lib/guard';
+import { shieldAfter, shieldBefore, withApiHeaders } from './api/lib/shield';
 
 const VIDEO_API = ['/api/video/', '/api/v1/video/'];
 
@@ -65,15 +67,27 @@ const route: PagesFunction<Env> = async ({ request, env, next }) => {
  * reason goes to the log (Cloudflare → Pages → Functions → Real-time logs). Pages (non-API) keep their normal behaviour.
  */
 export const onRequest: PagesFunction<Env> = async (context) => {
+  const url = new URL(context.request.url);
+  const isApi = url.pathname.startsWith('/api/');
+  const client = clientOf(context.request);
   try {
-    return await route(context);
+    if (isApi) {
+      // The shield (functions/api/lib/shield.ts): cheap refusals before any route code runs.
+      const refused = await shieldBefore(context.env, context.request, url.pathname, client);
+      if (refused) return withApiHeaders(refused);
+    }
+    const res = await route(context);
+    if (!isApi) return res;
+    // probes leave errors behind: count them (after the answer is on its way)
+    context.waitUntil(shieldAfter(context.env, context.request, url.pathname, res.status, client));
+    return withApiHeaders(res);
   } catch (err) {
-    const { pathname } = new URL(context.request.url);
-    if (!pathname.startsWith('/api/')) throw err;
+    const pathname = url.pathname;
+    if (!isApi) throw err;
     const msg = err instanceof Error ? `${err.name}: ${err.message}` : 'unknown error';
     console.error(`unhandled error in ${context.request.method} ${pathname}: ${msg}`);
     // A table or column the code expects is not in the database yet: the schema has not been applied (npm run db:remote).
-    if (/no such (table|column)/i.test(msg)) return fail(503, 'The server database needs one update (npm run db:remote). Please try again later.');
-    return fail(500, 'Something went wrong on our side. Please try again in a moment.');
+    if (/no such (table|column)/i.test(msg)) return withApiHeaders(fail(503, 'The server database needs one update (npm run db:remote). Please try again later.'));
+    return withApiHeaders(fail(500, 'Something went wrong on our side. Please try again in a moment.'));
   }
 };

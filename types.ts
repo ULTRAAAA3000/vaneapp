@@ -37,6 +37,7 @@ export interface Env {
   ADMIN_ALLOW_IPS?: string;     // optional: comma list of addresses / CIDR ranges allowed to use /admin
   GSC_SITE_URL?: string;        // Search Console property, e.g. sc-domain:vaneapp.dev
   TURNSTILE_SITE_KEY?: string;  // Cloudflare Turnstile site key (public, rendered on /login)
+  SHIELD_OFF?: string;          // "1" switches the API shield off (functions/api/lib/shield.ts): the emergency brake if it ever blocks the wrong people
   EMAIL_FROM?: string;          // sender on a domain verified in Resend, e.g. "Vane <noreply@vaneapp.dev>"
 
   /** LinkedIn (Share on LinkedIn + Sign In with LinkedIn using OpenID Connect): the connect button is off until both are set */

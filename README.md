@@ -356,3 +356,13 @@ Each event is a `POST` with the JSON `{ "id", "type", "createdAt", "data": { "po
 Events are queued in `webhook_deliveries` and sent by the cron worker every minute, so a slow receiver never delays posting. The two webhook tables are in `schema.sql` (run it, or the two `CREATE TABLE` blocks at its end, in the D1 console); until then `/api/v1/webhooks` answers 503 and posting is unaffected.
 
 **Receiver address rules** (`validateWebhookUrl` in `functions/api/lib/webhooks.ts`): https only, port 443, no credentials, a public domain name (no IP addresses in any notation, no `localhost`, `*.local`, `*.internal`, `*.lan`, `*.home.arpa`, `*.intranet` …, a trailing dot does not sidestep it) and never Vane itself (`vaneapp.dev` and its subdomains). Redirects are not followed. `npm run test:unit` checks these rules and the signature against an independent HMAC.
+
+## API protection
+
+The API is open by design (Zapier, Make, GPT, scripts), so it is protected in layers; the full picture, the Cloudflare rules to switch on and the tuning knobs are in `documentation/API_PROTECTION.md`.
+
+- **`functions/api/lib/shield.ts`** (called from `functions/_middleware.ts`) runs before every `/api/` route: real methods only, attack-tool User-Agents refused, browser-only doors need a User-Agent, the **blocklist now covers the whole API**, a burst limit per address (100 requests / 10 s, 300 for callers with a Vane key), a body size cap on JSON doors, and **automatic bans for scanners** (15 probes a minute cool an address down, 30 ban it for `auto_ban_hours`; visible and removable in the admin panel).
+- Wrong API keys are limited per address (30 per 10 minutes; a key that just worked is not held up, so shared Zapier addresses are safe); the waitlist is limited to 8 per hour per address.
+- API answers carry `nosniff`, `Referrer-Policy` and `no-store` (Pages' `_headers` only covers static files).
+- It never blocks hosting / VPN networks for API calls, never touches Telegram's and Meta's server calls, uploads or picture fetches, and ignores private / local addresses.
+- Emergency brake: set `SHIELD_OFF=1` on Pages and redeploy.

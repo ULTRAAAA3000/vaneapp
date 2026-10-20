@@ -1,7 +1,7 @@
 /**
  * Network guard: who may sign in, sign up or be tracked.
  *
- *   manual / auto blocks (ip, cidr, asn, country) → enforced everywhere
+ *   manual / auto blocks (ip, cidr, asn, country) → enforced on the whole API (shield.ts)
  *   preset blocks (hosting + VPN networks)         → sign-in / sign-up only, switch: settings.block_hosting
  *   Tor exit nodes (Cloudflare country "T1")       → sign-in / sign-up only, switch: settings.block_tor
  *   VPN / proxy lookup API (PROXYCHECK_KEY)        → sign-in / sign-up only, switch: settings.block_vpn_api
@@ -91,7 +91,7 @@ async function loadRules(env: Env): Promise<Compiled[]> {
 }
 
 // ───────────────────────── evaluation ─────────────────────────
-export type Scope = 'login' | 'register' | 'admin' | 'track';
+export type Scope = 'login' | 'register' | 'admin' | 'track' | 'api'; // 'api': every other /api/ request (shield.ts): manual and automatic blocks only
 export type Why = 'manual' | 'auto' | 'hosting' | 'tor' | 'proxy' | 'country';
 export interface Verdict {
   blocked: boolean;
