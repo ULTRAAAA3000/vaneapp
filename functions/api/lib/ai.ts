@@ -9,6 +9,7 @@
  */
 import type { ChannelType, Env } from '../../../types';
 import { CONTENT_LIMIT } from '../posts/create';
+import { contextOf, recordAiUsage } from './aimeter';
 import { graphemeLength, mastodonLength, threadsLength } from './text';
 
 export const AI_MODEL = '@cf/meta/llama-3.1-8b-instruct';
@@ -68,6 +69,8 @@ const TIMEOUT_MS = 25_000;
 async function ask(env: Env, system: string, user: string, maxTokens = 700, temperature = 0.6): Promise<string> {
   if (!env.AI) throw new AiError('ai_unavailable', 'AI is not enabled on this server yet.', 503);
   let out: unknown;
+  const started = Date.now();
+  const inputChars = system.length + user.length;
   try {
     out = await Promise.race([
       env.AI.run(AI_MODEL, { messages: [{ role: 'system', content: system }, { role: 'user', content: user }], max_tokens: maxTokens, temperature }),
@@ -75,10 +78,13 @@ async function ask(env: Env, system: string, user: string, maxTokens = 700, temp
     ]);
   } catch (err) {
     console.error('workers ai failed', err instanceof Error ? err.message : 'unknown');
+    await recordAiUsage(env, contextOf(env), { model: AI_MODEL, inputChars, outputChars: 0, ok: false, ms: Date.now() - started });   // the ledger: a failed call
     throw new AiError('ai_failed', 'The AI did not answer. Try again in a moment.', 502);
   }
   const r = out && typeof out === 'object' ? (out as { response?: unknown }).response : null;
   const text = typeof r === 'string' ? r : '';
+  // the ledger: tokens used by this call (an empty answer still cost tokens)
+  await recordAiUsage(env, contextOf(env), { model: AI_MODEL, output: out, inputChars, outputChars: text.length, ok: !!text.trim(), ms: Date.now() - started });
   if (!text.trim()) throw new AiError('ai_failed', 'The AI did not answer. Try again in a moment.', 502);
   return text;
 }

@@ -26,6 +26,7 @@ import { THREADS_RENEW_BEFORE_SECONDS, loadThreadsCreds, refreshThreadsToken, se
 import { encryptToken } from '../../functions/api/lib/crypto';
 import { isValidMediaUrl, sendTelegramPost } from '../../functions/api/channels/telegram';
 import { enqueueWebhookEvent } from '../../functions/api/lib/webhooks';
+import { pausedNetworks } from '../../functions/api/lib/networks';
 
 export const BATCH_SIZE = 20;               // per run: keeps us inside Workers' subrequest limits
 export const MAX_ATTEMPTS = 5;
@@ -68,19 +69,40 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
       .prepare('INSERT INTO logs (user_id, post_id, channel_id, level, event, message, meta, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)')
       .bind(post.user_id, post.id, post.channel_id, level, event, clip(message), meta ? JSON.stringify(meta) : null, nowSec);
 
+  // Networks the admin switched off (/admin → Networks): their posts are left alone and WAIT (empty list when none, or the table is missing).
+  const paused = await pausedNetworks(env);
+  const inPaused = (from: number) => `SELECT id FROM channels WHERE type IN (${paused.map((_, i) => `?${from + i}`).join(',')})`;
+  const notPaused = (from: number) => (paused.length ? ` AND channel_id NOT IN (${inPaused(from)})` : '');
+
   // ── 1) Too late: don't publish content hours after the moment the user chose.
   const late = await env.DB
     .prepare(
       `UPDATE posts SET status = 'failed', updated_at = ?1,
               error = 'Missed its scheduled time by more than 2 hours (the scheduler was not running), so it was not published.'
-        WHERE status = 'scheduled' AND scheduled_at <= ?2
+        WHERE status = 'scheduled' AND scheduled_at <= ?2${notPaused(3)}
         RETURNING id, user_id, channel_id`,
     )
-    .bind(nowSec, nowSec - MAX_LATE_SECONDS)
+    .bind(nowSec, nowSec - MAX_LATE_SECONDS, ...paused)
     .all<{ id: string; user_id: string; channel_id: string }>();
   summary.expired = late.results.length;
   if (late.results.length) await env.DB.batch(late.results.map((p) => log(p, 'error', 'post.expired', 'Not published: more than 2 hours overdue')));
   for (const p of late.results) await enqueueWebhookEvent(env, p.user_id, p.id, 'post.failed', nowSec);
+
+  // ── 1b) A paused network that stayed off for more than 2 hours past the scheduled time: say so, honestly.
+  if (paused.length) {
+    const held = await env.DB
+      .prepare(
+        `UPDATE posts SET status = 'failed', updated_at = ?1,
+                error = 'This network was switched off for more than 2 hours after the scheduled time, so the post was not published. Schedule it again.'
+          WHERE status = 'scheduled' AND scheduled_at <= ?2 AND channel_id IN (${inPaused(3)})
+          RETURNING id, user_id, channel_id`,
+      )
+      .bind(nowSec, nowSec - MAX_LATE_SECONDS, ...paused)
+      .all<{ id: string; user_id: string; channel_id: string }>();
+    summary.expired += held.results.length;
+    if (held.results.length) await env.DB.batch(held.results.map((p) => log(p, 'error', 'post.paused_expired', 'Not published: its network was switched off for more than 2 hours')));
+    for (const p of held.results) await enqueueWebhookEvent(env, p.user_id, p.id, 'post.failed', nowSec);
+  }
 
   // ── 2) Orphans: 'processing' for too long means a previous run died mid-flight.
   const stuck = await env.DB
@@ -103,11 +125,11 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
         WHERE id IN (
           SELECT id FROM posts
            WHERE status = 'scheduled' AND scheduled_at <= ?1
-             AND (attempts = 0 OR updated_at + MIN(60 * (1 << attempts), 900) <= ?1)
+             AND (attempts = 0 OR updated_at + MIN(60 * (1 << attempts), 900) <= ?1)${notPaused(3)}
            ORDER BY scheduled_at ASC LIMIT ?2)
         RETURNING id, user_id, channel_id, content, media_keys, scheduled_at, attempts`,
     )
-    .bind(nowSec, BATCH_SIZE)
+    .bind(nowSec, BATCH_SIZE, ...paused)
     .all<Claimed>();
   // RETURNING does not promise any row order, so restore it: oldest scheduled time first.
   const posts = [...claimed.results].sort((a, b) => a.scheduled_at - b.scheduled_at || a.id.localeCompare(b.id));

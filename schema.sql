@@ -566,3 +566,51 @@ CREATE TABLE IF NOT EXISTS video_channels (
 );
 CREATE INDEX IF NOT EXISTS idx_video_channels_user ON video_channels(user_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_video_channels_account ON video_channels(user_id, platform, account_ref);
+
+-- ═════════════════════ Admin: networks on/off and the AI token ledger ═════════════════════
+
+-- The admin's on/off switch per network (/admin → Networks). No row = the default: ON for a network whose code is
+-- written (lib/networks.ts), OFF otherwise. A network can only be switched on when its code exists, whether or not
+-- the platform's own review / verification has passed (that is tracked in `note`).
+CREATE TABLE IF NOT EXISTS network_flags (
+  network     TEXT    PRIMARY KEY,
+  enabled     INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
+  note        TEXT    NOT NULL DEFAULT '',
+  updated_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_by  TEXT
+);
+
+-- One row per model call: how many tokens the AI features used and what they cost us (/admin → AI).
+-- cost_micro is a snapshot in micro-dollars at the price of that moment, so a later price edit never rewrites history.
+-- estimated = 1 when the provider sent no usage numbers and the tokens are a ~4 characters per token guess.
+CREATE TABLE IF NOT EXISTS ai_usage (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts            INTEGER NOT NULL DEFAULT (unixepoch()),
+  user_id       TEXT,                                       -- null = a system task, not a user's click
+  tool          TEXT    NOT NULL,                           -- 'hashtags', 'tone', … or the name of a future feature
+  model         TEXT    NOT NULL,
+  input_tokens  INTEGER NOT NULL DEFAULT 0,
+  output_tokens INTEGER NOT NULL DEFAULT 0,
+  estimated     INTEGER NOT NULL DEFAULT 0 CHECK (estimated IN (0, 1)),
+  neurons       REAL    NOT NULL DEFAULT 0,                 -- Cloudflare bills Workers AI in neurons (10 000 a day are free)
+  cost_micro    INTEGER NOT NULL DEFAULT 0,
+  ok            INTEGER NOT NULL DEFAULT 1 CHECK (ok IN (0, 1)),
+  ms            INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_ts   ON ai_usage(ts);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_user ON ai_usage(user_id, ts);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_tool ON ai_usage(tool, ts);
+
+-- What a model costs. Edit it in /admin → AI when Cloudflare changes prices or a new model is used; a model with
+-- no row here is still counted in tokens, just shown as "no price set".
+CREATE TABLE IF NOT EXISTS ai_prices (
+  model                 TEXT    PRIMARY KEY,
+  input_usd_per_m       REAL    NOT NULL DEFAULT 0,
+  output_usd_per_m      REAL    NOT NULL DEFAULT 0,
+  input_neurons_per_m   REAL    NOT NULL DEFAULT 0,
+  output_neurons_per_m  REAL    NOT NULL DEFAULT 0,
+  updated_at            INTEGER NOT NULL DEFAULT (unixepoch())
+);
+-- developers.cloudflare.com/workers-ai/platform/pricing (checked 2026-10-19)
+INSERT OR IGNORE INTO ai_prices (model, input_usd_per_m, output_usd_per_m, input_neurons_per_m, output_neurons_per_m)
+  VALUES ('@cf/meta/llama-3.1-8b-instruct', 0.282, 0.827, 25608, 75147);

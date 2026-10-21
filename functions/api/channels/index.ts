@@ -15,6 +15,7 @@ import { encryptToken } from '../lib/crypto';
 import { fail, isRecord, json, methodNotAllowed, readJson, UUID_RE } from '../lib/http';
 import { bump, retryAfter } from '../lib/throttle';
 import { checkChannelQuota } from '../lib/catalog';
+import { networkOff } from '../lib/networks';
 import { handleAddBluesky } from './bluesky-add';
 import { CREDS_ERROR, findDuplicateTelegramChannel, loadTelegramCreds } from './credentials';
 import { quickConnectAvailable, VERIFIED_VALID_SECONDS } from './quick';
@@ -87,6 +88,8 @@ export const handleAddChannel: PagesFunction<Env> = async ({ request, env }) => 
   if (typeof platform !== 'string' || !CHANNEL_TYPES.includes(platform as ChannelType)) {
     return fail(400, `platform must be one of: ${CHANNEL_TYPES.join(', ')}`);
   }
+  const paused = await networkOff(env, platform);   // switched off in /admin → Networks
+  if (paused) return paused;
   if (platform === 'mastodon') return fail(400, 'Mastodon connects through a sign-in on your server: POST /api/channels/mastodon/start { instance }.');
   if (platform === 'linkedin' || platform === 'threads') return fail(400, `${platform === 'linkedin' ? 'LinkedIn' : 'Threads'} connects through a sign-in on its own page: POST /api/channels/${platform}/start.`);
   if (!CONNECTABLE.includes(platform as ChannelType)) {
