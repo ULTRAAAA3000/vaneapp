@@ -479,8 +479,8 @@
   // ───────────────────────── announce in Vane Post (the Studio → Post hand-off) ─────────────────────────
   // The text and the channels are chosen here; the server writes the post with the same code as Vane Post, so the same limits
   // apply and the post goes out within a minute, without opening the posting dashboard.
-  var NET_LIMIT = { telegram: 4096, x: 280, linkedin: 3000, webhook: 10000, bluesky: 300, mastodon: 500, threads: 500 };
-  var NET_NAME = { telegram: 'Telegram', x: 'X', linkedin: 'LinkedIn', webhook: 'Webhook', bluesky: 'Bluesky', mastodon: 'Mastodon', threads: 'Threads' };
+  var NET_LIMIT = { telegram: 4096, x: 280, linkedin: 3000, webhook: 10000, bluesky: 300, mastodon: 500, discord: 2000, devto: 10000, threads: 500 };
+  var NET_NAME = { telegram: 'Telegram', x: 'X', linkedin: 'LinkedIn', webhook: 'Webhook', bluesky: 'Bluesky', mastodon: 'Mastodon', discord: 'Discord', devto: 'Dev.to', threads: 'Threads' };
   var LINK_PLACEHOLDER = '{link}';
   var LINK_LENGTH = 76;   // a public link: host + path + 32-character token (Mastodon counts any link as 23)
 

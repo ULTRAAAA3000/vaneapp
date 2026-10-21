@@ -3,6 +3,8 @@
  * Built only from what the sender saved in `posts.external_id` when it published (plus, for Telegram, the channel's chat):
  *
  *   mastodon  the sender stores the post's own https URL
+ *   discord   the sender stores the message link https://discord.com/channels/<server>/<channel>/<message>
+ *   devto     the sender stores the article's https://dev.to/… address
  *   bluesky   the sender stores the at:// URI; the web address is bsky.app/profile/<did>/post/<rkey>
  *   linkedin  the sender stores the post's urn (urn:li:share:… / urn:li:ugcPost:…); the web address is linkedin.com/feed/update/<urn>/
  *   threads   the sender stores the post's permalink (https on threads.net / threads.com)
@@ -17,6 +19,14 @@ export function postUrl(platform: string, externalId: string | null, telegramCha
   switch (platform) {
     case 'mastodon':
       return httpsUrl(externalId);
+    case 'discord': {
+      const m = /^https:\/\/discord\.com\/channels\/\d{5,25}\/\d{5,25}\/\d{5,25}$/.exec(externalId);
+      return m ? externalId : null;
+    }
+    case 'devto': {
+      const url = httpsUrl(externalId);
+      return url && new URL(url).hostname === 'dev.to' ? url : null;
+    }
     case 'bluesky': {
       const m = /^at:\/\/(did:[a-z0-9]+:[A-Za-z0-9._:%-]+)\/app\.bsky\.feed\.post\/([A-Za-z0-9._~:-]+)$/.exec(externalId);
       return m ? `https://bsky.app/profile/${m[1]}/post/${m[2]}` : null;
