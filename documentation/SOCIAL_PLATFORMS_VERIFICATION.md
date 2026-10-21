@@ -87,18 +87,6 @@ Vane — Social Platforms & Verification Specification
 
     Статус: Запланирован к интеграции.
 
-2.4. Medium API (SEO & Длинный Контент)
-
-    Назначение: Vane Post (post.vaneapp.dev) — авто-публикация статей и туториалов.
-
-    Тип авторизации: Integration Tokens / OAuth 2.0.
-
-    Требуется ли регистрация приложения / App Review: Нет для публикаций от своего имени.
-
-    Эндпоинт: POST [https://api.medium.com/v1/users/](https://api.medium.com/v1/users/){userId}/posts
-
-    Статус: Запланирован к интеграции.
-
 3. Экосистема Meta (Facebook Pages & Threads)
 3.1. Facebook Pages (Meta Graph API)
 
@@ -192,7 +180,6 @@ Vane — Social Platforms & Verification Specification
 
     Discord Webhooks (Vane Post / Studio): Доступен сразу (0 дней).
 
-    Medium API (Vane Post): Доступен сразу (0 дней).
 
     LinkedIn (Vane Post): Доступен сразу для личных постов (0 дней).
 
