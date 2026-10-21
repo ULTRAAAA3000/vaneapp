@@ -947,6 +947,31 @@ curl -X POST https://vaneapp.dev/api/posts \
     </section>
 
     <!-- ───────────── FINAL CTA ───────────── -->
+    <!-- ═══════════ PARTNER ═══════════ -->
+    <section id="partner" class="relative px-5 pb-20 sm:px-8 sm:pb-28 lg:px-12" aria-labelledby="partnerTitle">
+      <div class="mx-auto max-w-6xl">
+        <div class="reveal glass-d relative overflow-hidden rounded-3xl p-7 sm:p-12">
+          <div class="pointer-events-none absolute -left-24 -top-28 h-80 w-80 rounded-full bg-white/[0.07] blur-3xl" aria-hidden="true"></div>
+          <div class="pointer-events-none absolute -bottom-32 right-0 h-80 w-80 rounded-full bg-white/[0.05] blur-3xl" aria-hidden="true"></div>
+          <div class="relative grid items-center gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,.9fr)]">
+            <div>
+              <p class="text-xs font-medium uppercase tracking-widest text-white/40">Partner</p>
+              <h2 id="partnerTitle" class="mt-3 text-3xl font-semibold leading-[1.1] tracking-tight sm:text-5xl">Powered by WYSB.</h2>
+              <p class="mt-4 max-w-xl text-sm leading-relaxed text-white/60 sm:text-base">Vane runs with WYSB, our partner and the team behind wysb.eu. Meet them, and see what the partnership means.</p>
+              <div class="mt-7 flex flex-wrap gap-3">
+                <a href="https://wysb.eu" target="_blank" rel="noopener" class="rounded-full bg-white px-6 py-3 text-sm font-semibold text-[#010101] transition-opacity hover:opacity-90">Visit wysb.eu ↗</a>
+                <a href="/partners/wysb" class="rounded-full bg-white/10 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/20">About the partnership</a>
+              </div>
+            </div>
+            <a href="/partners/wysb" class="group relative flex aspect-[16/9] items-center justify-center overflow-hidden rounded-2xl bg-black/30 ring-1 ring-white/10 transition-colors hover:bg-black/20" aria-label="WYSB, Vane's partner">
+              <div class="absolute inset-0 opacity-50" style="background-image: radial-gradient(rgba(255,255,255,.14) 1px, transparent 1px); background-size: 18px 18px;" aria-hidden="true"></div>
+              <span class="pixel relative select-none text-5xl leading-none tracking-tight text-white transition-transform duration-500 group-hover:scale-105 sm:text-7xl">WYSB</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section id="join" class="relative px-5 pb-20 sm:px-8 sm:pb-28 lg:px-12">
       <div class="reveal glass-d relative mx-auto max-w-5xl overflow-hidden rounded-[2rem] px-6 py-14 text-center sm:px-12 sm:py-20">
         <div class="pointer-events-none absolute -top-24 left-1/2 h-64 w-[36rem] -translate-x-1/2 rounded-full bg-indigo-500/25 blur-[90px]" aria-hidden="true"></div>
@@ -978,10 +1003,16 @@ curl -X POST https://vaneapp.dev/api/posts \
           <img src="/assets/logo.svg" alt="" width="31" height="30" />
           <span class="text-base font-semibold">vane</span>
         </a>
-        <nav class="flex gap-6 text-sm text-white/50">
+        <nav class="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-white/50">
           <a href="#features" class="transition-colors hover:text-white">Features</a>
+          <a href="/networks" class="transition-colors hover:text-white">Networks</a>
           <a href="#pricing" class="transition-colors hover:text-white">Pricing</a>
-          <a href="#api" class="transition-colors hover:text-white">API</a>
+          <a href="/developers" class="transition-colors hover:text-white">API</a>
+          <a href="/integrations" class="transition-colors hover:text-white">Integrations</a>
+          <a href="/partners" class="transition-colors hover:text-white">Partners</a>
+          <a href="/about" class="transition-colors hover:text-white">About</a>
+          <a href="/security" class="transition-colors hover:text-white">Security</a>
+          <a href="/changelog" class="transition-colors hover:text-white">Changelog</a>
           <a href="#faq" class="transition-colors hover:text-white">FAQ</a>
           <a href="/login" data-auth-link class="transition-colors hover:text-white">Log in</a>
           <a href="/privacy" class="transition-colors hover:text-white">Privacy</a>

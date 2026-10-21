@@ -371,3 +371,12 @@ The API is open by design (Zapier, Make, GPT, scripts), so it is protected in la
 - API answers carry `nosniff`, `Referrer-Policy` and `no-store` (Pages' `_headers` only covers static files).
 - It never blocks hosting / VPN networks for API calls, never touches Telegram's and Meta's server calls, uploads or picture fetches, and ignores private / local addresses.
 - Emergency brake: set `SHIELD_OFF=1` on Pages and redeploy.
+
+## Marketing pages (Networks, Developers, Integrations, Security, Changelog, About, Partners, WYSB)
+
+The text lives in `site/*.html` (the first line of each is a `<!--page {"slug","title","desc"}-->` comment); `npm run build:pages` wraps it in the shared header and footer and writes `public/<slug>.html` plus `public/sitemap.xml`. Commit both folders, nothing is built at deploy time. To change the navigation, footer or the public contact email, edit the `SITE` object in `scripts/build-site-pages.mjs` (while `email` is empty the pages show a yellow `[CONTACT EMAIL]` and the "mailto" buttons lead to `/about#contact`). New page: add `site/<name>.html`, add its path to `PAGES_IN_SITEMAP`, run the build.
+
+- `/partners/wysb` is the partner page; the yellow `[…]` marks in it (about WYSB, the partnership, services, contact) are facts only WYSB knows. The landing has a matching **Powered by WYSB** section (`#partner`).
+- `/changelog` is written by hand from the shipped features: add an entry at the top when something ships.
+- `/networks` and `/developers` repeat limits and endpoints from the code and `public/vane-openapi.json`: update them when those change.
+- `public/robots.txt` keeps `/api/`, `/app`, `/studio` and `/admin` out of search.

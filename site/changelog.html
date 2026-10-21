@@ -1,0 +1,89 @@
+<!--page {"slug":"changelog","title":"Changelog","desc":"What is new in Vane: every feature and fix as it ships, newest first."}-->
+      <section class="reveal">
+        <p class="eyebrow">Changelog</p>
+        <h1 class="mt-3 max-w-3xl">What’s new in Vane.</h1>
+        <p class="lead mt-5">Every feature and fix as it ships, newest first. Vane is in pre-launch: this is the build so far.</p>
+      </section>
+
+      <section class="mt-12 space-y-5">
+        <article class="reveal glass-d card">
+          <time datetime="2026-10-21" class="eyebrow">Oct 21, 2026</time>
+          <ul class="mt-4 space-y-3">
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Landing</span><span>The hero video now plays forward and back, so the loop has no cut.</span></li>
+          </ul>
+        </article>
+        <article class="reveal glass-d card">
+          <time datetime="2026-10-20" class="eyebrow">Oct 20, 2026</time>
+          <ul class="mt-4 space-y-3">
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">API protection</span><span>The whole API now sits behind a shield: per-address limits, blocking of attack tools and scanners, automatic bans for repeated probing, and limits on wrong keys and sign-up floods.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Studio</span><span>A network-agnostic publishing queue: pick your channels in one Publish dialog (title, description, privacy) and Studio publishes in the background with retries.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Legal</span><span>Privacy Policy, Terms of Service and a data-deletion page.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Landing</span><span>A Follow section with Vane’s own social networks.</span></li>
+          </ul>
+        </article>
+        <article class="reveal glass-d card">
+          <time datetime="2026-10-19" class="eyebrow">Oct 19, 2026</time>
+          <ul class="mt-4 space-y-3">
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">LinkedIn and Threads</span><span>Connect with the networks’ own sign-in, publish text and one image, and get a Reconnect prompt before a 60-day sign-in runs out. Switched on when each network approves Vane.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Webhooks</span><span>Signed <code class="i">post.published</code> and <code class="i">post.failed</code> events with retries, and instant triggers for Zapier and Make.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Studio</span><span>Video previews and length, public links you can create and remove, a Share dialog, and a one-click “announce this video” in your Vane Post channels. The Channels screen shows YouTube, TikTok and Instagram Reels as Soon.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Connectors</span><span>Zapier app, WordPress plugin and a Claude (MCP) connector.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Navigation</span><span>A Post ↔ Studio hand-off card under the greeting.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Fix</span><span>Connecting a Mastodon server no longer fails with “Request failed (502)”.</span></li>
+          </ul>
+        </article>
+        <article class="reveal glass-d card">
+          <time datetime="2026-10-18" class="eyebrow">Oct 18, 2026</time>
+          <ul class="mt-4 space-y-3">
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Vane Studio</span><span>The video engine and dashboard: resumable uploads, a library, separate <code class="i">cvid_</code> keys, on <code class="i">studio.</code> and <code class="i">post.</code> subdomains with one shared sign-in.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Mastodon</span><span>Connect any Mastodon server and publish.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">API</span><span><code class="i">Idempotency-Key</code> for retry-safe posting and the OpenAPI spec.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">History</span><span>Open a sent post on its network straight from the history list.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Editor</span><span>A progress ring on the counter, an emoji picker, a week strip, a “your usual time” chip and a streak badge.</span></li>
+          </ul>
+        </article>
+        <article class="reveal glass-d card">
+          <time datetime="2026-10-17" class="eyebrow">Oct 17, 2026</time>
+          <ul class="mt-4 space-y-3">
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Bluesky</span><span>Connect with an app password and publish text, links, tags and one image.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">API</span><span>Public API, part 1 and 2: keys, plans, quotas and a keys screen in the dashboard with a quota meter and quick start. A Make custom app.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Editor</span><span>Hashtag memory that suggests the tags you used before, an Insights card, draft autosave, Reuse and Ctrl/⌘ + Enter to schedule.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Admin</span><span>An admin panel with users, plans and prices, traffic, Search Console and IP blocking.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Sign-in</span><span>A “Copy code” button in the sign-in email.</span></li>
+          </ul>
+        </article>
+        <article class="reveal glass-d card">
+          <time datetime="2026-10-16" class="eyebrow">Oct 16, 2026</time>
+          <ul class="mt-4 space-y-3">
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Security</span><span>Cloudflare Turnstile on sign-in and sign-up, and a 6-digit email code for new accounts and for returns after a few days away.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Landing</span><span>New hero and an iPad demo of publishing a video.</span></li>
+          </ul>
+        </article>
+        <article class="reveal glass-d card">
+          <time datetime="2026-10-15" class="eyebrow">Oct 15, 2026</time>
+          <ul class="mt-4 space-y-3">
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Telegram</span><span>Two ways to connect: Quick Connect with the Vane bot (with proof you own the channel) or your own bot.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Media</span><span>Native image and video upload with progress and preview.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Brand</span><span>The new Vane logo.</span></li>
+          </ul>
+        </article>
+        <article class="reveal glass-d card">
+          <time datetime="2026-10-12" class="eyebrow">Oct 12–14, 2026</time>
+          <ul class="mt-4 space-y-3">
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">The start</span><span>Waitlist, landing page, accounts and sessions, the dashboard, encrypted credentials and the cron worker that publishes on time.</span></li>
+          </ul>
+        </article>
+      </section>
+
+      <section class="reveal mt-16">
+        <div class="glass-d card sm:p-8">
+          <p class="eyebrow">Next</p>
+          <h2 class="mt-3">What we are working on.</h2>
+          <ul class="check mt-3">
+            <li>LinkedIn and Threads going live as each network approves Vane.</li>
+            <li>YouTube, TikTok and Instagram Reels in Vane Studio.</li>
+            <li>Paid plans and checkout for cards, Apple Pay, Google Pay and stablecoins.</li>
+            <li>Zapier, Make and WordPress in their directories.</li>
+          </ul>
+        </div>
+      </section>
