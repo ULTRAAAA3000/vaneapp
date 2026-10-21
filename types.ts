@@ -382,6 +382,12 @@ export interface UsageSummary {
     billable: boolean;
     /** extra credits an admin gave to this account (already included in `remaining`) */
     bonus: number;
+    /** this account's AI Pass (monthly credits on top of the plan, included in `remaining`) */
+    pass: { active: boolean; credits: number; used: number; remaining: number; endsAt: number | null };
+    /** the AI Pass offer for accounts that do not have it; null = nothing to offer */
+    offer: { priceUsd: number; credits: number; interval: string; overageUsd: number | null } | null;
+    /** "when credits run out": stop, or pay per extra credit. rateUsd = the price of one extra credit (null: nothing to pay for) */
+    extra: { enabled: boolean; rateUsd: number | null };
   };
   /** may this account send live API requests? */
   apiAccess: boolean;

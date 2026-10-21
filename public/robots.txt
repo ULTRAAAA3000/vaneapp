@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /app
+Disallow: /studio
+Disallow: /admin
+Disallow: /copy
+
+Sitemap: https://vaneapp.dev/sitemap.xml

@@ -637,3 +637,24 @@ CREATE TABLE IF NOT EXISTS video_publications (
 CREATE INDEX IF NOT EXISTS idx_video_publications_due  ON video_publications(status, next_attempt_at);
 CREATE INDEX IF NOT EXISTS idx_video_publications_user ON video_publications(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_video_publications_video ON video_publications(video_id);
+
+-- Vane AI Pass (admin → Plans → "Vane AI Pass"): $2.99 a month, 150 AI credits, on top of any posting plan. Not on the landing page (is_public = 0).
+-- Nobody pays for it online yet: an admin switches it on for an account (admin → user → AI credits); a payment webhook will write the same row.
+CREATE TABLE IF NOT EXISTS ai_pass (
+  user_id             TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  status              TEXT    NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'past_due', 'canceled')),
+  current_period_end  INTEGER,                                                  -- NULL = no end date (granted by hand)
+  provider            TEXT    NOT NULL DEFAULT 'manual',
+  created_at          INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at          INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE TABLE IF NOT EXISTS ai_pass_usage (
+  user_id  TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  period   TEXT    NOT NULL,                                                    -- 'YYYY-MM' (UTC)
+  used     INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (user_id, period)
+);
+INSERT OR IGNORE INTO plans (id, kind, name, tagline, price_cents, features, limits, cta_label, is_public, is_active, sort) VALUES
+  ('ai-pass', 'addon', 'Vane AI Pass', '150 AI credits a month for tone, hooks, per-network versions and posts from an idea.', 299,
+   '["150 AI credits a month","Tone fixer, hooks, CTAs, per-network versions, post generator","Extra credits are billed per use, only if you switch it on"]',
+   '{"aiCredits":150,"overageAiPostUsd":0.02}', 'Get AI Pass', 0, 1, 60);

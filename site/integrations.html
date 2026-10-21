@@ -1,0 +1,50 @@
+<!--page {"slug":"integrations","title":"Integrations","desc":"Schedule posts from ChatGPT, Claude, Make, Zapier, WordPress or plain HTTP. Every connector uses the same Vane API and the same keys."}-->
+      <section class="reveal">
+        <p class="eyebrow">Integrations</p>
+        <h1 class="mt-3 max-w-3xl">Post from wherever you already work.</h1>
+        <p class="lead mt-5">Ask an AI to schedule it, drop it into an automation, or publish from your CMS. Every connector below talks to the same <a href="/developers" class="link">Vane API</a>, so your plan, quota and channels are the same everywhere.</p>
+        <div class="glass-d mt-7 inline-flex max-w-2xl items-start gap-3 rounded-2xl px-4 py-3 text-sm text-white/65">
+          <span class="mt-0.5 text-amber-300">●</span>
+          <span>API access opens with launch. <a href="/#join" class="link">Join the waitlist</a> to get early keys. Start with a <code class="i">cpost_test_…</code> key: everything works, nothing is posted or counted.</span>
+        </div>
+      </section>
+
+      <section class="reveal mt-12 grid gap-5 md:grid-cols-2">
+        <article class="glass-d card">
+          <div class="flex items-center justify-between"><h2 class="!text-xl">ChatGPT</h2><span class="badge badge-live">Self-serve</span></div>
+          <p class="copy mt-3">A Custom GPT that lists your channels, shows you the text, channels and time, waits for your “yes”, then schedules the post. No code.</p>
+          <ol class="copy mt-4 list-decimal space-y-1 pl-5"><li>Create a key in the dashboard.</li><li>In ChatGPT, create a GPT and import <code class="i">https://vaneapp.dev/api/v1/openapi.json</code> as its Action.</li><li>Paste the key as the Bearer token.</li></ol>
+        </article>
+        <article class="glass-d card">
+          <div class="flex items-center justify-between"><h2 class="!text-xl">Claude</h2><span class="badge badge-live">Self-serve</span></div>
+          <p class="copy mt-3">Tell Claude “post this to Telegram and Bluesky tomorrow at 9:00”. A connector built on the Model Context Protocol gives it two tools: list your channels and create a post.</p>
+          <ol class="copy mt-4 list-decimal space-y-1 pl-5"><li>Create a key in the dashboard.</li><li>Add the Vane connector to Claude Desktop (or the remote endpoint <code class="i">/api/v1/mcp</code>).</li><li>Ask.</li></ol>
+        </article>
+        <article class="glass-d card">
+          <div class="flex items-center justify-between"><h2 class="!text-xl">Zapier</h2><span class="badge badge-soon">Soon</span></div>
+          <p class="copy mt-3">An app with a <b>Create post</b> action and instant <b>Post published</b> and <b>Post failed</b> triggers, powered by Vane webhooks. Chain a new blog post, a Notion row or a form answer into a scheduled post.</p>
+          <p class="copy mt-3">Built and tested; it will appear in the Zapier directory once it is approved.</p>
+        </article>
+        <article class="glass-d card">
+          <div class="flex items-center justify-between"><h2 class="!text-xl">Make</h2><span class="badge badge-soon">Soon</span></div>
+          <p class="copy mt-3">A Make app with a connection by API key and modules to create a post, list channels and read a post’s status, plus an instant trigger for published and failed posts.</p>
+          <p class="copy mt-3">Built and tested; it joins the Make app directory after review.</p>
+        </article>
+        <article class="glass-d card">
+          <div class="flex items-center justify-between"><h2 class="!text-xl">WordPress</h2><span class="badge badge-soon">Soon</span></div>
+          <p class="copy mt-3"><b>Vane for WordPress</b> adds a sidebar to the block editor: tick your channels, preview the posts and cross-post the moment you publish the article.</p>
+          <p class="copy mt-3">Built; it goes to the WordPress.org plugin directory after review.</p>
+        </article>
+        <article class="glass-d card">
+          <div class="flex items-center justify-between"><h2 class="!text-xl">REST and webhooks</h2><span class="badge badge-live">Self-serve</span></div>
+          <p class="copy mt-3">Anything that can make an HTTPS request can schedule a post, and anything that can receive one can hear about the result. Scripts, bots, CI jobs, your own back office.</p>
+          <p class="copy mt-3"><a href="/developers" class="link">Read the API docs →</a></p>
+        </article>
+      </section>
+
+      <section class="reveal mt-16">
+        <div class="glass-d card flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-center sm:p-8">
+          <div><h2>Building something with Vane?</h2><p class="copy mt-2">Agencies, tool makers and integrators can join the partner programme.</p></div>
+          <a href="/partners" class="btn btn-white shrink-0">Become a partner</a>
+        </div>
+      </section>

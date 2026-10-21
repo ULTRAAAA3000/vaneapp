@@ -5,6 +5,7 @@
  *        grant   { userId, planId, days?, addon?, overage?, note? }   give a plan by hand (same as `npm run plan:set`):
  *                                                   days empty = no end date, addon = Pro + API add-on; never counted as revenue
  *        ai_credits { userId, credits, note? }        add (or, negative, take away) AI credits for one account; they are spent after the plan's own credits
+ *        ai_pass { userId, enabled, days?, note? }   switch the AI Pass (monthly AI credits, any plan) on or off for one account
  *        revoke  { userId }                         end their plan now (they fall back to the Free Trial)
  *        disable { userId, reason? }                switch the account off and sign it out everywhere
  *        enable  { userId }
@@ -16,6 +17,7 @@ import { fail, isRecord, json, methodNotAllowed, readJson, UUID_RE } from '../li
 import { getPlan, listPlans } from '../lib/catalog';
 import { specOf } from '../lib/plans';
 import { loadSubscription, usageSummary } from '../lib/usage';
+import { loadAiPass } from '../lib/aipass';
 import { likeEscape } from '../lib/range';
 
 const PAGE = 25;
@@ -53,6 +55,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       ok: true,
       user,
       plan: { id: sub.plan, name: spec.label, apiAddon: sub.apiAddon, overageEnabled: sub.overageEnabled, status: sub.status, lapsed: sub.lapsed, endsAt: sub.currentPeriodEnd, provider: (d[0].results[0] as { provider?: string } | undefined)?.provider ?? null },
+      aiPass: await loadAiPass(env, id, now),
       subscription: d[0].results[0] ?? null, usage: await usageSummary(env, id, sub), channels: d[1].results,
       posts: Object.fromEntries((d[2].results as { status: string; n: number }[]).map((x) => [x.status, x.n])),
       sessions: d[3].results, attribution: d[4].results[0] ?? null, timeOnSite: d[5].results[0], pages: d[6].results, attempts: d[7].results,
@@ -160,6 +163,33 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const row = await env.DB.prepare('SELECT credits FROM user_ai_bonus WHERE user_id = ?1').bind(b.userId).first<{ credits: number }>();
     await audit(env, request, 'user.ai_credits', user.email, { delta, balance: row?.credits ?? 0, note });
     return json({ ok: true, balance: row?.credits ?? 0 });
+  }
+
+  if (b.action === 'ai_pass') {
+    if (typeof b.userId !== 'string' || !UUID_RE.test(b.userId)) return fail(400, 'userId is invalid.');
+    if (typeof b.enabled !== 'boolean') return fail(400, 'enabled must be true or false.');
+    const days = b.days === undefined || b.days === null || b.days === '' ? null : Number(b.days);
+    if (days !== null && (!Number.isInteger(days) || days < 1 || days > 3650)) return fail(400, 'days must be 1-3650, or empty for no end date.');
+    const user = await env.DB.prepare('SELECT email FROM users WHERE id = ?1').bind(b.userId).first<{ email: string }>();
+    if (!user) return fail(404, 'User not found.');
+    try {
+      if (b.enabled) {
+        await env.DB
+          .prepare(
+            `INSERT INTO ai_pass (user_id, status, current_period_end, provider, created_at, updated_at) VALUES (?1, 'active', ?2, 'manual', ?3, ?3)
+             ON CONFLICT(user_id) DO UPDATE SET status = 'active', current_period_end = ?2, provider = 'manual', updated_at = ?3`,
+          )
+          .bind(b.userId, days === null ? null : now + days * 86400, now)
+          .run();
+      } else {
+        await env.DB.prepare(`UPDATE ai_pass SET status = 'canceled', updated_at = ?2 WHERE user_id = ?1`).bind(b.userId, now).run();
+      }
+    } catch (err) {
+      if (/no such table/i.test(err instanceof Error ? err.message : '')) return fail(409, 'The database does not have the AI Pass tables yet. Run the whole schema.sql in the D1 Console (it is safe to run again), then try once more.');
+      throw err;
+    }
+    await audit(env, request, b.enabled ? 'user.ai_pass_on' : 'user.ai_pass_off', user.email, { days, note: typeof b.note === 'string' ? b.note.trim().slice(0, 200) : null });
+    return json({ ok: true });
   }
 
   if (b.action === 'revoke') {

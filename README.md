@@ -329,6 +329,8 @@ All of it is computed in the browser from the two post lists the dashboard alrea
 
 - The model is `@cf/meta/llama-3.1-8b-instruct-fp8`. Cloudflare retires models now and then (the old `llama-3.1-8b-instruct` stopped working on 2026-05-30): if the AI says the model was retired, set a Pages variable `AI_MODEL` to a current model id from the Workers AI catalog (Settings → Variables and Secrets, e.g. `@cf/meta/llama-3.3-70b-instruct-fp8-fast`) and redeploy. No code change needed.
 - Extra AI credits for one account: `/admin` → Users → the user → **AI credits** (needs `schema.sql` re-run once for the `user_ai_bonus` table). They work on any plan and are spent after the plan's own credits.
+- **Vane AI Pass** ($2.99/month, 150 credits, $0.02 per extra credit) is an add-on row `ai-pass` in the plan catalog: edit the price, the credits (`aiCredits`) and the extra price (`overageAiPostUsd`) in `/admin` → Plans. It is created hidden (`is_public = 0`), so it never shows on the landing page. There is no online checkout yet: switch it on for an account in `/admin` → Users → the user → **AI Pass** (days empty = no end date); a payment webhook will later write the same `ai_pass` row. Needs `schema.sql` re-run once.
+- Where a credit comes from, in order: the plan's own credits, the AI Pass, credits given by an admin, then (only if the account switched **Pay for extra credits** on under the editor, via `POST /api/usage/overage`) a paid extra credit. With the switch off, requests over the limit are refused with a 402 and nothing is charged. The switch is the account's `overage_enabled` flag, so it also controls extra posts.
 - Free for everyone: **Make it clean** (typos, emoji) and **Hashtags**.
 - AI Pass (counts against `aiCredits` of the plan): tone, hooks, CTAs, a version per selected channel, a post from an idea, a week plan. Free plan = the credits set in the plan catalog (set `aiCredits` to 0 in the admin panel to make them Pro-only); API plan pays per generation; Pro has a monthly allowance.
 - Links in the text are kept as they are, and every result is fitted to the limit of the network.
@@ -377,3 +379,12 @@ The API is open by design (Zapier, Make, GPT, scripts), so it is protected in la
 - API answers carry `nosniff`, `Referrer-Policy` and `no-store` (Pages' `_headers` only covers static files).
 - It never blocks hosting / VPN networks for API calls, never touches Telegram's and Meta's server calls, uploads or picture fetches, and ignores private / local addresses.
 - Emergency brake: set `SHIELD_OFF=1` on Pages and redeploy.
+
+## Marketing pages (Networks, Developers, Integrations, Security, Changelog, About, Partners, WYSB)
+
+The text lives in `site/*.html` (the first line of each is a `<!--page {"slug","title","desc"}-->` comment); `npm run build:pages` wraps it in the shared header and footer and writes `public/<slug>.html` plus `public/sitemap.xml`. Commit both folders, nothing is built at deploy time. To change the navigation, footer or the public contact email, edit the `SITE` object in `scripts/build-site-pages.mjs` (while `email` is empty the pages show a yellow `[CONTACT EMAIL]` and the "mailto" buttons lead to `/about#contact`). New page: add `site/<name>.html`, add its path to `PAGES_IN_SITEMAP`, run the build.
+
+- `/partners/wysb` is the partner page; the yellow `[…]` marks in it (about WYSB, the partnership, services, contact) are facts only WYSB knows. The landing has a matching **Powered by WYSB** section (`#partner`).
+- `/changelog` is written by hand from the shipped features: add an entry at the top when something ships.
+- `/networks` and `/developers` repeat limits and endpoints from the code and `public/vane-openapi.json`: update them when those change.
+- `public/robots.txt` keeps `/api/`, `/app`, `/studio` and `/admin` out of search.

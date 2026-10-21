@@ -1,0 +1,61 @@
+<!--page {"slug":"security","title":"Security","desc":"How Vane protects your accounts, tokens and API: encryption, hashed keys, least-privilege permissions, bot and abuse protection."}-->
+      <section class="reveal">
+        <p class="eyebrow">Security</p>
+        <h1 class="mt-3 max-w-3xl">Built so you can hand us the keys, and take them back.</h1>
+        <p class="lead mt-5">Vane holds access to your social accounts, so we treat every credential as the most sensitive thing we store. This page says what we do, in plain terms, and what we do not claim.</p>
+      </section>
+
+      <section class="reveal mt-12 grid gap-5 md:grid-cols-2">
+        <div class="glass-d card">
+          <h2 class="!text-xl">Your credentials</h2>
+          <ul class="check mt-2">
+            <li>Social network sign-ins and webhook secrets are <b>encrypted at rest</b> with AES-256-GCM.</li>
+            <li>API keys are shown once and kept only as <b>SHA-256 hashes</b>: nobody at Vane can read your key back.</li>
+            <li>Passwords are stored as <b>salted PBKDF2 hashes</b>; sessions are stored as hashes and travel in a secure, HttpOnly cookie.</li>
+            <li>Secrets live in a secrets store, never in code, and are never written to logs.</li>
+          </ul>
+        </div>
+        <div class="glass-d card">
+          <h2 class="!text-xl">Least privilege</h2>
+          <ul class="check mt-2">
+            <li>Each network gets the smallest permission that lets Vane publish: for LinkedIn, <b>name and “create posts”</b>; for Threads, <b>username and “publish”</b>.</li>
+            <li>Vane does <b>not</b> read your feed, messages, followers or connections.</li>
+            <li>Bluesky uses an app password, so your main account is never opened.</li>
+            <li>API keys are scoped: text keys cannot touch video endpoints, and test keys post nothing.</li>
+          </ul>
+        </div>
+        <div class="glass-d card">
+          <h2 class="!text-xl">Abuse and bot protection</h2>
+          <ul class="check mt-2">
+            <li>Cloudflare Turnstile checks sign-in and sign-up; a 6-digit email code confirms new accounts and new sign-ins after a few days away.</li>
+            <li>The whole API sits behind a shield: per-address and per-key rate limits, blocking of attack tools and scanners, and <b>automatic bans</b> for repeated probing.</li>
+            <li>Wrong API keys, password guessing and sign-up floods are limited per address.</li>
+            <li>Calls from payment providers and social networks are accepted only with a valid signature or secret.</li>
+          </ul>
+        </div>
+        <div class="glass-d card">
+          <h2 class="!text-xl">Safe by design</h2>
+          <ul class="check mt-2">
+            <li>Webhooks go only to public <b>https</b> addresses (no IP addresses, no internal names, never Vane itself) and never follow redirects, so they cannot be pointed at our internals.</li>
+            <li>Every database query is parameterized; errors never leak internals to the page.</li>
+            <li>Your post links to images use long random addresses, and video links are private until you create a public one.</li>
+            <li>Card details never touch Vane: they go to the payment provider’s own page.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="reveal mt-16">
+        <h2>You stay in control</h2>
+        <p class="copy mt-3">Disconnect any network in one click, revoke any key, delete any post or video. Removing Vane in LinkedIn’s or Threads’ own settings stops it at once: for Threads the network tells us, and we delete the connection and its data. See <a href="/data-deletion">Data deletion</a> and the <a href="/privacy">Privacy Policy</a>.</p>
+      </section>
+
+      <section class="reveal mt-16 grid gap-5 md:grid-cols-2">
+        <div class="glass-d card">
+          <h2 class="!text-xl">What we do not claim</h2>
+          <p class="copy mt-3">Vane is a young product. We have not been through a formal audit or certification such as SOC 2 or ISO 27001, and we will not pretend otherwise. What we do is the list above, and we keep it honest and current. If a customer needs a security questionnaire, write to us.</p>
+        </div>
+        <div class="glass-d card" id="report">
+          <h2 class="!text-xl">Found a problem?</h2>
+          <p class="copy mt-3">Please tell us at {{EMAIL}} and give us a reasonable time to fix it before you share it. Do not access other people’s data or disrupt the service while you test. We read every report.</p>
+        </div>
+      </section>
