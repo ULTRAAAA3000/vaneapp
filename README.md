@@ -304,6 +304,14 @@ To open a network for connecting (only Telegram is open today; the rest show "So
 2. `public/app.html`: add a `<div data-step="<key>" class="hidden">` setup block to the connect dialog, next to the Telegram one.
 3. Backend: add the platform to `ChannelType` (`types.ts`) and to the `CHECK` on `channels.type` (`schema.sql`; SQLite cannot alter a CHECK, so an existing database needs the table rebuilt). Then handle it in `handleAddChannel` (`functions/api/channels/index.ts`, answers 501 for everything but Telegram today) and in `worker/src/dispatch.ts` (fails non-Telegram posts today). `threads` and `bluesky` are not in `ChannelType` yet.
 
+### Discord and Dev.to
+
+Both connect by pasting one secret, no app review: a **Discord webhook URL** (Server settings → Integrations → Webhooks) and a **Dev.to API key** (Settings → Extensions). Code: `functions/api/channels/discord.ts`, `devto.ts`, `simple-add.ts`; delivery in `worker/src/dispatch.ts`. Discord posts text (≤ 2000) and one image, with `@everyone`/role pings disabled; Dev.to publishes each post as an article (first line = title, up to 4 `#tags`, an image becomes the cover line). Neither takes video yet.
+
+**Deploy:** these two types are new in the `channels.type` CHECK. On an existing database run `migrations/0002-channel-types-discord-devto.sql` once in the D1 Console (it rebuilds the table and keeps all rows; a fresh database already has it through `schema.sql`). Until then adding them answers a clear 503.
+
+Medium (closed to new integrations) and Reddit (API access needs manual approval) are intentionally not open.
+
 ## Dashboard: hashtag memory, Insights, drafts
 
 All of it is computed in the browser from the two post lists the dashboard already loads (`/api/posts?view=upcoming|history`, up to 200 each): no new endpoint, no schema change. The code is `public/assets/insights.js` (pure helpers on `Vane.tags` / `Vane.insights`, UI in `Vane.createTagAssist` / `Vane.renderInsights`), wired up in `dashboard.js`.

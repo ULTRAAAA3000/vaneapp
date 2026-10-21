@@ -473,6 +473,67 @@
           </div>
         </form>
       </div>
+
+      <div data-step="discord" class="hidden">
+        <ol class="mt-6 space-y-3 text-sm text-white/65">
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>In Discord open <b class="font-semibold text-white">Server settings → Integrations → Webhooks</b> and press <b class="font-semibold text-white">New Webhook</b>.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Pick the channel Vane should post to, press <b class="font-semibold text-white">Copy Webhook URL</b> and paste it below.</span></li>
+        </ol>
+        <p class="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-xs leading-relaxed text-white/50">Anyone who has this link can post to that channel, so keep it private. Delete the webhook in Discord at any time to disconnect Vane.</p>
+
+        <form id="dcForm" class="mt-6 space-y-4" novalidate autocomplete="off">
+          <div>
+            <label for="dcUrl" class="lbl">Webhook URL</label>
+            <input id="dcUrl" type="text" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="https://discord.com/api/webhooks/…" class="field font-mono !text-[13px]" />
+          </div>
+          <div>
+            <label for="dcName" class="lbl">Display name</label>
+            <input id="dcName" type="text" maxlength="80" placeholder="Shown only in Vane" class="field" />
+          </div>
+
+          <div id="dcErr" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
+
+          <div class="flex items-center justify-end gap-3 pt-1">
+            <button type="button" id="dcCancel" class="btn btn-ghost">Cancel</button>
+            <button type="submit" id="dcSubmit" class="btn btn-white">
+              <span id="dcSpin" class="spinner spinner-dark hidden"></span>
+              <span id="dcLabel">Verify &amp; connect</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div data-step="devto" class="hidden">
+        <ol class="mt-6 space-y-3 text-sm text-white/65">
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>On Dev.to open <b class="font-semibold text-white">Settings → Extensions</b> and, under <b class="font-semibold text-white">DEV Community API Keys</b>, generate a key (for example “Vane”).</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Paste the key below. Every post you schedule is published as an article.</span></li>
+        </ol>
+        <p class="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-xs leading-relaxed text-white/50">The key can publish articles for you. Remove it on Dev.to at any time to disconnect Vane.</p>
+
+        <form id="dvForm" class="mt-6 space-y-4" novalidate autocomplete="off">
+          <div>
+            <div class="flex items-center justify-between">
+              <label for="dvKey" class="lbl !mb-0">API key</label>
+              <button type="button" id="dvKeyToggle" class="text-xs text-white/45 transition-colors hover:text-white">Show</button>
+            </div>
+            <input id="dvKey" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" class="field mt-2 font-mono !text-[13px]" />
+          </div>
+          <div>
+            <label for="dvName" class="lbl">Display name</label>
+            <input id="dvName" type="text" maxlength="80" placeholder="Shown only in Vane" class="field" />
+          </div>
+
+          <div id="dvErr" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
+
+          <div class="flex items-center justify-end gap-3 pt-1">
+            <button type="button" id="dvCancel" class="btn btn-ghost">Cancel</button>
+            <button type="submit" id="dvSubmit" class="btn btn-white">
+              <span id="dvSpin" class="spinner spinner-dark hidden"></span>
+              <span id="dvLabel">Verify &amp; connect</span>
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   </dialog>
 
@@ -537,8 +598,8 @@
   <script src="/assets/vane.js?v=20261019d"></script>
   <script src="/assets/media-picker.js?v=20261015"></script>
   <script src="/assets/insights.js?v=20261017"></script>
-  <script src="/assets/dashboard.js?v=20261019c"></script>
-  <script src="/assets/ai.js?v=20261019a"></script>
+  <script src="/assets/dashboard.js?v=20261021a"></script>
+  <script src="/assets/ai.js?v=20261021a"></script>
   <script src="/assets/track.js?v=20261017" data-path="/app" defer></script>
 </body>
 </html>
