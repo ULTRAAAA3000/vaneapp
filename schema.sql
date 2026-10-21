@@ -325,7 +325,7 @@ INSERT OR IGNORE INTO plans (id, name, tagline, badge, price_cents, compare_pric
 INSERT OR IGNORE INTO plans (id, name, tagline, price_cents, features, limits, cta_label, coming_soon, is_active, sort) VALUES
   ('video', 'Video Engine', 'Video publishing, end to end.', 899,
    '["YouTube Shorts, TikTok and Instagram Reels","YouTube long-form with custom thumbnails, playlists and tags","Resumable uploads on Cloudflare R2","AI hooks, scripts, descriptions, tags and timestamps"]',
-   '{}', 'Get notified', 1, 0, 40);
+   '{"aiCredits":50,"overageAiPostUsd":0.02}', 'Get notified', 1, 0, 40);
 INSERT OR IGNORE INTO plans (id, kind, name, tagline, price_cents, limits, is_active, sort) VALUES
   ('api-addon', 'addon', 'Need the dashboard and the API?', 'Add the API to Pro for {price} a month. It adds 180 API posts and keeps Pro’s low overage rates.', 299,
    '{"apiPostsPerMonth":180}', 0, 50);
@@ -714,3 +714,18 @@ INSERT OR IGNORE INTO ai_prices (model, input_usd_per_m, output_usd_per_m, input
   ('@cf/openai/gpt-oss-120b',                 0.350, 0.750, 31818,  68182),
   ('@cf/google/gemma-4-26b-a4b-it',           0.100, 0.300,  9091,  27273),
   ('@cf/qwen/qwen3-30b-a3b-fp8',              0.051, 0.335,  4625,  30475);
+
+-- Vane Studio AI: what the user chose to do when the plan's generations run out (default: stop), and what the extra ones cost.
+CREATE TABLE IF NOT EXISTS video_ai_settings (
+  user_id          TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  overage_enabled  INTEGER NOT NULL DEFAULT 0 CHECK (overage_enabled IN (0, 1)),     -- 1 = keep going past the included generations, billed per generation
+  updated_at       INTEGER NOT NULL DEFAULT (unixepoch())
+);
+-- Generations beyond the included ones, per plan period: how many and what they cost (millionths of a dollar: $0.02 = 20000).
+CREATE TABLE IF NOT EXISTS video_ai_overage (
+  user_id    TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  period     TEXT    NOT NULL,                                                       -- the same key as video_ai_usage.period
+  uses       INTEGER NOT NULL DEFAULT 0,
+  micro_usd  INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (user_id, period)
+);

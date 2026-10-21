@@ -41,3 +41,6 @@ TELEGRAM_WEBHOOK_SECRET=random-16+-chars-A-Za-z0-9_-   # e.g. openssl rand -hex 
 # Vane Studio publishing: lets a channel whose credentials are JSON like {"mock":"ok"} act as a fake network, so the whole
 # publish → retry → history flow can be tried before YouTube / TikTok / Instagram approve Vane. NEVER set this in production.
 #VIDEO_PUBLISH_MOCK=1
+
+# Local dev and tests only: Vane Studio AI answers with canned text instead of calling Workers AI, which needs a Cloudflare login locally (never set in production).
+# VIDEO_AI_MOCK=1
