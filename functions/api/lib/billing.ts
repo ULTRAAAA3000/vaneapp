@@ -5,7 +5,9 @@
  */
 import type { Env } from '../../../types';
 import { getPlan, type Plan } from './catalog';
+import { requireAdmin } from './admin';
 import { emailConfigured, sendMail } from './mail';
+import { getSettings } from './settings';
 import { monobankEnabled } from './monobank';
 import { cryptoEnabled } from './solana';
 
@@ -22,6 +24,12 @@ export const billingEnabled = (env: Pick<Env, 'MONOBANK_TOKEN' | 'CRYPTO_WALLET'
   const m = billingMethods(env);
   return m.monobank || m.crypto;
 };
+
+/** The admin's "Checkout preview" switch, and only for a browser signed into /admin: it shows the checkout without selling anything. */
+export async function previewActive(env: Env, request: Request): Promise<boolean> {
+  if (!(await getSettings(env)).checkout_preview) return false;
+  return (await requireAdmin(request, env)).ok;
+}
 
 /** A plan the checkout can sell right now. */
 export const isBuyable = (p: Plan): boolean => p.isActive && !p.comingSoon && p.id !== 'free' && p.priceCents > 0;

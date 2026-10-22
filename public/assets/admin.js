@@ -834,7 +834,8 @@
       ['ai_budget_usd', 'Monthly AI budget (USD)', 'What you are willing to spend on AI model calls per month. It is only shown against the real spend in the AI tab (0 = no budget); nothing is stopped.', 'usd']]],
     ['Product', [
       ['enforce_limits', 'Enforce the channel limit', 'When on, users cannot connect more channels than their plan allows (the Free Trial: 2). Posts are always metered by the API engine. Off by default so you can test freely; switch it on at launch.', 'bool'],
-      ['track_visits', 'Record page views', 'Feeds the Traffic tab and the conversion funnel. Respects the browser Do-Not-Track setting.', 'bool']]]
+      ['track_visits', 'Record page views', 'Feeds the Traffic tab and the conversion funnel. Respects the browser Do-Not-Track setting.', 'bool'],
+      ['checkout_preview', 'Checkout preview (only you)', 'Opens the checkout page for this browser while you are signed in here, even before a payment method is connected, so you can see how it looks. Pay shows an error: nothing can be bought. Visitors never see it.', 'bool']]]
   ];
   VIEWS.settings = function (seq) {
     call('GET', '/api/admin/settings').then(function (r) {
