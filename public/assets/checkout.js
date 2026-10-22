@@ -187,6 +187,12 @@
     }
 
     var id = q.get('plan');
+    if (!id && S.cfg.preview) {
+      var list = await Vane.api('GET', '/api/plans');
+      var first = list.ok && list.data.plans.filter(function (p) { return p.kind === 'plan' && p.priceCents > 0; })[0];
+      id = first ? first.id : 'pro';
+      history.replaceState(null, '', '/checkout?plan=' + encodeURIComponent(id));
+    }
     if (!id) return Vane.go('/pricing');
     var r = await Vane.api('GET', '/api/billing/plan?id=' + encodeURIComponent(id));
     if (!r.ok) return fatal(r.error || 'This plan does not exist.');
