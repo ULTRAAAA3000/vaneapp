@@ -91,6 +91,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         env.DB.prepare('DELETE FROM web_views WHERE started_at < ?1').bind(now - 180 * 86400),
         env.DB.prepare('DELETE FROM auth_attempts WHERE ts < ?1').bind(now - 90 * 86400),
         env.DB.prepare('DELETE FROM ip_intel WHERE checked_at < ?1').bind(now - 7 * 86400),
+        env.DB.prepare('DELETE FROM ai_usage WHERE ts < ?1').bind(now - 400 * 86400),
         env.DB.prepare(`DELETE FROM ip_blocks WHERE source = 'auto' AND expires_at IS NOT NULL AND expires_at < ?1`).bind(now - 86400),
       ]);
     }

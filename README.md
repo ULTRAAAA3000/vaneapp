@@ -78,6 +78,10 @@ A separate sign-in at `https://vaneapp.dev/admin` (not linked anywhere, `noindex
 
 What is inside: **Overview** (users, conversion funnel, sources, MRR), **Users** (search, give or end a plan, disable an account, time on site, first-touch source), **Plans** (prices, limits, features, hidden or "coming soon", new plans such as "2 in 1" or "Ultra"; the landing page pricing reads them live), **Social** (the landing page's "Follow" section: the words above the cards and each link's network, name, handle, description, address and order; the card design is fixed, a link with nothing public hides the section), **Traffic** (time on site, pages, entry pages, countries, devices, live visitors), **Search** (Google Search Console), **Security** (every sign-in / sign-up attempt with address, country and network; blocklist by IP, range, network or country; automatic bans; hosting / VPN networks refused at sign-in and sign-up), **Settings**, **Activity** (audit log).
 
+**Networks (Networks tab).** Every network Vane knows is listed in `functions/api/lib/networks.ts` with a flag `implemented` = *the code is written* (connect flow + publishing). A network can be switched on in the admin **only if that flag is true**, and the platform's own review does not matter: it may be on while LinkedIn / TikTok / Meta have not approved Vane yet (keep their status in the note field). Implemented networks are on by default, so nothing changes until you switch one off. A switched-off network: no new account can be connected (every connect and OAuth-callback path checks it), no new post can be scheduled to its channels (dashboard and `/api/v1`), the dashboard shows it as *Paused*, and posts already scheduled for it **wait** (the cron worker skips them) instead of failing; after 2 hours past the scheduled time they fail with a clear reason. When you write the code for a new network (Vane Studio's YouTube / TikTok / Instagram, X, …), set its `implemented` flag to `true` and the switch becomes live.
+
+**AI spend (AI tab).** Every model call is written to `ai_usage` (user, feature, model, input / output tokens, neurons, cost in micro-dollars at the price of that moment), and the tab shows tokens and cost per day, per feature, per model and per user, today's neurons against Cloudflare's 10 000 free a day, and the month against an optional budget (Settings, shown only, nothing is stopped). Prices live in `ai_prices` (starter row: `@cf/meta/llama-3.1-8b-instruct`, $0.282 / $0.827 per 1M tokens, from Cloudflare's pricing page): edit them in the tab when Cloudflare changes them or a new model is used; a model with no price is still counted in tokens. Numbers come from the `usage` the model returns; if it sends none the tokens are a 4-characters-per-token estimate, marked as such. **A new AI feature is counted automatically** as long as it calls the model through `ask()` in `lib/ai.ts`; to attribute the spend to a user and a feature, wrap env first: `const e = withAiContext(env, { userId, tool: 'my-feature' })` (`lib/aimeter.ts`). Without that the call still shows up, as "unattributed".
+
 **Security notes**
 - Separate session (8 h, `SameSite=Strict`, own table). Wrong passwords: throttled after 5, the address is banned after 8 within 15 minutes. All attempts, successful or not, are listed in Security.
 - You cannot block the network you are using right now (no self-lockout).
@@ -292,9 +296,47 @@ They share the account and the sign-in, nothing else; each host answers 404 to t
 `script` (hook, body and CTA for Shorts/TikTok/Reels/YouTube), `metadata` (titles, description, tags, hashtags) and `chapters` (YouTube timecodes, estimated from where each part sits in the script). One generation is one credit of 250 per month (`VIDEO_AI_MONTHLY` in `functions/api/lib/videoai.ts`), given back if the model fails.
 It needs one new table: run the whole `schema.sql` in the D1 Console again (it is idempotent), or only the `video_ai_usage` block at its end.
 
+## Integrations in the admin (Claude, ChatGPT, Make, Zapier, WordPress, direct API)
+
+**Status: the backend is done and tested; the admin screen and the "Used with" picker are still to build** (see "Still to do").
+
+What it measures and controls (`functions/api/lib/integrations.ts`, `functions/api/admin/integrations.ts`):
+
+- **Catalog** (in code): each integration's kind, how far it is built (`live` / `partial` / `planned`), how a user connects it (auth, URLs, steps) and where its store review stands, taken from `documentation/AUTOMATION_INTEGRATIONS.md`.
+- **Switch** (`integration_settings`): `PUT /api/admin/integrations?id=make` `{ "enabled": false }` makes every request from that integration answer `403 integration_disabled` (also for Claude over MCP) until it is switched on again. Takes effect at once on the server that handled the change, within 10 s on the others. A refused request is not counted. The admin can also set the marketplace `listing` state and a `note` (max 500 characters).
+- **Demand** (`api_usage_daily`): one small counter per (UTC day, integration, key, operation), added on every authenticated API request. No per-request log, no IPs, no bodies; kept 120 days (the cron worker purges older rows). `GET /api/admin/integrations` returns, per integration: requests today / 7 d / 30 d, the previous 7 days (for the trend), a 30-day series, active keys (7 d / 30 d), distinct users (30 d), keys labelled for it, the last request, and the top 5 operations.
+- **MCP**: Claude's MCP endpoint is counted once **per tool call** (`mcp:vane_create_post`), not once per inner REST call; invalid keys and `tools/list` are not counted.
+
+How a request is attributed, in this order: (1) it came through MCP → Claude; (2) the key was labelled when it was created ("Used with", `integration` in `POST /api/keys`); (3) the client's `User-Agent` (ChatGPT / OpenAI, Zapier, Make / Integromat, Claude / Anthropic, WordPress); (4) the key's name ("Make.com"); (5) otherwise **Direct API**. Only (1) and (2) are certain; the share that falls into Direct API is returned as `totals.directShare`, so you can see how much is guessed.
+
+**Rolling it out** (nothing breaks if you skip a step; the new parts just stay empty):
+1. `npm run db:remote` — two new tables (`integration_settings`, `api_usage_daily`).
+2. `npm run db:migrate:integrations` — adds `api_keys.integration` and labels existing keys from their names (run once; a second run fails on the ALTER, which means it is done). Until it runs, the API, key creation and the key list keep working; labels are simply not stored (the code checks again every 20 s).
+3. Redeploy the cron worker (`npm run cron:deploy`) so the 120-day purge runs.
+
+**Testing**: `npm run test:integrations` (48 checks: attribution, counting, MCP, the switch, the admin API, and a database without the new column plus the migration). It needs `ADMIN_EMAIL` + `ADMIN_PASSWORD_HASH` in `.dev.vars` (defaults to the login `admin@example.com` / password `Admin-Test-Pass-77`; make the hash with `echo 'Admin-Test-Pass-77' | node scripts/admin-hash.mjs`).
+
+**Still to do**
+- `public/assets/admin.js`: an **Integrations** tab (add `['integrations', 'Integrations']` to `TABS` and a `VIEWS.integrations` that calls `GET /api/admin/integrations`): a card per integration with state chip (`state`: live / partial / planned / paused), activity chip (`activity`: active / idle / none), the on/off switch (`PUT … { enabled }`), the usage numbers and `series` (the existing `bars` helper), `topOps`, the setup (`endpoints` with copy buttons, `auth`, `steps`, `verification`), and the `listing` select + `note`. Show a "run `npm run db:remote`" hint when `needsDb` is true, and a ranking (30-day requests per integration) plus the `totals` row at the top.
+- The **"Used with"** select in the dashboards' create-key dialog (`public/app.html` + `dashboard.js`, and Studio's `apikeys.js`), sending `integration` to `POST /api/keys`; show `integration` on the key rows (`GET /api/keys` already returns it).
+- Put the same integration list into the user-facing docs if wanted.
+
 ## Landing video demo
 
 The "Publish videos like you publish posts" section (`#videos` in `public/index.html`) is an iPad showing a YouTube-style channel feed plus a mini dashboard under it. Typing a title and pressing "Publish video" adds a non-clickable card to the feed (up to 3 uploads, then "Reset demo"). It is a pure front-end simulation: the filler videos are in `YT_OLD` and the upload limit is `YT_MAX` in the page script.
+
+## Payments: plans page, checkout, Monobank and crypto
+
+Pages: `/pricing` (every plan from `/admin → Plans`, monthly / yearly switch) and `/checkout?plan=<id>[&interval=year]` (the chosen plan on the left, billing details and the payment method on the right). A plan card only becomes a "buy" button when the plan is switched on (`is_active`, not `coming_soon`, price above 0) **and** at least one payment method is configured; until then the landing page keeps the waitlist buttons. The AI Pass is bought from the "Buy AI Pass" button in the editor (`/checkout?plan=ai-pass`), it is never on the landing page.
+
+Two ways to pay (each switches itself on when its settings exist):
+
+- **Card, Apple Pay, Google Pay: Monobank Acquiring.** `functions/api/lib/monobank.ts`. Checkout makes an invoice (USD by default) and sends the buyer to Monobank's own payment page; Monobank calls `POST /api/billing/monobank` (signed with `X-Sign`, ECDSA SHA-256; the call is also double-checked with the invoice status) and the plan switches on. Needs the secret `MONOBANK_TOKEN` (Pages → Settings → Variables and Secrets). `MONOBANK_CCY` (optional) picks the currency: 840 USD (default), 978 EUR, 980 UAH. Monobank's merchant cabinet decides which wallets the page offers; Google Pay and international Visa/Mastercard are part of the acquiring product (2% for foreign cards at the time of writing).
+- **Crypto: USDT or USDC on Solana.** `functions/api/lib/solana.ts`. Checkout reserves an exact amount (the price plus a few millionths, unique per open order), shows the address, a QR and a Solana Pay link. The payment is found by asking a Solana RPC node what reached the wallet (`getTokenAccountsByOwner`, `getSignaturesForAddress`, `getTransaction`), matched on the exact amount, token and time, and one transaction pays one order. Needs the plain variable `CRYPTO_WALLET` (your Solana address; it receives USDT/USDC) and optionally `SOLANA_RPC_URL` (a Helius / QuickNode address; the public node is rate-limited). The checkout page checks every 5 s; the cron (`worker/`, every minute) also checks, so a payment is activated even if the buyer closed the page. For the cron add the same `CRYPTO_WALLET` (and `MONOBANK_TOKEN`) to the Worker (see worker/wrangler.toml).
+
+What a paid order switches on (`lib/billing.ts → activate`): `video` = Vane Studio (`video_subscriptions`), `ai-pass` = AI Pass (`ai_pass`), `api-addon` = the API add-on on an active Pro plan, `suite` = Post (as plan `suite`) and Studio together, any other plan id = that plan in `subscriptions`. A renewal while the plan is still running adds a period to its end; nothing renews automatically. Every order is a row in `orders` (status pending / paid / expired / failed / canceled); `/admin → Orders` lists them and has **Check**, **Confirm** (you saw the money yourself) and **Cancel**.
+
+**Deploy:** run the whole `schema.sql` in the D1 Console once (adds `orders` and the Vane Suite plan, switched off). Then set the variables above. The Suite plan and the Studio plan (`video`) are off until you switch them on in `/admin → Plans`.
 
 ## Dashboard: adding a social network
 

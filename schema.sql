@@ -178,7 +178,8 @@ CREATE TABLE IF NOT EXISTS api_keys (
   hint          TEXT    NOT NULL,                                               -- last 4 characters, to recognise a key in the list
   created_at    INTEGER NOT NULL DEFAULT (unixepoch()),
   last_used_at  INTEGER,
-  revoked_at    INTEGER
+  revoked_at    INTEGER,
+  integration   TEXT                                                            -- where the owner uses it: claude | chatgpt | make | zapier | wordpress | api (NULL = not said: guessed from the name / the client)
 );
 CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_id);
 
@@ -325,7 +326,7 @@ INSERT OR IGNORE INTO plans (id, name, tagline, badge, price_cents, compare_pric
 INSERT OR IGNORE INTO plans (id, name, tagline, price_cents, features, limits, cta_label, coming_soon, is_active, sort) VALUES
   ('video', 'Video Engine', 'Video publishing, end to end.', 899,
    '["YouTube Shorts, TikTok and Instagram Reels","YouTube long-form with custom thumbnails, playlists and tags","Resumable uploads on Cloudflare R2","AI hooks, scripts, descriptions, tags and timestamps"]',
-   '{}', 'Get notified', 1, 0, 40);
+   '{"aiCredits":50,"overageAiPostUsd":0.02}', 'Get notified', 1, 0, 40);
 INSERT OR IGNORE INTO plans (id, kind, name, tagline, price_cents, limits, is_active, sort) VALUES
   ('api-addon', 'addon', 'Need the dashboard and the API?', 'Add the API to Pro for {price} a month. It adds 180 API posts and keeps Pro’s low overage rates.', 299,
    '{"apiPostsPerMonth":180}', 0, 50);
@@ -686,3 +687,141 @@ INSERT OR IGNORE INTO plans (id, kind, name, tagline, price_cents, features, lim
   ('ai-pass', 'addon', 'Vane AI Pass', '150 AI credits a month for tone, hooks, per-network versions and posts from an idea.', 299,
    '["150 AI credits a month","Tone fixer, hooks, CTAs, per-network versions, post generator","Extra credits are billed per use, only if you switch it on"]',
    '{"aiCredits":150,"overageAiPostUsd":0.02}', 'Get AI Pass', 0, 1, 60);
+
+-- ───────────────────────── Payments ─────────────────────────
+-- One row per checkout. The page creates it (status 'pending'), the payment arrives (Monobank webhook / Solana check / an admin
+-- confirms it by hand), and `fulfillOrder` (functions/api/lib/billing.ts) flips it to 'paid' ONCE and switches the plan on.
+--   plan_id     the plans.id that was bought; amount_cents is what that plan cost WHEN the order was made (later price edits do not touch it)
+--   provider    'monobank' (card / Apple Pay / Google Pay on the Monobank page) | 'crypto' (USDT or USDC on Solana)
+--   provider_ref  Monobank: invoiceId                 crypto: the token mint address
+--   pay_micro   crypto: the exact amount to send in millionths of a token (the price plus a few micro-cents that make it unique)
+--   tx_ref      crypto: the Solana transaction signature that paid it (UNIQUE: one transaction pays one order)
+--   billing     JSON { name, email, country, company, vatId } typed on the checkout page
+CREATE TABLE IF NOT EXISTS orders (
+  id            TEXT    PRIMARY KEY,
+  user_id       TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  plan_id       TEXT    NOT NULL,
+  plan_name     TEXT    NOT NULL DEFAULT '',
+  interval      TEXT    NOT NULL DEFAULT 'month' CHECK (interval IN ('month', 'year')),
+  amount_cents  INTEGER NOT NULL CHECK (amount_cents >= 0),
+  currency      TEXT    NOT NULL DEFAULT 'USD',
+  provider      TEXT    NOT NULL CHECK (provider IN ('monobank', 'crypto')),
+  provider_ref  TEXT,
+  pay_url       TEXT,
+  pay_micro     INTEGER,
+  tx_ref        TEXT    UNIQUE,
+  status        TEXT    NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'expired', 'failed', 'canceled')),
+  billing       TEXT    NOT NULL DEFAULT '{}',
+  note          TEXT,
+  created_at    INTEGER NOT NULL DEFAULT (unixepoch()),
+  expires_at    INTEGER NOT NULL,
+  paid_at       INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_pending ON orders(status, provider, expires_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_invoice ON orders(provider_ref) WHERE provider = 'monobank' AND provider_ref IS NOT NULL;
+
+-- The Suite bundle (Post Pro + Studio, ECONOMY_AND_FINANCE.md §2.6). Off until you switch it on in /admin → Plans (fulfilment: Pro + Studio).
+INSERT OR IGNORE INTO plans (id, name, tagline, price_cents, features, limits, cta_label, is_public, is_active, sort) VALUES
+  ('suite', 'Vane Suite', 'Vane Post Pro and Vane Studio together.', 1800,
+   '["Everything in Vane Post Pro","Everything in Vane Studio","Announce a new video to your social networks in one click"]',
+   '{"postsPerMonth":1000,"aiCredits":250,"apiAccess":0,"overagePostUsd":0.015,"overageAiPostUsd":0.045}', 'Get Suite', 0, 0, 45);
+
+-- ═════════════════════ Admin: networks on/off and the AI token ledger ═════════════════════
+
+-- The admin's on/off switch per network (/admin → Networks). No row = the default: ON for a network whose code is
+-- written (lib/networks.ts), OFF otherwise. A network can only be switched on when its code exists, whether or not
+-- the platform's own review / verification has passed (that is tracked in `note`).
+CREATE TABLE IF NOT EXISTS network_flags (
+  network     TEXT    PRIMARY KEY,
+  enabled     INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
+  note        TEXT    NOT NULL DEFAULT '',
+  updated_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_by  TEXT
+);
+
+-- One row per model call: how many tokens the AI features used and what they cost us (/admin → AI).
+-- cost_micro is a snapshot in micro-dollars at the price of that moment, so a later price edit never rewrites history.
+-- estimated = 1 when the provider sent no usage numbers and the tokens are a ~4 characters per token guess.
+CREATE TABLE IF NOT EXISTS ai_usage (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts            INTEGER NOT NULL DEFAULT (unixepoch()),
+  user_id       TEXT,                                       -- null = a system task, not a user's click
+  tool          TEXT    NOT NULL,                           -- 'hashtags', 'tone', … or the name of a future feature
+  model         TEXT    NOT NULL,
+  input_tokens  INTEGER NOT NULL DEFAULT 0,
+  output_tokens INTEGER NOT NULL DEFAULT 0,
+  estimated     INTEGER NOT NULL DEFAULT 0 CHECK (estimated IN (0, 1)),
+  neurons       REAL    NOT NULL DEFAULT 0,                 -- Cloudflare bills Workers AI in neurons (10 000 a day are free)
+  cost_micro    INTEGER NOT NULL DEFAULT 0,
+  ok            INTEGER NOT NULL DEFAULT 1 CHECK (ok IN (0, 1)),
+  ms            INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_ts   ON ai_usage(ts);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_user ON ai_usage(user_id, ts);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_tool ON ai_usage(tool, ts);
+
+-- What a model costs. Edit it in /admin → AI when Cloudflare changes prices or a new model is used; a model with
+-- no row here is still counted in tokens, just shown as "no price set".
+CREATE TABLE IF NOT EXISTS ai_prices (
+  model                 TEXT    PRIMARY KEY,
+  input_usd_per_m       REAL    NOT NULL DEFAULT 0,
+  output_usd_per_m      REAL    NOT NULL DEFAULT 0,
+  input_neurons_per_m   REAL    NOT NULL DEFAULT 0,
+  output_neurons_per_m  REAL    NOT NULL DEFAULT 0,
+  updated_at            INTEGER NOT NULL DEFAULT (unixepoch())
+);
+-- developers.cloudflare.com/workers-ai/platform/pricing (page updated 2026-10-20, checked 2026-10-21). Set AI_MODEL to any of these (or add a row in /admin → AI).
+INSERT OR IGNORE INTO ai_prices (model, input_usd_per_m, output_usd_per_m, input_neurons_per_m, output_neurons_per_m) VALUES
+  ('@cf/meta/llama-3.1-8b-instruct-fp8',      0.152, 0.287, 13778,  26128),   -- the model the AI tools run on (lib/ai.ts AI_MODEL)
+  ('@cf/meta/llama-3.1-8b-instruct',          0.282, 0.827, 25608,  75147),   -- the previous default, kept for the history
+  ('@cf/meta/llama-3.1-8b-instruct-fp8-fast', 0.045, 0.384,  4119,  34868),
+  ('@cf/meta/llama-3.3-70b-instruct-fp8-fast',0.293, 2.253, 26668, 204805),
+  ('@cf/meta/llama-4-scout-17b-16e-instruct', 0.270, 0.850, 24545,  77273),
+  ('@cf/openai/gpt-oss-20b',                  0.200, 0.300, 18182,  27273),
+  ('@cf/openai/gpt-oss-120b',                 0.350, 0.750, 31818,  68182),
+  ('@cf/google/gemma-4-26b-a4b-it',           0.100, 0.300,  9091,  27273),
+  ('@cf/qwen/qwen3-30b-a3b-fp8',              0.051, 0.335,  4625,  30475);
+
+-- Vane Studio AI: what the user chose to do when the plan's generations run out (default: stop), and what the extra ones cost.
+CREATE TABLE IF NOT EXISTS video_ai_settings (
+  user_id          TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  overage_enabled  INTEGER NOT NULL DEFAULT 0 CHECK (overage_enabled IN (0, 1)),     -- 1 = keep going past the included generations, billed per generation
+  updated_at       INTEGER NOT NULL DEFAULT (unixepoch())
+);
+-- Generations beyond the included ones, per plan period: how many and what they cost (millionths of a dollar: $0.02 = 20000).
+CREATE TABLE IF NOT EXISTS video_ai_overage (
+  user_id    TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  period     TEXT    NOT NULL,                                                       -- the same key as video_ai_usage.period
+  uses       INTEGER NOT NULL DEFAULT 0,
+  micro_usd  INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (user_id, period)
+);
+
+-- ───────────────────────── Integrations: admin switches and demand statistics ─────────────────────────
+-- /admin → Integrations. The CATALOG (Claude, ChatGPT, Make, Zapier, WordPress, direct API) lives in code
+-- (functions/api/lib/integrations.ts); these tables only hold what the admin changes and what the traffic says.
+--   NOTE for databases created before this: api_keys gained an `integration` column. CREATE TABLE IF NOT EXISTS cannot add it,
+--   so run ONCE:  npm run db:migrate:integrations   (the code works without it, it just cannot tell the label of a key)
+
+-- One row per integration, created the first time the admin touches it (no row = enabled, no notes).
+CREATE TABLE IF NOT EXISTS integration_settings (
+  id          TEXT    PRIMARY KEY,                              -- 'claude' | 'chatgpt' | 'make' | 'zapier' | 'wordpress' | 'api'
+  enabled     INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),   -- 0: requests from it are refused (403 integration_disabled)
+  listing     TEXT    NOT NULL DEFAULT '',                      -- where the store / marketplace review stands (free choice from a short list)
+  note        TEXT    NOT NULL DEFAULT '',                      -- the admin's own words
+  updated_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+-- How much each integration is used: one row per (UTC day, integration, key, operation), counted on every authenticated
+-- API request. Small on purpose (no per-request log, no IPs, no bodies); history survives a revoked or deleted key.
+CREATE TABLE IF NOT EXISTS api_usage_daily (
+  day          TEXT    NOT NULL,                                -- 'YYYY-MM-DD' (UTC)
+  integration  TEXT    NOT NULL,
+  key_id       TEXT    NOT NULL,
+  op           TEXT    NOT NULL,                                -- 'POST /posts', 'GET /posts/:id', 'mcp:vane_create_post' …
+  requests     INTEGER NOT NULL DEFAULT 0,
+  last_at      INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, integration, key_id, op)
+);
+CREATE INDEX IF NOT EXISTS idx_api_usage_daily_day ON api_usage_daily(day);

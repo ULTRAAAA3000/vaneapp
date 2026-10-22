@@ -178,7 +178,7 @@
   $('logout').addEventListener('click', function () { call('POST', '/api/admin/logout').then(function () { toGate('Signed out.'); }); });
 
   // ───────────────────────── navigation ─────────────────────────
-  var TABS = [['overview', 'Overview'], ['users', 'Users'], ['plans', 'Plans'], ['social', 'Social'], ['traffic', 'Traffic'], ['search', 'Search'], ['security', 'Security'], ['settings', 'Settings'], ['activity', 'Activity']];
+  var TABS = [['overview', 'Overview'], ['users', 'Users'], ['plans', 'Plans'], ['orders', 'Orders'], ['networks', 'Networks'], ['ai', 'AI'], ['social', 'Social'], ['traffic', 'Traffic'], ['search', 'Search'], ['security', 'Security'], ['settings', 'Settings'], ['activity', 'Activity']];
   function route() {
     var tab = (location.hash || '#overview').slice(1);
     if (!TABS.some(function (t) { return t[0] === tab; })) tab = 'overview';
@@ -386,7 +386,7 @@
         '<button class="btn btn-white btn-sm" type="button" data-act="plan-new">+ New plan</button>') +
         '<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">' + cards + '</div>' +
         card('How this connects to payments', '<ul class="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-white/60"><li>Prices are stored as integer cents with a currency, plus an optional yearly price and a "was" price, so a checkout can charge exactly what the card shows.</li>' +
-          '<li>Every plan has a slot for the provider reference (Monobank, crypto, Stripe). When the payment system is added it only has to create a subscription row; limits and the admin already read them.</li>' +
+          '<li>Every plan has a slot for the provider reference (Monobank, crypto, Stripe). Checkout (Orders tab) creates the subscription row by itself when a payment arrives.</li>' +
           '<li>A "2 in 1" or "Ultra" plan is just a new plan with its own price and limits. Give it to a user from the Users tab (a database created before the admin needs <code>scripts/migrations/001-subscriptions-any-plan.sql</code> run once for custom plans), or sell it once checkout exists.</li>' +
           '<li>The limits are what the API engine enforces (API keys, quotas, extra-post billing), so editing them here changes it within seconds. The connected-channels limit is applied only while <b>Enforce the channel limit</b> is on in Settings (off by default).</li></ul>', '', 'mt-4'));
     });
@@ -414,7 +414,7 @@
       '</div>' +
       '<h4 class="mt-6 text-sm font-semibold">Limits <span class="font-normal text-white/40">(enforced by the API engine, live within seconds)</span></h4><div class="mt-3 grid gap-4 sm:grid-cols-2">' +
         LIMITS.map(function (l) { return field('pL_' + l[0], l[1], typeof p.limits[l[0]] === 'number' ? p.limits[l[0]] : '', { type: 'number', ph: l[3], attrs: 'min="0"' + (l[2] === 'float' ? ' step="0.001"' : ' step="1"') }); }).join('') + '</div>' +
-      '<h4 class="mt-6 text-sm font-semibold">Payment provider references <span class="font-normal text-white/40">(filled in when checkout exists)</span></h4><div class="mt-3 grid gap-4 sm:grid-cols-3">' +
+      '<h4 class="mt-6 text-sm font-semibold">Payment provider references <span class="font-normal text-white/40">(optional notes for your own records; checkout does not need them)</span></h4><div class="mt-3 grid gap-4 sm:grid-cols-3">' +
         PROVIDERS.map(function (x) { return field('pR_' + x[0], x[1], p.providerRefs[x[0]] || '', { ph: 'product / price id' }); }).join('') + '</div>' +
       '<div id="planErr" role="alert" class="mt-5 hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>' +
       '<div class="mt-6 flex items-center justify-between gap-3"><div>' + (creating || p.id === 'free' ? '' : '<button class="btn btn-danger btn-sm" type="button" data-act="plan-delete" data-id="' + esc(p.id) + '">Delete</button>') + '</div>' +
@@ -712,6 +712,112 @@
     });
   }
 
+
+  // ── Networks
+  function netStatus(n) {
+    if (!n.implemented) return tag('code not written', 'warn');
+    return n.enabled ? tag('on', 'ok') : tag('switched off', 'bad');
+  }
+  VIEWS.networks = function (seq) {
+    call('GET', '/api/admin/networks').then(function (r) {
+      if (!alive(seq)) return;
+      if (!r.ok) return show(seq, errorBox(r.error));
+      var list = r.data.networks;
+      var section = function (product, heading, hint) {
+        var rows = list.filter(function (n) { return n.product === product; });
+        return card(heading, '<p class="mb-4 text-sm text-white/50">' + hint + '</p>' + table([
+          { h: 'Network', r: function (n) { return '<div class="font-medium">' + esc(n.name) + '</div><div class="text-[11px] text-white/40">' + esc(n.code) + '</div>'; } },
+          { h: 'Status', r: netStatus },
+          { h: 'Channels', cls: 'text-right', r: function (n) { return n.stats ? num(n.stats.activeChannels) + (n.stats.channels !== n.stats.activeChannels ? ' <span class="text-white/35">/ ' + num(n.stats.channels) + '</span>' : '') : '<span class="text-white/30">—</span>'; } },
+          { h: 'Scheduled', cls: 'text-right', r: function (n) { return n.stats ? num(n.stats.scheduled) : '—'; } },
+          { h: 'Waiting', cls: 'text-right', r: function (n) { return n.stats && n.stats.waiting ? '<span class="text-amber-300">' + num(n.stats.waiting) + '</span>' : n.stats ? '0' : '—'; } },
+          { h: 'Failed 24 h', cls: 'text-right', r: function (n) { return n.stats && n.stats.failed24h ? '<span class="text-red-300">' + num(n.stats.failed24h) + '</span>' : n.stats ? '0' : '—'; } },
+          { h: 'Note (your own, e.g. platform review status)', r: function (n) { return '<input class="field !py-1.5 !text-xs" data-act="net-note" data-id="' + esc(n.id) + '" maxlength="200" placeholder="e.g. waiting for approval" value="' + esc(n.note) + '" />'; } },
+          { h: 'On / off', cls: 'text-right', r: function (n) {
+            return n.implemented
+              ? '<button type="button" class="switch" role="switch" data-act="net-toggle" data-id="' + esc(n.id) + '" data-name="' + esc(n.name) + '" aria-checked="' + n.enabled + '" aria-label="' + esc(n.name) + '"></button>'
+              : '<button type="button" class="switch opacity-40" role="switch" aria-checked="false" aria-disabled="true" data-act="net-nocode" data-name="' + esc(n.name) + '" aria-label="' + esc(n.name) + ' cannot be switched on: code not written"></button>';
+          } }
+        ], rows));
+      };
+      show(seq, title('Networks', 'Switch a network on or off. A network can be switched on as soon as its code is written, even if the platform has not approved Vane yet.') +
+        section('post', 'Vane Post', 'Switched off: nobody can connect a new account, no new post can be scheduled to it, and posts already scheduled for it <b>wait</b> (they are not lost). If it stays off more than 2 hours past a post’s time, that post fails with a clear reason.') +
+        '<div class="mt-4"></div>' + section('studio', 'Vane Studio', 'The connect and upload flows for these are not written yet, so they cannot be switched on. When the code exists, flip its <code>implemented</code> flag in <code>lib/networks.ts</code> and the switch becomes live.'));
+    });
+  };
+
+  // ── AI token ledger
+  function tokens(n) { n = n || 0; return n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1e4 ? (n / 1e3).toFixed(1) + 'k' : num(n); }
+  function usd(x, d) { x = x || 0; return '$' + (x < 0.01 && x > 0 ? x.toFixed(4) : x.toFixed(d == null ? 2 : d)); }
+  VIEWS.ai = function (seq) {
+    call('GET', '/api/admin/ai?days=' + S.days).then(function (r) {
+      if (!alive(seq)) return;
+      if (!r.ok) return show(seq, errorBox(r.error));
+      var d = r.data, t = d.totals, m = d.month, td = d.today;
+      var budget = m.budgetUsd > 0
+        ? stat('This month vs budget', usd(m.costUsd) + ' <span class="text-base font-normal text-white/40">/ ' + usd(m.budgetUsd, 0) + '</span>', '<span class="' + (m.budgetUsedPct >= 100 ? 'text-red-300' : m.budgetUsedPct >= 80 ? 'text-amber-300' : '') + '">' + m.budgetUsedPct + '% used</span> · ' + tokens(m.tokens) + ' tokens')
+        : stat('This month', usd(m.costUsd), tokens(m.tokens) + ' tokens · <a class="underline" href="#settings">set a budget</a>');
+      var freePct = Math.min(100, Math.round((td.neurons / td.freeNeurons) * 100));
+      var noPrice = d.byModel.filter(function (x) { return !x.priced; });
+      show(seq, title('AI spend', 'Every model call the AI features make, counted in tokens. Cost is tokens × the model price below.', rangeChips([7, 30, 90], d.days, 'range')) +
+        (noPrice.length ? '<div class="mb-4 rounded-2xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">No price set for <b>' + noPrice.map(function (x) { return esc(x.model); }).join(', ') + '</b>: its tokens are counted but its cost shows as $0. Add the price in the table at the bottom.</div>' : '') +
+        '<div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">' +
+          stat('Tokens', tokens(t.tokens), tokens(t.inputTokens) + ' in · ' + tokens(t.outputTokens) + ' out') +
+          stat('Cost at list price', usd(t.costUsd), 'after the free allowance: ' + usd(t.afterFreeAllowanceUsd)) +
+          stat('Model calls', num(t.calls), num(t.failed) + ' failed · ' + (t.avgMs ? t.avgMs + ' ms avg' : '—')) + budget +
+        '</div>' +
+        '<div class="mt-4 grid gap-4 lg:grid-cols-2">' +
+          card('Tokens per day', bars(d.series.labels, [{ name: 'input', color: 'rgba(125,211,252,.85)', values: d.series.inputTokens }, { name: 'output', color: 'rgba(196,181,253,.9)', values: d.series.outputTokens }])) +
+          card('Cost per day (list price)', bars(d.series.labels, [{ name: 'USD', color: 'rgba(252,211,77,.85)', values: d.series.costUsd }])) +
+        '</div>' +
+        card('Free allowance today', hbar('Workers AI neurons used today (this ledger)', td.neurons, td.freeNeurons, num(td.neurons) + ' of ' + num(td.freeNeurons) + ' free (' + freePct + '%)', freePct >= 100 ? '#fca5a5' : undefined) +
+          '<p class="mt-2 text-xs text-white/40">Cloudflare gives 10 000 neurons a day free and bills the rest at $0.011 per 1000. The allowance belongs to the whole Cloudflare account, so anything else that uses Workers AI also eats it; this ledger only sees Vane’s own calls.' + (t.estimatedCalls ? ' ' + num(t.estimatedCalls) + ' calls had no usage numbers from the provider and use a 4-characters-per-token estimate.' : '') + '</p>', '', 'mt-4') +
+        '<div class="mt-4 grid gap-4 lg:grid-cols-5">' +
+          card('By feature', table([
+            { h: 'Feature', r: function (x) { return '<span class="font-medium">' + esc(x.tool) + '</span> ' + (x.premium ? tag('uses credits', 'info') : tag('free tool')); } },
+            { h: 'Calls', cls: 'text-right', r: function (x) { return num(x.calls) + (x.failed ? ' <span class="text-red-300">(' + x.failed + ' failed)</span>' : ''); } },
+            { h: 'Tokens', cls: 'text-right', r: function (x) { return tokens(x.inputTokens + x.outputTokens); } },
+            { h: 'Per call', cls: 'text-right', r: function (x) { return x.calls ? tokens(Math.round((x.inputTokens + x.outputTokens) / x.calls)) : '—'; } },
+            { h: 'Cost', cls: 'text-right', r: function (x) { return usd(x.costUsd); } }], d.byTool, { empty: 'No AI calls in this period yet.' }), '', 'lg:col-span-3') +
+          card('By model', table([
+            { h: 'Model', r: function (x) { return '<span class="break-all text-xs">' + esc(x.model) + '</span>' + (x.priced ? '' : ' ' + tag('no price', 'warn')); } },
+            { h: 'Tokens', cls: 'text-right', r: function (x) { return tokens(x.inputTokens + x.outputTokens); } },
+            { h: 'Cost', cls: 'text-right', r: function (x) { return usd(x.costUsd); } }], d.byModel, { empty: 'Nothing yet.' }), '', 'lg:col-span-2') +
+        '</div>' +
+        '<div class="mt-4 grid gap-4 lg:grid-cols-2">' +
+          card('Who uses the most', table([
+            { h: 'User', r: function (x) { return x.email ? '<span class="font-medium">' + esc(x.email) + '</span>' : '<span class="text-white/40">system / unknown</span>'; } },
+            { h: 'Calls', cls: 'text-right', r: function (x) { return num(x.calls); } }, { h: 'Tokens', cls: 'text-right', r: function (x) { return tokens(x.tokens); } },
+            { h: 'Cost', cls: 'text-right', r: function (x) { return usd(x.costUsd); } }, { h: 'Last', r: function (x) { return esc(ago(x.lastAt)); } }], d.topUsers, { empty: 'Nobody yet.' })) +
+          card('Latest calls', table([
+            { h: 'When', r: function (x) { return esc(when(x.ts)); } }, { h: 'Feature', r: function (x) { return esc(x.tool) + (x.ok ? '' : ' ' + tag('failed', 'bad')); } },
+            { h: 'Tokens', cls: 'text-right', r: function (x) { return num(x.inputTokens) + ' → ' + num(x.outputTokens) + (x.estimated ? ' <span class="text-white/35" title="estimated">~</span>' : ''); } },
+            { h: 'ms', cls: 'text-right', r: function (x) { return x.ms == null ? '—' : num(x.ms); } }], d.recent, { empty: 'No calls yet.' })) +
+        '</div>' +
+        card('What a model costs', '<p class="mb-4 text-sm text-white/50">Prices per 1 million tokens. Neurons are how Cloudflare meters Workers AI. A model you have not priced still counts tokens. Source for the starter row: developers.cloudflare.com/workers-ai/platform/pricing.</p>' + table([
+          { h: 'Model', r: function (x) { return '<span class="break-all text-xs font-medium">' + esc(x.model) + '</span>'; } },
+          { h: '$ input', cls: 'text-right', r: function (x) { return usd(x.inputUsdPerM, 3); } }, { h: '$ output', cls: 'text-right', r: function (x) { return usd(x.outputUsdPerM, 3); } },
+          { h: 'neurons in', cls: 'text-right', r: function (x) { return num(x.inputNeuronsPerM); } }, { h: 'neurons out', cls: 'text-right', r: function (x) { return num(x.outputNeuronsPerM); } },
+          { h: '', r: function (x) { return '<button class="btn btn-ghost btn-sm" type="button" data-act="ai-price" data-model="' + esc(x.model) + '" data-i="' + x.inputUsdPerM + '" data-o="' + x.outputUsdPerM + '" data-ni="' + x.inputNeuronsPerM + '" data-no="' + x.outputNeuronsPerM + '">Edit</button>'; } }
+        ], d.prices) + '<div class="mt-3"><button class="btn btn-white btn-sm" type="button" data-act="ai-price" data-model="" data-i="0" data-o="0" data-ni="0" data-no="0">+ Add a model price</button></div>', '', 'mt-4'));
+    });
+  };
+  function openAiPrice(el) {
+    var d = el.dataset, adding = !d.model;
+    openModal('<form id="aiPriceForm"><h3 class="text-lg font-semibold">' + (adding ? 'Add a model price' : 'Price of ' + esc(d.model)) + '</h3>' +
+      '<div class="mt-5 grid gap-4 sm:grid-cols-2">' + field('apModel', 'Model id', d.model, { ph: '@cf/meta/llama-3.1-8b-instruct', cls: 'sm:col-span-2', attrs: adding ? '' : 'disabled' }) +
+      field('apIn', '$ per 1M input tokens', d.i, { type: 'number', attrs: 'min="0" step="0.001"' }) + field('apOut', '$ per 1M output tokens', d.o, { type: 'number', attrs: 'min="0" step="0.001"' }) +
+      field('apNIn', 'Neurons per 1M input tokens', d.ni, { type: 'number', attrs: 'min="0" step="1"' }) + field('apNOut', 'Neurons per 1M output tokens', d.no, { type: 'number', attrs: 'min="0" step="1"' }) + '</div>' +
+      '<p class="mt-3 text-xs text-white/40">Applies to calls made from now on; the cost of earlier calls is not rewritten.</p>' +
+      '<div class="mt-6 flex justify-end gap-2"><button class="btn btn-ghost" type="button" data-act="modal-close">Cancel</button><button class="btn btn-white" type="submit">Save price</button></div></form>');
+    $('aiPriceForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      call('PUT', '/api/admin/ai', { model: $('apModel').value.trim(), inputUsdPerM: Number($('apIn').value) || 0, outputUsdPerM: Number($('apOut').value) || 0, inputNeuronsPerM: Number($('apNIn').value) || 0, outputNeuronsPerM: Number($('apNOut').value) || 0 }).then(function (r) {
+        if (r.ok) { closeModal(); Vane.toast('ok', 'Price saved.'); route(); } else Vane.toast('err', r.error);
+      });
+    });
+  }
+
   // ── Settings
   var SETTING_ROWS = [
     ['Sign-in and sign-up protection', [
@@ -724,6 +830,8 @@
       ['auto_ban_login_fails', 'Failed sign-ins within 15 min', 'Ban threshold per address.', 'int'],
       ['auto_ban_registers', 'Sign-up attempts within 1 hour', 'Ban threshold per address.', 'int'],
       ['auto_ban_hours', 'Ban lasts (hours)', 'Automatic bans lift themselves after this long.', 'int']]],
+    ['AI', [
+      ['ai_budget_usd', 'Monthly AI budget (USD)', 'What you are willing to spend on AI model calls per month. It is only shown against the real spend in the AI tab (0 = no budget); nothing is stopped.', 'usd']]],
     ['Product', [
       ['enforce_limits', 'Enforce the channel limit', 'When on, users cannot connect more channels than their plan allows (the Free Trial: 2). Posts are always metered by the API engine. Off by default so you can test freely; switch it on at launch.', 'bool'],
       ['track_visits', 'Record page views', 'Feeds the Traffic tab and the conversion funnel. Respects the browser Do-Not-Track setting.', 'bool']]]
@@ -737,7 +845,7 @@
         var key = x[0];
         return '<div class="flex items-center justify-between gap-4 border-t border-white/[0.06] py-3.5 first:border-0"><div class="min-w-0"><div class="text-sm font-medium">' + esc(x[1]) + '</div><div class="mt-0.5 text-xs leading-relaxed text-white/45">' + esc(x[2]) + '</div></div>' +
           (x[3] === 'bool' ? '<button type="button" class="switch" role="switch" data-act="toggle" data-key="' + key + '" aria-checked="' + !!s[key] + '" aria-label="' + esc(x[1]) + '"></button>'
-            : '<input class="field !w-24 text-right" type="number" min="1" data-act="num" data-key="' + key + '" value="' + s[key] + '" />') + '</div>';
+            : '<input class="field !w-24 text-right" type="number" min="' + (x[3] === 'usd' ? '0' : '1') + '" step="' + (x[3] === 'usd' ? '0.01' : '1') + '" data-act="num" data-key="' + key + '" value="' + s[key] + '" />') + '</div>';
       };
       var integ = function (name, on, hint) { return '<div class="flex items-center justify-between gap-4 border-t border-white/[0.06] py-3 first:border-0"><div><div class="text-sm font-medium">' + esc(name) + '</div><div class="text-xs text-white/45">' + esc(hint) + '</div></div>' + (on ? tag('connected', 'ok') : tag('not set')) + '</div>'; };
       show(seq, title('Settings', 'Switches take effect within seconds.') +
@@ -746,6 +854,37 @@
           integ('Google Search Console', i.searchConsole, 'GSC_SERVICE_ACCOUNT + GSC_SITE_URL, see the Search tab') + integ('VPN lookup (proxycheck.io)', i.vpnLookup, 'PROXYCHECK_KEY') +
           integ('Admin IP allow-list', i.adminIpAllowList, 'ADMIN_ALLOW_IPS: only these addresses can reach the admin')) +
           card('Admin access', '<p class="text-sm leading-relaxed text-white/60">The login is the <code class="rounded bg-white/10 px-1 text-xs">ADMIN_EMAIL</code> secret and a password hash in <code class="rounded bg-white/10 px-1 text-xs">ADMIN_PASSWORD_HASH</code>. Neither is in the code or the database. Sessions last 8 hours, eight wrong passwords from one address ban it, and every change is written to the Activity log.</p>') + '</div></div>');
+    });
+  };
+
+  // ── Orders (payments)
+  var ORDER_TONE = { paid: 'text-emerald-300', pending: 'text-amber-300', expired: 'text-white/40', failed: 'text-red-300', canceled: 'text-white/40' };
+  VIEWS.orders = function (seq) {
+    var st = S.orderStatus || '';
+    call('GET', '/api/admin/orders' + (st ? '?status=' + st : '')).then(function (r) {
+      if (!alive(seq)) return;
+      if (!r.ok) return show(seq, errorBox(r.error));
+      S.orders = r.data.orders;
+      var filters = [['', 'All'], ['pending', 'Waiting'], ['paid', 'Paid'], ['expired', 'Expired'], ['failed', 'Failed']].map(function (f) {
+        return '<button type="button" class="chip" data-act="order-filter" data-status="' + f[0] + '" aria-pressed="' + (f[0] === st) + '"><span>' + f[1] + '</span></button>';
+      }).join('');
+      show(seq, title('Orders', num(r.data.paid.count) + ' paid · ' + money0(r.data.paid.cents) + ' in total. Card payments confirm themselves through Monobank; crypto is found on the Solana chain. If you saw the money yourself, press Confirm.') +
+        '<div class="mb-4 flex flex-wrap gap-2">' + filters + '</div>' +
+        card('', table([
+          { h: 'When', r: function (o) { return esc(when(o.createdAt)); } },
+          { h: 'Buyer', r: function (o) { return '<span class="font-medium">' + esc(o.email) + '</span><div class="text-xs text-white/40">' + esc([o.billing.name, o.billing.country, o.billing.company].filter(Boolean).join(' · ')) + '</div>'; } },
+          { h: 'Plan', r: function (o) { return esc(o.planName) + '<div class="text-xs text-white/40">' + (o.interval === 'year' ? 'a year' : 'a month') + '</div>'; } },
+          { h: 'Amount', r: function (o) { return money(o.amountCents); } },
+          { h: 'Method', r: function (o) { return o.method === 'crypto' ? 'Crypto' + (o.payMicro ? '<div class="text-xs text-white/40">' + (o.payMicro / 1e6).toFixed(6) + '</div>' : '') : 'Card'; } },
+          { h: 'Status', r: function (o) { return '<span class="font-medium ' + (ORDER_TONE[o.status] || '') + '">' + esc(o.status) + '</span>' + (o.note ? '<div class="text-xs text-white/40">' + esc(o.note) + '</div>' : ''); } },
+          { h: '', r: function (o) {
+            if (o.status === 'paid') return '<span class="break-all text-[11px] text-white/35">' + esc((o.txRef || o.invoiceId || '').slice(0, 18)) + '</span>';
+            if (o.status === 'canceled') return '';
+            return '<div class="flex gap-2"><button type="button" class="btn btn-ghost btn-sm" data-act="order-check" data-id="' + o.id + '">Check</button>' +
+              '<button type="button" class="btn btn-white btn-sm" data-act="order-confirm" data-id="' + o.id + '">Confirm</button>' +
+              (o.status === 'pending' ? '<button type="button" class="btn btn-ghost btn-sm" data-act="order-cancel" data-id="' + o.id + '">Cancel</button>' : '') + '</div>';
+          } },
+        ], r.data.orders, { empty: 'No orders yet.' })));
     });
   };
 
@@ -767,6 +906,8 @@
     call('PUT', '/api/admin/settings', body).then(function (r) { if (r.ok) { Vane.toast('ok', 'Saved.'); if (done) done(r.data.settings); } else { Vane.toast('err', r.error); route(); } });
   }
   document.addEventListener('change', function (e) {
+    var note = e.target.closest('[data-act="net-note"]');
+    if (note) { call('PUT', '/api/admin/networks', { network: note.dataset.id, note: note.value.trim() }).then(function (r) { Vane.toast(r.ok ? 'ok' : 'err', r.ok ? 'Note saved.' : r.error); }); return; }
     var el = e.target.closest('[data-act="num"]');
     if (el) putSetting(el.dataset.key, Number(el.value));
   });
@@ -782,11 +923,28 @@
     else if (a === 'apage') { S.att.page = Math.max(1, S.att.page + Number(el.dataset.dir)); loadAttempts(S.seq); }
     else if (a === 'drawer-close') closeDrawer();
     else if (a === 'modal-close') closeModal();
+    else if (a === 'ai-price') openAiPrice(el);
+    else if (a === 'net-nocode') Vane.toast('err', el.dataset.name + ' cannot be switched on yet: its code is not written.');
+    else if (a === 'net-toggle') {
+      var wantOn = el.getAttribute('aria-checked') !== 'true';
+      var go = function () {
+        call('PUT', '/api/admin/networks', { network: el.dataset.id, enabled: wantOn }).then(function (r) { if (r.ok) { Vane.toast('ok', el.dataset.name + (wantOn ? ' is on.' : ' is switched off.')); } else Vane.toast('err', r.error); route(); });
+      };
+      if (wantOn) go(); else confirmBox('Switch <b>' + esc(el.dataset.name) + '</b> off? Nobody can connect it or schedule to it, and posts already scheduled for it will wait until you switch it on again.', 'Switch off', go, true);
+    }
     else if (a === 'plan-new') planForm(null);
     else if (a === 'plan-edit') planForm(S.plans.filter(function (p) { return p.id === el.dataset.id; })[0]);
     else if (a === 'plan-delete') confirmBox('Delete the plan <b>' + esc(el.dataset.id) + '</b>? This only works if nobody ever had it.', 'Delete plan', function () {
       call('DELETE', '/api/admin/plans?id=' + encodeURIComponent(el.dataset.id)).then(function (r) { if (r.ok) { Vane.toast('ok', 'Plan deleted.'); route(); } else Vane.toast('err', r.error); });
     }, true);
+    else if (a === 'order-filter') { S.orderStatus = el.dataset.status; route(); }
+    else if (a === 'order-check') call('POST', '/api/admin/orders', { action: 'check', orderId: el.dataset.id }).then(function (r) { if (r.ok) { Vane.toast('ok', 'Status: ' + r.data.status + '.'); route(); } else Vane.toast('err', r.error); });
+    else if (a === 'order-cancel') confirmBox('Cancel this waiting order? Nothing is refunded or charged.', 'Cancel order', function () {
+      call('POST', '/api/admin/orders', { action: 'cancel', orderId: el.dataset.id }).then(function (r) { if (r.ok) { Vane.toast('ok', 'Order canceled.'); route(); } else Vane.toast('err', r.error); });
+    }, true);
+    else if (a === 'order-confirm') confirmBox('Mark this order as <b>paid</b> and switch the plan on for the buyer? Only do this when you saw the money arrive.', 'Confirm payment', function () {
+      call('POST', '/api/admin/orders', { action: 'confirm', orderId: el.dataset.id }).then(function (r) { if (r.ok) { Vane.toast('ok', 'Paid. The plan is on.'); route(); } else Vane.toast('err', r.error); });
+    });
     else if (a === 'soc-new') socForm(null);
     else if (a === 'soc-edit') socForm(S.social.links.filter(function (l) { return l.id === el.dataset.id; })[0]);
     else if (a === 'soc-delete') confirmBox('Remove <b>' + esc(el.dataset.name) + '</b> from the landing page? You can add it again later.', 'Remove link', function () {

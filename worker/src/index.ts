@@ -4,8 +4,10 @@
  */
 import type { CronEnv } from '../../types';
 import { purgeExpiredIdempotencyKeys } from '../../functions/api/lib/idempotency';
+import { purgeOldApiUsage } from '../../functions/api/lib/integrations';
 import { runDueVideoPublications } from '../../functions/api/lib/videopublish';
 import { deliverDueWebhooks, purgeOldWebhookDeliveries } from '../../functions/api/lib/webhooks';
+import { sweepOrders } from '../../functions/api/lib/billingcheck';
 import { runDuePosts } from './dispatch';
 import { isRenewalMinute, renewExpiringTokens } from './tokens';
 
@@ -26,7 +28,12 @@ export default {
         // Webhooks: send what the posts above just queued (and retries that are due), then tidy up. Never blocks or breaks posting.
         .then(() => deliverDueWebhooks(env, Math.floor(Date.now() / 1000)))
         .then(() => purgeOldWebhookDeliveries(env, Math.floor(Date.now() / 1000)))
+        // API usage counters (the admin's Integrations page) are kept for 120 days.
+        .then(() => purgeOldApiUsage(env))
         .catch((err) => console.error('vane-cron: webhooks failed:', err instanceof Error ? err.message : 'unknown'))
+        // Payments: expire unpaid orders and find crypto payments whose buyer left the checkout page.
+        .then(() => sweepOrders(env as never, Math.floor(Date.now() / 1000)))
+        .catch((err) => console.error('vane-cron: payments failed:', err instanceof Error ? err.message : 'unknown'))
         // Once a day: renew LinkedIn / Threads sign-ins that are running out (see tokens.ts).
         .then(() => (isRenewalMinute(Math.floor(Date.now() / 1000)) ? renewExpiringTokens(env, Math.floor(Date.now() / 1000)) : undefined))
         .catch((err) => console.error('vane-cron: sign-in renewal failed:', err instanceof Error ? err.message : 'unknown')),

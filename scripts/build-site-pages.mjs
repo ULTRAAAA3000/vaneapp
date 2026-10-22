@@ -23,17 +23,17 @@ const SITE = {
     ['Networks', '/networks'],
     ['Developers', '/developers'],
     ['Integrations', '/integrations'],
-    ['Pricing', '/#pricing'],
+    ['Pricing', '/pricing'],
     ['Partners', '/partners'],
   ],
   footer: [
-    ['Product', [['Features', '/#features'], ['Networks', '/networks'], ['Pricing', '/#pricing'], ['Changelog', '/changelog']]],
+    ['Product', [['Features', '/#features'], ['Networks', '/networks'], ['Pricing', '/pricing'], ['Changelog', '/changelog']]],
     ['Developers', [['API', '/developers'], ['Integrations', '/integrations'], ['OpenAPI spec', '/api/v1/openapi.json'], ['Security', '/security']]],
     ['Company', [['About', '/about'], ['Partners', '/partners'], ['WYSB', '/partners/wysb'], ['Contact', '/about#contact']]],
     ['Legal', [['Privacy', '/privacy'], ['Terms', '/terms'], ['Data deletion', '/data-deletion']]],
   ],
 };
-const PAGES_IN_SITEMAP = ['/', '/networks', '/developers', '/integrations', '/security', '/changelog', '/about', '/partners', '/partners/wysb', '/privacy', '/terms', '/data-deletion'];
+const PAGES_IN_SITEMAP = ['/', '/pricing', '/networks', '/developers', '/integrations', '/security', '/changelog', '/about', '/partners', '/partners/wysb', '/privacy', '/terms', '/data-deletion'];
 
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
@@ -74,7 +74,7 @@ function layout({ slug, title, desc, body }) {
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/assets/vane.css?v=20261017" />
   <style>
-    html { scroll-behavior: smooth; }
+    html { scroll-behavior: smooth; scroll-padding-top: 5rem; }
     body { font-family: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif; -webkit-font-smoothing: antialiased; }
     .eyebrow { font-size: .72rem; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.4); }
     .nav-link { border-radius: 9999px; padding: .375rem 1rem; font-size: .875rem; font-weight: 500; color: rgba(255,255,255,.75); transition: background-color .2s, color .2s; }
@@ -82,7 +82,7 @@ function layout({ slug, title, desc, body }) {
     .nav-link[aria-current="page"] { background: rgba(255,255,255,.12); color: #fff; }
     .btn-grad { background: linear-gradient(to bottom, #2B2B2B, #101010); }
     .page h1 { font-size: clamp(2rem, 5vw, 3.4rem); font-weight: 600; line-height: 1.08; letter-spacing: -.02em; }
-    .page h2 { font-size: clamp(1.4rem, 3vw, 2rem); font-weight: 600; line-height: 1.15; letter-spacing: -.015em; scroll-margin-top: 1.5rem; }
+    .page h2 { font-size: clamp(1.4rem, 3vw, 2rem); font-weight: 600; line-height: 1.15; letter-spacing: -.015em; scroll-margin-top: 5rem; }
     .page h3 { font-size: 1.05rem; font-weight: 600; }
     .lead { max-width: 40rem; font-size: 1.05rem; line-height: 1.7; color: rgba(255,255,255,.62); }
     .page p, .page li { line-height: 1.7; }
@@ -119,7 +119,8 @@ function layout({ slug, title, desc, body }) {
 <body class="min-h-screen overflow-x-hidden bg-[#070708] text-white">
   <div class="fixed inset-0 -z-0 bg-gradient-to-b from-white/[0.05] via-transparent to-transparent" aria-hidden="true"></div>
   <div class="relative z-10 flex min-h-screen flex-col">
-    <header class="relative z-30 mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5 sm:px-8 sm:py-6">
+    <header class="sticky top-0 z-40 border-b border-white/[0.06] bg-[#070708]/70 backdrop-blur-xl">
+     <div class="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-3 sm:px-8">
       <a href="/" class="flex items-center gap-2" aria-label="Vane home">
         <img src="/assets/logo.svg" alt="" width="31" height="30" />
         <span class="text-lg font-semibold">vane</span>
@@ -137,6 +138,7 @@ function layout({ slug, title, desc, body }) {
           <a href="/login" class="btn-grad mt-1 block rounded-xl px-4 py-3 text-center text-sm font-medium text-white">Log in</a>
         </div>
       </details>
+     </div>
     </header>
 
     <main class="page mx-auto w-full max-w-5xl flex-1 px-5 pb-24 pt-6 sm:px-8 sm:pt-10">

@@ -139,6 +139,7 @@
       duplicate: ['err', 'This ' + name + ' account is already connected.'],
       migrate: ['err', name + ' is not enabled on this server yet. The database needs one update.'],
       limit: ['err', 'Your plan has no room for another channel. Upgrade to connect more.'],
+      off: ['err', name + ' is switched off right now. Try again later.'],
       failed: ['err', 'Could not finish connecting ' + name + '. Try again.']
     };
     return table[status] || table.failed;
@@ -162,6 +163,8 @@
     if (feats.systemBot) S.systemBot = feats.systemBot;
     NET.linkedin.ready = !!feats.linkedin;
     NET.threads.ready = !!feats.threads;
+    // networks the admin switched off (/admin → Networks): shown as paused and cannot be connected
+    (feats.pausedNetworks || []).forEach(function (k) { if (NET[k]) { NET[k].ready = false; NET[k].paused = true; } });
 
     var display = S.user.name || S.user.email.split('@')[0];
     $('userEmail').textContent = S.user.email;
@@ -624,7 +627,7 @@
       return '<button type="button" class="net-card" data-net="' + k + '"' + (n.ready ? '' : ' disabled') + '>' +
         '<span class="net-tile ' + n.tile + '">' + netIcon(k, 'h-5 w-5') + '</span>' +
         '<span class="min-w-0 flex-1"><span class="block text-sm font-semibold">' + esc(n.name) + '</span><span class="block truncate text-xs text-white/45">' + esc(n.ready ? n.blurb : 'Coming soon') + '</span></span>' +
-        (n.ready ? '' : '<span class="rounded-full bg-white/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/50">Soon</span>') +
+        (n.ready ? '' : '<span class="rounded-full bg-white/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/50">' + (n.paused ? 'Paused' : 'Soon') + '</span>') +
       '</button>';
     }).join('');
   }

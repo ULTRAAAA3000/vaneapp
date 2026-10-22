@@ -14,6 +14,8 @@ export interface Env {
   MEDIA?: R2Bucket;             // optional: uploads are enabled only when the R2 bucket is bound
   /** Local dev and tests only: lets a channel whose credentials say {"mock": …} act as a fake network (see functions/api/lib/videopublishers.ts). Never set in production. */
   VIDEO_PUBLISH_MOCK?: string;
+  /** Local dev and tests only: Vane Studio AI answers with canned text instead of calling Workers AI (see functions/api/lib/videoai.ts). Never set in production. */
+  VIDEO_AI_MOCK?: string;
   /** Cloudflare Workers AI (wrangler.toml [ai]): the AI tools in the editor are off without it */
   /** optional: the Workers AI model id to use instead of the built-in one */
   AI_MODEL?: string;
@@ -23,6 +25,10 @@ export interface Env {
   ENCRYPTION_KEY?: string;      // for encrypting channels.credentials (>= 32 random chars)
   JWT_SECRET?: string;          // signs/verifies API bearer tokens (>= 32 chars)
   STRIPE_SECRET_KEY?: string;
+  MONOBANK_TOKEN?: string;          // Monobank Acquiring merchant token (secret): card / Apple Pay / Google Pay checkout is off without it
+  MONOBANK_CCY?: string;            // optional: ISO 4217 number the invoices are made in (default 840 = USD; 980 = UAH, 978 = EUR)
+  CRYPTO_WALLET?: string;           // plain var: the Solana address that receives USDT / USDC (crypto checkout is off without it)
+  SOLANA_RPC_URL?: string;          // optional: a Solana RPC address (Helius, QuickNode); the public one is used when empty
   SYSTEM_BOT_TOKEN?: string;        // token of the shared Vane bot used by Quick Connect
   TELEGRAM_WEBHOOK_SECRET?: string; // proves webhook calls really come from Telegram
 
@@ -283,6 +289,10 @@ export interface CronEnv {
   LINKEDIN_CLIENT_ID?: string;     // only to renew a LinkedIn sign-in that came with a refresh token
   LINKEDIN_CLIENT_SECRET?: string;
   LINKEDIN_VERSION?: string;       // the same optional value as on Pages
+  MONOBANK_TOKEN?: string;         // the same secret as on Pages: lets the cron ask Monobank about card orders whose webhook never came
+  MONOBANK_CCY?: string;
+  CRYPTO_WALLET?: string;          // the same as on Pages: lets the cron find crypto payments even when the buyer closed the checkout page
+  SOLANA_RPC_URL?: string;        // the same optional value as on Pages
 }
 
 // ───────────────────────── Quick Connect (stage 2 of the upgrade) ─────────────────────────
@@ -322,12 +332,16 @@ export interface ApiKeyPublic {
   display: string;
   createdAt: number;
   lastUsedAt: number | null;
+  /** where the owner said the key is used ("Used with"), null when not said */
+  integration: 'claude' | 'chatgpt' | 'make' | 'zapier' | 'wordpress' | 'api' | null;
 }
 
 export interface CreateApiKeyRequest {
   name: string;
   mode?: KeyMode;
   scope?: KeyScope;
+  /** claude | chatgpt | make | zapier | wordpress | api (optional) */
+  integration?: string | null;
 }
 
 export type CreateApiKeyResponse =

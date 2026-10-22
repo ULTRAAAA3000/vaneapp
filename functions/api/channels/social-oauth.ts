@@ -12,6 +12,7 @@
  *
  * The callback talks to the browser, so it never shows JSON: it always redirects, with a short reason code (never text from the other network).
  */
+import { networkEnabled, networkOff } from '../lib/networks';
 import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env } from '../../../types';
 import { requireUser } from '../lib/auth';
@@ -25,7 +26,7 @@ import * as li from './linkedin';
 import * as th from './threads';
 
 export type Network = 'linkedin' | 'threads';
-type Reason = 'ok' | 'reconnected' | 'denied' | 'noperm' | 'expired' | 'failed' | 'migrate' | 'limit';
+type Reason = 'ok' | 'reconnected' | 'denied' | 'noperm' | 'expired' | 'failed' | 'migrate' | 'limit' | 'off';
 
 const STATE_TTL_SECONDS = 600;
 const STARTS_PER_USER_PER_HOUR = 10;
@@ -50,6 +51,8 @@ export const startHandler = (net: Network): PagesFunction<Env> => async ({ reque
     return fail(500, 'Server is not configured correctly');
   }
   if (!configured(net, env)) return fail(503, `${LABEL[net]} is not set up on this server yet.`);
+  const paused = await networkOff(env, net);   // switched off in /admin → Networks
+  if (paused) return paused;
 
   const parsed = await readJson(request);
   if (!parsed.ok) return parsed.response;
@@ -134,6 +137,7 @@ export const callbackHandler = (net: Network): PagesFunction<Env> => async ({ re
   if (!auth.ok) return new Response(null, { status: 302, headers: { Location: '/login', 'Cache-Control': 'no-store' } });
 
   const q = new URL(request.url).searchParams;
+  if (!(await networkEnabled(env, net))) return back(net, 'off');   // switched off in /admin → Networks
   const state = q.get('state') ?? '';
   if (!/^[A-Za-z0-9_-]{20,100}$/.test(state)) return back(net, 'expired');
 

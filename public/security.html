@@ -23,7 +23,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/assets/vane.css?v=20261017" />
   <style>
-    html { scroll-behavior: smooth; }
+    html { scroll-behavior: smooth; scroll-padding-top: 5rem; }
     body { font-family: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif; -webkit-font-smoothing: antialiased; }
     .eyebrow { font-size: .72rem; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.4); }
     .nav-link { border-radius: 9999px; padding: .375rem 1rem; font-size: .875rem; font-weight: 500; color: rgba(255,255,255,.75); transition: background-color .2s, color .2s; }
@@ -31,7 +31,7 @@
     .nav-link[aria-current="page"] { background: rgba(255,255,255,.12); color: #fff; }
     .btn-grad { background: linear-gradient(to bottom, #2B2B2B, #101010); }
     .page h1 { font-size: clamp(2rem, 5vw, 3.4rem); font-weight: 600; line-height: 1.08; letter-spacing: -.02em; }
-    .page h2 { font-size: clamp(1.4rem, 3vw, 2rem); font-weight: 600; line-height: 1.15; letter-spacing: -.015em; scroll-margin-top: 1.5rem; }
+    .page h2 { font-size: clamp(1.4rem, 3vw, 2rem); font-weight: 600; line-height: 1.15; letter-spacing: -.015em; scroll-margin-top: 5rem; }
     .page h3 { font-size: 1.05rem; font-weight: 600; }
     .lead { max-width: 40rem; font-size: 1.05rem; line-height: 1.7; color: rgba(255,255,255,.62); }
     .page p, .page li { line-height: 1.7; }
@@ -68,13 +68,14 @@
 <body class="min-h-screen overflow-x-hidden bg-[#070708] text-white">
   <div class="fixed inset-0 -z-0 bg-gradient-to-b from-white/[0.05] via-transparent to-transparent" aria-hidden="true"></div>
   <div class="relative z-10 flex min-h-screen flex-col">
-    <header class="relative z-30 mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5 sm:px-8 sm:py-6">
+    <header class="sticky top-0 z-40 border-b border-white/[0.06] bg-[#070708]/70 backdrop-blur-xl">
+     <div class="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-3 sm:px-8">
       <a href="/" class="flex items-center gap-2" aria-label="Vane home">
         <img src="/assets/logo.svg" alt="" width="31" height="30" />
         <span class="text-lg font-semibold">vane</span>
       </a>
       <div class="hidden items-center gap-3 md:flex">
-        <nav class="flex items-center gap-1 rounded-full bg-white/10 px-1.5 py-1.5 backdrop-blur-lg" aria-label="Main"><a href="/#features" class="nav-link">Features</a><a href="/networks" class="nav-link">Networks</a><a href="/developers" class="nav-link">Developers</a><a href="/integrations" class="nav-link">Integrations</a><a href="/#pricing" class="nav-link">Pricing</a><a href="/partners" class="nav-link">Partners</a></nav>
+        <nav class="flex items-center gap-1 rounded-full bg-white/10 px-1.5 py-1.5 backdrop-blur-lg" aria-label="Main"><a href="/#features" class="nav-link">Features</a><a href="/networks" class="nav-link">Networks</a><a href="/developers" class="nav-link">Developers</a><a href="/integrations" class="nav-link">Integrations</a><a href="/pricing" class="nav-link">Pricing</a><a href="/partners" class="nav-link">Partners</a></nav>
         <a href="/login" class="btn-grad rounded-full px-5 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90">Log in</a>
       </div>
       <details class="menu relative md:hidden">
@@ -82,10 +83,11 @@
           <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
         </summary>
         <div class="absolute right-0 top-12 w-56 rounded-2xl border border-white/10 bg-black/90 p-2 shadow-2xl backdrop-blur-xl">
-          <a href="/#features" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Features</a><a href="/networks" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Networks</a><a href="/developers" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Developers</a><a href="/integrations" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Integrations</a><a href="/#pricing" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Pricing</a><a href="/partners" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Partners</a>
+          <a href="/#features" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Features</a><a href="/networks" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Networks</a><a href="/developers" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Developers</a><a href="/integrations" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Integrations</a><a href="/pricing" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Pricing</a><a href="/partners" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Partners</a>
           <a href="/login" class="btn-grad mt-1 block rounded-xl px-4 py-3 text-center text-sm font-medium text-white">Log in</a>
         </div>
       </details>
+     </div>
     </header>
 
     <main class="page mx-auto w-full max-w-5xl flex-1 px-5 pb-24 pt-6 sm:px-8 sm:pt-10">
@@ -154,7 +156,7 @@
 
     <footer class="border-t border-white/5 px-5 py-12 sm:px-8">
       <div class="mx-auto max-w-6xl">
-        <div class="grid grid-cols-2 gap-8 sm:grid-cols-4"><div><p class="eyebrow">Product</p><ul class="mt-3 space-y-2 text-sm"><li><a href="/#features" class="text-white/55 transition-colors hover:text-white">Features</a></li><li><a href="/networks" class="text-white/55 transition-colors hover:text-white">Networks</a></li><li><a href="/#pricing" class="text-white/55 transition-colors hover:text-white">Pricing</a></li><li><a href="/changelog" class="text-white/55 transition-colors hover:text-white">Changelog</a></li></ul></div><div><p class="eyebrow">Developers</p><ul class="mt-3 space-y-2 text-sm"><li><a href="/developers" class="text-white/55 transition-colors hover:text-white">API</a></li><li><a href="/integrations" class="text-white/55 transition-colors hover:text-white">Integrations</a></li><li><a href="/api/v1/openapi.json" class="text-white/55 transition-colors hover:text-white">OpenAPI spec</a></li><li><a href="/security" class="text-white/55 transition-colors hover:text-white">Security</a></li></ul></div><div><p class="eyebrow">Company</p><ul class="mt-3 space-y-2 text-sm"><li><a href="/about" class="text-white/55 transition-colors hover:text-white">About</a></li><li><a href="/partners" class="text-white/55 transition-colors hover:text-white">Partners</a></li><li><a href="/partners/wysb" class="text-white/55 transition-colors hover:text-white">WYSB</a></li><li><a href="/about#contact" class="text-white/55 transition-colors hover:text-white">Contact</a></li></ul></div><div><p class="eyebrow">Legal</p><ul class="mt-3 space-y-2 text-sm"><li><a href="/privacy" class="text-white/55 transition-colors hover:text-white">Privacy</a></li><li><a href="/terms" class="text-white/55 transition-colors hover:text-white">Terms</a></li><li><a href="/data-deletion" class="text-white/55 transition-colors hover:text-white">Data deletion</a></li></ul></div></div>
+        <div class="grid grid-cols-2 gap-8 sm:grid-cols-4"><div><p class="eyebrow">Product</p><ul class="mt-3 space-y-2 text-sm"><li><a href="/#features" class="text-white/55 transition-colors hover:text-white">Features</a></li><li><a href="/networks" class="text-white/55 transition-colors hover:text-white">Networks</a></li><li><a href="/pricing" class="text-white/55 transition-colors hover:text-white">Pricing</a></li><li><a href="/changelog" class="text-white/55 transition-colors hover:text-white">Changelog</a></li></ul></div><div><p class="eyebrow">Developers</p><ul class="mt-3 space-y-2 text-sm"><li><a href="/developers" class="text-white/55 transition-colors hover:text-white">API</a></li><li><a href="/integrations" class="text-white/55 transition-colors hover:text-white">Integrations</a></li><li><a href="/api/v1/openapi.json" class="text-white/55 transition-colors hover:text-white">OpenAPI spec</a></li><li><a href="/security" class="text-white/55 transition-colors hover:text-white">Security</a></li></ul></div><div><p class="eyebrow">Company</p><ul class="mt-3 space-y-2 text-sm"><li><a href="/about" class="text-white/55 transition-colors hover:text-white">About</a></li><li><a href="/partners" class="text-white/55 transition-colors hover:text-white">Partners</a></li><li><a href="/partners/wysb" class="text-white/55 transition-colors hover:text-white">WYSB</a></li><li><a href="/about#contact" class="text-white/55 transition-colors hover:text-white">Contact</a></li></ul></div><div><p class="eyebrow">Legal</p><ul class="mt-3 space-y-2 text-sm"><li><a href="/privacy" class="text-white/55 transition-colors hover:text-white">Privacy</a></li><li><a href="/terms" class="text-white/55 transition-colors hover:text-white">Terms</a></li><li><a href="/data-deletion" class="text-white/55 transition-colors hover:text-white">Data deletion</a></li></ul></div></div>
         <div class="mt-10 flex flex-col items-center justify-between gap-3 border-t border-white/5 pt-6 text-xs text-white/35 sm:flex-row">
           <p>© <span id="year"></span> Vane · vaneapp.dev · Powered by <a href="https://wysb.eu" target="_blank" rel="noopener" class="font-medium text-white/50 transition-colors hover:text-white">WYSB</a></p>
           <p><a href="/privacy" class="hover:text-white">Privacy</a> · <a href="/terms" class="hover:text-white">Terms</a></p>

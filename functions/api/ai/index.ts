@@ -16,6 +16,7 @@
  * `networks` (platform names of the selected channels) makes the answer fit the tightest of them.
  * A credit is taken before the model runs and given back if the model fails.
  */
+import { withAiContext } from '../lib/aimeter';
 import type { PagesFunction } from '@cloudflare/workers-types';
 import type { ChannelType, Env } from '../../../types';
 import {
@@ -96,17 +97,19 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     }
   }
 
+  // every model call made below is written to the AI token ledger (/admin → AI) under this user and tool
+  const metered = withAiContext(env, { userId: auth.userId, tool });
   try {
     let result: Record<string, unknown>;
     switch (tool) {
-      case 'clean': result = { text: await toolClean(env, text, networks) }; break;
-      case 'hashtags': result = { hashtags: await toolHashtags(env, text) }; break;
-      case 'tone': result = { text: await toolTone(env, text, tone as Tone, networks) }; break;
-      case 'hook': result = { options: await toolHook(env, text) }; break;
-      case 'cta': result = { options: await toolCta(env, text) }; break;
-      case 'reformat': result = { variants: await toolReformat(env, text, networks) }; break;
-      case 'generate': result = { text: await toolGenerate(env, text, tone, networks) }; break;
-      default: result = { items: await toolPlan(env, text, networks) };
+      case 'clean': result = { text: await toolClean(metered, text, networks) }; break;
+      case 'hashtags': result = { hashtags: await toolHashtags(metered, text) }; break;
+      case 'tone': result = { text: await toolTone(metered, text, tone as Tone, networks) }; break;
+      case 'hook': result = { options: await toolHook(metered, text) }; break;
+      case 'cta': result = { options: await toolCta(metered, text) }; break;
+      case 'reformat': result = { variants: await toolReformat(metered, text, networks) }; break;
+      case 'generate': result = { text: await toolGenerate(metered, text, tone, networks) }; break;
+      default: result = { items: await toolPlan(metered, text, networks) };
     }
     if (reservation && reservation.ok) {
       await aiLogStatement(env, { userId: auth.userId, overage: reservation.overage, costMicro: reservation.costMicro, ref: tool, now }).run().catch(() => undefined);

@@ -20,6 +20,7 @@ import { fail, isRecord, json, readJson } from '../lib/http';
 import { sha256Hex } from '../lib/session';
 import { bump, clientIp, retryAfter } from '../lib/throttle';
 import { checkChannelQuota } from '../lib/catalog';
+import { networkEnabled, networkOff } from '../lib/networks';
 import { appFor, authorizeUrl, exchangeCode, findDuplicateMastodonChannel, normalizeInstance, readAccount } from './mastodon';
 
 const STATE_TTL_SECONDS = 600;
@@ -34,6 +35,8 @@ const redirectUriFor = (request: Request, env: Env): string => `${originOf(reque
 export const handleMastodonStart: PagesFunction<Env> = async ({ request, env }) => {
   const auth = await requireUser(request, env);
   if (!auth.ok) return auth.response;
+  const paused = await networkOff(env, 'mastodon');   // switched off in /admin → Networks
+  if (paused) return paused;
   if (!env.ENCRYPTION_KEY || env.ENCRYPTION_KEY.length < 32) {
     console.error('ENCRYPTION_KEY is missing or shorter than 32 characters');
     return fail(500, 'Server is not configured correctly');
@@ -78,7 +81,7 @@ export const handleMastodonStart: PagesFunction<Env> = async ({ request, env }) 
 };
 
 // ───────────────────────── callback ─────────────────────────
-type Reason = 'ok' | 'denied' | 'expired' | 'failed' | 'duplicate' | 'migrate' | 'limit';
+type Reason = 'ok' | 'denied' | 'expired' | 'failed' | 'duplicate' | 'migrate' | 'limit' | 'off';
 
 const back = (status: Reason): Response =>
   new Response(null, {
@@ -89,6 +92,8 @@ const back = (status: Reason): Response =>
 export const handleMastodonCallback: PagesFunction<Env> = async ({ request, env }) => {
   const auth = await requireUser(request, env);
   if (!auth.ok) return new Response(null, { status: 302, headers: { Location: '/login', 'Cache-Control': 'no-store' } });
+
+  if (!(await networkEnabled(env, 'mastodon'))) return back('off');   // switched off in /admin → Networks (checked first: the one-time state is not spent)
 
   const q = new URL(request.url).searchParams;
   const state = q.get('state') ?? '';

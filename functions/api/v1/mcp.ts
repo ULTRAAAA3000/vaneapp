@@ -17,6 +17,7 @@ import { json, isRecord, methodNotAllowed } from '../lib/http';
 import { sha256Hex } from '../lib/session';
 import { onRequestGet as listChannels } from './channels/index';
 import { onRequestPost as createPost } from './posts/index';
+import { markMcpInternal, recordMcpCall } from '../lib/integrations';
 
 const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 const MAX_BODY = 65_536;
@@ -67,6 +68,8 @@ async function callApi(env: Env, request: Request, handler: PagesFunction<Env>, 
   if (auth) headers.set('authorization', auth);
   if (body !== undefined) headers.set('content-type', 'application/json');
   const inner = new Request(new URL(path, request.url).toString(), { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined });
+  // Tells the key check this is Claude's MCP call (attributed to it, and counted once as the tool call, not once per inner request).
+  markMcpInternal(inner, request);
   const res = await handler({ request: inner, env, params: {}, data: {}, waitUntil: () => {}, next: async () => new Response(null, { status: 404 }), functionPath: path } as unknown as Ctx);
   let data: any = null;
   try { data = await res.json(); } catch { /* not JSON */ }
@@ -158,8 +161,8 @@ async function handle(env: Env, request: Request, msg: Rpc): Promise<unknown | n
     case 'tools/call': {
       const p = isRecord(msg.params) ? msg.params : {};
       const args = isRecord(p.arguments) ? p.arguments : {};
-      if (p.name === 'vane_list_channels') return rpcResult(id, await toolListChannels(env, request));
-      if (p.name === 'vane_create_post') return rpcResult(id, await toolCreatePost(env, request, args));
+      if (p.name === 'vane_list_channels') { const r = await toolListChannels(env, request); await recordMcpCall(env, request, 'vane_list_channels'); return rpcResult(id, r); }
+      if (p.name === 'vane_create_post') { const r = await toolCreatePost(env, request, args); await recordMcpCall(env, request, 'vane_create_post'); return rpcResult(id, r); }
       return rpcError(id, -32602, `Unknown tool: ${String(p.name)}`);
     }
     default: return rpcError(id, -32601, `Method not found: ${String(msg.method)}`);

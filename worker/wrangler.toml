@@ -20,5 +20,8 @@ bucket_name = "vane-media"
 [vars]
 APP_URL = "https://vaneapp.dev"   # turns stored R2 keys into public image links
 
+# Payments (optional, same values as on the Pages project): CRYPTO_WALLET (a var), SOLANA_RPC_URL (a var) and MONOBANK_TOKEN (a secret: `wrangler secret put MONOBANK_TOKEN`).
+# With them the cron also finds crypto payments after the buyer closed the checkout page. Without them payments are still found while the checkout page is open.
+
 [observability]
 enabled = true               # keep logs: Workers & Pages → this worker → Logs
