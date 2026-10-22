@@ -12,7 +12,11 @@ export interface Env {
   ASSETS: Fetcher;
   /** R2 bucket for post media and the Vane Studio video library */
   MEDIA?: R2Bucket;             // optional: uploads are enabled only when the R2 bucket is bound
+  /** Local dev and tests only: lets a channel whose credentials say {"mock": …} act as a fake network (see functions/api/lib/videopublishers.ts). Never set in production. */
+  VIDEO_PUBLISH_MOCK?: string;
   /** Cloudflare Workers AI (wrangler.toml [ai]): the AI tools in the editor are off without it */
+  /** optional: the Workers AI model id to use instead of the built-in one */
+  AI_MODEL?: string;
   AI?: { run(model: string, input: unknown): Promise<unknown> };
 
   /** Secrets (wrangler secret put / Pages → Settings → Variables) */
@@ -35,6 +39,7 @@ export interface Env {
   ADMIN_ALLOW_IPS?: string;     // optional: comma list of addresses / CIDR ranges allowed to use /admin
   GSC_SITE_URL?: string;        // Search Console property, e.g. sc-domain:vaneapp.dev
   TURNSTILE_SITE_KEY?: string;  // Cloudflare Turnstile site key (public, rendered on /login)
+  SHIELD_OFF?: string;          // "1" switches the API shield off (functions/api/lib/shield.ts): the emergency brake if it ever blocks the wrong people
   EMAIL_FROM?: string;          // sender on a domain verified in Resend, e.g. "Vane <noreply@vaneapp.dev>"
 
   /** LinkedIn (Share on LinkedIn + Sign In with LinkedIn using OpenID Connect): the connect button is off until both are set */
@@ -268,6 +273,8 @@ export type ListPostsResponse = { ok: true; posts: PostPublic[] } | ApiError;
 /** Bindings of the separate `vane-cron` Worker (see worker/wrangler.toml). */
 export interface CronEnv {
   DB: D1Database;
+  MEDIA?: R2Bucket;          // the video library: a network's publisher reads the file from here (see worker/wrangler.toml)
+  VIDEO_PUBLISH_MOCK?: string; // local dev only, see Env
   ENCRYPTION_KEY?: string;   // MUST be the same value as on the Pages project
   SYSTEM_BOT_TOKEN?: string; // MUST be the same as on Pages: needed to publish to Quick Connect channels
   APP_URL?: string;          // public origin, used to turn stored R2 keys into URLs
@@ -369,6 +376,16 @@ export interface UsageSummary {
     remaining: number | null;
     /** set when every generation is billed (Developer API): USD per generation */
     perGenerationUsd: number | null;
+    /** can a premium generation run for this account right now? false = Developer API without extra-usage billing */
+    billable: boolean;
+    /** extra credits an admin gave to this account (already included in `remaining`) */
+    bonus: number;
+    /** this account's AI Pass (monthly credits on top of the plan, included in `remaining`) */
+    pass: { active: boolean; credits: number; used: number; remaining: number; endsAt: number | null };
+    /** the AI Pass offer for accounts that do not have it; null = nothing to offer */
+    offer: { priceUsd: number; credits: number; interval: string; overageUsd: number | null } | null;
+    /** "when credits run out": stop, or pay per extra credit. rateUsd = the price of one extra credit (null: nothing to pay for) */
+    extra: { enabled: boolean; rateUsd: number | null };
   };
   /** may this account send live API requests? */
   apiAccess: boolean;
@@ -470,3 +487,28 @@ export type StartVideoUploadResponse =
       simulated?: true;
     }
   | ApiError;
+
+// ───────────────────────── Vane Studio publishing ─────────────────────────
+export type VideoPrivacy = 'private' | 'unlisted' | 'public';
+export type VideoPublicationStatus = 'queued' | 'publishing' | 'published' | 'failed';
+
+export interface VideoPublicationPublic {
+  id: string;
+  videoId: string;
+  videoTitle: string | null;
+  platform: 'youtube' | 'tiktok' | 'instagram';
+  channelName: string;
+  title: string;
+  description: string;
+  privacy: VideoPrivacy;
+  status: VideoPublicationStatus;
+  attempts: number;
+  maxAttempts: number;
+  /** only while queued: when the next attempt is due (unix seconds) */
+  nextAttemptAt: number | null;
+  error: string | null;
+  /** where the published video lives on the network */
+  url: string | null;
+  createdAt: number;
+  publishedAt: number | null;
+}

@@ -20,7 +20,7 @@ function req(host, method, path, { body, cookie } = {}) {
   return new Promise((resolve, reject) => {
     const data = body === undefined ? null : JSON.stringify(body);
     const r = http.request(
-      { host: '127.0.0.1', port: PORT, method, path, headers: { host, ...(data ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) } : {}), ...(cookie ? { cookie } : {}) } },
+      { host: '127.0.0.1', port: PORT, method, path, headers: { host, 'user-agent': 'vane-hosts-e2e', ...(data ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) } : {}), ...(cookie ? { cookie } : {}) } },
       (res) => {
         const chunks = [];
         res.on('data', (c) => chunks.push(c));
@@ -44,6 +44,8 @@ try {
   check('/ is the posting dashboard', pr.status === 200 && title(pr) === 'Dashboard — Vane', `${pr.status} ${title(pr)}`);
   const pa = await req(POST, 'GET', '/app');
   check('/app forwards to / (308)', pa.status === 308 && new URL(pa.headers.location).pathname === '/', `${pa.status} ${pa.headers.location}`);
+  const pq = await req(POST, 'GET', '/app?connect=mastodon&status=ok');
+  check('/app keeps the query when it forwards (the Mastodon return trip)', pq.status === 308 && new URL(pq.headers.location).search === '?connect=mastodon&status=ok', `${pq.status} ${pq.headers.location}`);
   const ps = await req(POST, 'GET', '/studio');
   check('/studio forwards to studio.vaneapp.dev', ps.status === 308 && pa.headers.location !== undefined && ps.headers.location === `https://${STUDIO}/`, ps.headers.location);
   check('the video API is not served here (404)', (await req(POST, 'GET', '/api/video/me')).status === 404 && (await req(POST, 'GET', '/api/v1/video/me')).status === 404);
@@ -60,6 +62,7 @@ try {
   check('the video API is served (401 without a session)', (await req(STUDIO, 'GET', '/api/video/me')).status === 401 && (await req(STUDIO, 'GET', '/api/v1/video/me')).status === 401);
   check('the announce routes are served here, and only here (401 on studio., 404 on post.)', (await req(STUDIO, 'GET', '/api/video/announce')).status === 401 && (await req(POST, 'GET', '/api/video/announce')).status === 404 && (await req(STUDIO, 'POST', '/api/video/videos/x/announce')).status !== 404);
   check('the video channels routes are served on studio. only (401 / 404)', (await req(STUDIO, 'GET', '/api/video/channels')).status === 401 && (await req(POST, 'GET', '/api/video/channels')).status === 404);
+  check('the publishing routes are served on studio. only (401 / 404)', (await req(STUDIO, 'GET', '/api/video/publications')).status === 401 && (await req(POST, 'GET', '/api/video/publications')).status === 404 && (await req(STUDIO, 'POST', '/api/video/videos/x/publish')).status !== 404 && (await req(POST, 'POST', '/api/video/videos/x/publish')).status === 404);
   check('sign-in and keys are served', (await req(STUDIO, 'GET', '/api/auth/config')).status === 200 && (await req(STUDIO, 'GET', '/api/keys?scope=video')).status === 401);
   for (const p of ['/api/posts', '/api/channels', '/api/usage', '/api/v1/posts', '/api/v1/me', '/api/media/upload']) {
     const r = await req(STUDIO, p === '/api/media/upload' ? 'POST' : 'GET', p);
@@ -74,6 +77,30 @@ try {
   check('/studio forwards to studio.vaneapp.dev', (await req(APEX, 'GET', '/studio')).headers.location === `https://${STUDIO}/`);
   check('www. behaves the same', (await req('www.vaneapp.dev', 'GET', '/app')).headers.location === `https://${POST}/`);
   check('the whole API still answers here, so existing integrations keep working', (await req(APEX, 'GET', '/api/v1/me')).status === 401 && (await req(APEX, 'GET', '/api/v1/video/me')).status === 401);
+
+  section('Legal pages (needed by Google, TikTok and Meta before they review the apps)');
+  for (const host of [APEX, POST, STUDIO]) {
+    const got = await Promise.all(['/privacy', '/terms', '/data-deletion'].map((p) => req(host, 'GET', p)));
+    check(`${host}: /privacy, /terms and /data-deletion open`, got.every((g) => g.status === 200) && /Privacy Policy/i.test(title(got[0])) && /Terms of Service/i.test(title(got[1])) && /Data deletion/i.test(title(got[2])), got.map((g) => `${g.status} ${title(g)}`).join(' | '));
+  }
+  const [privacy, terms, deletion] = await Promise.all(['/privacy', '/terms', '/data-deletion'].map((p) => req(APEX, 'GET', p)));
+  check("the privacy policy carries Google's Limited Use statement (YouTube verification is refused without it)", /Google API Services User Data Policy/.test(privacy.text) && /Limited Use/.test(privacy.text));
+  check('and links the YouTube Terms of Service, the Google Privacy Policy and the page where access is revoked', ['youtube.com/t/terms', 'policies.google.com/privacy', 'myaccount.google.com/permissions'].every((u) => privacy.text.includes(u)));
+  check('the privacy policy covers Vane Studio, YouTube, TikTok and Instagram', ['Vane Studio', 'YouTube', 'TikTok', 'Instagram'].every((x) => privacy.text.includes(x)));
+  check('the data deletion page covers videos and the networks', ['YouTube', 'Instagram'].every((x) => deletion.text.includes(x)) && /video/i.test(deletion.text));
+  check('Terms covers connecting networks and content', /Connecting social networks/.test(terms.text) && /Your content/.test(terms.text));
+  check('all three pages link to each other in the footer', [privacy, terms, deletion].every((g) => ['/privacy', '/terms', '/data-deletion'].every((l) => g.text.includes(`href="${l}"`))));
+
+  // Not failures: what is still open before submitting (see documentation/VIDEO_NETWORKS_SETUP.md §1).
+  const todos = [privacy, terms, deletion].map((g) => (g.text.match(/class="todo"/g) || []).length);
+  console.log(`  ℹ  yellow "todo" marks left for the owner to fill in: privacy ${todos[0]}, terms ${todos[1]}, data deletion ${todos[2]}`);
+  const gaps = [
+    [/temporary (public )?link/i.test(privacy.text), 'privacy: say that a temporary public link is made for TikTok/Instagram and removed once they fetched the video'],
+    [['video.publish', 'instagram_business_content_publish'].every((x) => privacy.text.includes(x)), 'privacy: name the TikTok and Instagram permissions asked'],
+    [deletion.text.includes('TikTok'), 'data deletion: how to remove Vane in TikTok'],
+    [/delete a video/i.test(deletion.text), 'data deletion: a step to delete a video in Studio'],
+  ].filter(([ok]) => !ok).map(([, what]) => what);
+  for (const g of gaps) console.log(`  ℹ  before submitting to the networks, add → ${g}`);
 
   section('Local dev and previews are left alone');
   const lr = await req('localhost:8788', 'GET', '/app');

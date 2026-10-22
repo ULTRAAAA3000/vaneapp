@@ -61,7 +61,8 @@ export const handleMastodonStart: PagesFunction<Env> = async ({ request, env }) 
 
   const redirectUri = redirectUriFor(request, env);
   const app = await appFor(env, instance, redirectUri);
-  if (!app.ok) return fail(app.network ? 502 : 400, app.error);
+  // 424, not 502: the edge replaces a 502/504 body with its own error page, and the person would never see this sentence.
+  if (!app.ok) return fail(app.setup ? 503 : app.network ? 424 : 400, app.error);
 
   const state = toB64Url(crypto.getRandomValues(new Uint8Array(32)));
   const now = Math.floor(Date.now() / 1000);
@@ -117,7 +118,7 @@ export const handleMastodonCallback: PagesFunction<Env> = async ({ request, env 
 
   const redirectUri = redirectUriFor(request, env);
   const app = await appFor(env, row.instance, redirectUri);
-  if (!app.ok) return back('failed');
+  if (!app.ok) return back(app.setup ? 'migrate' : 'failed');
   const token = await exchangeCode(row.instance, app.app, redirectUri, code);
   if (!token.ok) return back('failed');
   const account = await readAccount(row.instance, token.accessToken);

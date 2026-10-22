@@ -47,7 +47,7 @@ export function resolveVideoSubscription(row: VideoSubscriptionRow | null | unde
   return { active, status: row.status, currentPeriodEnd: row.current_period_end, lapsed: !active };
 }
 
-export async function loadVideoSubscription(env: Env, userId: string, now = Math.floor(Date.now() / 1000)): Promise<VideoSubscription> {
+export async function loadVideoSubscription(env: Pick<Env, 'DB'>, userId: string, now = Math.floor(Date.now() / 1000)): Promise<VideoSubscription> {
   const row = await env.DB
     .prepare('SELECT status, current_period_end FROM video_subscriptions WHERE user_id = ?1')
     .bind(userId)

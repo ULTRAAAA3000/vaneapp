@@ -7,9 +7,10 @@
 import type { D1PreparedStatement } from '@cloudflare/workers-types';
 import type { Env, UsageBucket, UsageSummary } from '../../../types';
 import {
-  aiMode, apiAllowed, limitsFor, microToUsd, overageRates, periodKey, periodResetsAt, refreshPlanSpecs, resolveSubscription, specOf,
+  aiMode, aiPassOffer, apiAllowed, limitsFor, microToUsd, overageRates, periodKey, periodResetsAt, refreshPlanSpecs, resolveSubscription, specOf,
   type PlanSpec, type Subscription, type SubscriptionRow,
 } from './plans';
+import { loadAiPass, passPeriod, type AiPassState } from './aipass';
 
 export const nowSeconds = (): number => Math.floor(Date.now() / 1000);
 
@@ -40,12 +41,41 @@ async function loadCounters(env: Env, userId: string, period: string): Promise<C
 
 const bucket = (limit: number, used: number): UsageBucket => ({ limit, used, remaining: Math.max(limit - used, 0) });
 
+/** Price of one extra AI credit for this account, in micro-USD: the cheaper of the plan's rate and the AI Pass rate; null = nothing to pay for. */
+export function aiExtraRate(spec: PlanSpec, passActive: boolean): number | null {
+  const rates = [spec.overage && spec.overage.aiPost > 0 ? spec.overage.aiPost : null, passActive ? aiPassOffer().overageMicro : null].filter((r): r is number => r !== null);
+  return rates.length ? Math.min(...rates) : null;
+}
+
 /** AI credits as the dashboard shows them. See aiMode() for how a plan's `aiCredits` is read. */
-function aiBucket(spec: PlanSpec, sub: Subscription, used: number): UsageSummary['ai'] {
+function aiBucket(spec: PlanSpec, sub: Subscription, used: number, bonus: number, pass: AiPassState): UsageSummary['ai'] {
   const mode = aiMode(spec);
-  if (mode.kind === 'credits') return { limit: mode.credits, used, remaining: Math.max(mode.credits - used, 0), perGenerationUsd: null };
-  if (mode.kind === 'per_generation') return { limit: null, used, remaining: null, perGenerationUsd: microToUsd(mode.priceMicro) };
-  return { limit: null, used, remaining: null, perGenerationUsd: null };
+  const offer = aiPassOffer();
+  const passCredits = pass.active ? offer.credits : 0;
+  const passLeft = Math.max(passCredits - pass.used, 0);
+  const rate = aiExtraRate(spec, pass.active);
+  const extraOn = sub.overageEnabled && rate !== null;
+  const planLeft = mode.kind === 'credits' ? Math.max(mode.credits - used, 0) : 0;
+  const remaining = mode.kind === 'unlimited' ? null : planLeft + passLeft + bonus;
+  return {
+    limit: mode.kind === 'credits' ? mode.credits : null,
+    used,
+    remaining,
+    perGenerationUsd: mode.kind === 'per_generation' ? microToUsd(mode.priceMicro) : null,
+    billable: mode.kind === 'unlimited' || (remaining ?? 0) > 0 || extraOn,
+    bonus,
+    pass: { active: pass.active, credits: passCredits, used: pass.used, remaining: passLeft, endsAt: pass.endsAt },
+    offer: !pass.active && offer.active ? { priceUsd: offer.priceCents / 100, credits: offer.credits, interval: offer.interval, overageUsd: offer.overageMicro !== null ? microToUsd(offer.overageMicro) : null } : null,
+    extra: { enabled: sub.overageEnabled, rateUsd: rate !== null ? microToUsd(rate) : null },
+  };
+}
+
+/** Credits an admin gave to this account (0 when none, or when the table is not there yet). */
+export async function loadAiBonus(env: Env, userId: string): Promise<number> {
+  try {
+    const row = await env.DB.prepare('SELECT credits FROM user_ai_bonus WHERE user_id = ?1').bind(userId).first<{ credits: number }>();
+    return row?.credits ?? 0;
+  } catch { return 0; }
 }
 
 /** The full picture for `GET /api/usage` and `GET /api/v1/usage`. */
@@ -67,7 +97,7 @@ export async function usageSummary(env: Env, userId: string, sub: Subscription, 
     api: shared ?? bucket(lim.api, c.api_posts),
     ui: shared ?? bucket(lim.ui, c.ui_posts),
     shared,
-    ai: aiBucket(spec, sub, c.ai_generations),
+    ai: aiBucket(spec, sub, c.ai_generations, await loadAiBonus(env, userId), await loadAiPass(env, userId, now)),
     apiAccess: apiAllowed(sub),
     overage: {
       enabled: rates !== null,
@@ -195,21 +225,23 @@ export function quotaHeaders(u: UsageSummary): Record<string, string> {
 
 // ───────────────────────── AI generations ─────────────────────────
 
+export type AiSource = 'plan' | 'pass' | 'bonus' | 'extra' | 'unlimited';
 export type AiReservation =
-  | { ok: true; overage: boolean; costMicro: number; period: string }
+  | { ok: true; overage: boolean; costMicro: number; period: string; source: AiSource }
   | { ok: false; code: 'ai_not_in_plan' | 'ai_quota_exceeded' };
 
 /**
- * Takes one AI generation, or says why it can't. Same single-statement guard as reserveApiPost.
- *   credits         → counted while the included credits last; beyond them priced when overage billing is on, else stopped
- *   per_generation  → every generation priced (needs overage billing on, otherwise ai_not_in_plan)
- *   unlimited       → counted, never stopped
+ * Takes one AI generation, or says why it can't. Same single-statement guard as reserveApiPost. Where a credit comes from, in this order:
+ *   1. the plan's own credits (Free Trial 10 for life, Pro 250 a month)
+ *   2. the AI Pass (monthly credits on top of any plan)
+ *   3. credits an admin gave to the account
+ *   4. an extra credit, paid per generation: only when the account switched "pay for extra" on (and the plan or the pass has a price)
+ * Otherwise it is refused. A plan with no credit limit at all ('unlimited') is counted and never stopped.
  */
 export async function reserveAiGeneration(env: Env, userId: string, sub: Subscription, now: number): Promise<AiReservation> {
   const spec = specOf(sub.plan);
   const mode = aiMode(spec);
   const period = periodKey(sub.plan, now);
-  const rates = overageRates(sub);
 
   if (mode.kind === 'credits' && mode.credits >= 1) {
     const res = await env.DB
@@ -220,7 +252,7 @@ export async function reserveAiGeneration(env: Env, userId: string, sub: Subscri
       )
       .bind(userId, period, now, mode.credits)
       .run();
-    if ((res.meta?.changes ?? 0) > 0) return { ok: true, overage: false, costMicro: 0, period };
+    if ((res.meta?.changes ?? 0) > 0) return { ok: true, overage: false, costMicro: 0, period, source: 'plan' };
   }
   if (mode.kind === 'unlimited') {
     await env.DB
@@ -228,32 +260,56 @@ export async function reserveAiGeneration(env: Env, userId: string, sub: Subscri
                 ON CONFLICT(user_id, period) DO UPDATE SET ai_generations = ai_generations + 1, updated_at = ?3`)
       .bind(userId, period, now)
       .run();
-    return { ok: true, overage: false, costMicro: 0, period };
+    return { ok: true, overage: false, costMicro: 0, period, source: 'unlimited' };
   }
 
-  // Credits used up (or none), or a pay-per-generation plan
-  if (!rates) return { ok: false, code: mode.kind === 'credits' && mode.credits >= 1 ? 'ai_quota_exceeded' : 'ai_not_in_plan' };
-  const costMicro = rates.aiPost;
+  const pass = await loadAiPass(env, userId, now);
+  if (pass.active && aiPassOffer().credits >= 1) {
+    const res = await env.DB
+      .prepare(
+        `INSERT INTO ai_pass_usage (user_id, period, used) VALUES (?1, ?2, 1)
+         ON CONFLICT(user_id, period) DO UPDATE SET used = used + 1 WHERE used + 1 <= ?3`,
+      )
+      .bind(userId, passPeriod(now), aiPassOffer().credits)
+      .run();
+    if ((res.meta?.changes ?? 0) > 0) return { ok: true, overage: false, costMicro: 0, period: passPeriod(now), source: 'pass' };
+  }
+  try {
+    const b = await env.DB.prepare('UPDATE user_ai_bonus SET credits = credits - 1, updated_at = ?2 WHERE user_id = ?1 AND credits > 0').bind(userId, now).run();
+    if ((b.meta?.changes ?? 0) > 0) return { ok: true, overage: false, costMicro: 0, period, source: 'bonus' };
+  } catch { /* the table is not there yet (schema.sql not re-run): no bonus */ }
+
+  const rate = aiExtraRate(spec, pass.active);
+  if (!sub.overageEnabled || rate === null) {
+    const hadCredits = (mode.kind === 'credits' && mode.credits >= 1) || pass.active;
+    return { ok: false, code: hadCredits ? 'ai_quota_exceeded' : 'ai_not_in_plan' };
+  }
   await env.DB
     .prepare(
       `INSERT INTO usage_counters (user_id, period, ai_generations, overage_micro_usd, updated_at) VALUES (?1, ?2, 1, ?4, ?3)
        ON CONFLICT(user_id, period) DO UPDATE SET ai_generations = ai_generations + 1, overage_micro_usd = overage_micro_usd + ?4, updated_at = ?3`,
     )
-    .bind(userId, period, now, costMicro)
+    .bind(userId, period, now, rate)
     .run();
-  return { ok: true, overage: true, costMicro, period };
+  return { ok: true, overage: true, costMicro: rate, period, source: 'extra' };
 }
 
-/** The generation failed on our side (the model did not answer): give the credit back. */
+/** The generation failed on our side (the model did not answer): give the credit back where it came from. */
 export async function releaseAiGeneration(env: Env, userId: string, r: Extract<AiReservation, { ok: true }>): Promise<void> {
   try {
-    await env.DB
-      .prepare(
-        `UPDATE usage_counters SET ai_generations = MAX(ai_generations - 1, 0), overage_micro_usd = MAX(overage_micro_usd - ?3, 0), updated_at = ?4
-         WHERE user_id = ?1 AND period = ?2`,
-      )
-      .bind(userId, r.period, r.costMicro, nowSeconds())
-      .run();
+    if (r.source === 'bonus') {
+      await env.DB.prepare('UPDATE user_ai_bonus SET credits = credits + 1 WHERE user_id = ?1').bind(userId).run();
+    } else if (r.source === 'pass') {
+      await env.DB.prepare('UPDATE ai_pass_usage SET used = MAX(used - 1, 0) WHERE user_id = ?1 AND period = ?2').bind(userId, r.period).run();
+    } else {
+      await env.DB
+        .prepare(
+          `UPDATE usage_counters SET ai_generations = MAX(ai_generations - 1, 0), overage_micro_usd = MAX(overage_micro_usd - ?3, 0), updated_at = ?4
+           WHERE user_id = ?1 AND period = ?2`,
+        )
+        .bind(userId, r.period, r.costMicro, nowSeconds())
+        .run();
+    }
   } catch (err) {
     console.error('ai credit release failed', err instanceof Error ? err.message : 'unknown');
   }

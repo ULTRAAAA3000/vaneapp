@@ -3,9 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Privacy policy — Vane</title>
-  <meta name="description" content="How Vane handles your data, and what it does and does not do with your social accounts." />
+  <title>Privacy Policy — Vane</title>
+  <meta name="description" content="How Vane handles your data: what it collects, why, who it shares it with, how long it keeps it and how to delete it." />
+  <meta name="robots" content="index, follow" />
   <meta name="theme-color" content="#070708" />
+  <link rel="canonical" href="https://vaneapp.dev/privacy" />
   <link rel="icon" href="/favicon.ico" sizes="32x32" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -15,13 +17,34 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/assets/vane.css?v=20261017" />
   <style>
-    .doc h2 { margin-top: 2.25rem; font-size: 1.15rem; font-weight: 600; letter-spacing: -.01em; }
-    .doc p, .doc li { margin-top: .6rem; font-size: .92rem; line-height: 1.7; color: rgba(255,255,255,.68); }
-    .doc ul { margin-top: .4rem; padding-left: 1.1rem; list-style: disc; }
-    .doc b { color: #fff; font-weight: 600; }
+    html { scroll-behavior: smooth; }
+    .doc h2 { margin-top: 2.5rem; padding-top: .25rem; font-size: 1.2rem; font-weight: 600; letter-spacing: -.01em; scroll-margin-top: 1.5rem; }
+    .doc h3 { margin-top: 1.5rem; font-size: .95rem; font-weight: 600; color: rgba(255,255,255,.9); }
+    .doc p, .doc li { margin-top: .6rem; font-size: .92rem; line-height: 1.75; color: rgba(255,255,255,.68); }
+    .doc ul, .doc ol { margin-top: .4rem; padding-left: 1.2rem; }
+    .doc ul { list-style: disc; }
+    .doc ol { list-style: decimal; }
+    .doc li::marker { color: rgba(255,255,255,.35); }
+    .doc b, .doc strong { color: #fff; font-weight: 600; }
     .doc a { color: #fff; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(255,255,255,.3); }
     .doc a:hover { text-decoration-color: #fff; }
-    .todo { background: rgba(251,191,36,.12); color: #fcd34d; border-radius: 6px; padding: 0 .35rem; }
+    .doc code { font-size: .82rem; padding: .05rem .35rem; border-radius: 6px; background: rgba(255,255,255,.07); color: rgba(255,255,255,.85); }
+    .doc .table-wrap { margin-top: .9rem; overflow-x: auto; border: 1px solid rgba(255,255,255,.08); border-radius: 14px; }
+    .doc table { width: 100%; border-collapse: collapse; min-width: 34rem; }
+    .doc th, .doc td { padding: .65rem .85rem; text-align: left; vertical-align: top; font-size: .84rem; line-height: 1.6; border-bottom: 1px solid rgba(255,255,255,.06); color: rgba(255,255,255,.66); }
+    .doc th { font-size: .68rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: rgba(255,255,255,.4); background: rgba(255,255,255,.03); }
+    .doc tr:last-child td { border-bottom: 0; }
+    .doc td:first-child { color: #fff; font-weight: 500; white-space: nowrap; }
+    .box { margin-top: 1.25rem; padding: 1rem 1.15rem; border-radius: 16px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); }
+    .box p, .box li { margin-top: .4rem; }
+    .box > :first-child { margin-top: 0; }
+    .toc { margin-top: 1.5rem; columns: 2; column-gap: 2rem; }
+    @media (max-width: 640px) { .toc { columns: 1; } }
+    .toc li { margin-top: .3rem; font-size: .85rem; break-inside: avoid; }
+    .toc a { text-decoration: none; color: rgba(255,255,255,.6); }
+    .toc a:hover { color: #fff; }
+    .todo { background: rgba(251,191,36,.14); color: #fcd34d; border-radius: 6px; padding: 0 .35rem; white-space: normal; }
+    @media print { body { background: #fff !important; color: #000 !important; } .doc *, .doc a { color: #000 !important; } header, footer, .fixed { display: none !important; } }
   </style>
 </head>
 
@@ -32,56 +55,165 @@
       <a href="/" class="text-lg font-semibold" aria-label="Vane home">vane</a>
       <a href="/login" class="btn btn-ghost btn-sm">Sign in</a>
     </header>
-    <main class="mx-auto w-full max-w-2xl flex-1 px-5 pb-20 sm:px-8">
-      <div class="glass-d rounded-3xl p-6 sm:p-9 doc">
+    <main class="mx-auto w-full max-w-3xl flex-1 px-5 pb-20 sm:px-8">
+      <div class="glass-d rounded-3xl p-6 sm:p-10 doc">
 
-        <h1 class="text-3xl font-semibold tracking-tight">Privacy policy</h1>
-        <p class="!mt-2 text-xs !text-white/40">Last updated: 19 October 2026</p>
-        <p>Vane (<b>vaneapp.dev</b>) schedules and publishes your posts to the social networks you connect. This page says what we keep, why, and how to have it removed. We wrote it to match what the service actually does.</p>
-        <p><span class="todo">TODO before submitting to LinkedIn / Meta: put the company’s legal name and a monitored contact address in the two places marked like this.</span></p>
+        <h1 class="text-3xl font-semibold tracking-tight">Privacy Policy</h1>
+        <p class="!mt-2 text-xs !text-white/40">Effective: <span class="todo">[EFFECTIVE DATE]</span> · Applies to vaneapp.dev, post.vaneapp.dev, studio.vaneapp.dev and the Vane API</p>
+        <nav aria-label="Contents"><ol class="toc"><li><a href="#who">1. Who we are</a></li><li><a href="#short">2. The short version</a></li><li><a href="#collect">3. What we collect</a></li><li><a href="#use">4. How we use it, and why we may</a></li><li><a href="#networks">5. Social networks and Google / YouTube data</a></li><li><a href="#ai">6. AI features</a></li><li><a href="#integrations">7. API, webhooks and connectors</a></li><li><a href="#share">8. Who we share it with</a></li><li><a href="#transfers">9. International transfers</a></li><li><a href="#retention">10. How long we keep it</a></li><li><a href="#security">11. How we protect it</a></li><li><a href="#cookies">12. Cookies and similar storage</a></li><li><a href="#rights">13. Your rights and choices</a></li><li><a href="#us">14. Notes for US residents</a></li><li><a href="#children">15. Children</a></li><li><a href="#changes">16. Changes to this policy</a></li><li><a href="#contact">17. Contact</a></li></ol></nav>
 
-        <h2>Who is responsible</h2>
-        <p><span class="todo">[legal name of the company or person behind Vane]</span> is the controller of the data described here. Contact: <span class="todo">[contact email]</span>.</p>
+        <h2 id="who">1. Who we are</h2>
+        <p>Vane is a service that schedules and publishes your posts and videos to the social networks you connect. It is made of <b>Vane Post</b> (text and image posts), <b>Vane Studio</b> (video publishing), the <b>Vane API</b> with its connectors (Make, Zapier, ChatGPT, Claude, WordPress) and the AI features inside them. This policy covers all of them and our websites.</p>
+        <p>The controller of your personal data is <span class="todo">[OPERATOR NAME]</span>, <span class="todo">[OPERATOR ADDRESS]</span> (<span class="todo">[REGISTRATION / VAT NUMBER, if any]</span>), referred to as “Vane”, “we” or “us”. You can reach us at <span class="todo">[CONTACT EMAIL]</span>.</p>
 
-        <h2>What we keep</h2>
+        <h2 id="short">2. The short version</h2>
+        <div class="box">
+          <ul>
+            <li>We collect what is needed to run your account and to publish what you schedule, and nothing for advertising.</li>
+            <li>Your social network sign-ins are stored <b>encrypted</b>. API keys and sessions are stored only as <b>hashes</b>. Passwords are stored only as salted hashes.</li>
+            <li>We ask each network for the smallest permission that lets us publish for you. We do <b>not</b> read your feed, messages, followers or connections.</li>
+            <li>We do not sell your data, do not share it for advertising, and do not use your content to train AI models.</li>
+            <li>You can disconnect any network, revoke any key, delete any post, and ask us to delete everything. See <a href="#rights">your rights</a> and <a href="/data-deletion">data deletion</a>.</li>
+          </ul>
+        </div>
+
+        <h2 id="collect">3. What we collect</h2>
+        <h3>Information you give us</h3>
         <ul>
-          <li><b>Your account:</b> email address, an optional name, your time zone, and your password as a salted PBKDF2 hash (we never store the password itself).</li>
-          <li><b>Your posts:</b> the text and pictures or videos you write or upload, the time you chose, and whether each post was sent or failed, with the link to the published post.</li>
-          <li><b>Your connected accounts:</b> a sign-in token for each network, stored <b>encrypted</b> (AES-256-GCM). Besides the token we keep the public name, username or id of the account, so the dashboard can show which one it is.</li>
-          <li><b>Operational records:</b> a short log of what the service did for you (for example “post sent”), sign-in sessions (stored as a hash), and counters that limit abuse. A request’s IP address is used only to apply those limits.</li>
+          <li><b>Account:</b> email address, an optional name, your time zone and a salted hash of your password. We also email you one-time codes to confirm sign-up and new sign-ins.</li>
+          <li><b>Content:</b> the text, pictures, videos, thumbnails and drafts you write or upload, the time you chose to publish, and the results (sent, failed, the link to the published post).</li>
+          <li><b>Connected accounts:</b> a sign-in token or app password for each network you connect, kept encrypted, plus the public name, handle or id of the account so you can tell them apart.</li>
+          <li><b>API keys and webhooks:</b> the name you give a key, its last four characters and a hash of it (never the key itself); the address of each webhook and its signing secret, kept encrypted.</li>
+          <li><b>Billing:</b> your plan and its status, payment references and amounts. Card numbers are entered on our payment provider’s page and never reach us. For on-chain payments we see the public wallet address and transaction id.</li>
+          <li><b>Messages:</b> what you write to us for support, and your email if you join the waitlist.</li>
+        </ul>
+        <h3>Information collected automatically</h3>
+        <ul>
+          <li><b>Security records:</b> for sign-in and sign-up attempts, the time, result, email entered, IP address, approximate location (country, city), network (ASN) and browser details. We also keep short-lived counters per IP address to stop floods, scanning and password guessing, and we may block addresses that abuse the service.</li>
+          <li><b>Usage:</b> counters of posts, API calls and AI credits used against your plan, and a log of what the service did for you (for example “post sent to LinkedIn”).</li>
+          <li><b>Website analytics (our own, no third parties):</b> pages opened, time on page, referring site, campaign tag, device type, approximate location, and a salted hash of your IP address (not the address). It is switched off when your browser sends Do Not Track or Global Privacy Control. When you sign up we also keep where you first came from (referrer and landing page).</li>
+        </ul>
+        <h3>Information from the networks you connect</h3>
+        <p>Only what the permission you grant allows. For example: LinkedIn gives us your name and member id; Threads your username and id; Bluesky your handle; Mastodon your account on your server; Telegram the channel or group where our bot is an administrator; YouTube the channel you upload to; and, when available, TikTok and Instagram the account you publish to. Each network also tells us whether a post was accepted, and its id or link.</p>
+
+        <h2 id="use">4. How we use it, and why we may</h2>
+        <p>If you are in the European Economic Area, the UK or Switzerland, the legal bases are in brackets.</p>
+        <ul>
+          <li><b>To run the service:</b> create your account, publish at the times you chose, store your media, apply your plan’s limits, send you sign-in codes and service messages. (Contract.)</li>
+          <li><b>To take payment and keep records:</b> process subscriptions and usage charges, prevent fraud, meet tax and accounting duties. (Contract; legal obligation.)</li>
+          <li><b>To keep Vane safe:</b> detect bots, abuse, password guessing and scanning, enforce our <a href="/terms">Terms</a>, and investigate incidents. (Legitimate interests in securing the service and our users.)</li>
+          <li><b>To improve Vane:</b> understand, in aggregate, which pages and features are used. (Legitimate interests; you can opt out with Do Not Track or Global Privacy Control.)</li>
+          <li><b>To answer you</b> and give support. (Contract; legitimate interests.)</li>
+          <li><b>To comply with the law</b> and respond to valid legal requests. (Legal obligation.)</li>
+        </ul>
+        <p>We do not make decisions about you that have legal effects by automated means, and we do not build advertising profiles.</p>
+
+        <h2 id="networks">5. Social networks and Google / YouTube data</h2>
+        <p>Data we receive from a network is used only to provide the publishing features you asked for, to show you which account is connected, and to keep the connection working. We do not use it for advertising, we do not sell or rent it, we do not use it to train AI models, and humans at Vane do not read it except where you ask for support, where it is needed to investigate abuse or a security problem, or where the law requires it.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Network</th><th>Permission we ask for</th><th>What it lets Vane do</th></tr></thead>
+          <tbody>
+            <tr><td>LinkedIn</td><td>openid, profile, w_member_social</td><td>Learn your name and member id; create posts on your own profile when you schedule them.</td></tr>
+            <tr><td>Threads</td><td>threads_basic, threads_content_publish</td><td>Learn your username; publish the posts you schedule.</td></tr>
+            <tr><td>YouTube</td><td>upload videos to your channel</td><td>Upload and publish the videos you send to Vane Studio, with their titles, descriptions, tags and thumbnails.</td></tr>
+            <tr><td>TikTok, Instagram</td><td>content publishing (Business / Creator accounts for Instagram)</td><td>Publish the videos you send to Vane Studio.</td></tr>
+            <tr><td>Bluesky</td><td>an app password you create</td><td>Publish your posts. Use a dedicated app password and revoke it any time.</td></tr>
+            <tr><td>Mastodon</td><td>read account, write posts, upload media</td><td>Publish your posts and pictures on your server.</td></tr>
+            <tr><td>X, Telegram</td><td>an authorization or a bot you add</td><td>Publish to the account, channel or group you choose.</td></tr>
+          </tbody>
+        </table></div>
+        <p>You can withdraw access at any time: remove the channel in Vane (this wipes the saved sign-in and cancels posts still waiting for it), or remove Vane in the network’s own settings. For Threads, Meta then tells us and we delete that connection; for LinkedIn use Settings &amp; Privacy → Data privacy → Permitted services; for Google use <a href="https://myaccount.google.com/permissions" rel="noopener noreferrer">myaccount.google.com/permissions</a>.</p>
+        <p><b>Google API Services.</b> Vane’s use and transfer to any other app of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy" rel="noopener noreferrer">Google API Services User Data Policy</a>, including the Limited Use requirements. By using Vane Studio’s YouTube features you also agree to the <a href="https://www.youtube.com/t/terms" rel="noopener noreferrer">YouTube Terms of Service</a>, and Google’s handling of your data is described in the <a href="https://policies.google.com/privacy" rel="noopener noreferrer">Google Privacy Policy</a>.</p>
+
+        <h2 id="ai">6. AI features</h2>
+        <p>When you use an AI feature (hashtags, clean-up, re-formatting, post and idea generation, tone, hooks, video scripts and metadata), the text you submit and your instruction are sent to the AI model running on our infrastructure provider, Cloudflare Workers AI, to produce the answer. We keep a count of the credits you use, not a copy of your prompts for any other purpose. We do not use your content to train or fine-tune models, and we do not send it to AI providers other than the ones listed in section 8. AI output can be wrong or unsuitable: you review it before anything is published.</p>
+
+        <h2 id="integrations">7. API, webhooks and connectors</h2>
+        <p>If you connect Make, Zapier, a custom GPT, Claude (MCP), the WordPress plugin or your own scripts with a Vane API key, those services send requests to Vane on your behalf and receive what the API returns (your channel list, post status, the posts they create). Their handling of data is governed by their own policies; revoke the key in Vane to cut the connection. If you add a webhook, Vane sends the events you chose (for example that a post was published or failed) to the address you gave, signed so you can verify them; you are responsible for that endpoint and for what it does with the data.</p>
+
+        <h2 id="share">8. Who we share it with</h2>
+        <p>We share personal data only with the providers below, who process it for us, with the networks you told us to publish to, and as described at the end of this section.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Provider</th><th>What for</th><th>Data involved</th></tr></thead>
+          <tbody>
+            <tr><td>Cloudflare</td><td>Hosting, database, file storage, content delivery, bot protection (Turnstile) and AI models (Workers AI)</td><td>Everything you store with us; request details such as your IP address; text you send to AI features</td></tr>
+            <tr><td>Resend</td><td>Sending our emails (sign-in codes)</td><td>Your email address and the message</td></tr>
+            <tr><td>Payment providers</td><td>Taking payment. At launch: monobank acquiring for cards, Apple Pay and Google Pay; and direct on-chain payments in stablecoins, checked through a blockchain node provider. We may add or replace providers (for example a merchant of record) and will update this list.</td><td>Order reference, plan and amount; for on-chain payments the public wallet address and transaction id. Card details stay with the card provider.</td></tr>
+            <tr><td>proxycheck.io</td><td>Optional check of whether an address is a proxy or VPN at sign-in and sign-up</td><td>The IP address</td></tr>
+            <tr><td>The networks you connect</td><td>Publishing what you scheduled</td><td>Your content and the identifiers needed to post it</td></tr>
+          </tbody>
+        </table></div>
+        <p>We may also disclose data (a) to authorities when we are legally required to, or to protect rights, safety and the security of Vane and its users; (b) to professional advisers under confidentiality; and (c) to a successor if Vane is merged, sold or reorganized, in which case this policy continues to apply to your data unless you are told otherwise. We do not sell personal data and do not share it for cross-context behavioral advertising.</p>
+
+        <h2 id="transfers">9. International transfers</h2>
+        <p>Vane runs on a global network, and we and our providers process data in several countries, including <span class="todo">[OPERATOR COUNTRY]</span> and the United States. When personal data leaves the EEA, the UK or Switzerland we rely on an adequacy decision or on standard contractual clauses (and, where a provider is certified, the EU–US Data Privacy Framework), together with the technical measures in section 11.</p>
+
+        <h2 id="retention">10. How long we keep it</h2>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Data</th><th>Kept</th></tr></thead>
+          <tbody>
+            <tr><td>Account and settings</td><td>Until you delete the account</td></tr>
+            <tr><td>Posts, drafts, media, videos, thumbnails</td><td>Until you delete them or the account is closed. Posts still waiting for a channel are cancelled when you remove it.</td></tr>
+            <tr><td>Connected-account sign-ins</td><td>Until you disconnect, revoke, or remove Vane in the network (then they are wiped)</td></tr>
+            <tr><td>API keys, webhooks</td><td>Until you revoke or delete them</td></tr>
+            <tr><td>Sign-in sessions</td><td>Up to 30 days, or until you sign out</td></tr>
+            <tr><td>Email codes</td><td>They expire after 10 minutes and are removed soon after</td></tr>
+            <tr><td>Sign-in and sign-up attempt records</td><td>90 days</td></tr>
+            <tr><td>Website analytics</td><td>180 days</td></tr>
+            <tr><td>IP reputation lookups</td><td>7 days</td></tr>
+            <tr><td>Webhook delivery records</td><td>7 days</td></tr>
+            <tr><td>Unfinished video uploads</td><td>24 hours</td></tr>
+            <tr><td>Billing and tax records</td><td><span class="todo">[BILLING RECORDS RETENTION, as required by tax law]</span></td></tr>
+            <tr><td>Backups</td><td>Removed on a rolling basis within <span class="todo">[BACKUP PERIOD]</span></td></tr>
+            <tr><td>Waitlist email</td><td>Until we have told you about the launch, or until you ask us to remove it</td></tr>
+          </tbody>
+        </table></div>
+        <p>Where the law requires us to keep something longer (for example for a legal claim or an audit), we keep only what is necessary and only for that purpose.</p>
+
+        <h2 id="security">11. How we protect it</h2>
+        <ul>
+          <li>Everything travels over HTTPS. Social network tokens and webhook secrets are encrypted at rest with AES-256-GCM.</li>
+          <li>API keys are shown to you once and stored only as SHA-256 hashes; passwords are stored as salted hashes; sign-in sessions are stored as hashes and sent in a secure, HttpOnly cookie.</li>
+          <li>The API is protected by bot detection, per-address and per-key rate limits, automatic blocking of abusive addresses, and signature checks on calls from payment providers and social networks.</li>
+          <li>Database queries are parameterized, production secrets are kept in a secrets store and never logged, and access to administration is restricted and logged.</li>
+        </ul>
+        <p>No system is perfectly secure. If a breach affects your personal data we will tell you and the authorities where the law requires, without undue delay.</p>
+
+        <h2 id="cookies">12. Cookies and similar storage</h2>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Name</th><th>Purpose</th><th>Lifetime</th></tr></thead>
+          <tbody>
+            <tr><td>vane_session (cookie)</td><td>Keeps you signed in across our sites. Strictly necessary; HttpOnly.</td><td>Up to 30 days</td></tr>
+            <tr><td>Cloudflare Turnstile</td><td>Bot check on sign-in and sign-up; strictly necessary for security.</td><td>Session / short</td></tr>
+            <tr><td>vane_vid, vane_sid (browser storage)</td><td>Anonymous browser and visit ids for our own analytics. Not used when Do Not Track or Global Privacy Control is on.</td><td>Browser id until cleared; visit id 30 minutes</td></tr>
+            <tr><td>vane:draft, vane:emoji and similar (browser storage)</td><td>Remembers an unsent draft, recent emoji and an interrupted video upload on your device. Never sent to us until you submit.</td><td>Until you clear it, the draft until you schedule or sign out</td></tr>
+          </tbody>
+        </table></div>
+        <p>We use no advertising or third-party tracking cookies.</p>
+
+        <h2 id="rights">13. Your rights and choices</h2>
+        <p>Depending on where you live (including under the GDPR and the UK GDPR) you can ask us to: give you access to your data and a copy of it; correct it; delete it; restrict or object to some uses; and move it to another service. Where we rely on consent you can withdraw it at any time. You also have the right to complain to your data protection authority.</p>
+        <ul>
+          <li><b>Yourself, in the dashboard:</b> remove channels, revoke API keys and webhooks, delete posts, videos and public links.</li>
+          <li><b>By email:</b> write to <span class="todo">[CONTACT EMAIL]</span> from the address of your account. To protect you we may ask you to confirm your identity. We answer within 30 days, and tell you if we need more time or cannot do what you ask and why.</li>
+          <li><b>Delete everything:</b> see <a href="/data-deletion">Data deletion</a>.</li>
         </ul>
 
-        <h2>What Vane does with LinkedIn, Threads and the other networks</h2>
-        <p>Vane asks each network for the smallest permission that lets it publish for you.</p>
-        <ul>
-          <li><b>LinkedIn</b> (<i>openid, profile, w_member_social</i>): to learn your name and member id and to create posts on your own profile when you schedule them.</li>
-          <li><b>Threads</b> (<i>threads_basic, threads_content_publish</i>): to learn your username and to publish the posts you schedule.</li>
-          <li><b>Bluesky, Mastodon, Telegram:</b> a Bluesky app password, a Mastodon sign-in on your server, or a Telegram bot token, used only to publish your posts.</li>
-        </ul>
-        <p>Vane <b>does not</b> read your feed, messages, followers or connections, does not post anything you did not schedule, does not sell or share this data, does not use it for advertising, and does not use it to train AI models. Data received from a network is used only to provide the publishing features you asked for.</p>
-        <p>You can take the access back at any time: remove the channel in Vane, or remove Vane in LinkedIn’s or Threads’ own settings. Removing it there makes the connection stop working and Vane cancels the posts still waiting for it.</p>
+        <h2 id="us">14. Notes for US residents</h2>
+        <p>In the last 12 months we collected the categories described in section 3 (identifiers, account and commercial information, internet activity, approximate location, and content you provide) for the business purposes in section 4. We do <b>not sell</b> personal information and do not <b>share</b> it for cross-context behavioral advertising. Residents of states with privacy laws can ask us to tell them what we hold, to delete or correct it, and can appeal a refusal by writing to <span class="todo">[CONTACT EMAIL]</span>. We will not treat you differently for exercising these rights.</p>
 
-        <h2>Where the data lives and who helps us run it</h2>
-        <p>Vane runs on Cloudflare (hosting, database and file storage). Email codes for sign-in are sent through Resend. These providers process data for us under their own terms; nobody else gets your data, except the network you publish to, which receives the post you asked us to publish.</p>
+        <h2 id="children">15. Children</h2>
+        <p>Vane is not meant for anyone under 16, and we do not knowingly collect their data. If you think a child has given us personal data, write to <span class="todo">[CONTACT EMAIL]</span> and we will delete it.</p>
 
-        <h2>How long we keep it</h2>
-        <p>Posts, channels and the account stay until you delete them. Removing a channel deletes its saved sign-in and its scheduled posts at once. Expired sign-in sessions and short-lived technical records are removed automatically.</p>
+        <h2 id="changes">16. Changes to this policy</h2>
+        <p>When this policy changes in a way that matters, we will tell you in the dashboard or by email before the change takes effect. The date at the top shows the current version.</p>
 
-        <h2>Your choices and rights</h2>
-        <p>You can see and remove your channels and posts in the dashboard. To delete your whole account, or to ask for a copy of your data or a correction, write to <span class="todo">[contact email]</span>; we answer within 30 days. Steps are on the <a href="/data-deletion">data deletion</a> page. If you are in the EU/UK you also have the rights of access, rectification, erasure, restriction and portability, and may complain to your data protection authority.</p>
-
-        <h2>Cookies</h2>
-        <p>Vane sets one cookie, to keep you signed in (HttpOnly, Secure). There are no advertising or tracking cookies.</p>
-
-        <h2>Children</h2>
-        <p>Vane is not meant for anyone under 16 and we do not knowingly collect their data.</p>
-
-        <h2>Changes</h2>
-        <p>If this policy changes in a way that matters, we will say so in the dashboard before it takes effect. The date at the top shows the current version.</p>
+        <h2 id="contact">17. Contact</h2>
+        <p><span class="todo">[OPERATOR NAME]</span><br/><span class="todo">[OPERATOR ADDRESS]</span><br/>Email: <span class="todo">[CONTACT EMAIL]</span></p>
       </div>
     </main>
     <footer class="px-5 pb-10 text-center text-xs text-white/35">
-      <a href="/privacy" class="hover:text-white">Privacy</a> · <a href="/data-deletion" class="hover:text-white">Data deletion</a> · <a href="/" class="hover:text-white">vaneapp.dev</a>
+      <a href="/privacy" class="hover:text-white">Privacy</a> · <a href="/terms" class="hover:text-white">Terms</a> · <a href="/data-deletion" class="hover:text-white">Data deletion</a> · <a href="/" class="hover:text-white">vaneapp.dev</a>
     </footer>
   </div>
 </body>

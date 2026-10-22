@@ -330,6 +330,33 @@ INSERT OR IGNORE INTO plans (id, kind, name, tagline, price_cents, limits, is_ac
   ('api-addon', 'addon', 'Need the dashboard and the API?', 'Add the API to Pro for {price} a month. It adds 180 API posts and keeps Pro’s low overage rates.', 299,
    '{"apiPostsPerMonth":180}', 0, 50);
 
+-- ───────────────────────── Social links ─────────────────────────
+-- The "Follow Vane" section of the landing page. Edited in /admin → Social: the words, the links and the order are data, the
+-- card design is fixed. The section's own heading and intro live in `settings` under the key 'landing.socials'.
+--   network    picks the icon: telegram, bluesky, mastodon, threads, linkedin, x, instagram, youtube, tiktok, facebook, github,
+--              discord, reddit, other (the list is in lib/socials.ts, the icons in index.html)
+--   is_public  shown on the landing page
+-- Seeded only while the table is empty, so a link the admin deleted does not come back when this file is run again.
+CREATE TABLE IF NOT EXISTS social_links (
+  id           TEXT    PRIMARY KEY,                -- 'telegram', 'bluesky'… for the seeded rows, '<network>-<hex>' for new ones
+  network      TEXT    NOT NULL,
+  name         TEXT    NOT NULL,
+  handle       TEXT    NOT NULL DEFAULT '',
+  description  TEXT    NOT NULL DEFAULT '',
+  url          TEXT    NOT NULL,
+  cta_label    TEXT    NOT NULL DEFAULT 'Follow',
+  is_public    INTEGER NOT NULL DEFAULT 1 CHECK (is_public IN (0, 1)),
+  sort         INTEGER NOT NULL DEFAULT 100,
+  created_at   INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at   INTEGER NOT NULL DEFAULT (unixepoch())
+);
+INSERT INTO social_links (id, network, name, handle, description, url, sort)
+SELECT * FROM (
+  SELECT 'telegram' AS id, 'telegram' AS network, 'Telegram' AS name, '@vanenews' AS handle, 'News and releases from Vane.' AS description, 'https://t.me/vanenews' AS url, 10 AS sort
+  UNION ALL SELECT 'bluesky', 'bluesky', 'Bluesky', '@vaneapp.bsky.social', 'Product updates and tips.', 'https://bsky.app/profile/vaneapp.bsky.social', 20
+  UNION ALL SELECT 'mastodon', 'mastodon', 'Mastodon', '@vaneapp@mastodon.social', 'Updates for the fediverse.', 'https://mastodon.social/@vaneapp', 30
+) WHERE NOT EXISTS (SELECT 1 FROM social_links);
+
 -- Accounts the admin switched off (login and every API call are refused; sessions are deleted).
 CREATE TABLE IF NOT EXISTS user_flags (
   user_id      TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
@@ -567,6 +594,71 @@ CREATE TABLE IF NOT EXISTS video_channels (
 CREATE INDEX IF NOT EXISTS idx_video_channels_user ON video_channels(user_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_video_channels_account ON video_channels(user_id, platform, account_ref);
 
+-- Vane Studio AI (script, titles, descriptions, tags, chapters): one row per account and month. The allowance itself lives in code (videoai.ts).
+CREATE TABLE IF NOT EXISTS video_ai_usage (
+  user_id  TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  period   TEXT    NOT NULL,                                                    -- 'YYYY-MM' (UTC)
+  used     INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (user_id, period)
+);
+
+-- Extra AI credits an admin gave to one account (admin → user → AI credits). Spent after the plan's own credits, before any billing.
+CREATE TABLE IF NOT EXISTS user_ai_bonus (
+  user_id     TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  credits     INTEGER NOT NULL DEFAULT 0 CHECK (credits >= 0),
+  updated_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+-- ───────────────────────── Vane Studio publishing queue ─────────────────────────
+-- One row = one video going to one channel. The queue is network-agnostic: a network's own publisher (YouTube, TikTok,
+-- Instagram) is plugged in behind it (functions/api/lib/videopublishers.ts), so retries, history and the dashboard are the
+-- same for all of them. Rows are claimed atomically (queued → publishing), retried with a growing pause, and kept as history.
+CREATE TABLE IF NOT EXISTS video_publications (
+  id               TEXT    PRIMARY KEY,                                         -- uuid
+  user_id          TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  video_id         TEXT    NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+  channel_id       TEXT    REFERENCES video_channels(id) ON DELETE SET NULL,    -- NULL once the channel was disconnected
+  platform         TEXT    NOT NULL CHECK (platform IN ('youtube', 'tiktok', 'instagram')),
+  channel_name     TEXT    NOT NULL,                                            -- kept, so the history still reads well after a disconnect
+  title            TEXT    NOT NULL,
+  description      TEXT    NOT NULL DEFAULT '',
+  privacy          TEXT    NOT NULL DEFAULT 'private' CHECK (privacy IN ('private', 'unlisted', 'public')),
+  status           TEXT    NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'publishing', 'published', 'failed')),
+  attempts         INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at  INTEGER NOT NULL,                                            -- when a queued row is next due (unix seconds)
+  claimed_at       INTEGER,                                                     -- when a worker took it (a stuck claim is released after 10 minutes)
+  last_error       TEXT,
+  external_id      TEXT,                                                        -- the network's id of the published video
+  external_url     TEXT,
+  created_at       INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at       INTEGER NOT NULL DEFAULT (unixepoch()),
+  published_at     INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_video_publications_due  ON video_publications(status, next_attempt_at);
+CREATE INDEX IF NOT EXISTS idx_video_publications_user ON video_publications(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_video_publications_video ON video_publications(video_id);
+
+-- Vane AI Pass (admin → Plans → "Vane AI Pass"): $2.99 a month, 150 AI credits, on top of any posting plan. Not on the landing page (is_public = 0).
+-- Nobody pays for it online yet: an admin switches it on for an account (admin → user → AI credits); a payment webhook will write the same row.
+CREATE TABLE IF NOT EXISTS ai_pass (
+  user_id             TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  status              TEXT    NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'past_due', 'canceled')),
+  current_period_end  INTEGER,                                                  -- NULL = no end date (granted by hand)
+  provider            TEXT    NOT NULL DEFAULT 'manual',
+  created_at          INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at          INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE TABLE IF NOT EXISTS ai_pass_usage (
+  user_id  TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  period   TEXT    NOT NULL,                                                    -- 'YYYY-MM' (UTC)
+  used     INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (user_id, period)
+);
+INSERT OR IGNORE INTO plans (id, kind, name, tagline, price_cents, features, limits, cta_label, is_public, is_active, sort) VALUES
+  ('ai-pass', 'addon', 'Vane AI Pass', '150 AI credits a month for tone, hooks, per-network versions and posts from an idea.', 299,
+   '["150 AI credits a month","Tone fixer, hooks, CTAs, per-network versions, post generator","Extra credits are billed per use, only if you switch it on"]',
+   '{"aiCredits":150,"overageAiPostUsd":0.02}', 'Get AI Pass', 0, 1, 60);
+
 -- ═════════════════════ Admin: networks on/off and the AI token ledger ═════════════════════
 
 -- The admin's on/off switch per network (/admin → Networks). No row = the default: ON for a network whose code is
@@ -611,6 +703,14 @@ CREATE TABLE IF NOT EXISTS ai_prices (
   output_neurons_per_m  REAL    NOT NULL DEFAULT 0,
   updated_at            INTEGER NOT NULL DEFAULT (unixepoch())
 );
--- developers.cloudflare.com/workers-ai/platform/pricing (checked 2026-10-19)
-INSERT OR IGNORE INTO ai_prices (model, input_usd_per_m, output_usd_per_m, input_neurons_per_m, output_neurons_per_m)
-  VALUES ('@cf/meta/llama-3.1-8b-instruct', 0.282, 0.827, 25608, 75147);
+-- developers.cloudflare.com/workers-ai/platform/pricing (page updated 2026-10-20, checked 2026-10-21). Set AI_MODEL to any of these (or add a row in /admin → AI).
+INSERT OR IGNORE INTO ai_prices (model, input_usd_per_m, output_usd_per_m, input_neurons_per_m, output_neurons_per_m) VALUES
+  ('@cf/meta/llama-3.1-8b-instruct-fp8',      0.152, 0.287, 13778,  26128),   -- the model the AI tools run on (lib/ai.ts AI_MODEL)
+  ('@cf/meta/llama-3.1-8b-instruct',          0.282, 0.827, 25608,  75147),   -- the previous default, kept for the history
+  ('@cf/meta/llama-3.1-8b-instruct-fp8-fast', 0.045, 0.384,  4119,  34868),
+  ('@cf/meta/llama-3.3-70b-instruct-fp8-fast',0.293, 2.253, 26668, 204805),
+  ('@cf/meta/llama-4-scout-17b-16e-instruct', 0.270, 0.850, 24545,  77273),
+  ('@cf/openai/gpt-oss-20b',                  0.200, 0.300, 18182,  27273),
+  ('@cf/openai/gpt-oss-120b',                 0.350, 0.750, 31818,  68182),
+  ('@cf/google/gemma-4-26b-a4b-it',           0.100, 0.300,  9091,  27273),
+  ('@cf/qwen/qwen3-30b-a3b-fp8',              0.051, 0.335,  4625,  30475);

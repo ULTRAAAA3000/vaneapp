@@ -76,7 +76,7 @@ A separate sign-in at `https://vaneapp.dev/admin` (not linked anywhere, `noindex
    Optional: `ADMIN_USERNAME` (a second login name) and `ADMIN_ALLOW_IPS` (comma list of addresses / CIDR ranges that may use the admin, strongly recommended).
 4. **Turn on Turnstile** (setup step 6): the admin sign-in then needs the human check too.
 
-What is inside: **Overview** (users, conversion funnel, sources, MRR), **Users** (search, give or end a plan, disable an account, time on site, first-touch source), **Plans** (prices, limits, features, hidden or "coming soon", new plans such as "2 in 1" or "Ultra"; the landing page pricing reads them live), **Traffic** (time on site, pages, entry pages, countries, devices, live visitors), **Search** (Google Search Console), **Security** (every sign-in / sign-up attempt with address, country and network; blocklist by IP, range, network or country; automatic bans; hosting / VPN networks refused at sign-in and sign-up), **Settings**, **Activity** (audit log).
+What is inside: **Overview** (users, conversion funnel, sources, MRR), **Users** (search, give or end a plan, disable an account, time on site, first-touch source), **Plans** (prices, limits, features, hidden or "coming soon", new plans such as "2 in 1" or "Ultra"; the landing page pricing reads them live), **Social** (the landing page's "Follow" section: the words above the cards and each link's network, name, handle, description, address and order; the card design is fixed, a link with nothing public hides the section), **Traffic** (time on site, pages, entry pages, countries, devices, live visitors), **Search** (Google Search Console), **Security** (every sign-in / sign-up attempt with address, country and network; blocklist by IP, range, network or country; automatic bans; hosting / VPN networks refused at sign-in and sign-up), **Settings**, **Activity** (audit log).
 
 **Networks (Networks tab).** Every network Vane knows is listed in `functions/api/lib/networks.ts` with a flag `implemented` = *the code is written* (connect flow + publishing). A network can be switched on in the admin **only if that flag is true**, and the platform's own review does not matter: it may be on while LinkedIn / TikTok / Meta have not approved Vane yet (keep their status in the note field). Implemented networks are on by default, so nothing changes until you switch one off. A switched-off network: no new account can be connected (every connect and OAuth-callback path checks it), no new post can be scheduled to its channels (dashboard and `/api/v1`), the dashboard shows it as *Paused*, and posts already scheduled for it **wait** (the cron worker skips them) instead of failing; after 2 hours past the scheduled time they fail with a clear reason. When you write the code for a new network (Vane Studio's YouTube / TikTok / Instagram, X, …), set its `implemented` flag to `true` and the switch becomes live.
 
@@ -92,6 +92,8 @@ What is inside: **Overview** (users, conversion funnel, sources, MRR), **Users**
 - **giving a plan** from the admin is the same upsert as `npm run plan:set` (`provider = 'manual'`, never counted as revenue); a plan that is paid through a provider cannot be overwritten by accident. MRR is computed from the catalog prices of the paying subscribers;
 - a plan made in the admin ("2 in 1", "Ultra") is enforced like the built-in ones. A database created before the admin panel still has the old `CHECK (plan IN ('free','api','pro'))`: run `npx wrangler d1 execute vane-db --remote --file=./scripts/migrations/001-subscriptions-any-plan.sql` once to allow custom plan ids (until then the admin answers with a clear message; the built-in plans keep working);
 - payment providers (Monobank, crypto, Stripe): each plan has a `provider_refs` slot; a webhook only has to upsert the user's `subscriptions` row. The connected-channels limit is applied only while **Enforce the channel limit** is on in Settings (off by default); AI credits and seats are stored but not enforced yet.
+
+**Social links on the landing page.** The "Follow" section reads `GET /api/socials` (rows of the `social_links` table plus one `settings` value for the heading), edited in **Social**. The three links in `index.html` are the fallback until the API answers. The table is created by `schema.sql` (`npm run db:remote`, safe to repeat); the seed runs only while the table is empty, so a link you removed does not come back. Until the table exists the Social tab says so and the landing keeps the built-in links.
 
 **Search Console.** Create a Google Cloud service account, enable the *Search Console API*, add the service account's e-mail as a (restricted) user of your property in Search Console, then:
 ```
@@ -160,7 +162,7 @@ Spec: `ECONOMY_AND_FINANCE.md` §2 and §6, `SECURITY_ARCHITECTURE.md` §2-3. Bu
 | 1 | Tables, key generation and hashing, key auth, scopes, test mode, quota engine with 402, `/api/v1/*`, usage | done |
 | 2 | "API access" section in the dashboard: create / revoke keys, quota meter, quick start | done |
 | 3a | OpenAPI spec and `Idempotency-Key` (safe retries from Make / Zapier) | done |
-| 3b | Webhooks: signed `post.sent` / `post.failed` / `post.cancelled` events, retries | next |
+| 3b | Webhooks: signed `post.published` / `post.failed` events, retries (shipped, see Webhooks below) | done |
 | 4 | Payments (Monobank, USDT/USDC) that grant the plan and issue keys automatically | |
 | 5 | AI endpoints on Workers AI (reformat, tone, hooks) with their own metering | |
 
@@ -281,9 +283,16 @@ They share the account and the sign-in, nothing else; each host answers 404 to t
   ON CONFLICT(user_id) DO UPDATE SET status = 'active', current_period_end = NULL, updated_at = unixepoch();
   ```
   To switch it off again: `UPDATE video_subscriptions SET status = 'canceled' WHERE user_id = (SELECT id FROM users WHERE email = 'me@example.com');`
+- **Publishing queue:** ships with the cron worker, so run `npm run cron:deploy` once after this release (the worker gained an R2 binding to read the video files). Locally, put `VIDEO_PUBLISH_MOCK=1` in `.dev.vars` to try publishing on a fake network; never set it in production.
 - **Sign-in:** the sign-in page has a **Vane Post / Vane Studio** switch (one account works for both); the choice decides where you land. Signing up does not switch Studio on: that is the grant above (until payments exist).
 - **Upload flow** (chunks of 8 MiB, resumable): `POST /api/video/uploads` → `PUT …/uploads/:id/parts/:n` → `POST …/uploads/:id/complete`.
 - **Test it locally:** `npm run db:local && npm run dev`, then `npm run test:video` (API) and `npm run test:hosts` (subdomain routing).
+
+### Studio AI writer
+
+`POST /api/video/ai` (needs an active Vane Studio; `GET` shows the allowance) runs on the same Workers AI binding as the post editor:
+`script` (hook, body and CTA for Shorts/TikTok/Reels/YouTube), `metadata` (titles, description, tags, hashtags) and `chapters` (YouTube timecodes, estimated from where each part sits in the script). One generation is one credit of 250 per month (`VIDEO_AI_MONTHLY` in `functions/api/lib/videoai.ts`), given back if the model fails.
+It needs one new table: run the whole `schema.sql` in the D1 Console again (it is idempotent), or only the `video_ai_usage` block at its end.
 
 ## Landing video demo
 
@@ -314,6 +323,10 @@ All of it is computed in the browser from the two post lists the dashboard alrea
 
 `POST /api/ai` (dashboard session) runs on Cloudflare Workers AI (`@cf/meta/llama-3.1-8b-instruct`). The binding is declared in `wrangler.toml` (`[ai] binding = "AI"`); if it does not show up after a deploy, add it in Pages → Settings → Bindings → Workers AI with the variable name `AI`. Without it the AI bar stays hidden and `/api/ai` answers 503.
 
+- The model is `@cf/meta/llama-3.1-8b-instruct-fp8`. Cloudflare retires models now and then (the old `llama-3.1-8b-instruct` stopped working on 2026-05-30): if the AI says the model was retired, set a Pages variable `AI_MODEL` to a current model id from the Workers AI catalog (Settings → Variables and Secrets, e.g. `@cf/meta/llama-3.3-70b-instruct-fp8-fast`) and redeploy. No code change needed.
+- Extra AI credits for one account: `/admin` → Users → the user → **AI credits** (needs `schema.sql` re-run once for the `user_ai_bonus` table). They work on any plan and are spent after the plan's own credits.
+- **Vane AI Pass** ($2.99/month, 150 credits, $0.02 per extra credit) is an add-on row `ai-pass` in the plan catalog: edit the price, the credits (`aiCredits`) and the extra price (`overageAiPostUsd`) in `/admin` → Plans. It is created hidden (`is_public = 0`), so it never shows on the landing page. There is no online checkout yet: switch it on for an account in `/admin` → Users → the user → **AI Pass** (days empty = no end date); a payment webhook will later write the same `ai_pass` row. Needs `schema.sql` re-run once.
+- Where a credit comes from, in order: the plan's own credits, the AI Pass, credits given by an admin, then (only if the account switched **Pay for extra credits** on under the editor, via `POST /api/usage/overage`) a paid extra credit. With the switch off, requests over the limit are refused with a 402 and nothing is charged. The switch is the account's `overage_enabled` flag, so it also controls extra posts.
 - Free for everyone: **Make it clean** (typos, emoji) and **Hashtags**.
 - AI Pass (counts against `aiCredits` of the plan): tone, hooks, CTAs, a version per selected channel, a post from an idea, a week plan. Free plan = the credits set in the plan catalog (set `aiCredits` to 0 in the admin panel to make them Pro-only); API plan pays per generation; Pro has a monthly allowance.
 - Links in the text are kept as they are, and every result is fitted to the limit of the network.
@@ -332,7 +345,7 @@ Full setup, redirect URLs, review checklist and the screencast script: `document
 - Code: `functions/api/channels/linkedin.ts` and `threads.ts` (API calls), `social-oauth.ts` (the start/callback flow for both), `threads-hooks.ts` (Meta's deauthorize and data-deletion calls), `worker/src/dispatch.ts` (publishing) and `worker/src/tokens.ts` (daily Threads sign-in renewal).
 - Sign-ins last 60 days. Threads renews itself; LinkedIn (no refresh token for ordinary apps) shows **Reconnect** on the channel card a week before, and reconnecting renews the same channel in place.
 - A sent post's `url` (History link, `GET /api/v1/posts`): LinkedIn `linkedin.com/feed/update/<urn>/`, Threads its permalink.
-- Pages: `/privacy` and `/data-deletion` (fill in the legal name and contact email before submitting for review).
+- Pages: `/privacy`, `/terms` and `/data-deletion`. The yellow `[…]` marks in them are the owner's details still to fill in (operator name and address, contact email, effective date, governing law and courts, retention periods): search the three files for `class="todo"`. They are generated from the finished product (all plans, Studio, AI, API, payments), not from the current state.
 
 ## Webhooks
 
@@ -351,3 +364,14 @@ Each event is a `POST` with the JSON `{ "id", "type", "createdAt", "data": { "po
 
 Events are queued in `webhook_deliveries` and sent by the cron worker every minute, so a slow receiver never delays posting. The two webhook tables are in `schema.sql` (run it, or the two `CREATE TABLE` blocks at its end, in the D1 console); until then `/api/v1/webhooks` answers 503 and posting is unaffected.
 
+**Receiver address rules** (`validateWebhookUrl` in `functions/api/lib/webhooks.ts`): https only, port 443, no credentials, a public domain name (no IP addresses in any notation, no `localhost`, `*.local`, `*.internal`, `*.lan`, `*.home.arpa`, `*.intranet` …, a trailing dot does not sidestep it) and never Vane itself (`vaneapp.dev` and its subdomains). Redirects are not followed. `npm run test:unit` checks these rules and the signature against an independent HMAC.
+
+## API protection
+
+The API is open by design (Zapier, Make, GPT, scripts), so it is protected in layers; the full picture, the Cloudflare rules to switch on and the tuning knobs are in `documentation/API_PROTECTION.md`.
+
+- **`functions/api/lib/shield.ts`** (called from `functions/_middleware.ts`) runs before every `/api/` route: real methods only, attack-tool User-Agents refused, browser-only doors need a User-Agent, the **blocklist now covers the whole API**, a burst limit per address (100 requests / 10 s, 300 for callers with a Vane key), a body size cap on JSON doors, and **automatic bans for scanners** (15 probes a minute cool an address down, 30 ban it for `auto_ban_hours`; visible and removable in the admin panel).
+- Wrong API keys are limited per address (30 per 10 minutes; a key that just worked is not held up, so shared Zapier addresses are safe); the waitlist is limited to 8 per hour per address.
+- API answers carry `nosniff`, `Referrer-Policy` and `no-store` (Pages' `_headers` only covers static files).
+- It never blocks hosting / VPN networks for API calls, never touches Telegram's and Meta's server calls, uploads or picture fetches, and ignores private / local addresses.
+- Emergency brake: set `SHIELD_OFF=1` on Pages and redeploy.

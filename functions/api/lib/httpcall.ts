@@ -64,9 +64,13 @@ export async function callJson<T = unknown>(url: string, init: CallInit = {}): P
   }
   let res: Response;
   try {
-    res = await fetch(url, { method: init.method ?? 'GET', headers, body, redirect: 'error', signal: AbortSignal.timeout(init.timeoutMs ?? 15_000) });
+    res = await fetch(url, { method: init.method ?? 'GET', headers, body, redirect: 'manual', signal: AbortSignal.timeout(init.timeoutMs ?? 15_000) });   // Workers have no redirect: 'error'
   } catch {
     return { ok: false, status: 0, data: null, headers: null, network: true };
+  }
+  if (res.status >= 300 && res.status < 400) {   // never followed: reported as a failed call with the 3xx status
+    await res.body?.cancel().catch(() => undefined);
+    return { ok: false, status: res.status, data: null, headers: res.headers };
   }
   const data = await readCapped(res);
   if (res.ok) return { ok: true, status: res.status, data: data as T, headers: res.headers };

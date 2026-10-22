@@ -4,8 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Data deletion — Vane</title>
-  <meta name="description" content="How to delete your Vane data, including what is removed when you remove Vane from LinkedIn or Threads." />
+  <meta name="description" content="How to delete your Vane data, including what is removed when you remove Vane from LinkedIn, Threads or Google." />
+  <meta name="robots" content="index, follow" />
   <meta name="theme-color" content="#070708" />
+  <link rel="canonical" href="https://vaneapp.dev/data-deletion" />
   <link rel="icon" href="/favicon.ico" sizes="32x32" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -15,13 +17,34 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/assets/vane.css?v=20261017" />
   <style>
-    .doc h2 { margin-top: 2.25rem; font-size: 1.15rem; font-weight: 600; letter-spacing: -.01em; }
-    .doc p, .doc li { margin-top: .6rem; font-size: .92rem; line-height: 1.7; color: rgba(255,255,255,.68); }
-    .doc ul { margin-top: .4rem; padding-left: 1.1rem; list-style: disc; }
-    .doc b { color: #fff; font-weight: 600; }
+    html { scroll-behavior: smooth; }
+    .doc h2 { margin-top: 2.5rem; padding-top: .25rem; font-size: 1.2rem; font-weight: 600; letter-spacing: -.01em; scroll-margin-top: 1.5rem; }
+    .doc h3 { margin-top: 1.5rem; font-size: .95rem; font-weight: 600; color: rgba(255,255,255,.9); }
+    .doc p, .doc li { margin-top: .6rem; font-size: .92rem; line-height: 1.75; color: rgba(255,255,255,.68); }
+    .doc ul, .doc ol { margin-top: .4rem; padding-left: 1.2rem; }
+    .doc ul { list-style: disc; }
+    .doc ol { list-style: decimal; }
+    .doc li::marker { color: rgba(255,255,255,.35); }
+    .doc b, .doc strong { color: #fff; font-weight: 600; }
     .doc a { color: #fff; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(255,255,255,.3); }
     .doc a:hover { text-decoration-color: #fff; }
-    .todo { background: rgba(251,191,36,.12); color: #fcd34d; border-radius: 6px; padding: 0 .35rem; }
+    .doc code { font-size: .82rem; padding: .05rem .35rem; border-radius: 6px; background: rgba(255,255,255,.07); color: rgba(255,255,255,.85); }
+    .doc .table-wrap { margin-top: .9rem; overflow-x: auto; border: 1px solid rgba(255,255,255,.08); border-radius: 14px; }
+    .doc table { width: 100%; border-collapse: collapse; min-width: 34rem; }
+    .doc th, .doc td { padding: .65rem .85rem; text-align: left; vertical-align: top; font-size: .84rem; line-height: 1.6; border-bottom: 1px solid rgba(255,255,255,.06); color: rgba(255,255,255,.66); }
+    .doc th { font-size: .68rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: rgba(255,255,255,.4); background: rgba(255,255,255,.03); }
+    .doc tr:last-child td { border-bottom: 0; }
+    .doc td:first-child { color: #fff; font-weight: 500; white-space: nowrap; }
+    .box { margin-top: 1.25rem; padding: 1rem 1.15rem; border-radius: 16px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); }
+    .box p, .box li { margin-top: .4rem; }
+    .box > :first-child { margin-top: 0; }
+    .toc { margin-top: 1.5rem; columns: 2; column-gap: 2rem; }
+    @media (max-width: 640px) { .toc { columns: 1; } }
+    .toc li { margin-top: .3rem; font-size: .85rem; break-inside: avoid; }
+    .toc a { text-decoration: none; color: rgba(255,255,255,.6); }
+    .toc a:hover { color: #fff; }
+    .todo { background: rgba(251,191,36,.14); color: #fcd34d; border-radius: 6px; padding: 0 .35rem; white-space: normal; }
+    @media print { body { background: #fff !important; color: #000 !important; } .doc *, .doc a { color: #000 !important; } header, footer, .fixed { display: none !important; } }
   </style>
 </head>
 
@@ -32,36 +55,38 @@
       <a href="/" class="text-lg font-semibold" aria-label="Vane home">vane</a>
       <a href="/login" class="btn btn-ghost btn-sm">Sign in</a>
     </header>
-    <main class="mx-auto w-full max-w-2xl flex-1 px-5 pb-20 sm:px-8">
-      <div class="glass-d rounded-3xl p-6 sm:p-9 doc">
+    <main class="mx-auto w-full max-w-3xl flex-1 px-5 pb-20 sm:px-8">
+      <div class="glass-d rounded-3xl p-6 sm:p-10 doc">
 
         <h1 class="text-3xl font-semibold tracking-tight">Data deletion</h1>
 
-        <div id="done" class="hidden mt-5 rounded-2xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3.5">
-          <p class="!mt-0 !text-emerald-200"><b>Your request was received and the Threads connection and its data were deleted from Vane.</b></p>
-          <p class="!mt-1.5 text-sm">Confirmation code: <b id="code" class="pixel tracking-wider"></b></p>
+        <div id="done" class="hidden box" style="border-color: rgba(52,211,153,.25); background: rgba(16,185,129,.1)">
+          <p><b style="color:#a7f3d0">Your request was received, and the Threads connection and its data were deleted from Vane.</b></p>
+          <p>Confirmation code: <b id="code" class="pixel tracking-wider"></b></p>
         </div>
 
-        <p>You decide what Vane keeps. There are three ways to delete data, from the smallest to the largest.</p>
+        <p>You decide what Vane keeps. There are three ways to delete data, from the smallest to the largest. What we keep and for how long is explained in the <a href="/privacy#retention">Privacy Policy</a>.</p>
 
         <h2>1. Remove one connected account</h2>
         <p>In the dashboard, open <b>Channels</b> and press the bin next to the account. This deletes its saved sign-in and every post still scheduled for it. Posts already published stay on the network, where you can delete them yourself.</p>
 
-        <h2>2. Remove Vane from LinkedIn or Threads</h2>
+        <h2>2. Remove Vane from a network</h2>
         <ul>
           <li><b>LinkedIn:</b> Settings &amp; Privacy → Data privacy → Permitted services → Vane → Remove.</li>
-          <li><b>Threads:</b> Account → Website permissions (or Settings → Apps and websites) → Vane → Remove. Threads then tells Vane, and Vane deletes that Threads connection and its posts. If you used Threads’ “delete data” option, you get a confirmation code, and this page shows it.</li>
+          <li><b>Threads / Instagram:</b> Account → Website permissions (or Settings → Apps and websites) → Vane → Remove. The network then tells Vane, and Vane deletes that connection and its posts. If you used the network’s “delete data” option, you get a confirmation code, and this page shows it.</li>
+          <li><b>Google / YouTube:</b> <a href="https://myaccount.google.com/permissions" rel="noopener noreferrer">myaccount.google.com/permissions</a> → Vane → Remove access.</li>
+          <li><b>Bluesky, Mastodon, Telegram:</b> revoke the app password, the authorized app or the bot’s administrator rights in the network’s own settings.</li>
         </ul>
         <p>Removing the permission makes the connection stop working immediately, whatever Vane does next.</p>
 
         <h2>3. Delete your whole Vane account</h2>
-        <p>Write from the email address of the account to <span class="todo">[contact email]</span> with the subject “Delete my account”. We delete the account, its channels and sign-in tokens, posts, uploaded files and logs, and confirm by email, within 30 days.</p>
+        <p>Write from the email address of the account to <span class="todo">[CONTACT EMAIL]</span> with the subject “Delete my account”. We delete the account, its channels and sign-in tokens, posts, uploaded files and videos, API keys, webhooks and logs we can link to you, and confirm by email within 30 days. Some records are kept where the law requires it (for example billing records), and backups roll off on the schedule in the Privacy Policy.</p>
 
-        <p>See the <a href="/privacy">privacy policy</a> for what Vane keeps and why.</p>
+        <p>You can also ask for a copy of your data, or for a correction, at the same address.</p>
       </div>
     </main>
     <footer class="px-5 pb-10 text-center text-xs text-white/35">
-      <a href="/privacy" class="hover:text-white">Privacy</a> · <a href="/data-deletion" class="hover:text-white">Data deletion</a> · <a href="/" class="hover:text-white">vaneapp.dev</a>
+      <a href="/privacy" class="hover:text-white">Privacy</a> · <a href="/terms" class="hover:text-white">Terms</a> · <a href="/data-deletion" class="hover:text-white">Data deletion</a> · <a href="/" class="hover:text-white">vaneapp.dev</a>
     </footer>
   </div>
   <script>

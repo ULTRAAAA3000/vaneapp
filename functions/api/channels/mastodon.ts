@@ -31,6 +31,7 @@ const TIMEOUT_MS = 10_000;
 const UPLOAD_TIMEOUT_MS = 30_000;
 const MAX_BODY_BYTES = 64 * 1024;
 const MEDIA_POLLS = 6;
+const USER_AGENT = 'Vane/1.0 (+https://vaneapp.dev)';   // servers (and the CDNs in front of them) like to know who is calling
 
 // ───────────────────────── the server name ─────────────────────────
 const DOMAIN_RE = /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{2,59})$/;
@@ -57,7 +58,7 @@ export function normalizeInstance(input: unknown, ownHost?: string): string | nu
 
 // ───────────────────────── low-level call ─────────────────────────
 type MastoOk<T> = { ok: true; status: number; data: T };
-type MastoErr = { ok: false; status: number; message: string; retryAfter?: number; network?: boolean };
+type MastoErr = { ok: false; status: number; message: string; retryAfter?: number; network?: boolean; redirected?: boolean };
 
 /** JSON body, but never more than MAX_BODY_BYTES of it. */
 async function readCapped(res: Response): Promise<unknown> {
@@ -102,7 +103,7 @@ async function call<T>(
   init: { method?: string; token?: string; json?: unknown; form?: Record<string, string>; multipart?: FormData; headers?: Record<string, string> } = {},
   timeoutMs = TIMEOUT_MS,
 ): Promise<MastoOk<T> | MastoErr> {
-  const headers: Record<string, string> = { Accept: 'application/json', ...init.headers };
+  const headers: Record<string, string> = { Accept: 'application/json', 'User-Agent': USER_AGENT, ...init.headers };
   if (init.token) headers.Authorization = `Bearer ${init.token}`;
   let body: BodyInit | undefined;
   if (init.json !== undefined) {
@@ -116,10 +117,17 @@ async function call<T>(
   }
   let res: Response;
   try {
-    res = await fetch(`https://${instance}${path}`, { method: init.method ?? 'GET', headers, body, redirect: 'error', signal: AbortSignal.timeout(timeoutMs) });
+    // Redirects are never followed. The Workers runtime has no `redirect: 'error'` (fetch() throws a TypeError before anything is
+    // sent, which used to look like "Network error" for every server), so: 'manual', and a 3xx answer is refused below.
+    res = await fetch(`https://${instance}${path}`, { method: init.method ?? 'GET', headers, body, redirect: 'manual', signal: AbortSignal.timeout(timeoutMs) });
   } catch (e) {
     const timedOut = e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError');
+    console.error('mastodon call failed', instance, path, e instanceof Error ? `${e.name}: ${e.message.slice(0, 200)}` : 'unknown');
     return { ok: false, status: 0, message: timedOut ? 'The server did not answer in time' : 'Network error', network: true };
+  }
+  if (res.status >= 300 && res.status < 400) {
+    await res.body?.cancel().catch(() => undefined);
+    return { ok: false, status: res.status, message: 'The server sent Vane to another address', redirected: true };
   }
   const data = await readCapped(res);
   if (res.ok) return { ok: true, status: res.status, data: data as T };
@@ -131,15 +139,23 @@ async function call<T>(
 // ───────────────────────── the OAuth app on a server ─────────────────────────
 export interface MastodonApp { clientId: string; clientSecret: string }
 
-export type AppResult = { ok: true; app: MastodonApp } | { ok: false; error: string; network: boolean };
+export type AppResult = { ok: true; app: MastodonApp } | { ok: false; error: string; network: boolean; /** the database lacks the Mastodon tables: run `npm run db:remote` */ setup?: boolean };
+
+const NEEDS_DB_UPDATE: AppResult = { ok: false, network: false, setup: true, error: 'Mastodon is not enabled on this server yet. The database needs one update: npm run db:remote.' };
 
 /** Vane's app on `instance`: the saved one, or registered right now (dynamic registration). */
 export async function appFor(env: Env, instance: string, redirectUri: string): Promise<AppResult> {
   const key = env.ENCRYPTION_KEY!;
-  const saved = await env.DB
-    .prepare('SELECT client_id, client_secret FROM mastodon_apps WHERE instance = ?1 AND redirect_uri = ?2')
-    .bind(instance, redirectUri)
-    .first<{ client_id: string; client_secret: string }>();
+  let saved: { client_id: string; client_secret: string } | null;
+  try {
+    saved = await env.DB
+      .prepare('SELECT client_id, client_secret FROM mastodon_apps WHERE instance = ?1 AND redirect_uri = ?2')
+      .bind(instance, redirectUri)
+      .first<{ client_id: string; client_secret: string }>();
+  } catch (err) {
+    console.error('mastodon_apps unreadable (run npm run db:remote?)', err instanceof Error ? err.message : 'unknown');
+    return NEEDS_DB_UPDATE;
+  }
   if (saved) {
     try {
       return { ok: true, app: { clientId: saved.client_id, clientSecret: await decryptToken(saved.client_secret, key) } };
@@ -153,6 +169,8 @@ export async function appFor(env: Env, instance: string, redirectUri: string): P
     json: { client_name: 'Vane', redirect_uris: redirectUri, scopes: MASTODON_SCOPES, website: 'https://vaneapp.dev' },
   });
   if (!r.ok) {
+    console.error('mastodon app registration failed', instance, r.status, r.message);   // the real reason, for Cloudflare's real-time logs
+    if (r.redirected) return { ok: false, network: false, error: `${instance} sends visitors to another address. Enter the address your Mastodon server really uses.` };
     return r.network || r.status >= 500
       ? { ok: false, network: true, error: `Could not reach ${instance}. Check the address and try again.` }
       : { ok: false, network: false, error: `${instance} did not accept Vane. Is it a Mastodon server?` };
@@ -161,13 +179,18 @@ export async function appFor(env: Env, instance: string, redirectUri: string): P
   if (typeof clientId !== 'string' || typeof clientSecret !== 'string' || !clientId || !clientSecret) {
     return { ok: false, network: false, error: `${instance} did not answer like a Mastodon server.` };
   }
-  await env.DB
-    .prepare(
-      `INSERT INTO mastodon_apps (instance, redirect_uri, client_id, client_secret, created_at) VALUES (?1, ?2, ?3, ?4, ?5)
-       ON CONFLICT(instance, redirect_uri) DO UPDATE SET client_id = ?3, client_secret = ?4, created_at = ?5`,
-    )
-    .bind(instance, redirectUri, clientId, await encryptToken(clientSecret, key), Math.floor(Date.now() / 1000))
-    .run();
+  try {
+    await env.DB
+      .prepare(
+        `INSERT INTO mastodon_apps (instance, redirect_uri, client_id, client_secret, created_at) VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT(instance, redirect_uri) DO UPDATE SET client_id = ?3, client_secret = ?4, created_at = ?5`,
+      )
+      .bind(instance, redirectUri, clientId, await encryptToken(clientSecret, key), Math.floor(Date.now() / 1000))
+      .run();
+  } catch (err) {
+    console.error('mastodon_apps not writable (run npm run db:remote?)', err instanceof Error ? err.message : 'unknown');
+    return NEEDS_DB_UPDATE;
+  }
   return { ok: true, app: { clientId, clientSecret } };
 }
 

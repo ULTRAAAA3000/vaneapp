@@ -16,6 +16,8 @@ import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env } from '../types';
 import { fail } from './api/lib/http';
 import { productUrl, siteOf } from './api/lib/hosts';
+import { clientOf } from './api/lib/guard';
+import { shieldAfter, shieldBefore, withApiHeaders } from './api/lib/shield';
 
 const VIDEO_API = ['/api/video/', '/api/v1/video/'];
 
@@ -24,7 +26,7 @@ const STUDIO_API = [...VIDEO_API, '/api/auth/', '/api/keys'];
 
 const startsWithAny = (path: string, prefixes: string[]): boolean => prefixes.some((p) => path === p.replace(/\/$/, '') || path.startsWith(p.endsWith('/') ? p : `${p}/`));
 
-export const onRequest: PagesFunction<Env> = async ({ request, env, next }) => {
+const route: PagesFunction<Env> = async ({ request, env, next }) => {
   const url = new URL(request.url);
   const site = siteOf(url.hostname);
   if (site === 'other') return next();
@@ -32,6 +34,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, next }) => {
   const path = url.pathname;
   const page = request.method === 'GET' || request.method === 'HEAD';
   const here = (p: string): string => new URL(p, url).toString();
+  const keepQuery = (target: string): string => target + url.search;   // /app?connect=mastodon&status=ok must survive the forward
   const rewrite = (p: string): Promise<Response> => env.ASSETS.fetch(new Request(here(p), request));
 
   // ── API: each host serves only what belongs to its product
@@ -45,15 +48,46 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, next }) => {
   if (!page) return next();
   if (site === 'post') {
     if (path === '/') return rewrite('/app');
-    if (path === '/app') return Response.redirect(here('/'), 308);
-    if (path === '/studio') return Response.redirect(productUrl('studio'), 308);
+    if (path === '/app') return Response.redirect(keepQuery(here('/')), 308);
+    if (path === '/studio') return Response.redirect(keepQuery(productUrl('studio')), 308);
   } else if (site === 'studio') {
     if (path === '/') return rewrite('/studio');
-    if (path === '/studio') return Response.redirect(here('/'), 308);
-    if (path === '/app') return Response.redirect(productUrl('post'), 308);
+    if (path === '/studio') return Response.redirect(keepQuery(here('/')), 308);
+    if (path === '/app') return Response.redirect(keepQuery(productUrl('post')), 308);
   } else {
-    if (path === '/app') return Response.redirect(productUrl('post'), 308);
-    if (path === '/studio') return Response.redirect(productUrl('studio'), 308);
+    if (path === '/app') return Response.redirect(keepQuery(productUrl('post')), 308);
+    if (path === '/studio') return Response.redirect(keepQuery(productUrl('studio')), 308);
   }
   return next();
+};
+
+/**
+ * Safety net for the API: anything a route throws (a missing table, a failing network call nobody caught) becomes a JSON answer with
+ * a sentence the page can show, instead of the platform's own HTML error page ("Request failed (502)" in the dashboard). The real
+ * reason goes to the log (Cloudflare → Pages → Functions → Real-time logs). Pages (non-API) keep their normal behaviour.
+ */
+export const onRequest: PagesFunction<Env> = async (context) => {
+  const url = new URL(context.request.url);
+  const isApi = url.pathname.startsWith('/api/');
+  const client = clientOf(context.request);
+  try {
+    if (isApi) {
+      // The shield (functions/api/lib/shield.ts): cheap refusals before any route code runs.
+      const refused = await shieldBefore(context.env, context.request, url.pathname, client);
+      if (refused) return withApiHeaders(refused);
+    }
+    const res = await route(context);
+    if (!isApi) return res;
+    // probes leave errors behind: count them (after the answer is on its way)
+    context.waitUntil(shieldAfter(context.env, context.request, url.pathname, res.status, client));
+    return withApiHeaders(res);
+  } catch (err) {
+    const pathname = url.pathname;
+    if (!isApi) throw err;
+    const msg = err instanceof Error ? `${err.name}: ${err.message}` : 'unknown error';
+    console.error(`unhandled error in ${context.request.method} ${pathname}: ${msg}`);
+    // A table or column the code expects is not in the database yet: the schema has not been applied (npm run db:remote).
+    if (/no such (table|column)/i.test(msg)) return withApiHeaders(fail(503, 'The server database needs one update (npm run db:remote). Please try again later.'));
+    return withApiHeaders(fail(500, 'Something went wrong on our side. Please try again in a moment.'));
+  }
 };

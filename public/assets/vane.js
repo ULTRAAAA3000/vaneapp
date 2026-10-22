@@ -41,29 +41,6 @@
   };
 
   /**
-   * The Vane Post | Vane Studio switch in a dashboard's header. The page holds
-   *   <nav id="productSwitch" data-current="post|studio"></nav>
-   * and this fills it: the product you are in is marked, the other one is a link to its dashboard (one account, one sign-in).
-   */
-  var PRODUCTS = [
-    { id: 'post', name: 'Vane Post', short: 'Post', hint: 'Schedule posts',
-      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>' },
-    { id: 'studio', name: 'Vane Studio', short: 'Studio', hint: 'Your videos',
-      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M10 9l5 3-5 3z"/></svg>' }
-  ];
-  function mountProductSwitch() {
-    var nav = document.getElementById('productSwitch');
-    if (!nav) return;
-    var current = nav.getAttribute('data-current');
-    nav.innerHTML = '<div class="pswitch">' + PRODUCTS.map(function (p) {
-      var inner = p.icon + '<span class="pswitch-name">' + p.short + '</span>';
-      return p.id === current
-        ? '<span aria-current="page" title="' + p.name + '">' + inner + '</span>'
-        : '<a href="' + Vane.productUrl(p.id) + '" title="Open ' + p.name + ': ' + p.hint + '" aria-label="Open ' + p.name + '">' + inner + '</a>';
-    }).join('') + '</div>';
-  }
-
-  /**
    * "Home" is the main site (the landing page). On post. and studio. the address "/" is that product's own dashboard,
    * so a logo or "Back to site" link must point at the main site explicitly. Mark such links with data-site-home.
    */
@@ -72,7 +49,28 @@
     var links = document.querySelectorAll('a[data-site-home]');
     for (var i = 0; i < links.length; i++) links[i].setAttribute('href', Vane.siteHome());
   }
-  function onReady() { wireHomeLinks(); mountProductSwitch(); }
+  /** Links marked data-product-link="post|studio" point at that product's dashboard (its own host in production). */
+  function wireProductLinks() {
+    var links = document.querySelectorAll('a[data-product-link]');
+    for (var i = 0; i < links.length; i++) links[i].setAttribute('href', Vane.productUrl(links[i].getAttribute('data-product-link')));
+  }
+
+  /**
+   * Smooth hand-off between the two dashboards: the page fades out here and the other one fades in (its #app starts hidden).
+   * Links marked data-handoff (the hand-off cards) get it; a modified click (new tab) or reduced motion goes straight through.
+   */
+  function wireHandoff() {
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest ? e.target.closest('a[data-handoff]') : null;
+      if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      e.preventDefault();
+      document.documentElement.classList.add('is-leaving');
+      setTimeout(function () { Vane.go(a.href); }, 220);
+    });
+    window.addEventListener('pageshow', function () { document.documentElement.classList.remove('is-leaving'); });   // back button restores the page
+  }
+  function onReady() { wireHomeLinks(); wireProductLinks(); wireHandoff(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', onReady); else onReady();
 
   /**
@@ -96,7 +94,8 @@
     try { data = await res.json(); } catch (e) { /* non-JSON */ }
     if (res.status === 401 && !opts.noRedirect) Vane.go(Vane.loginUrl());
     var ok = res.ok && !(data && data.ok === false);
-    return { ok: ok, status: res.status, data: data, error: ok ? null : ((data && data.error) || 'Request failed (' + res.status + ')') };
+    var gateway = res.status === 502 || res.status === 503 || res.status === 504;   // the platform's own error page: no JSON from us
+    return { ok: ok, status: res.status, data: data, error: ok ? null : ((data && data.error) || (gateway ? 'The server is not answering right now. Please try again in a moment.' : 'Request failed (' + res.status + ')')) };
   };
 
   /**

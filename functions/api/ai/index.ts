@@ -83,13 +83,17 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     reservation = await reserveAiGeneration(env, auth.userId, sub, now);
     if (!reservation.ok) {
       const usage = await usageSummary(env, auth.userId, sub, now);
-      return failCode(
-        402, reservation.code,
-        reservation.code === 'ai_quota_exceeded'
-          ? `You have used all ${usage.ai.limit} AI credits. They renew with your plan period, or turn on extra-usage billing in your plan.`
-          : 'Your plan has no AI credits. The free tools (Make it clean, hashtags) still work; choose a plan with the AI Pass for the rest.',
-        { ai: usage.ai },
-      );
+      const ai = usage.ai;
+      const message = reservation.code === 'ai_quota_exceeded'
+        ? ai.extra.rateUsd !== null
+          ? `You have used all your AI credits. Turn on "Pay for extra credits" under the editor to keep going at $${ai.extra.rateUsd} each, or wait for the next period.`
+          : 'You have used all your AI credits. They renew with your plan period.'
+        : ai.offer
+          ? `AI Pass gives you ${ai.offer.credits} AI credits a month for $${ai.offer.priceUsd}. Make it clean and hashtags stay free.`
+          : ai.perGenerationUsd
+            ? `On your plan every AI Pass generation costs $${ai.perGenerationUsd}, and extra-usage billing is not switched on for your account yet, so it cannot run. Make it clean and hashtags are free.`
+            : 'Your plan has no AI credits. The free tools (Make it clean, hashtags) still work; choose a plan with the AI Pass for the rest.';
+      return failCode(402, reservation.code, message, { ai });
     }
   }
 

@@ -74,6 +74,10 @@ export async function connectVideoChannel(_env: Env, _userId: string, body: unkn
 
 export async function removeVideoChannel(env: Env, userId: string, id: string): Promise<Response> {
   if (!UUID_RE.test(id)) return fail(404, 'Channel not found');
-  const res = await env.DB.prepare('DELETE FROM video_channels WHERE id = ?1 AND user_id = ?2').bind(id, userId).run();
-  return res.meta.changes === 1 ? json({ ok: true }) : fail(404, 'Channel not found');
+  // Look first, then delete: the database also counts the rows changed by cascades (a channel's publications keep their history,
+  // their channel_id is set to NULL), so a count of exactly 1 cannot be relied on to say "it existed".
+  const row = await env.DB.prepare('SELECT id FROM video_channels WHERE id = ?1 AND user_id = ?2').bind(id, userId).first<{ id: string }>();
+  if (!row) return fail(404, 'Channel not found');
+  await env.DB.prepare('DELETE FROM video_channels WHERE id = ?1 AND user_id = ?2').bind(id, userId).run();
+  return json({ ok: true });
 }

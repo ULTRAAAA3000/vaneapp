@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Terms of Service — Vane</title>
+  <meta name="description" content="The terms that apply when you use Vane Post, Vane Studio, the Vane API and the AI features." />
+  <meta name="robots" content="index, follow" />
+  <meta name="theme-color" content="#070708" />
+  <link rel="canonical" href="https://vaneapp.dev/terms" />
+  <link rel="icon" href="/favicon.ico" sizes="32x32" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/assets/vane.css?v=20261017" />
+  <style>
+    html { scroll-behavior: smooth; }
+    .doc h2 { margin-top: 2.5rem; padding-top: .25rem; font-size: 1.2rem; font-weight: 600; letter-spacing: -.01em; scroll-margin-top: 1.5rem; }
+    .doc h3 { margin-top: 1.5rem; font-size: .95rem; font-weight: 600; color: rgba(255,255,255,.9); }
+    .doc p, .doc li { margin-top: .6rem; font-size: .92rem; line-height: 1.75; color: rgba(255,255,255,.68); }
+    .doc ul, .doc ol { margin-top: .4rem; padding-left: 1.2rem; }
+    .doc ul { list-style: disc; }
+    .doc ol { list-style: decimal; }
+    .doc li::marker { color: rgba(255,255,255,.35); }
+    .doc b, .doc strong { color: #fff; font-weight: 600; }
+    .doc a { color: #fff; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(255,255,255,.3); }
+    .doc a:hover { text-decoration-color: #fff; }
+    .doc code { font-size: .82rem; padding: .05rem .35rem; border-radius: 6px; background: rgba(255,255,255,.07); color: rgba(255,255,255,.85); }
+    .doc .table-wrap { margin-top: .9rem; overflow-x: auto; border: 1px solid rgba(255,255,255,.08); border-radius: 14px; }
+    .doc table { width: 100%; border-collapse: collapse; min-width: 34rem; }
+    .doc th, .doc td { padding: .65rem .85rem; text-align: left; vertical-align: top; font-size: .84rem; line-height: 1.6; border-bottom: 1px solid rgba(255,255,255,.06); color: rgba(255,255,255,.66); }
+    .doc th { font-size: .68rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: rgba(255,255,255,.4); background: rgba(255,255,255,.03); }
+    .doc tr:last-child td { border-bottom: 0; }
+    .doc td:first-child { color: #fff; font-weight: 500; white-space: nowrap; }
+    .box { margin-top: 1.25rem; padding: 1rem 1.15rem; border-radius: 16px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); }
+    .box p, .box li { margin-top: .4rem; }
+    .box > :first-child { margin-top: 0; }
+    .toc { margin-top: 1.5rem; columns: 2; column-gap: 2rem; }
+    @media (max-width: 640px) { .toc { columns: 1; } }
+    .toc li { margin-top: .3rem; font-size: .85rem; break-inside: avoid; }
+    .toc a { text-decoration: none; color: rgba(255,255,255,.6); }
+    .toc a:hover { color: #fff; }
+    .todo { background: rgba(251,191,36,.14); color: #fcd34d; border-radius: 6px; padding: 0 .35rem; white-space: normal; }
+    @media print { body { background: #fff !important; color: #000 !important; } .doc *, .doc a { color: #000 !important; } header, footer, .fixed { display: none !important; } }
+  </style>
+</head>
+
+<body class="min-h-screen overflow-x-hidden bg-[#070708] text-white">
+  <div class="fixed inset-0 bg-gradient-to-b from-white/[0.04] via-transparent to-transparent" aria-hidden="true"></div>
+  <div class="relative z-10 flex min-h-screen flex-col">
+    <header class="flex items-center justify-between px-5 py-5 sm:px-8 sm:py-6 lg:px-12">
+      <a href="/" class="text-lg font-semibold" aria-label="Vane home">vane</a>
+      <a href="/login" class="btn btn-ghost btn-sm">Sign in</a>
+    </header>
+    <main class="mx-auto w-full max-w-3xl flex-1 px-5 pb-20 sm:px-8">
+      <div class="glass-d rounded-3xl p-6 sm:p-10 doc">
+
+        <h1 class="text-3xl font-semibold tracking-tight">Terms of Service</h1>
+        <p class="!mt-2 text-xs !text-white/40">Effective: <span class="todo">[EFFECTIVE DATE]</span> · Applies to vaneapp.dev, post.vaneapp.dev, studio.vaneapp.dev and the Vane API</p>
+        <nav aria-label="Contents"><ol class="toc"><li><a href="#agreement">1. The agreement</a></li><li><a href="#eligibility">2. Who may use Vane</a></li><li><a href="#services">3. The services</a></li><li><a href="#account">4. Your account and API keys</a></li><li><a href="#networks">5. Connecting social networks</a></li><li><a href="#content">6. Your content</a></li><li><a href="#use">7. Acceptable use</a></li><li><a href="#api">8. API, webhooks and connectors</a></li><li><a href="#ai">9. AI features</a></li><li><a href="#billing">10. Plans, billing and payments</a></li><li><a href="#availability">11. Availability, changes and support</a></li><li><a href="#ip">12. Our intellectual property</a></li><li><a href="#third">13. Third-party services</a></li><li><a href="#termination">14. Ending the agreement</a></li><li><a href="#warranty">15. Warranties and liability</a></li><li><a href="#law">16. Governing law and disputes</a></li><li><a href="#changes">17. Changes to these terms</a></li><li><a href="#general">18. General</a></li><li><a href="#contact">19. Contact</a></li></ol></nav>
+
+        <h2 id="agreement">1. The agreement</h2>
+        <p>These Terms are a contract between you and <span class="todo">[OPERATOR NAME]</span>, <span class="todo">[OPERATOR ADDRESS]</span> (<span class="todo">[REGISTRATION / VAT NUMBER, if any]</span>) (“Vane”, “we”, “us”). They apply to your use of Vane Post, Vane Studio, Vane Suite, the Vane API, our connectors and plugins, the AI features and our websites (together, the “Services”). By creating an account, connecting a network, using an API key or otherwise using the Services you accept these Terms and our <a href="/privacy">Privacy Policy</a>. If you use Vane for a company, you accept them for that company and confirm you are allowed to.</p>
+        <div class="box"><p>The short version: use Vane for your own legitimate posting; keep your keys safe; follow each network’s rules; you own your content; AI suggestions are yours to check; pay for what your plan does not include; we may suspend abuse; and our liability is limited as set out in section 15.</p></div>
+
+        <h2 id="eligibility">2. Who may use Vane</h2>
+        <p>You must be at least 16 years old (or older if the law where you live requires it to enter a binding contract or to consent to the processing of your data), and not barred from using the Services under applicable law. One person or company may hold one free account; you may not create more to get around limits.</p>
+
+        <h2 id="services">3. The services</h2>
+        <ul>
+          <li><b>Vane Post</b> schedules and publishes text and image posts to the networks you connect (for example Telegram, X, LinkedIn, Threads, Bluesky and Mastodon), with a preview, a calendar and a media library.</li>
+          <li><b>Vane Studio</b> uploads videos and publishes them to video networks (for example YouTube, TikTok and Instagram) and can announce a published video in your Vane Post channels.</li>
+          <li><b>Vane Suite</b> gives both together.</li>
+          <li>The <b>Vane API</b>, webhooks and connectors (Make, Zapier, custom GPTs, Claude, WordPress and others) give programmatic access to the same features.</li>
+          <li>The <b>AI features</b> help you write, reformat and describe content.</li>
+        </ul>
+        <p>Which features, limits and prices apply to you is set by your plan (section 10). A feature marked “Soon”, “Beta” or “Early access” may be incomplete, may change or be removed, and may depend on a network approving Vane. Vane is an independent service: we are not affiliated with, endorsed by or sponsored by Telegram, X, LinkedIn, Meta (Threads, Instagram), Google (YouTube), TikTok, Bluesky, Mastodon or any other network, and their names belong to their owners.</p>
+
+        <h2 id="account">4. Your account and API keys</h2>
+        <ul>
+          <li>Give us accurate information and keep it up to date. Keep your password, sign-in codes and API keys secret. A key is shown once: store it safely and revoke it at once if it may have leaked.</li>
+          <li>You are responsible for everything done through your account and your keys, including by tools, plugins and AI agents you connect, and by teammates you invite.</li>
+          <li>Tell us promptly at <span class="todo">[CONTACT EMAIL]</span> if you think your account has been compromised.</li>
+        </ul>
+
+        <h2 id="networks">5. Connecting social networks</h2>
+        <p>When you connect an account you authorize Vane to act for you on that network, only as far as the permission you grant allows, and to store the sign-in encrypted so it can publish at the time you chose. You confirm that you are entitled to connect it and to publish there.</p>
+        <ul>
+          <li>The network’s own terms and policies apply to everything you publish through Vane (for example the terms of Telegram, X, LinkedIn, Meta and Threads, Google and YouTube, TikTok, Bluesky and your Mastodon server). You are responsible for complying with them, including rules on automation, frequency, advertising and sponsored-content disclosure.</li>
+          <li>Networks control their APIs. They may limit, change, suspend or end access, expire sign-ins (a LinkedIn or Threads sign-in lasts about 60 days, and Vane will ask you to reconnect) or reject a post. We do not control that and are not responsible when it affects delivery, but we will show you the reason when we know it.</li>
+          <li>You can disconnect at any time in Vane or in the network’s settings. Posts still waiting for a disconnected channel are cancelled.</li>
+        </ul>
+
+        <h2 id="content">6. Your content</h2>
+        <p>“Your content” is what you create, upload or send through the Services: text, pictures, videos, thumbnails, titles, tags and similar. <b>You own it.</b> You give us a limited, worldwide, non-exclusive, royalty-free licence to host, store, process, copy, transmit and display it only as needed to run the Services for you: to schedule and publish it to the networks you choose, to generate previews and thumbnails, to keep backups, and to protect the Services. The licence ends when you delete the content or your account (subject to backups, section 10 of the Privacy Policy).</p>
+        <p>You promise that you have the rights needed for your content (including music, images and video from others), that it does not break the law or anyone’s rights, and that publishing it breaks no network rule. We do not review content before it is published, but we may remove or block it, and suspend the account, when it breaches these Terms or we are told it is unlawful.</p>
+        <p><b>Links to files.</b> A picture attached to a post is served from a long random address that anyone who has the address can open, because the networks have to download it; do not attach anything you want kept private. A video in your Vane Studio library is private to you unless you create a public link, which you can delete at any time.</p>
+
+        <h2 id="use">7. Acceptable use</h2>
+        <p>You must not use the Services to:</p>
+        <ul>
+          <li>break the law, or publish content that is illegal, infringing, deceptive, harassing, hateful, sexually exploitative of minors, or that incites violence or self-harm;</li>
+          <li>send spam, run fake or purchased engagement, impersonate others, or run coordinated inauthentic accounts;</li>
+          <li>spread malware, phishing or scams, or collect personal data without a lawful basis;</li>
+          <li>break a network’s terms, bypass its limits, or use Vane to evade a suspension or a ban;</li>
+          <li>probe, scan or test the Services for weaknesses without our written permission, overload them, bypass rate limits, quotas or protection, or reverse engineer them except where the law allows;</li>
+          <li>create multiple accounts to multiply a free quota, share one key among unrelated people, or resell access to the API without our agreement;</li>
+          <li>point a webhook at an address that is not yours, or use Vane to attack a third party.</li>
+        </ul>
+        <p>If you find a security problem, please report it to <span class="todo">[CONTACT EMAIL]</span> and give us a reasonable time to fix it before disclosing it. We use automated protection that can slow or block addresses that look abusive; if it blocks you by mistake, write to us. We may investigate, remove content, suspend or end accounts for breaches, and cooperate with authorities.</p>
+
+        <h2 id="api">8. API, webhooks and connectors</h2>
+        <ul>
+          <li>API keys come in separate kinds for the text engine and the video engine and work only for what your plan includes. Quotas and rate limits apply per plan and per key; requests above them are refused or, if you have switched overage on, charged at the published rate.</li>
+          <li>Test-mode keys simulate responses and do not publish or use your quota.</li>
+          <li>A webhook is an address you control. We call it with signed events and retry failed deliveries for a limited time. Keep the endpoint secure and verify the signature. We do not guarantee that an event is delivered, or delivered only once or in order.</li>
+          <li>Connectors from Make, Zapier, OpenAI, Anthropic, WordPress and others are run by those companies under their terms. When you connect one with your key, what it does is your act.</li>
+          <li>We may add, change or retire API versions and endpoints. For a change that breaks existing integrations we will give reasonable notice, normally at least 30 days, unless security or the law requires faster action.</li>
+        </ul>
+
+        <h2 id="ai">9. AI features</h2>
+        <p>AI output is generated by a model and can be inaccurate, biased, out of date, offensive or similar to existing material. You must read it before you publish, and you are responsible for what you publish, including that it complies with these Terms, the law and each network’s rules (some networks require AI-generated content to be labelled). We do not promise that output is original or free of third-party rights. Do not rely on it for legal, medical, financial or other professional advice. We do not use your content to train AI models (see the Privacy Policy). AI features may be limited by credits or a fair-use threshold in your plan, and may be unavailable at times.</p>
+
+        <h2 id="billing">10. Plans, billing and payments</h2>
+        <h3>Plans</h3>
+        <p>We offer a <b>Free Trial</b> (no card needed, with a lifetime quota of posts, a small number of channels and a few AI credits), a <b>Developer API</b> plan, <b>Vane Post</b>, <b>Vane Studio</b> and the <b>Vane Suite</b> bundle, and an <b>API add-on</b> for the Pro plans. What each includes, its price and the rate for usage beyond the included amount are shown on the pricing page and at checkout when you buy; those figures form part of this agreement. The trial may be limited, changed or withdrawn, and we may block repeated or abusive trial sign-ups.</p>
+        <h3>Charges</h3>
+        <ul>
+          <li>Subscriptions are billed in advance for the period you choose (monthly or yearly). Depending on the payment method you choose, a subscription either renews automatically until you cancel, or runs for the paid period and must be renewed by you; checkout tells you which, and we remind you before a period that does not renew by itself ends.</li>
+          <li>Usage beyond what your plan includes (for example extra posts or AI posts) is charged at the published rate only if you have enabled overage. Otherwise the request is refused.</li>
+          <li>Prices are shown in the currency at checkout. They include or exclude VAT and similar taxes as shown there; we collect them where the law requires. You are responsible for other taxes and for payment-provider or network fees you incur.</li>
+          <li>We may change prices for future periods with at least 30 days’ notice. A price change does not affect a period you have already paid.</li>
+        </ul>
+        <h3>Payment methods</h3>
+        <p>We accept the methods listed at checkout, which at launch are payment cards, Apple Pay and Google Pay through our card acquirer, and direct on-chain payments in stablecoins. Card data is handled by the provider, not by us. For an on-chain payment you must send the exact amount, on the network and to the address shown, with the payment reference we give you. On-chain transfers are irreversible: a payment sent to the wrong address or network, in the wrong amount or without the reference may not be recoverable and may not activate your plan; write to us and we will help where we can, but we cannot promise a refund for a transfer made against these instructions. Network fees are paid by you.</p>
+        <h3>Cancelling and refunds</h3>
+        <p>You can cancel at any time; you keep access until the end of the period you paid for, and we do not charge further periods. Fees are charged in advance and are not refunded for a part-used period, except where the law gives you a right to a refund or we state otherwise at checkout. If you are a consumer in the EU or the UK, you have a 14-day right to withdraw from a distance contract; by buying a plan and asking for it to start at once, you agree that we begin providing the digital service immediately and that you lose the right of withdrawal once it has been fully provided, or lose it in part for the portion already used, as the law allows. Opening a card dispute instead of contacting us may lead to suspension while it is resolved.</p>
+        <h3>Failed payments</h3>
+        <p>If a payment fails or is reversed we may retry it, give you a short period to fix it, and then move the account to the free level, which may remove access to paid features and quotas. Scheduled posts that your plan no longer allows may be cancelled.</p>
+
+        <h2 id="availability">11. Availability, changes and support</h2>
+        <p>We work to keep the Services running and publishing on time, but we do not promise uninterrupted or error-free operation, and we offer no service-level commitment unless we have agreed one with you in writing. We may carry out maintenance, and change, add or remove features. Posts depend on the networks’ own availability. Keep your own copy of anything important: we are not a backup service. Support is available at <span class="todo">[CONTACT EMAIL]</span>.</p>
+
+        <h2 id="ip">12. Our intellectual property</h2>
+        <p>The Services, including software, design, text, logos and the Vane name, belong to us or our licensors and are protected by law. We give you a personal, non-exclusive, non-transferable right to use them under these Terms; nothing else is transferred. If you send us feedback or ideas we may use them without obligation to you. Parts of the Services use open-source software under its own licences. To report content you believe infringes your rights, write to <span class="todo">[CONTACT EMAIL]</span> with the details; we may remove it and, for repeat infringers, end the account.</p>
+
+        <h2 id="third">13. Third-party services</h2>
+        <p>The Services work with and link to services we do not control (social networks, payment providers, Cloudflare, Resend, AI and automation platforms). We are not responsible for them, for their content, or for changes to their terms or APIs.</p>
+
+        <h2 id="termination">14. Ending the agreement</h2>
+        <p>You may stop using Vane at any time and ask us to delete your account (see <a href="/data-deletion">Data deletion</a>). We may suspend or end your access, with notice where reasonable, if you breach these Terms, if your use creates a legal, security or reputational risk, if a payment is not made, if a network or authority requires it, or if a free account has been inactive for <span class="todo">[INACTIVITY PERIOD for free accounts]</span>. When the agreement ends your right to use the Services stops, your content and connections are deleted as set out in the Privacy Policy, and sections that by their nature should survive (including 6, 12, 15, 16 and 18) continue.</p>
+
+        <h2 id="warranty">15. Warranties and liability</h2>
+        <p>The Services are provided <b>“as is” and “as available”</b>. To the extent the law allows, we disclaim all warranties not stated here, including fitness for a particular purpose and non-infringement, and we do not warrant that posts will be published, or published at a given moment, or that the Services will be free of errors.</p>
+        <p>To the extent the law allows, we are not liable for indirect, incidental, special, consequential or punitive damages, or for loss of profit, revenue, audience, goodwill or data, arising from your use of the Services, including because a network rejected, delayed or removed a post. Our total liability for all claims relating to the Services is limited to the greater of the fees you paid us in the 12 months before the event and USD 100.</p>
+        <p>Nothing in these Terms limits liability that cannot be limited by law, such as for fraud, for death or personal injury caused by negligence, or your mandatory rights as a consumer.</p>
+        <p>If you use the Services for a business, you will compensate us for claims and costs arising from your content, your breach of these Terms or your violation of the law or a third party’s rights.</p>
+
+        <h2 id="law">16. Governing law and disputes</h2>
+        <p>These Terms are governed by the law of <span class="todo">[GOVERNING LAW]</span>, without regard to conflict-of-laws rules. The courts of <span class="todo">[COURTS / VENUE]</span> have exclusive jurisdiction, except that if you are a consumer you keep the protection of the mandatory laws of the country where you live and may bring a claim in the courts there. Please contact us first at <span class="todo">[CONTACT EMAIL]</span>: most issues are solved quickly.</p>
+
+        <h2 id="changes">17. Changes to these terms</h2>
+        <p>We may update these Terms, for example when we add a feature or the law changes. For a change that matters we will notify you in the dashboard or by email at least 30 days before it takes effect (sooner if the law or security requires). If you do not agree, you may cancel before then; if you keep using the Services after the date, you accept the new Terms.</p>
+
+        <h2 id="general">18. General</h2>
+        <ul>
+          <li><b>Entire agreement.</b> These Terms, the Privacy Policy and the plan details shown at checkout are the whole agreement; they replace earlier ones.</li>
+          <li><b>If a part is invalid,</b> the rest stays in force. Not enforcing a right is not giving it up.</li>
+          <li><b>Assignment.</b> You may not transfer your account or rights without our consent; we may transfer ours to a successor of the business.</li>
+          <li><b>Events beyond our control</b> (for example outages of infrastructure or network providers, or acts of authorities) excuse delay or failure to the extent they cause it.</li>
+          <li><b>Notices.</b> We may notify you by email, in the dashboard or on this site. You may write to us at the address below.</li>
+          <li><b>Language.</b> The English version governs; translations are for convenience.</li>
+        </ul>
+
+        <h2 id="contact">19. Contact</h2>
+        <p><span class="todo">[OPERATOR NAME]</span><br/><span class="todo">[OPERATOR ADDRESS]</span><br/>Email: <span class="todo">[CONTACT EMAIL]</span></p>
+      </div>
+    </main>
+    <footer class="px-5 pb-10 text-center text-xs text-white/35">
+      <a href="/privacy" class="hover:text-white">Privacy</a> · <a href="/terms" class="hover:text-white">Terms</a> · <a href="/data-deletion" class="hover:text-white">Data deletion</a> · <a href="/" class="hover:text-white">vaneapp.dev</a>
+    </footer>
+  </div>
+</body>
+</html>
