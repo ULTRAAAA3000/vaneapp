@@ -10,6 +10,7 @@
  *
  * platform: youtube | shorts | tiktok | reels. One generation = one credit of the monthly allowance, given back when the model fails.
  */
+import { withAiContext } from '../lib/aimeter';
 import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env } from '../../../types';
 import { AiError, TONES, type Tone } from '../lib/ai';
@@ -79,9 +80,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   try {
     let result: Record<string, unknown>;
-    if (tool === 'script') result = { ...(await toolScript(env, text, platform, clampSeconds(platform, seconds), tone)) };
-    else if (tool === 'metadata') result = { ...(await toolMetadata(env, text, platform)) };
-    else result = { chapters: await toolChapters(env, text, seconds as number) };
+    // every model call made below lands in the AI token ledger (/admin → AI) under this user and "video-<tool>"
+    const metered = withAiContext(env, { userId: auth.userId, tool: `video-${tool}` });
+    if (tool === 'script') result = { ...(await toolScript(metered, text, platform, clampSeconds(platform, seconds), tone)) };
+    else if (tool === 'metadata') result = { ...(await toolMetadata(metered, text, platform)) };
+    else result = { chapters: await toolChapters(metered, text, seconds as number) };
     return json({ ok: true, tool, platform, ...result, ai: await videoAiUsage(env, auth.userId, now) });
   } catch (err) {
     await releaseVideoAi(env, auth.userId, now);
