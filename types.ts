@@ -14,6 +14,8 @@ export interface Env {
   MEDIA?: R2Bucket;             // optional: uploads are enabled only when the R2 bucket is bound
   /** Local dev and tests only: lets a channel whose credentials say {"mock": …} act as a fake network (see functions/api/lib/videopublishers.ts). Never set in production. */
   VIDEO_PUBLISH_MOCK?: string;
+  /** Local dev and tests only: Vane Studio AI answers with canned text instead of calling Workers AI (see functions/api/lib/videoai.ts). Never set in production. */
+  VIDEO_AI_MOCK?: string;
   /** Cloudflare Workers AI (wrangler.toml [ai]): the AI tools in the editor are off without it */
   /** optional: the Workers AI model id to use instead of the built-in one */
   AI_MODEL?: string;

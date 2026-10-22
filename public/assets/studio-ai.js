@@ -24,7 +24,45 @@
     if (!isFinite(n) || n <= 0) return null;
     return Math.round(long() ? n * 60 : n);
   }
-  function left(ai) { if (ai) $('aiLeft').textContent = ai.remaining + ' of ' + ai.limit + ' generations left this month'; }
+  // ── the allowance: 50 generations per plan period; after that the AI stops, or (the user's choice) goes on at $0.02 each
+  var lastAi = null;
+  function day(sec) { return new Date(sec * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }); }
+  function usd(n) { return '$' + n.toFixed(2); }
+  function left(ai) {
+    if (!ai) return;
+    lastAi = ai;
+    var ov = ai.overage, pct = ai.limit ? Math.min(100, Math.round(ai.used / ai.limit * 100)) : 100;
+    $('aiLeft').textContent = 'Renews ' + day(ai.resetsAt);
+    $('aiPlanLine').textContent = ai.used + ' of ' + ai.limit + ' generations used this plan period' + (ai.bonus ? ' · +' + ai.bonus + ' bonus' : '');
+    var sub;
+    if (ov.enabled) sub = 'Keeping going: every generation after the ' + ai.limit + ' costs ' + usd(ov.priceUsd) + ' and is added to your bill.' + (ov.uses ? ' This period: ' + ov.uses + ' extra, ' + usd(ov.costUsd) + '.' : '') + ' The count starts over on ' + day(ai.resetsAt) + '.';
+    else if (ai.remaining > 0) sub = ai.remaining + ' left. The count starts over on ' + day(ai.resetsAt) + '. When they run out the AI stops, unless you switch on “keep going”.';
+    else sub = 'All used. The count starts over on ' + day(ai.resetsAt) + '. Switch on “keep going” to continue for ' + usd(ov.priceUsd) + ' per generation.';
+    $('aiPlanSub').textContent = sub;
+    $('aiOverageText').textContent = 'Keep going at ' + usd(ov.priceUsd) + ' each';
+    $('aiOverage').checked = !!ov.enabled;
+    $('aiMeter').style.width = pct + '%';
+    $('aiMeter').style.background = window.VaneKeys ? VaneKeys.meterColor(pct) : '';
+    $('aiMeterBox').setAttribute('aria-valuenow', String(Math.min(ai.used, ai.limit)));
+    $('aiMeterBox').setAttribute('aria-valuemax', String(ai.limit));
+  }
+
+  /** Turns "keep going" on or off. Switching it on is a billing decision, so it asks first. Resolves to whether it is on now. */
+  async function setOverage(on) {
+    if (on && lastAi && !window.confirm('Every generation after your ' + lastAi.limit + ' included ones will cost ' + usd(lastAi.overage.priceUsd) + ' and be added to your bill. You can switch this off at any time. Turn it on?')) return false;
+    var r = await Vane.api('PATCH', '/api/video/ai', { overage: on });
+    if (!r.ok) { Vane.toast('err', r.error); return !on; }
+    left(r.data.ai);
+    Vane.toast('ok', on ? 'Extra generations are on: ' + usd(r.data.ai.overage.priceUsd) + ' each' : 'The AI will stop when the included generations are used up');
+    return on;
+  }
+  $('aiOverage').addEventListener('change', async function () {
+    var want = this.checked;
+    this.disabled = true;
+    var now = await setOverage(want);
+    this.disabled = false;
+    this.checked = now;
+  });
   function words() {
     var n = ($('aiScript').value.trim().match(/\S+/g) || []).length;
     $('aiWords').textContent = n ? n + ' words · about ' + Math.round(n / 2.5) + ' s spoken' : '';
@@ -41,7 +79,13 @@
     var r = await Vane.api('POST', '/api/video/ai', body);
     setBusy(false);
     if (r.data && r.data.ai) left(r.data.ai);
-    if (!r.ok) { out.innerHTML = '<p class="text-sm text-red-300">' + esc(r.error) + '</p>'; return null; }
+    if (!r.ok) {
+      var more = r.data && r.data.code === 'ai_quota_exceeded' && lastAi && !lastAi.overage.enabled
+        ? '<button id="aiEnable" type="button" class="btn btn-white btn-sm mt-3">Keep going at ' + usd(lastAi.overage.priceUsd) + ' per generation</button>' : '';
+      out.innerHTML = '<p class="text-sm text-red-300">' + esc(r.error) + '</p>' + more;
+      return null;
+    }
+    if (r.data.charged && r.data.charged.kind === 'overage') Vane.toast('info', 'Extra generation: ' + usd(r.data.charged.costUsd));
     return r.data;
   }
 
@@ -90,7 +134,11 @@
     $('aiOut').dataset.chapters = text;
   });
 
-  $('aiOut').addEventListener('click', function (e) {
+  $('aiOut').addEventListener('click', async function (e) {
+    if (e.target.closest('#aiEnable')) {
+      if (await setOverage(true)) $('aiOut').innerHTML = '<p class="text-sm text-white/65">Extra generations are on. Press the button again to continue.</p>';
+      return;
+    }
     var c = e.target.closest('[data-copy]');
     if (c && window.VaneKeys) { VaneKeys.copyWithToast(c.getAttribute('data-copy'), c.getAttribute('data-label') || 'Text'); return; }
     if (e.target.closest('#aiFill') && meta) {

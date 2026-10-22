@@ -13,6 +13,7 @@
  *
  * This file only exports handlers/helpers (route files: ./quick/start.ts, ./quick/status.ts).
  */
+import { networkOff } from '../lib/networks';
 import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env } from '../../../types';
 import { requireUser } from '../lib/auth';
@@ -54,6 +55,8 @@ export const handleQuickStart: PagesFunction<Env> = async ({ request, env }) => 
   const auth = await requireUser(request, env);
   if (!auth.ok) return auth.response;
   if (!quickConnectAvailable(env)) return fail(503, NOT_AVAILABLE);
+  const paused = await networkOff(env, 'telegram');   // switched off in /admin → Networks
+  if (paused) return paused;
 
   const parsed = await readJson(request, 4096);
   if (!parsed.ok) return parsed.response;

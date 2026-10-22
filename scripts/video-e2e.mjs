@@ -524,6 +524,95 @@ try {
   check('deleting a video removes its publications from the history', sql(`SELECT COUNT(*) AS n FROM video_publications WHERE video_id = '${smallUp.json.videoId}'`)[0].n === 0);
 
   // ───────────────────────────────────────────────────────────────
+  section('Studio AI: 50 generations per plan period, then stop or $0.02 each (needs VIDEO_AI_MOCK=1 locally)');
+  const ai = (body) => http('POST', '/api/video/ai', { ...me, body });
+  const aiGet = async () => (await http('GET', '/api/video/ai', me)).json;
+  const periodEnd = () => sql(`SELECT current_period_end AS e FROM video_subscriptions WHERE user_id = '${u.id}'`)[0].e;
+  const setUsed = (key, used) => sql(`INSERT INTO video_ai_usage (user_id, period, used) VALUES ('${u.id}', '${key}', ${used}) ON CONFLICT(user_id, period) DO UPDATE SET used = ${used}`);
+  const wipeAi = () => { sql(`DELETE FROM video_ai_usage WHERE user_id = '${u.id}'`); sql(`DELETE FROM video_ai_overage WHERE user_id = '${u.id}'`); sql(`DELETE FROM user_ai_bonus WHERE user_id = '${u.id}'`); sql(`DELETE FROM video_ai_settings WHERE user_id = '${u.id}'`); };
+  wipeAi();
+  const g0 = await aiGet();
+  if (!g0?.available) {
+    check('the fake model is on (set VIDEO_AI_MOCK=1 in .dev.vars and restart the dev server)', false, JSON.stringify(g0));
+  } else {
+    check('the allowance is 50 per plan period, starts unused, and says when it renews (the plan\'s end date)', g0.ai.limit === 50 && g0.ai.used === 0 && g0.ai.remaining === 50 && g0.ai.resetsAt === periodEnd(), JSON.stringify(g0.ai));
+    check('by default the AI stops at the limit: extra generations are off, $0.02 each', g0.ai.overage.enabled === false && g0.ai.overage.priceUsd === 0.02 && g0.ai.overage.uses === 0 && g0.ai.overage.costUsd === 0);
+    const a1 = await ai({ tool: 'script', platform: 'shorts', text: 'three guitar mistakes' });
+    check('a generation uses one included credit and is free', a1.status === 200 && /main part of the script/.test(a1.json?.script ?? '') && a1.json?.charged?.kind === 'included' && a1.json?.charged?.costUsd === 0 && a1.json?.ai?.used === 1 && a1.json?.ai?.remaining === 49, JSON.stringify(a1.json));
+
+    const key = `p${periodEnd()}`;
+    setUsed(key, 10);
+    check('a failed generation is given back (included): used stays 10', (await ai({ tool: 'script', platform: 'shorts', text: 'FAIL_NOW' })).status === 502 && (await aiGet()).ai.used === 10);
+    setUsed(key, 49);
+    const race = await Promise.all(Array.from({ length: 5 }, () => ai({ tool: 'script', platform: 'shorts', text: 'idea' })));
+    check('the last included credit goes to exactly ONE of 5 parallel requests; the others stop (402)', race.filter((r) => r.status === 200).length === 1 && race.filter((r) => r.status === 402).length === 4 && (await aiGet()).ai.used === 50, race.map((r) => r.status).join());
+
+    const full = await ai({ tool: 'script', platform: 'shorts', text: 'idea' });
+    check('after 50: 402 ai_quota_exceeded, the message names the limit, the renewal date and the $0.02 option', full.status === 402 && full.json?.code === 'ai_quota_exceeded' && /50 AI generations/.test(full.json.error) && /renew on \d{4}-\d{2}-\d{2}/.test(full.json.error) && /\$0\.02/.test(full.json.error) && full.json.ai?.remaining === 0, JSON.stringify(full.json));
+    check('nothing was charged for the refused request', (await aiGet()).ai.overage.uses === 0);
+
+    check('the switch needs a boolean (400)', (await http('PATCH', '/api/video/ai', { ...me, body: { overage: 'yes' } })).status === 400 && (await http('PATCH', '/api/video/ai', { ...me, body: {} })).status === 400);
+    check('the switch needs a session (401)', (await http('PATCH', '/api/video/ai', { body: { overage: true } })).status === 401);
+    const on = await http('PATCH', '/api/video/ai', { ...me, body: { overage: true } });
+    check('"keep going" is switched on', on.status === 200 && on.json?.ai?.overage?.enabled === true);
+    const o1 = await ai({ tool: 'script', platform: 'shorts', text: 'idea' });
+    check('then the next generation works and costs $0.02 (recorded, included credits stay at 50)', o1.status === 200 && o1.json?.charged?.kind === 'overage' && o1.json?.charged?.costUsd === 0.02 && o1.json.ai.overage.uses === 1 && o1.json.ai.overage.costUsd === 0.02 && o1.json.ai.used === 50, JSON.stringify(o1.json?.ai));
+    const o2 = await ai({ tool: 'metadata', platform: 'youtube', text: 'a script' });
+    check('every further one adds $0.02 (titles + tags + description counts as ONE generation)', o2.status === 200 && Array.isArray(o2.json?.titles) && o2.json.ai.overage.uses === 2 && o2.json.ai.overage.costUsd === 0.04, JSON.stringify(o2.json?.ai));
+    check('a failed extra generation is given back and not billed', (await ai({ tool: 'script', platform: 'shorts', text: 'FAIL_NOW' })).status === 502 && (await aiGet()).ai.overage.uses === 2 && (await aiGet()).ai.overage.costUsd === 0.04);
+    const burst = await Promise.all(Array.from({ length: 5 }, () => ai({ tool: 'script', platform: 'shorts', text: 'idea' })));
+    check('five parallel extras are all counted and billed exactly once ($0.14 in total)', burst.every((r) => r.status === 200) && (await aiGet()).ai.overage.uses === 7 && (await aiGet()).ai.overage.costUsd === 0.14, burst.map((r) => r.status).join());
+
+    const off = await http('PATCH', '/api/video/ai', { ...me, body: { overage: false } });
+    check('switching "keep going" off stops it again at once (402), and the bill does not grow', off.json?.ai?.overage?.enabled === false && (await ai({ tool: 'script', platform: 'shorts', text: 'idea' })).status === 402 && (await aiGet()).ai.overage.costUsd === 0.14);
+
+    sql(`INSERT INTO user_ai_bonus (user_id, credits) VALUES ('${u.id}', 2) ON CONFLICT(user_id) DO UPDATE SET credits = 2`);
+    const b1 = await ai({ tool: 'script', platform: 'shorts', text: 'idea' });
+    check('admin bonus credits are spent after the included ones and before any billing', b1.status === 200 && b1.json?.charged?.kind === 'bonus' && b1.json.ai.bonus === 1 && b1.json.ai.overage.uses === 7);
+    check('a failed generation gives the bonus credit back', (await ai({ tool: 'script', platform: 'shorts', text: 'FAIL_NOW' })).status === 502 && (await aiGet()).ai.bonus === 1);
+    await ai({ tool: 'script', platform: 'shorts', text: 'idea' });
+    check('when the bonus is gone it stops again (402)', (await ai({ tool: 'script', platform: 'shorts', text: 'idea' })).status === 402);
+
+    // reset together with the plan: renewing moves the plan's end date, which starts a new count
+    const newEnd = periodEnd() + 30 * 86400;
+    sql(`UPDATE video_subscriptions SET current_period_end = ${newEnd} WHERE user_id = '${u.id}'`);
+    const renewed = await aiGet();
+    check('when the plan renews the count starts over (0 / 50) and the next renewal date is the new plan end', renewed.ai.used === 0 && renewed.ai.remaining === 50 && renewed.ai.resetsAt === newEnd && renewed.ai.overage.uses === 0 && renewed.ai.overage.costUsd === 0, JSON.stringify(renewed.ai));
+    check('and generating works again', (await ai({ tool: 'script', platform: 'shorts', text: 'idea' })).json?.ai?.used === 1);
+    check('the choice "keep going" survives the renewal (it is the user\'s setting, not the period\'s)', (await aiGet()).ai.overage.enabled === false);
+
+    // a plan without an end date renews on the 1st of every month (UTC)
+    sql(`UPDATE video_subscriptions SET current_period_end = NULL WHERE user_id = '${u.id}'`);
+    const d0 = new Date();
+    const firstNext = Math.floor(Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth() + 1, 1) / 1000);
+    const noEnd = await aiGet();
+    check('with no plan end date it renews on the 1st of next month, UTC', noEnd.ai.resetsAt === firstNext && noEnd.ai.used === 0, `${noEnd.ai.resetsAt} vs ${firstNext}`);
+    sql(`UPDATE video_subscriptions SET current_period_end = ${Math.floor(Date.now() / 1000) + 30 * 86400} WHERE user_id = '${u.id}'`);
+
+    // the numbers belong to the admin: catalog row 'video' → limits { aiCredits, overageAiPostUsd } (no deploy needed to change them)
+    const setTerms = (limits) => sql(`UPDATE plans SET limits = '${limits}' WHERE id = 'video'`);
+    wipeAi();
+    setTerms('{"aiCredits":3,"overageAiPostUsd":0.05}');
+    const t3 = await aiGet();
+    check('the limit and the price come from the catalog (admin → Plans): 3 included, $0.05 each after', t3.ai.limit === 3 && t3.ai.remaining === 3 && t3.ai.overage.priceUsd === 0.05, JSON.stringify(t3.ai));
+    for (let i = 0; i < 3; i++) await ai({ tool: 'script', platform: 'shorts', text: 'idea' });
+    const stop3 = await ai({ tool: 'script', platform: 'shorts', text: 'idea' });
+    check('after the 3 included it stops, and the message names the live numbers (3 generations, $0.05)', stop3.status === 402 && /3 AI generations/.test(stop3.json?.error ?? '') && /\$0\.05/.test(stop3.json?.error ?? ''), stop3.json?.error);
+    await http('PATCH', '/api/video/ai', { ...me, body: { overage: true } });
+    const x5 = await ai({ tool: 'script', platform: 'shorts', text: 'idea' });
+    check('keeping going bills the catalog price ($0.05), not a fixed one', x5.status === 200 && x5.json?.charged?.costUsd === 0.05 && x5.json.ai.overage.costUsd === 0.05, JSON.stringify(x5.json?.charged));
+    wipeAi();
+    setTerms('{"aiCredits":0,"overageAiPostUsd":0.02}');
+    const none = await ai({ tool: 'script', platform: 'shorts', text: 'idea' });
+    check('a plan with 0 included generations stops at once (no free one slips through)', none.status === 402 && sql(`SELECT COUNT(*) AS n FROM video_ai_usage WHERE user_id = '${u.id}'`)[0].n === 0, JSON.stringify(none.json?.code));
+    setTerms('{"aiCredits":-5,"overageAiPostUsd":"free"}');
+    const bad = await aiGet();
+    check('nonsense in the catalog falls back to the defaults (50 and $0.02)', bad.ai.limit === 50 && bad.ai.overage.priceUsd === 0.02, JSON.stringify(bad.ai));
+    setTerms('{"aiCredits":50,"overageAiPostUsd":0.02}');
+  }
+  wipeAi();
+
+  // ───────────────────────────────────────────────────────────────
   section('Switching the Video Engine off');
   videoEngine(u.email, '--off');
   check('a live video key stops working (403 video_engine_required)', (await http('GET', '/api/v1/video/me', { key: (await http('POST', '/api/keys', { ...me, body: { name: 'x', scope: 'video', mode: 'test' } })).json?.secret })).status === 200
@@ -535,6 +624,7 @@ try {
   await http('GET', '/api/video/publications', me);
   const lapsed = await waitFor(lapsedId, (p) => p.status === 'failed');
   check('a publication that was queued before the subscription ended fails with that reason', lapsed?.status === 'failed' && /not active/.test(lapsed.error ?? ''), JSON.stringify(lapsed));
+  check('without Vane Studio the AI and its switch are refused (403)', (await http('GET', '/api/video/ai', me)).status === 403 && (await http('PATCH', '/api/video/ai', { ...me, body: { overage: true } })).status === 403 && (await ai({ tool: 'script', platform: 'shorts', text: 'x' })).status === 403);
   check('without Vane Studio an announcement is refused (403 video_engine_required)', (await ann(me, id, { text: 'Hi {link}', channelIds: [randomUUID()] })).json?.code === 'video_engine_required');
   check('without Vane Studio a public link cannot be made, but it can still be removed', (await http('POST', `/api/video/videos/${id}/link`, me)).json?.code === 'video_engine_required' && (await http('DELETE', `/api/video/videos/${id}/link`, me)).status === 200 && (await fetch(finalLink)).status === 404);
   const gone = id;

@@ -325,7 +325,7 @@ INSERT OR IGNORE INTO plans (id, name, tagline, badge, price_cents, compare_pric
 INSERT OR IGNORE INTO plans (id, name, tagline, price_cents, features, limits, cta_label, coming_soon, is_active, sort) VALUES
   ('video', 'Video Engine', 'Video publishing, end to end.', 899,
    '["YouTube Shorts, TikTok and Instagram Reels","YouTube long-form with custom thumbnails, playlists and tags","Resumable uploads on Cloudflare R2","AI hooks, scripts, descriptions, tags and timestamps"]',
-   '{}', 'Get notified', 1, 0, 40);
+   '{"aiCredits":50,"overageAiPostUsd":0.02}', 'Get notified', 1, 0, 40);
 INSERT OR IGNORE INTO plans (id, kind, name, tagline, price_cents, limits, is_active, sort) VALUES
   ('api-addon', 'addon', 'Need the dashboard and the API?', 'Add the API to Pro for {price} a month. It adds 180 API posts and keeps Pro’s low overage rates.', 299,
    '{"apiPostsPerMonth":180}', 0, 50);
@@ -697,3 +697,74 @@ INSERT OR IGNORE INTO plans (id, name, tagline, price_cents, features, limits, c
   ('suite', 'Vane Suite', 'Vane Post Pro and Vane Studio together.', 1800,
    '["Everything in Vane Post Pro","Everything in Vane Studio","Announce a new video to your social networks in one click"]',
    '{"postsPerMonth":1000,"aiCredits":250,"apiAccess":0,"overagePostUsd":0.015,"overageAiPostUsd":0.045}', 'Get Suite', 0, 0, 45);
+
+-- ═════════════════════ Admin: networks on/off and the AI token ledger ═════════════════════
+
+-- The admin's on/off switch per network (/admin → Networks). No row = the default: ON for a network whose code is
+-- written (lib/networks.ts), OFF otherwise. A network can only be switched on when its code exists, whether or not
+-- the platform's own review / verification has passed (that is tracked in `note`).
+CREATE TABLE IF NOT EXISTS network_flags (
+  network     TEXT    PRIMARY KEY,
+  enabled     INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
+  note        TEXT    NOT NULL DEFAULT '',
+  updated_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_by  TEXT
+);
+
+-- One row per model call: how many tokens the AI features used and what they cost us (/admin → AI).
+-- cost_micro is a snapshot in micro-dollars at the price of that moment, so a later price edit never rewrites history.
+-- estimated = 1 when the provider sent no usage numbers and the tokens are a ~4 characters per token guess.
+CREATE TABLE IF NOT EXISTS ai_usage (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts            INTEGER NOT NULL DEFAULT (unixepoch()),
+  user_id       TEXT,                                       -- null = a system task, not a user's click
+  tool          TEXT    NOT NULL,                           -- 'hashtags', 'tone', … or the name of a future feature
+  model         TEXT    NOT NULL,
+  input_tokens  INTEGER NOT NULL DEFAULT 0,
+  output_tokens INTEGER NOT NULL DEFAULT 0,
+  estimated     INTEGER NOT NULL DEFAULT 0 CHECK (estimated IN (0, 1)),
+  neurons       REAL    NOT NULL DEFAULT 0,                 -- Cloudflare bills Workers AI in neurons (10 000 a day are free)
+  cost_micro    INTEGER NOT NULL DEFAULT 0,
+  ok            INTEGER NOT NULL DEFAULT 1 CHECK (ok IN (0, 1)),
+  ms            INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_ts   ON ai_usage(ts);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_user ON ai_usage(user_id, ts);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_tool ON ai_usage(tool, ts);
+
+-- What a model costs. Edit it in /admin → AI when Cloudflare changes prices or a new model is used; a model with
+-- no row here is still counted in tokens, just shown as "no price set".
+CREATE TABLE IF NOT EXISTS ai_prices (
+  model                 TEXT    PRIMARY KEY,
+  input_usd_per_m       REAL    NOT NULL DEFAULT 0,
+  output_usd_per_m      REAL    NOT NULL DEFAULT 0,
+  input_neurons_per_m   REAL    NOT NULL DEFAULT 0,
+  output_neurons_per_m  REAL    NOT NULL DEFAULT 0,
+  updated_at            INTEGER NOT NULL DEFAULT (unixepoch())
+);
+-- developers.cloudflare.com/workers-ai/platform/pricing (page updated 2026-10-20, checked 2026-10-21). Set AI_MODEL to any of these (or add a row in /admin → AI).
+INSERT OR IGNORE INTO ai_prices (model, input_usd_per_m, output_usd_per_m, input_neurons_per_m, output_neurons_per_m) VALUES
+  ('@cf/meta/llama-3.1-8b-instruct-fp8',      0.152, 0.287, 13778,  26128),   -- the model the AI tools run on (lib/ai.ts AI_MODEL)
+  ('@cf/meta/llama-3.1-8b-instruct',          0.282, 0.827, 25608,  75147),   -- the previous default, kept for the history
+  ('@cf/meta/llama-3.1-8b-instruct-fp8-fast', 0.045, 0.384,  4119,  34868),
+  ('@cf/meta/llama-3.3-70b-instruct-fp8-fast',0.293, 2.253, 26668, 204805),
+  ('@cf/meta/llama-4-scout-17b-16e-instruct', 0.270, 0.850, 24545,  77273),
+  ('@cf/openai/gpt-oss-20b',                  0.200, 0.300, 18182,  27273),
+  ('@cf/openai/gpt-oss-120b',                 0.350, 0.750, 31818,  68182),
+  ('@cf/google/gemma-4-26b-a4b-it',           0.100, 0.300,  9091,  27273),
+  ('@cf/qwen/qwen3-30b-a3b-fp8',              0.051, 0.335,  4625,  30475);
+
+-- Vane Studio AI: what the user chose to do when the plan's generations run out (default: stop), and what the extra ones cost.
+CREATE TABLE IF NOT EXISTS video_ai_settings (
+  user_id          TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  overage_enabled  INTEGER NOT NULL DEFAULT 0 CHECK (overage_enabled IN (0, 1)),     -- 1 = keep going past the included generations, billed per generation
+  updated_at       INTEGER NOT NULL DEFAULT (unixepoch())
+);
+-- Generations beyond the included ones, per plan period: how many and what they cost (millionths of a dollar: $0.02 = 20000).
+CREATE TABLE IF NOT EXISTS video_ai_overage (
+  user_id    TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  period     TEXT    NOT NULL,                                                       -- the same key as video_ai_usage.period
+  uses       INTEGER NOT NULL DEFAULT 0,
+  micro_usd  INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (user_id, period)
+);

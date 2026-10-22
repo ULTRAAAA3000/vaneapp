@@ -9,6 +9,7 @@
  */
 import type { ChannelType, Env } from '../../../types';
 import { CONTENT_LIMIT } from '../posts/create';
+import { contextOf, recordAiUsage } from './aimeter';
 import { graphemeLength, mastodonLength, threadsLength } from './text';
 
 /** The model the AI tools run on. Cloudflare retires models from time to time: set AI_MODEL (a Pages variable) to switch without a code change. */
@@ -71,13 +72,16 @@ export async function ask(env: Env, system: string, user: string, maxTokens = 70
   if (!env.AI) throw new AiError('ai_unavailable', 'AI is not enabled on this server yet.', 503);
   const ai = env.AI;
   let out: unknown;
+  const model = modelOf(env);
+  const started = Date.now();
+  const inputChars = system.length + user.length;
   let lastError = '';
   // Workers AI sometimes answers with a short capacity error: one more try after a moment.
   for (let attempt = 0; attempt < 2 && out === undefined; attempt++) {
     if (attempt) await new Promise((r) => setTimeout(r, 700));
     try {
       out = await Promise.race([
-        ai.run(modelOf(env), { messages: [{ role: 'system', content: system }, { role: 'user', content: user }], max_tokens: maxTokens, temperature }),
+        ai.run(model, { messages: [{ role: 'system', content: system }, { role: 'user', content: user }], max_tokens: maxTokens, temperature }),
         new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), TIMEOUT_MS)),
       ]);
     } catch (err) {
@@ -87,6 +91,8 @@ export async function ask(env: Env, system: string, user: string, maxTokens = 70
     }
   }
   if (out === undefined) {
+    // the ledger: a call that never got an answer (a retried call that finally fails is one row: only answers are billed)
+    await recordAiUsage(env, contextOf(env), { model, inputChars, outputChars: 0, ok: false, ms: Date.now() - started });
     if (/deprecated|5028/i.test(lastError)) throw new AiError('ai_failed', 'The AI model of this server was retired by Cloudflare. The owner needs to set AI_MODEL to a current model.', 503);
     if (/4006|neurons|allocation|daily/i.test(lastError)) throw new AiError('ai_failed', 'The free daily AI allowance of this server is used up. It resets at 00:00 UTC.', 503);
     if (lastError === 'timeout') throw new AiError('ai_failed', 'The AI took too long. Try again in a moment.', 504);
@@ -94,7 +100,10 @@ export async function ask(env: Env, system: string, user: string, maxTokens = 70
   }
   const r = out && typeof out === 'object' ? (out as { response?: unknown }).response : null;
   const text = typeof r === 'string' ? r : '';
+  // the ledger: tokens used by this call (an empty answer still cost tokens)
+  await recordAiUsage(env, contextOf(env), { model, output: out, inputChars, outputChars: text.length, ok: !!text.trim(), ms: Date.now() - started });
   if (!text.trim()) throw new AiError('ai_failed', 'The AI sent an empty answer. Try again.', 502);
+
   return text;
 }
 

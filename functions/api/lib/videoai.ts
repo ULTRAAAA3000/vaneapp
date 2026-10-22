@@ -4,8 +4,9 @@
  */
 import type { Env } from '../../../types';
 import { AiError, ask, cleanAnswer, COMMON, listAnswer, TONE_BRIEF, wrap, type Tone } from './ai';
+import { getPlan } from './catalog';
+import { loadVideoSubscription } from './videoplans';
 
-export const VIDEO_AI_MONTHLY = 250;
 export const VIDEO_TOOLS = ['script', 'metadata', 'chapters'] as const;
 export type VideoTool = (typeof VIDEO_TOOLS)[number];
 export const isVideoTool = (t: unknown): t is VideoTool => typeof t === 'string' && (VIDEO_TOOLS as readonly string[]).includes(t);
@@ -26,34 +27,175 @@ export const MAX_IDEA_CHARS = 2000;
 export const MAX_SCRIPT_CHARS = 12000;
 const WORDS_PER_SECOND = 2.5;
 
-export const periodOf = (now: number): string => new Date(now * 1000).toISOString().slice(0, 7);
+// ───────────────────────── the allowance ─────────────────────────
+// Every Vane Studio plan period includes a number of generations (50 by default, set in the catalog row 'video'; see videoAiTerms). When they are used up the user chooses (the switch in the
+// AI writer; the default is to stop):
+//   stop       the AI answers 402 ai_quota_exceeded until the plan renews
+//   keep going every further generation costs the extra price ($0.02 by default), recorded per period in video_ai_overage
+// Bonus credits an admin gave to the account (user_ai_bonus, the same wallet as in Vane Post) are spent after the included
+// ones and before anything is billed. A generation that fails is given back the way it was taken.
 
-export interface VideoAiUsage { limit: number; used: number; remaining: number }
+/** The defaults: 50 generations included in each plan period, then $0.02 (20 000 millionths of a dollar) each if the user chose to keep going. */
+export const VIDEO_AI_INCLUDED = 50;
+export const VIDEO_AI_OVERAGE_MICRO = 20_000;
+const USD = 1_000_000;
+
+export interface VideoAiTerms { included: number; priceMicro: number }
+
+/**
+ * The numbers in force. They live in the catalog row 'video' (admin → Plans → limits: `aiCredits` = included generations,
+ * `overageAiPostUsd` = price of one extra), exactly like the AI credits of the posting plans, so they can be changed without a
+ * deploy. When the row does not set them, the defaults above apply.
+ */
+export async function videoAiTerms(env: Env): Promise<VideoAiTerms> {
+  let included = VIDEO_AI_INCLUDED;
+  let priceUsd = VIDEO_AI_OVERAGE_MICRO / USD;
+  try {
+    const limits = (await getPlan(env, 'video'))?.limits as { aiCredits?: unknown; overageAiPostUsd?: unknown } | undefined;
+    if (typeof limits?.aiCredits === 'number' && Number.isInteger(limits.aiCredits) && limits.aiCredits >= 0 && limits.aiCredits <= 100_000) included = limits.aiCredits;
+    if (typeof limits?.overageAiPostUsd === 'number' && limits.overageAiPostUsd >= 0 && limits.overageAiPostUsd <= 100) priceUsd = limits.overageAiPostUsd;
+  } catch { /* no catalog yet: the defaults */ }
+  return { included, priceMicro: Math.round(priceUsd * USD) };
+}
+
+export interface VideoAiPeriod { key: string; resetsAt: number }
+
+/**
+ * The period the count belongs to. It FOLLOWS THE PLAN: while the plan has an end date, the period is "until that date", and when
+ * the plan renews its end moves on, the key changes and the count starts again from zero. A plan with no end date (granted by
+ * hand without an expiry) renews on the first of every month, UTC.
+ */
+export function videoAiPeriod(currentPeriodEnd: number | null, now: number): VideoAiPeriod {
+  if (currentPeriodEnd !== null && currentPeriodEnd > now) return { key: `p${currentPeriodEnd}`, resetsAt: currentPeriodEnd };
+  const d = new Date(now * 1000);
+  return { key: d.toISOString().slice(0, 7), resetsAt: Math.floor(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1) / 1000) };
+}
+
+export interface VideoAiUsage {
+  /** generations included in a plan period */
+  limit: number;
+  /** how many of them are used */
+  used: number;
+  /** what can still be generated for free: the included ones left plus bonus credits */
+  remaining: number;
+  bonus: number;
+  /** unix seconds: when the count starts over */
+  resetsAt: number;
+  overage: { enabled: boolean; priceUsd: number; uses: number; costUsd: number };
+}
+
+export async function loadVideoAiOverage(env: Env, userId: string): Promise<boolean> {
+  try {
+    const row = await env.DB.prepare('SELECT overage_enabled FROM video_ai_settings WHERE user_id = ?1').bind(userId).first<{ overage_enabled: number }>();
+    return row?.overage_enabled === 1;
+  } catch {
+    return false;                       // the table is not there yet (schema.sql not re-run): the safe default is to stop
+  }
+}
+
+export async function setVideoAiOverage(env: Env, userId: string, enabled: boolean, now: number): Promise<void> {
+  await env.DB
+    .prepare(`INSERT INTO video_ai_settings (user_id, overage_enabled, updated_at) VALUES (?1, ?2, ?3) ON CONFLICT(user_id) DO UPDATE SET overage_enabled = ?2, updated_at = ?3`)
+    .bind(userId, enabled ? 1 : 0, now)
+    .run();
+}
+
+async function loadBonus(env: Env, userId: string): Promise<number> {
+  try {
+    return (await env.DB.prepare('SELECT credits FROM user_ai_bonus WHERE user_id = ?1').bind(userId).first<{ credits: number }>())?.credits ?? 0;
+  } catch {
+    return 0;
+  }
+}
 
 export async function videoAiUsage(env: Env, userId: string, now: number): Promise<VideoAiUsage> {
-  const row = await env.DB.prepare('SELECT used FROM video_ai_usage WHERE user_id = ?1 AND period = ?2').bind(userId, periodOf(now)).first<{ used: number }>();
-  const used = row?.used ?? 0;
-  return { limit: VIDEO_AI_MONTHLY, used, remaining: Math.max(VIDEO_AI_MONTHLY - used, 0) };
+  const sub = await loadVideoSubscription(env, userId, now);
+  const period = videoAiPeriod(sub.currentPeriodEnd, now);
+  const terms = await videoAiTerms(env);
+  const [row, over, bonus, enabled] = await Promise.all([
+    env.DB.prepare('SELECT used FROM video_ai_usage WHERE user_id = ?1 AND period = ?2').bind(userId, period.key).first<{ used: number }>(),
+    env.DB.prepare('SELECT uses, micro_usd FROM video_ai_overage WHERE user_id = ?1 AND period = ?2').bind(userId, period.key).first<{ uses: number; micro_usd: number }>().catch(() => null),
+    loadBonus(env, userId),
+    loadVideoAiOverage(env, userId),
+  ]);
+  const used = Math.min(row?.used ?? 0, Number.MAX_SAFE_INTEGER);
+  return {
+    limit: terms.included,
+    used,
+    remaining: Math.max(terms.included - used, 0) + bonus,
+    bonus,
+    resetsAt: period.resetsAt,
+    overage: { enabled, priceUsd: terms.priceMicro / USD, uses: over?.uses ?? 0, costUsd: (over?.micro_usd ?? 0) / USD },
+  };
 }
 
-export async function reserveVideoAi(env: Env, userId: string, now: number): Promise<boolean> {
-  const res = await env.DB
-    .prepare(
-      `INSERT INTO video_ai_usage (user_id, period, used) VALUES (?1, ?2, 1)
-       ON CONFLICT(user_id, period) DO UPDATE SET used = used + 1 WHERE used + 1 <= ?3`,
-    )
-    .bind(userId, periodOf(now), VIDEO_AI_MONTHLY)
-    .run();
-  return (res.meta?.changes ?? 0) > 0;
-}
+/** What a reservation took, so a failed generation can give back exactly that. */
+export interface VideoAiCharge { kind: 'included' | 'bonus' | 'overage'; period: string; costMicro: number }
 
-export async function releaseVideoAi(env: Env, userId: string, now: number): Promise<void> {
+/**
+ * Takes one generation: an included one, else a bonus credit, else (only when the user chose to keep going) a billed one.
+ * Each step is ONE statement, so two parallel requests can never both take the last unit. null = nothing left and the user chose to stop.
+ */
+export async function reserveVideoAi(env: Env, userId: string, now: number): Promise<VideoAiCharge | null> {
+  const sub = await loadVideoSubscription(env, userId, now);
+  const period = videoAiPeriod(sub.currentPeriodEnd, now).key;
+  const terms = await videoAiTerms(env);
+
+  if (terms.included > 0) {        // (a plan with 0 included generations skips straight to bonus / billing)
+    const inc = await env.DB
+      .prepare(`INSERT INTO video_ai_usage (user_id, period, used) VALUES (?1, ?2, 1) ON CONFLICT(user_id, period) DO UPDATE SET used = used + 1 WHERE used + 1 <= ?3`)
+      .bind(userId, period, terms.included)
+      .run();
+    if ((inc.meta?.changes ?? 0) > 0) return { kind: 'included', period, costMicro: 0 };
+  }
+
   try {
-    await env.DB.prepare('UPDATE video_ai_usage SET used = MAX(used - 1, 0) WHERE user_id = ?1 AND period = ?2').bind(userId, periodOf(now)).run();
+    const b = await env.DB.prepare('UPDATE user_ai_bonus SET credits = credits - 1, updated_at = ?2 WHERE user_id = ?1 AND credits > 0').bind(userId, now).run();
+    if ((b.meta?.changes ?? 0) > 0) return { kind: 'bonus', period, costMicro: 0 };
+  } catch { /* no bonus table yet: no bonus */ }
+
+  if (!(await loadVideoAiOverage(env, userId))) return null;
+  await env.DB
+    .prepare(`INSERT INTO video_ai_overage (user_id, period, uses, micro_usd) VALUES (?1, ?2, 1, ?3) ON CONFLICT(user_id, period) DO UPDATE SET uses = uses + 1, micro_usd = micro_usd + ?3`)
+    .bind(userId, period, terms.priceMicro)
+    .run();
+  return { kind: 'overage', period, costMicro: terms.priceMicro };
+}
+
+/** Gives a generation back (the model failed): exactly what reserveVideoAi took. */
+export async function releaseVideoAi(env: Env, userId: string, charge: VideoAiCharge): Promise<void> {
+  try {
+    if (charge.kind === 'included') await env.DB.prepare('UPDATE video_ai_usage SET used = MAX(used - 1, 0) WHERE user_id = ?1 AND period = ?2').bind(userId, charge.period).run();
+    else if (charge.kind === 'bonus') await env.DB.prepare('UPDATE user_ai_bonus SET credits = credits + 1 WHERE user_id = ?1').bind(userId).run();
+    else await env.DB.prepare('UPDATE video_ai_overage SET uses = MAX(uses - 1, 0), micro_usd = MAX(micro_usd - ?3, 0) WHERE user_id = ?1 AND period = ?2').bind(userId, charge.period, charge.costMicro).run();
   } catch (err) {
     console.error('video ai release failed', err instanceof Error ? err.message : 'unknown');
   }
 }
+
+// ───────────────────────── dev-only fake model ─────────────────────────
+
+/** Canned answers by the kind of request, so the allowance can be tested without Workers AI. Only used when VIDEO_AI_MOCK=1 (local dev and tests). */
+const FAKE_AI = {
+  async run(_model: string, input: unknown): Promise<unknown> {
+    const messages = (input as { messages?: { content?: string }[] })?.messages ?? [];
+    const system = String(messages[0]?.content ?? '');
+    const reply = (text: string) => ({ response: text });
+    if (String(messages[1]?.content ?? '').includes('FAIL_NOW')) return reply('');   // an empty answer = the model failed (tests the refund)
+    if (/voice-over scripts/.test(system)) return reply('HOOK:\nDid you know this?\nBODY:\nHere is the main part of the script, said in plain words.\nCTA:\nFollow for more.');
+    if (/search tags/.test(system)) return reply('alpha, beta, gamma, delta');
+    if (/hashtags/.test(system)) return reply('#one #two #three #four #five');
+    if (/descriptions/.test(system)) return reply('A short description of the video.');
+    return reply('First title\nSecond title\nThird title');
+  },
+};
+
+/**
+ * The env to run the tools with: the real one, or one with the fake model when VIDEO_AI_MOCK=1. The fake wins even if a binding exists,
+ * because `wrangler pages dev` binds the REAL Workers AI (which needs a Cloudflare login) as soon as wrangler.toml has [ai].
+ */
+export const aiEnv = (env: Env): Env => (env.VIDEO_AI_MOCK === '1' ? { ...env, AI: FAKE_AI } : env);
+export const aiAvailable = (env: Env): boolean => !!aiEnv(env).AI;
 
 // ───────────────────────── script ─────────────────────────
 

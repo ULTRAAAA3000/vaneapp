@@ -16,10 +16,11 @@
  * `media_keys` holds either R2 object keys or external https URLs; the sender tells them
  * apart by the "https://" prefix.
  */
+import { networkInfo, pausedNetworks } from '../lib/networks';
 import type { D1PreparedStatement, PagesFunction } from '@cloudflare/workers-types';
 import type { ChannelRow, ChannelType, Env } from '../../../types';
 import { requireUser } from '../lib/auth';
-import { fail, isRecord, json, readJson, UUID_RE } from '../lib/http';
+import { fail, failCode, isRecord, json, readJson, UUID_RE } from '../lib/http';
 import { mediaKindFromUrl } from '../lib/media';
 import { postUnits } from '../lib/plans';
 import { graphemeLength, mastodonLength, threadsLength, utf8Length } from '../lib/text';
@@ -121,6 +122,12 @@ export async function validateCreatePost(env: Env, userId: string, body: unknown
 
   // Foreign, inactive and non-existent ids all produce the same answer: no id probing.
   if (owned.length !== channelIds.length) return bad(fail(404, 'One or more channels were not found'));
+
+  // ── a switched-off network takes no new posts (those already scheduled just wait; see lib/networks.ts)
+  const paused = new Set(await pausedNetworks(env));   // only what the admin switched off; networks without code keep behaving as before
+  for (const ch of owned) {
+    if (paused.has(ch.type)) return bad(failCode(409, 'network_disabled', `${networkInfo(ch.type)?.name ?? ch.type} is switched off right now, so nothing can be scheduled to it. Try again later.`));
+  }
 
   // ── per-platform limits
   for (const ch of owned) {

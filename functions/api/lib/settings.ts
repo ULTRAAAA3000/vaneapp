@@ -12,6 +12,7 @@ export interface Settings {
   registration_open: boolean;   // kill switch for new sign-ups
   track_visits: boolean;        // record page views for the Traffic tab
   enforce_limits: boolean;      // apply the plan limits (channels / posts) to users
+  ai_budget_usd: number;        // monthly budget for AI model calls, shown against the real spend in /admin → AI (0 = none)
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -25,12 +26,15 @@ export const DEFAULT_SETTINGS: Settings = {
   registration_open: true,
   track_visits: true,
   enforce_limits: false,
+  ai_budget_usd: 0,
 };
 
-const RANGES: Partial<Record<keyof Settings, [number, number]>> = {
+/** [min, max, decimals allowed] */
+const RANGES: Partial<Record<keyof Settings, [number, number, boolean?]>> = {
   auto_ban_login_fails: [3, 1000],
   auto_ban_registers: [2, 1000],
   auto_ban_hours: [1, 24 * 365],
+  ai_budget_usd: [0, 1_000_000, true],
 };
 
 const TTL_MS = 15_000;
@@ -66,8 +70,8 @@ export async function saveSettings(env: Env, patch: Record<string, unknown>): Pr
     const key = k as keyof Settings;
     if (typeof v !== typeof DEFAULT_SETTINGS[key]) return `Setting ${k} must be a ${typeof DEFAULT_SETTINGS[key]}`;
     const range = RANGES[key];
-    if (range && (typeof v !== 'number' || !Number.isInteger(v) || v < range[0] || v > range[1])) {
-      return `Setting ${k} must be a whole number between ${range[0]} and ${range[1]}`;
+    if (range && (typeof v !== 'number' || !Number.isFinite(v) || (!range[2] && !Number.isInteger(v)) || v < range[0] || v > range[1])) {
+      return `Setting ${k} must be ${range[2] ? 'a number' : 'a whole number'} between ${range[0]} and ${range[1]}`;
     }
     stmts.push(
       env.DB.prepare(
