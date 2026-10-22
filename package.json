@@ -22,7 +22,7 @@
     "test:hosts": "node scripts/hosts-e2e.mjs",
     "db:migrate:networks": "wrangler d1 execute vane-db --remote --file=./migrations/0001-channel-types.sql",
     "check:integrations": "node scripts/check-integrations.mjs",
-    "test:unit": "node scripts/webhooks-unit.mjs && node scripts/socials-unit.mjs",
+    "test:unit": "node scripts/webhooks-unit.mjs && node scripts/socials-unit.mjs && node scripts/library-unit.mjs",
     "build:pages": "node scripts/build-site-pages.mjs",
     "db:migrate:integrations": "wrangler d1 execute vane-db --remote --file=./scripts/migrations/002-api-key-integration.sql",
     "test:integrations": "node scripts/integrations-e2e.mjs"

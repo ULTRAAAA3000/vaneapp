@@ -9,13 +9,15 @@
  * Limits:  images JPEG/PNG/WebP up to 5 MB · videos MP4/MOV up to 20 MB
  *          (Telegram's limits for media fetched by link).
  * Checks, in order: signed-in user → R2 bound → per-user rate limit → body size (read with a hard
- * cap, never fully buffered beyond it) → real file type from the BYTES → image dimensions.
+ * cap, never fully buffered beyond it) → real file type from the BYTES → image dimensions → the plan's library storage.
+ * Every stored file also gets a row in `media_assets`, which is what the Library tab lists.
  */
 import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env } from '../../../types';
 import { requireUser } from '../lib/auth';
 import { fail, json, methodNotAllowed, readBodyLimited } from '../lib/http';
 import { imageSize, sniffImage, telegramPhotoProblem } from '../lib/image';
+import { checkStorageQuota, cleanFileName, recordUpload } from '../lib/library';
 import { sniffVideo } from '../lib/video';
 import { bump, retryAfter } from '../lib/throttle';
 
@@ -43,6 +45,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   // ── get the file bytes
   let bytes: Uint8Array;
+  let fileName: unknown = null;
   if (multipart) {
     let part: unknown;
     try {
@@ -55,6 +58,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       return fail(400, 'Attach the file in a form field named "file".');
     }
     bytes = new Uint8Array(await (part as File).arrayBuffer());
+    fileName = (part as File).name;
   } else {
     bytes = body;
   }
@@ -77,18 +81,23 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
 
   const kind = image ?? video!;
+  const overQuota = await checkStorageQuota(env, auth.userId, bytes.length);
+  if (overQuota) return overQuota;
   await bump(env, key, 3600);
   const objectKey = `${crypto.randomUUID()}.${kind.ext}`; // unguessable: the link itself is the capability
   await env.MEDIA.put(objectKey, bytes, {
     httpMetadata: { contentType: kind.mime },
     customMetadata: { userId: auth.userId },
   });
+  const name = cleanFileName(fileName, `${image ? 'image' : 'video'}.${kind.ext}`);
+  await recordUpload(env, { userId: auth.userId, key: objectKey, kind: image ? 'image' : 'video', contentType: kind.mime, size: bytes.length, width: size?.width, height: size?.height, name });
 
   return json(
     {
       ok: true,
       kind: image ? 'image' : 'video',
       key: objectKey,
+      name,
       url: `${new URL(request.url).origin}/api/media/${objectKey}`,
       size: bytes.length,
       contentType: kind.mime,

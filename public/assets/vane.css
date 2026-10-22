@@ -197,3 +197,18 @@ details[open] .api-plus { transform: rotate(45deg); }
 
 /* leaving a dashboard through a hand-off link (see wireHandoff in vane.js) */
 html.is-leaving #app { opacity: 0 !important; transform: translateY(-8px); transition: opacity .22s ease, transform .22s ease; }
+
+/* Dashboard tabs (Create / Library) and the small pieces of the Library tab. Views marked data-view are shown one at a time by library.js;
+   the attribute rule is needed because a Tailwind display class (grid, flex) would otherwise beat the plain [hidden]. */
+[data-view][hidden] { display: none !important; }
+.dtab { display: inline-flex; align-items: center; border-radius: 9999px; padding: .5rem 1rem; font-size: .875rem; font-weight: 500; color: rgba(255,255,255,.6);
+  border: 1px solid transparent; transition: background-color .2s, color .2s; }
+.dtab:hover { background: rgba(255,255,255,.07); color: #fff; }
+.dtab[aria-current="page"] { background: #fff; color: #000; }
+.dtab:focus-visible { outline: 2px solid rgba(255,255,255,.6); outline-offset: 2px; }
+.chip { display: inline-flex; align-items: center; border-radius: 9999px; padding: .4rem .85rem; font-size: .8rem; font-weight: 500; color: rgba(255,255,255,.6);
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); transition: background-color .2s, color .2s, border-color .2s; }
+.chip:hover { color: #fff; background: rgba(255,255,255,.09); }
+.chip[aria-pressed="true"] { color: #fff; background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.3); }
+.chip:focus-visible { outline: 2px solid rgba(255,255,255,.6); outline-offset: 2px; }
+#viewLibrary.is-over { outline: 2px dashed rgba(255,255,255,.4); outline-offset: -6px; }

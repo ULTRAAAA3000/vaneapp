@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/assets/vane.css?v=20261020a" />
+  <link rel="stylesheet" href="/assets/vane.css?v=20261021a" />
 </head>
 
 <body class="min-h-screen overflow-x-hidden bg-[#070708]">
@@ -83,7 +83,13 @@
       </div>
     </section>
 
-    <div class="mt-5 grid items-start gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,.85fr)]">
+    <!-- tabs: Create (editor, channels, queue) and Library (uploaded files); switched by library.js, the address keeps #create / #library -->
+    <nav id="dashTabs" class="fade-up mt-6 flex gap-1.5" style="animation-delay:.08s" aria-label="Dashboard sections">
+      <a href="#create" data-tab="create" class="dtab" aria-current="page">Create</a>
+      <a href="#library" data-tab="library" class="dtab">Library</a>
+    </nav>
+
+    <div data-view="create" class="mt-5 grid items-start gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,.85fr)]">
 
       <!-- ═══════════ COMPOSER ═══════════ -->
       <section id="composer" class="fade-up glass-d rounded-3xl p-5 sm:p-7" style="animation-delay:.1s" aria-labelledby="composerTitle">
@@ -174,13 +180,13 @@
     </div>
 
     <!-- ═══════════ INSIGHTS ═══════════ -->
-    <section class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" style="animation-delay:.2s" aria-labelledby="insightsTitle">
+    <section data-view="create" class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" style="animation-delay:.2s" aria-labelledby="insightsTitle">
       <h2 id="insightsTitle" class="text-lg font-semibold tracking-tight">Insights</h2>
       <div id="insights" class="mt-5"><div class="skeleton h-40"></div></div>
     </section>
 
     <!-- ═══════════ POSTS ═══════════ -->
-    <section class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" style="animation-delay:.22s" aria-labelledby="postsTitle">
+    <section data-view="create" class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" style="animation-delay:.22s" aria-labelledby="postsTitle">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <h2 id="postsTitle" class="text-lg font-semibold tracking-tight">Posts</h2>
         <div class="relative grid grid-cols-2 rounded-full bg-white/[0.06] p-1 text-sm" role="tablist" aria-label="Post list">
@@ -195,7 +201,7 @@
     </section>
 
     <!-- ═══════════ API ACCESS ═══════════ -->
-    <section id="api" class="fade-up glass-d mt-5 scroll-mt-20 rounded-3xl p-5 sm:p-7" style="animation-delay:.26s" aria-labelledby="apiTitle">
+    <section id="api" data-view="create" class="fade-up glass-d mt-5 scroll-mt-20 rounded-3xl p-5 sm:p-7" style="animation-delay:.26s" aria-labelledby="apiTitle">
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 id="apiTitle" class="text-lg font-semibold tracking-tight">API access</h2>
@@ -218,6 +224,44 @@
         </summary>
         <div id="apiQuickBody" class="space-y-5 px-5 pb-5"></div>
       </details>
+    </section>
+
+    <!-- ═══════════ LIBRARY ═══════════ -->
+    <section id="viewLibrary" data-view="library" hidden class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" aria-labelledby="libraryTitle">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 id="libraryTitle" class="text-lg font-semibold tracking-tight">Library</h2>
+          <p class="mt-1 text-xs text-white/45">The files you uploaded for your posts. Copy a link, or delete what you no longer need.</p>
+        </div>
+        <div>
+          <input id="libFile" type="file" class="hidden" multiple accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" />
+          <button id="libUpload" type="button" class="btn btn-white btn-sm">Upload</button>
+        </div>
+      </div>
+
+      <div id="libUsage" class="mt-5 hidden"></div>
+
+      <div class="mt-5 flex flex-wrap items-center gap-3">
+        <div id="libKinds" class="flex gap-1.5" role="group" aria-label="Show">
+          <button type="button" class="chip" data-kind="" aria-pressed="true">All</button>
+          <button type="button" class="chip" data-kind="image" aria-pressed="false">Images</button>
+          <button type="button" class="chip" data-kind="video" aria-pressed="false">Videos</button>
+        </div>
+        <input id="libSearch" type="search" class="field w-full min-w-0 sm:w-auto sm:flex-1 sm:max-w-xs" placeholder="Search by name" maxlength="60" autocomplete="off" aria-label="Search files by name" />
+      </div>
+
+      <div id="libProgress" class="mt-4 hidden" role="status" aria-live="polite">
+        <div class="truncate text-xs text-white/60" id="libProgressText"></div>
+        <div class="progress mt-2"><span id="libProgressBar"></span></div>
+      </div>
+      <div id="libError" class="mt-4 hidden items-center justify-between gap-3 rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300" role="alert">
+        <span id="libErrorText"></span>
+        <button id="libRetry" type="button" class="btn btn-ghost btn-sm shrink-0">Try again</button>
+      </div>
+
+      <div id="libGrid" class="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"></div>
+      <p id="libEmpty" class="mt-8 hidden text-center text-sm leading-relaxed text-white/45"></p>
+      <div class="mt-6 text-center"><button id="libMore" type="button" class="btn btn-ghost btn-sm hidden">Load more</button></div>
     </section>
   </main>
 
@@ -601,6 +645,7 @@
   <script src="/assets/insights.js?v=20261017"></script>
   <script src="/assets/dashboard.js?v=20261022a"></script>
   <script src="/assets/ai.js?v=20261022a"></script>
+  <script src="/assets/library.js?v=20261021b"></script>
   <script src="/assets/track.js?v=20261017" data-path="/app" defer></script>
 </body>
 </html>

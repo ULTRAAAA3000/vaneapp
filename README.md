@@ -95,6 +95,8 @@ What is inside: **Overview** (users, conversion funnel, sources, MRR), **Users**
 
 **Social links on the landing page.** The "Follow" section reads `GET /api/socials` (rows of the `social_links` table plus one `settings` value for the heading), edited in **Social**. The three links in `index.html` are the fallback until the API answers. The table is created by `schema.sql` (`npm run db:remote`, safe to repeat); the seed runs only while the table is empty, so a link you removed does not come back. Until the table exists the Social tab says so and the landing keeps the built-in links.
 
+**Library (dashboard).** The **Library** tab lists the files a person uploaded for their posts (`GET /api/library/assets`: filter by type, search by name, 60 per page) and lets them copy a link or delete a file. Every upload (from the editor or from the tab) is recorded in `media_assets` (`schema.sql`, `npm run db:remote`, safe to repeat). A file that a post still waiting to be sent points at cannot be deleted. The plan limit `storageMb` (a key in the plan's limits, empty = unlimited) is applied only while the *Enforce limits* switch is on, like the channel limit. Files uploaded before the table existed are not listed and do not count; Studio videos are not part of the Library. Until the table exists, uploads keep working and the tab says the library is not available yet.
+
 **Search Console.** Create a Google Cloud service account, enable the *Search Console API*, add the service account's e-mail as a (restricted) user of your property in Search Console, then:
 ```
 npx wrangler pages secret put GSC_SERVICE_ACCOUNT --project-name=vaneapp   # paste the whole JSON key

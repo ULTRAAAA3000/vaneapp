@@ -14,13 +14,14 @@ export interface PlanLimits {
   postsPerMonth?: number | null;
   postsLifetime?: number | null;
   aiCredits?: number | null;
+  storageMb?: number | null;          // Library storage in MB (empty = unlimited); applied while "enforce_limits" is on
   apiPostsPerMonth?: number | null;
   seats?: number | null;
   apiAccess?: number | null;          // 1 = may use live API keys, 0 = no
   overagePostUsd?: number | null;
   overageAiPostUsd?: number | null;
 }
-const LIMIT_KEYS: (keyof PlanLimits)[] = ['channels', 'postsPerMonth', 'postsLifetime', 'aiCredits', 'apiPostsPerMonth', 'seats', 'apiAccess', 'overagePostUsd', 'overageAiPostUsd'];
+const LIMIT_KEYS: (keyof PlanLimits)[] = ['channels', 'postsPerMonth', 'postsLifetime', 'aiCredits', 'storageMb', 'apiPostsPerMonth', 'seats', 'apiAccess', 'overagePostUsd', 'overageAiPostUsd'];
 const FRACTIONAL = new Set<string>(['overagePostUsd', 'overageAiPostUsd']);
 
 export interface Plan {
