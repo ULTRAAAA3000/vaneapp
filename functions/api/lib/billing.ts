@@ -5,6 +5,7 @@
  */
 import type { Env } from '../../../types';
 import { getPlan, type Plan } from './catalog';
+import { emailConfigured, sendMail } from './mail';
 import { monobankEnabled } from './monobank';
 import { cryptoEnabled } from './solana';
 
@@ -133,7 +134,29 @@ export async function fulfillOrder(env: Env, orderId: string, txRef: string | nu
     await env.DB.prepare(`UPDATE orders SET status = 'pending', paid_at = NULL WHERE id = ?1`).bind(orderId).run().catch(() => undefined);
     throw err;
   }
+  await sendReceipt(env, order, now).catch(() => undefined);
   return 'paid';
+}
+
+const escHtml = (s: string): string => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
+
+/** The receipt e-mail (only when Resend is set up). Never blocks or fails an activation. */
+export async function sendReceipt(env: Env, o: OrderRow, now: number): Promise<void> {
+  if (!emailConfigured(env)) return;
+  let to = '';
+  let name = '';
+  try { const b = JSON.parse(o.billing) as { email?: string; name?: string }; to = b.email ?? ''; name = b.name ?? ''; } catch { return; }
+  if (!to) return;
+  const amount = `$${(o.amount_cents / 100).toFixed(2)}`;
+  const until = new Date(addInterval(now, o.interval) * 1000).toISOString().slice(0, 10);
+  const how = o.provider === 'crypto' ? 'Crypto (Solana)' : 'Card';
+  const lines = [`Plan: ${o.plan_name} (${o.interval === 'year' ? '1 year' : '1 month'})`, `Amount: ${amount} USD`, `Paid with: ${how}`, `Active until about: ${until}`, `Order: ${o.id}`];
+  await sendMail(env, {
+    to,
+    subject: `Your Vane receipt: ${o.plan_name}`,
+    text: `${name ? `Hi ${name},\n\n` : ''}Thank you, your payment was received and ${o.plan_name} is active.\n\n${lines.join('\n')}\n\nThe plan is not renewed automatically: pay again from vaneapp.dev/pricing when the period ends.\n`,
+    html: `<div style="font-family:-apple-system,Segoe UI,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#111"><h2 style="margin:0 0 12px">Payment received</h2><p style="margin:0 0 16px">${name ? `Hi ${escHtml(name)}, t` : 'T'}hank you. <b>${escHtml(o.plan_name)}</b> is active on your account.</p><table style="width:100%;border-collapse:collapse;font-size:14px">${lines.map((l) => { const i = l.indexOf(':'); return `<tr><td style="padding:6px 0;color:#666">${escHtml(l.slice(0, i))}</td><td style="padding:6px 0;text-align:right">${escHtml(l.slice(i + 1).trim())}</td></tr>`; }).join('')}</table><p style="margin:20px 0 0;font-size:12px;color:#777">The plan is not renewed automatically. Pay again from vaneapp.dev/pricing when the period ends.</p></div>`,
+  });
 }
 
 export const orderView = (o: OrderRow): Record<string, unknown> => ({
