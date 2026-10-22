@@ -41,6 +41,8 @@ export const CONTENT_LIMIT: Record<ChannelType, number> = {
   bluesky: BLUESKY_TEXT_LIMIT,   // counted in graphemes, see below
   mastodon: MASTODON_TEXT_LIMIT,   // links count as 23 characters, see below
   threads: 500,
+  discord: 2000,   // a webhook message
+  devto: 10_000,   // an article: its title is the first line
 };
 const ABSOLUTE_MAX_CONTENT = 10_000;
 
@@ -143,6 +145,9 @@ export async function validateCreatePost(env: Env, userId: string, body: unknown
     }
     if (ch.type === 'linkedin' && mediaUrl && mediaKindFromUrl(mediaUrl) === 'video') {
       return bad(fail(400, 'LinkedIn posts with video are not supported yet. Attach an image or remove the media.'));
+    }
+    if ((ch.type === 'discord' || ch.type === 'devto') && mediaUrl && mediaKindFromUrl(mediaUrl) === 'video') {
+      return bad(fail(400, `${ch.type === 'discord' ? 'Discord' : 'Dev.to'} posts with video are not supported yet. Attach an image or remove the media.`));
     }
     if (ch.type === 'mastodon' && mediaUrl && mediaKindFromUrl(mediaUrl) === 'video') {
       return bad(fail(400, 'Mastodon posts with video are not supported yet. Attach an image or remove the media.'));

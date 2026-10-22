@@ -247,9 +247,14 @@
       name: 'Instagram Reels', ready: false, blurb: 'Business and Creator accounts', setup: 'Choose which account Vane should publish to.',
       tile: 'bg-orange-500/15 text-orange-300',
       icon: { d: 'M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zM16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37zM17.5 6.5h.01' }
+    },
+    pinterest: {
+      name: 'Pinterest', ready: false, blurb: 'Video Pins with a link to your site', setup: 'Choose which board Vane should publish to.',
+      tile: 'bg-rose-500/15 text-rose-300',
+      icon: { d: 'M12 3a9 9 0 0 0-3.3 17.4c-.1-.8-.2-2 0-2.9l1.1-4.6s-.3-.6-.3-1.4c0-1.3.8-2.3 1.7-2.3.8 0 1.2.6 1.2 1.3 0 .8-.5 2-.8 3.1-.2.9.5 1.7 1.4 1.7 1.7 0 3-1.8 3-4.4 0-2.3-1.6-3.9-4-3.9a4.1 4.1 0 0 0-4.3 4.1c0 .8.3 1.7.7 2.2M10 14l-1.300 5.300' }
     }
   };
-  var VNET_ORDER = ['youtube', 'tiktok', 'instagram'];
+  var VNET_ORDER = ['youtube', 'tiktok', 'instagram', 'pinterest'];
   var VNET_OTHER = { tile: 'bg-white/[0.08] text-white/70', icon: { d: 'M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7' } };
   var TRASH = '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6M10 11v6M14 11v6"/></svg>';
 
@@ -279,7 +284,7 @@
         '<div class="rounded-2xl border border-dashed border-white/10 px-5 py-8 text-center">' +
           '<div class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl ' + netTile('other') + '">' + netIcon('other', 'h-5 w-5') + '</div>' +
           '<p class="mt-4 text-sm font-medium">No channels yet</p>' +
-          '<p class="mx-auto mt-1 max-w-[20rem] text-xs leading-relaxed text-white/45">YouTube, TikTok and Instagram Reels open one by one as each network approves Vane. You will connect them here.</p>' +
+          '<p class="mx-auto mt-1 max-w-[20rem] text-xs leading-relaxed text-white/45">YouTube, TikTok, Instagram Reels and Pinterest open one by one as each network approves Vane. You will connect them here.</p>' +
           '<div class="mt-4 flex flex-wrap justify-center gap-2">' + VNET_ORDER.map(function (k) {
             return '<span class="inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-2.5 py-1 text-xs text-white/60">' + netIcon(k, 'h-3.5 w-3.5') + esc(VNET[k].name) + '<span class="text-[10px] font-semibold uppercase tracking-wide text-white/40">Soon</span></span>';
           }).join('') + '</div>' +
@@ -427,7 +432,7 @@
 
     if (!channels.length) {
       openModal('<h3 class="mb-2 text-base font-semibold">Publish "' + esc(v.title) + '"</h3>' +
-        '<p class="text-sm leading-relaxed text-white/60">You have no video channels yet. YouTube, TikTok and Instagram Reels open one by one as each network approves Vane. Once a channel is connected, publishing is one click here.</p>' +
+        '<p class="text-sm leading-relaxed text-white/60">You have no video channels yet. YouTube, TikTok, Instagram Reels and Pinterest open one by one as each network approves Vane. Once a channel is connected, publishing is one click here.</p>' +
         '<div class="mt-5 flex justify-end gap-2"><button class="btn btn-ghost btn-sm" id="mClose">Close</button><button class="btn btn-white btn-sm" id="pubNets">See the networks</button></div>');
       $('mClose').addEventListener('click', closeModal);
       $('pubNets').addEventListener('click', function () { closeModal(); openConnect(); });
@@ -479,8 +484,8 @@
   // ───────────────────────── announce in Vane Post (the Studio → Post hand-off) ─────────────────────────
   // The text and the channels are chosen here; the server writes the post with the same code as Vane Post, so the same limits
   // apply and the post goes out within a minute, without opening the posting dashboard.
-  var NET_LIMIT = { telegram: 4096, x: 280, linkedin: 3000, webhook: 10000, bluesky: 300, mastodon: 500, threads: 500 };
-  var NET_NAME = { telegram: 'Telegram', x: 'X', linkedin: 'LinkedIn', webhook: 'Webhook', bluesky: 'Bluesky', mastodon: 'Mastodon', threads: 'Threads' };
+  var NET_LIMIT = { telegram: 4096, x: 280, linkedin: 3000, webhook: 10000, bluesky: 300, mastodon: 500, discord: 2000, devto: 10000, threads: 500 };
+  var NET_NAME = { telegram: 'Telegram', x: 'X', linkedin: 'LinkedIn', webhook: 'Webhook', bluesky: 'Bluesky', mastodon: 'Mastodon', discord: 'Discord', devto: 'Dev.to', threads: 'Threads' };
   var LINK_PLACEHOLDER = '{link}';
   var LINK_LENGTH = 76;   // a public link: host + path + 32-character token (Mastodon counts any link as 23)
 

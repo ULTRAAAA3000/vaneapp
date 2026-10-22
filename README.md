@@ -308,6 +308,14 @@ To open a network for connecting (only Telegram is open today; the rest show "So
 2. `public/app.html`: add a `<div data-step="<key>" class="hidden">` setup block to the connect dialog, next to the Telegram one.
 3. Backend: add the platform to `ChannelType` (`types.ts`) and to the `CHECK` on `channels.type` (`schema.sql`; SQLite cannot alter a CHECK, so an existing database needs the table rebuilt). Then handle it in `handleAddChannel` (`functions/api/channels/index.ts`, answers 501 for everything but Telegram today) and in `worker/src/dispatch.ts` (fails non-Telegram posts today). `threads` and `bluesky` are not in `ChannelType` yet.
 
+### Discord and Dev.to
+
+Both connect by pasting one secret, no app review: a **Discord webhook URL** (Server settings → Integrations → Webhooks) and a **Dev.to API key** (Settings → Extensions). Code: `functions/api/channels/discord.ts`, `devto.ts`, `simple-add.ts`; delivery in `worker/src/dispatch.ts`. Discord posts text (≤ 2000) and one image, with `@everyone`/role pings disabled; Dev.to publishes each post as an article (first line = title, up to 4 `#tags`, an image becomes the cover line). Neither takes video yet.
+
+**Deploy:** these two types are new in the `channels.type` CHECK. On an existing database run `migrations/0002-channel-types-discord-devto.sql` once in the D1 Console (it rebuilds the table and keeps all rows; a fresh database already has it through `schema.sql`). Until then adding them answers a clear 503.
+
+Medium (closed to new integrations) and Reddit (API access needs manual approval) are intentionally not open.
+
 ## Dashboard: hashtag memory, Insights, drafts
 
 All of it is computed in the browser from the two post lists the dashboard already loads (`/api/posts?view=upcoming|history`, up to 200 each): no new endpoint, no schema change. The code is `public/assets/insights.js` (pure helpers on `Vane.tags` / `Vane.insights`, UI in `Vane.createTagAssist` / `Vane.renderInsights`), wired up in `dashboard.js`.
@@ -375,3 +383,12 @@ The API is open by design (Zapier, Make, GPT, scripts), so it is protected in la
 - API answers carry `nosniff`, `Referrer-Policy` and `no-store` (Pages' `_headers` only covers static files).
 - It never blocks hosting / VPN networks for API calls, never touches Telegram's and Meta's server calls, uploads or picture fetches, and ignores private / local addresses.
 - Emergency brake: set `SHIELD_OFF=1` on Pages and redeploy.
+
+## Marketing pages (Networks, Developers, Integrations, Security, Changelog, About, Partners, WYSB)
+
+The text lives in `site/*.html` (the first line of each is a `<!--page {"slug","title","desc"}-->` comment); `npm run build:pages` wraps it in the shared header and footer and writes `public/<slug>.html` plus `public/sitemap.xml`. Commit both folders, nothing is built at deploy time. To change the navigation, footer or the public contact email, edit the `SITE` object in `scripts/build-site-pages.mjs` (while `email` is empty the pages show a yellow `[CONTACT EMAIL]` and the "mailto" buttons lead to `/about#contact`). New page: add `site/<name>.html`, add its path to `PAGES_IN_SITEMAP`, run the build.
+
+- `/partners/wysb` is the partner page; the yellow `[…]` marks in it (about WYSB, the partnership, services, contact) are facts only WYSB knows. The landing has a matching **Powered by WYSB** section (`#partner`).
+- `/changelog` is written by hand from the shipped features: add an entry at the top when something ships.
+- `/networks` and `/developers` repeat limits and endpoints from the code and `public/vane-openapi.json`: update them when those change.
+- `public/robots.txt` keeps `/api/`, `/app`, `/studio` and `/admin` out of search.

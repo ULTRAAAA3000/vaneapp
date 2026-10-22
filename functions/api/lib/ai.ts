@@ -206,6 +206,8 @@ const NETWORK_BRIEF: Partial<Record<ChannelType, string>> = {
   mastodon: 'Mastodon post: a short, plain snippet, keep the link, hashtags (at most 3) at the end in CamelCase.',
   x: 'X post: one sharp post, hook first, no filler words.',
   threads: 'Threads post: casual and conversational, one idea, easy to reply to.',
+  discord: 'Discord message: friendly and short, line breaks and a few emoji, keep links on their own line.',
+  devto: 'Dev.to article: the FIRST line is the title (a clear, specific headline), then the body in Markdown with short paragraphs and, if it fits, a list; end with a question for the readers.',
   webhook: 'plain text summary.',
 };
 

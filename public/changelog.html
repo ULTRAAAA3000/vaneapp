@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Changelog — Vane</title>
+  <meta name="description" content="What is new in Vane: every feature and fix as it ships, newest first." />
+  <meta name="robots" content="index, follow" />
+  <meta name="theme-color" content="#070708" />
+  <link rel="canonical" href="https://vaneapp.dev/changelog" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Vane" />
+  <meta property="og:title" content="Changelog — Vane" />
+  <meta property="og:description" content="What is new in Vane: every feature and fix as it ships, newest first." />
+  <meta property="og:url" content="https://vaneapp.dev/changelog" />
+  <meta name="twitter:card" content="summary" />
+  <link rel="icon" href="/favicon.ico" sizes="32x32" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/assets/vane.css?v=20261017" />
+  <style>
+    html { scroll-behavior: smooth; scroll-padding-top: 5rem; }
+    body { font-family: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif; -webkit-font-smoothing: antialiased; }
+    .eyebrow { font-size: .72rem; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.4); }
+    .nav-link { border-radius: 9999px; padding: .375rem 1rem; font-size: .875rem; font-weight: 500; color: rgba(255,255,255,.75); transition: background-color .2s, color .2s; }
+    .nav-link:hover { background: rgba(255,255,255,.1); color: #fff; }
+    .nav-link[aria-current="page"] { background: rgba(255,255,255,.12); color: #fff; }
+    .btn-grad { background: linear-gradient(to bottom, #2B2B2B, #101010); }
+    .page h1 { font-size: clamp(2rem, 5vw, 3.4rem); font-weight: 600; line-height: 1.08; letter-spacing: -.02em; }
+    .page h2 { font-size: clamp(1.4rem, 3vw, 2rem); font-weight: 600; line-height: 1.15; letter-spacing: -.015em; scroll-margin-top: 5rem; }
+    .page h3 { font-size: 1.05rem; font-weight: 600; }
+    .lead { max-width: 40rem; font-size: 1.05rem; line-height: 1.7; color: rgba(255,255,255,.62); }
+    .page p, .page li { line-height: 1.7; }
+    .copy { font-size: .93rem; color: rgba(255,255,255,.65); }
+    .copy b, .copy strong { color: #fff; font-weight: 600; }
+    .copy a, .link { color: #fff; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(255,255,255,.3); }
+    .copy a:hover, .link:hover { text-decoration-color: #fff; }
+    .copy code, code.i { font-size: .82rem; padding: .05rem .35rem; border-radius: 6px; background: rgba(255,255,255,.07); color: rgba(255,255,255,.88); }
+    .card { border-radius: 1.5rem; padding: 1.5rem; }
+    @media (min-width: 640px) { .card { padding: 1.75rem; } }
+    .check li { position: relative; padding-left: 1.5rem; margin-top: .6rem; font-size: .92rem; color: rgba(255,255,255,.72); }
+    .check li::before { content: '✓'; position: absolute; left: 0; color: #34d399; }
+    .badge { display: inline-flex; align-items: center; gap: .35rem; border-radius: 9999px; padding: .15rem .6rem; font-size: .68rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+    .badge-live { background: rgba(52,211,153,.14); color: #6ee7b7; }
+    .badge-next { background: rgba(251,191,36,.14); color: #fcd34d; }
+    .badge-soon { background: rgba(255,255,255,.1); color: rgba(255,255,255,.65); }
+    .table-wrap { overflow-x: auto; border: 1px solid rgba(255,255,255,.08); border-radius: 1.25rem; }
+    .tbl { width: 100%; min-width: 40rem; border-collapse: collapse; }
+    .tbl th, .tbl td { padding: .8rem 1rem; text-align: left; vertical-align: top; font-size: .86rem; line-height: 1.6; border-bottom: 1px solid rgba(255,255,255,.06); color: rgba(255,255,255,.66); }
+    .tbl th { font-size: .68rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: rgba(255,255,255,.4); background: rgba(255,255,255,.03); }
+    .tbl tr:last-child td { border-bottom: 0; }
+    .tbl td:first-child { color: #fff; font-weight: 500; white-space: nowrap; }
+    pre.code { overflow-x: auto; padding: 1.15rem 1.25rem; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: .8rem; line-height: 1.7; color: rgba(255,255,255,.82); }
+    .cm { color: rgba(255,255,255,.35); } .st { color: #6ee7b7; } .kw { color: #7dd3fc; }
+    .todo { background: rgba(251,191,36,.14); color: #fcd34d; border-radius: 6px; padding: 0 .35rem; }
+    .reveal { opacity: 0; transform: translateY(14px); transition: opacity .6s ease, transform .6s ease; }
+    .reveal.in { opacity: 1; transform: none; }
+    @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } html { scroll-behavior: auto; } }
+    details.menu > summary { list-style: none; cursor: pointer; }
+    details.menu > summary::-webkit-details-marker { display: none; }
+  </style>
+</head>
+
+<body class="min-h-screen overflow-x-hidden bg-[#070708] text-white">
+  <div class="fixed inset-0 -z-0 bg-gradient-to-b from-white/[0.05] via-transparent to-transparent" aria-hidden="true"></div>
+  <div class="relative z-10 flex min-h-screen flex-col">
+    <header class="sticky top-0 z-40 border-b border-white/[0.06] bg-[#070708]/70 backdrop-blur-xl">
+     <div class="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-3 sm:px-8">
+      <a href="/" class="flex items-center gap-2" aria-label="Vane home">
+        <img src="/assets/logo.svg" alt="" width="31" height="30" />
+        <span class="text-lg font-semibold">vane</span>
+      </a>
+      <div class="hidden items-center gap-3 md:flex">
+        <nav class="flex items-center gap-1 rounded-full bg-white/10 px-1.5 py-1.5 backdrop-blur-lg" aria-label="Main"><a href="/#features" class="nav-link">Features</a><a href="/networks" class="nav-link">Networks</a><a href="/developers" class="nav-link">Developers</a><a href="/integrations" class="nav-link">Integrations</a><a href="/#pricing" class="nav-link">Pricing</a><a href="/partners" class="nav-link">Partners</a></nav>
+        <a href="/login" class="btn-grad rounded-full px-5 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90">Log in</a>
+      </div>
+      <details class="menu relative md:hidden">
+        <summary class="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 backdrop-blur-lg" aria-label="Menu">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </summary>
+        <div class="absolute right-0 top-12 w-56 rounded-2xl border border-white/10 bg-black/90 p-2 shadow-2xl backdrop-blur-xl">
+          <a href="/#features" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Features</a><a href="/networks" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Networks</a><a href="/developers" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Developers</a><a href="/integrations" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Integrations</a><a href="/#pricing" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Pricing</a><a href="/partners" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Partners</a>
+          <a href="/login" class="btn-grad mt-1 block rounded-xl px-4 py-3 text-center text-sm font-medium text-white">Log in</a>
+        </div>
+      </details>
+     </div>
+    </header>
+
+    <main class="page mx-auto w-full max-w-5xl flex-1 px-5 pb-24 pt-6 sm:px-8 sm:pt-10">
+<section class="reveal">
+        <p class="eyebrow">Changelog</p>
+        <h1 class="mt-3 max-w-3xl">What’s new in Vane.</h1>
+        <p class="lead mt-5">Every feature and fix as it ships, newest first. Vane is in pre-launch: this is the build so far.</p>
+      </section>
+
+      <section class="mt-12 space-y-5">
+        <article class="reveal glass-d card">
+          <time datetime="2026-10-21" class="eyebrow">Oct 21, 2026</time>
+          <ul class="mt-4 space-y-3">
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Landing</span><span>The hero video now plays forward and back, so the loop has no cut.</span></li>
+          </ul>
+        </article>
+        <article class="reveal glass-d card">
+          <time datetime="2026-10-20" class="eyebrow">Oct 20, 2026</time>
+          <ul class="mt-4 space-y-3">
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">API protection</span><span>The whole API now sits behind a shield: per-address limits, blocking of attack tools and scanners, automatic bans for repeated probing, and limits on wrong keys and sign-up floods.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Studio</span><span>A network-agnostic publishing queue: pick your channels in one Publish dialog (title, description, privacy) and Studio publishes in the background with retries.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Legal</span><span>Privacy Policy, Terms of Service and a data-deletion page.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Landing</span><span>A Follow section with Vane’s own social networks.</span></li>
+          </ul>
+        </article>
+        <article class="reveal glass-d card">
+          <time datetime="2026-10-19" class="eyebrow">Oct 19, 2026</time>
+          <ul class="mt-4 space-y-3">
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">LinkedIn and Threads</span><span>Connect with the networks’ own sign-in, publish text and one image, and get a Reconnect prompt before a 60-day sign-in runs out. Switched on when each network approves Vane.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Webhooks</span><span>Signed <code class="i">post.published</code> and <code class="i">post.failed</code> events with retries, and instant triggers for Zapier and Make.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Studio</span><span>Video previews and length, public links you can create and remove, a Share dialog, and a one-click “announce this video” in your Vane Post channels. The Channels screen shows YouTube, TikTok and Instagram Reels as Soon.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Connectors</span><span>Zapier app, WordPress plugin and a Claude (MCP) connector.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Navigation</span><span>A Post ↔ Studio hand-off card under the greeting.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Fix</span><span>Connecting a Mastodon server no longer fails with “Request failed (502)”.</span></li>
+          </ul>
+        </article>
+        <article class="reveal glass-d card">
+          <time datetime="2026-10-18" class="eyebrow">Oct 18, 2026</time>
+          <ul class="mt-4 space-y-3">
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Vane Studio</span><span>The video engine and dashboard: resumable uploads, a library, separate <code class="i">cvid_</code> keys, on <code class="i">studio.</code> and <code class="i">post.</code> subdomains with one shared sign-in.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Mastodon</span><span>Connect any Mastodon server and publish.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">API</span><span><code class="i">Idempotency-Key</code> for retry-safe posting and the OpenAPI spec.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">History</span><span>Open a sent post on its network straight from the history list.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Editor</span><span>A progress ring on the counter, an emoji picker, a week strip, a “your usual time” chip and a streak badge.</span></li>
+          </ul>
+        </article>
+        <article class="reveal glass-d card">
+          <time datetime="2026-10-17" class="eyebrow">Oct 17, 2026</time>
+          <ul class="mt-4 space-y-3">
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Bluesky</span><span>Connect with an app password and publish text, links, tags and one image.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">API</span><span>Public API, part 1 and 2: keys, plans, quotas and a keys screen in the dashboard with a quota meter and quick start. A Make custom app.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Editor</span><span>Hashtag memory that suggests the tags you used before, an Insights card, draft autosave, Reuse and Ctrl/⌘ + Enter to schedule.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Admin</span><span>An admin panel with users, plans and prices, traffic, Search Console and IP blocking.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Sign-in</span><span>A “Copy code” button in the sign-in email.</span></li>
+          </ul>
+        </article>
+        <article class="reveal glass-d card">
+          <time datetime="2026-10-16" class="eyebrow">Oct 16, 2026</time>
+          <ul class="mt-4 space-y-3">
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Security</span><span>Cloudflare Turnstile on sign-in and sign-up, and a 6-digit email code for new accounts and for returns after a few days away.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Landing</span><span>New hero and an iPad demo of publishing a video.</span></li>
+          </ul>
+        </article>
+        <article class="reveal glass-d card">
+          <time datetime="2026-10-15" class="eyebrow">Oct 15, 2026</time>
+          <ul class="mt-4 space-y-3">
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Telegram</span><span>Two ways to connect: Quick Connect with the Vane bot (with proof you own the channel) or your own bot.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Media</span><span>Native image and video upload with progress and preview.</span></li>
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">Brand</span><span>The new Vane logo.</span></li>
+          </ul>
+        </article>
+        <article class="reveal glass-d card">
+          <time datetime="2026-10-12" class="eyebrow">Oct 12–14, 2026</time>
+          <ul class="mt-4 space-y-3">
+            <li class="flex gap-3 text-[.93rem] text-white/70"><span class="badge badge-soon mt-0.5 h-fit shrink-0">The start</span><span>Waitlist, landing page, accounts and sessions, the dashboard, encrypted credentials and the cron worker that publishes on time.</span></li>
+          </ul>
+        </article>
+      </section>
+
+      <section class="reveal mt-16">
+        <div class="glass-d card sm:p-8">
+          <p class="eyebrow">Next</p>
+          <h2 class="mt-3">What we are working on.</h2>
+          <ul class="check mt-3">
+            <li>LinkedIn and Threads going live as each network approves Vane.</li>
+            <li>YouTube, TikTok and Instagram Reels in Vane Studio.</li>
+            <li>Paid plans and checkout for cards, Apple Pay, Google Pay and stablecoins.</li>
+            <li>Zapier, Make and WordPress in their directories.</li>
+          </ul>
+        </div>
+      </section>
+
+    </main>
+
+    <footer class="border-t border-white/5 px-5 py-12 sm:px-8">
+      <div class="mx-auto max-w-6xl">
+        <div class="grid grid-cols-2 gap-8 sm:grid-cols-4"><div><p class="eyebrow">Product</p><ul class="mt-3 space-y-2 text-sm"><li><a href="/#features" class="text-white/55 transition-colors hover:text-white">Features</a></li><li><a href="/networks" class="text-white/55 transition-colors hover:text-white">Networks</a></li><li><a href="/#pricing" class="text-white/55 transition-colors hover:text-white">Pricing</a></li><li><a href="/changelog" class="text-white/55 transition-colors hover:text-white">Changelog</a></li></ul></div><div><p class="eyebrow">Developers</p><ul class="mt-3 space-y-2 text-sm"><li><a href="/developers" class="text-white/55 transition-colors hover:text-white">API</a></li><li><a href="/integrations" class="text-white/55 transition-colors hover:text-white">Integrations</a></li><li><a href="/api/v1/openapi.json" class="text-white/55 transition-colors hover:text-white">OpenAPI spec</a></li><li><a href="/security" class="text-white/55 transition-colors hover:text-white">Security</a></li></ul></div><div><p class="eyebrow">Company</p><ul class="mt-3 space-y-2 text-sm"><li><a href="/about" class="text-white/55 transition-colors hover:text-white">About</a></li><li><a href="/partners" class="text-white/55 transition-colors hover:text-white">Partners</a></li><li><a href="/partners/wysb" class="text-white/55 transition-colors hover:text-white">WYSB</a></li><li><a href="/about#contact" class="text-white/55 transition-colors hover:text-white">Contact</a></li></ul></div><div><p class="eyebrow">Legal</p><ul class="mt-3 space-y-2 text-sm"><li><a href="/privacy" class="text-white/55 transition-colors hover:text-white">Privacy</a></li><li><a href="/terms" class="text-white/55 transition-colors hover:text-white">Terms</a></li><li><a href="/data-deletion" class="text-white/55 transition-colors hover:text-white">Data deletion</a></li></ul></div></div>
+        <div class="mt-10 flex flex-col items-center justify-between gap-3 border-t border-white/5 pt-6 text-xs text-white/35 sm:flex-row">
+          <p>© <span id="year"></span> Vane · vaneapp.dev · Powered by <a href="https://wysb.eu" target="_blank" rel="noopener" class="font-medium text-white/50 transition-colors hover:text-white">WYSB</a></p>
+          <p><a href="/privacy" class="hover:text-white">Privacy</a> · <a href="/terms" class="hover:text-white">Terms</a></p>
+        </div>
+      </div>
+    </footer>
+  </div>
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+    (function () {
+      var els = document.querySelectorAll('.reveal');
+      if (!('IntersectionObserver' in window)) { els.forEach(function (e) { e.classList.add('in'); }); return; }
+      var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }); }, { threshold: .08 });
+      els.forEach(function (e) { io.observe(e); });
+    })();
+  </script>
+</body>
+</html>

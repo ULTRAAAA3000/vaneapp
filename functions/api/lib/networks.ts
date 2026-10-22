@@ -1,5 +1,6 @@
 /**
- * The networks Vane knows, and whether each one can be switched on.
+ * The networks Vane knows, and whether each one can be switched on. A network that is NOT listed here is simply not managed:
+ * nothing about it changes. When you add a network anywhere in the code, add it to this list too (so the admin can switch it).
  *
  *   implemented = the code is written (connect flow + publishing). It is the ONE thing that decides whether the admin may
  *                 switch a network on; the platform's own review / verification does not matter for that (Vane may already be
@@ -32,11 +33,14 @@ export const NETWORKS: readonly NetworkInfo[] = [
   { id: 'mastodon', name: 'Mastodon', product: 'post', implemented: true, code: 'Connect (OAuth on any server) and publish' },
   { id: 'linkedin', name: 'LinkedIn', product: 'post', implemented: true, code: 'Connect (OAuth) and publish, token renewal' },
   { id: 'threads', name: 'Threads', product: 'post', implemented: true, code: 'Connect (OAuth) and publish, token renewal' },
+  { id: 'discord', name: 'Discord', product: 'post', implemented: true, code: 'Connect (channel webhook) and publish' },
+  { id: 'devto', name: 'Dev.to', product: 'post', implemented: true, code: 'Connect (API key) and publish' },
   { id: 'x', name: 'X', product: 'post', implemented: false, code: 'Not written yet (only reserved in the database)' },
   { id: 'webhook', name: 'Webhook channel', product: 'post', implemented: false, code: 'Not written yet (post webhooks for your own endpoint are a separate feature)' },
   { id: 'youtube', name: 'YouTube', product: 'studio', implemented: false, code: 'Connect and upload flow not written yet' },
   { id: 'tiktok', name: 'TikTok', product: 'studio', implemented: false, code: 'Connect and upload flow not written yet' },
   { id: 'instagram', name: 'Instagram Reels', product: 'studio', implemented: false, code: 'Connect and upload flow not written yet' },
+  { id: 'pinterest', name: 'Pinterest', product: 'studio', implemented: false, code: 'Connect and upload flow not written yet' },
 ];
 
 export const networkInfo = (id: string): NetworkInfo | undefined => NETWORKS.find((n) => n.id === id);
@@ -70,7 +74,11 @@ export async function networkFlags(env: { DB: D1Database }): Promise<Map<string,
 }
 
 /** Can people use this network right now? Not implemented: never. Implemented: yes unless the admin switched it off. */
-export const isOn = (id: string, flags: Map<string, Flag>): boolean => !!networkInfo(id)?.implemented && (flags.get(id)?.enabled ?? true);
+export function isOn(id: string, flags: Map<string, Flag>): boolean {
+  const info = networkInfo(id);
+  if (!info) return true; // not in this list (a network somebody just added): the admin does not manage it yet, so it is left exactly as it was
+  return info.implemented && (flags.get(id)?.enabled ?? true);
+}
 
 export async function networkEnabled(env: { DB: D1Database }, id: string): Promise<boolean> {
   return isOn(id, await networkFlags(env));

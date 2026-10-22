@@ -65,9 +65,19 @@
       name: 'Mastodon', ready: true, blurb: 'Any Mastodon server', setup: 'Enter your server, then allow Vane to post on your server.',
       tile: 'bg-indigo-500/15 text-indigo-300', limit: 500, bg: '#191b22', hint: 'Mastodon counts every link as 23 characters, however long it is.',
       icon: { fill: true, d: 'M23.268 5.313c-.35-2.578-2.617-4.61-5.304-5.004C17.51.242 15.792 0 11.813 0h-.03c-3.98 0-4.835.242-5.288.309C3.882.692 1.496 2.518.917 5.127.64 6.412.61 7.837.661 9.143c.074 1.874.088 3.745.26 5.611.118 1.24.325 2.47.62 3.68.55 2.237 2.777 4.098 4.96 4.857 2.336.792 4.849.923 7.256.38.265-.061.527-.132.786-.213.585-.184 1.27-.39 1.774-.753a.057.057 0 0 0 .023-.043v-1.809a.052.052 0 0 0-.02-.041.053.053 0 0 0-.046-.01 20.282 20.282 0 0 1-4.709.545c-2.73 0-3.463-1.284-3.674-1.818a5.593 5.593 0 0 1-.319-1.433.053.053 0 0 1 .066-.054c1.517.363 3.072.546 4.632.546.376 0 .75 0 1.125-.01 1.57-.044 3.224-.124 4.768-.422.038-.008.077-.015.11-.024 2.435-.464 4.753-1.92 4.989-5.604.008-.145.03-1.52.03-1.67.002-.512.167-3.63-.024-5.545zm-3.748 9.195h-2.561V8.29c0-1.309-.55-1.976-1.67-1.976-1.23 0-1.846.79-1.846 2.35v3.403h-2.546V8.663c0-1.56-.617-2.35-1.848-2.35-1.112 0-1.668.668-1.67 1.977v6.218H4.822V8.102c0-1.31.337-2.35 1.011-3.12.696-.77 1.608-1.164 2.74-1.164 1.311 0 2.302.5 2.962 1.498l.638 1.06.638-1.06c.66-.999 1.65-1.498 2.96-1.498 1.13 0 2.043.395 2.74 1.164.675.77 1.012 1.81 1.012 3.12z' }
+    },
+    discord: {
+      name: 'Discord', ready: true, blurb: 'A channel on your server', setup: 'Paste a webhook link from your Discord server.',
+      tile: 'bg-violet-500/15 text-violet-300', limit: 2000, bg: '#313338', hint: 'Discord allows 2000 characters. Posts go out through a webhook, so mentions like @everyone are turned off.',
+      icon: { fill: true, d: 'M20.317 4.37a19.79 19.79 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.74 19.74 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.1 13.1 0 01-1.872-.892.077.077 0 01-.008-.128c.126-.094.252-.192.372-.292a.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.3 12.3 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.84 19.84 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z' }
+    },
+    devto: {
+      name: 'Dev.to', ready: true, blurb: 'Publish as an article', setup: 'Paste an API key from your Dev.to settings.',
+      tile: 'bg-zinc-400/15 text-zinc-200', limit: 10000, bg: '#0a0a0a', hint: 'Each post becomes a Dev.to article: the first line is the title, #hashtags become tags (up to 4).',
+      icon: { d: 'M7 7v10h3.2a3 3 0 003-3v-4a3 3 0 00-3-3zM16.5 7v10M16.5 7h3M16.5 12h2.5M16.5 17h3' }
     }
   };
-  var NET_ORDER = ['telegram', 'linkedin', 'threads', 'bluesky', 'mastodon'];
+  var NET_ORDER = ['telegram', 'linkedin', 'threads', 'bluesky', 'mastodon', 'discord', 'devto'];
   // channels of a network this dashboard has no entry for (for example "x" or "webhook") get the generic link icon
   var NET_OTHER = { tile: 'bg-white/[0.08] text-white/70', icon: { d: 'M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7' } };
 
@@ -544,6 +554,34 @@
     renderAll();
   });
 
+  // ---- Discord: a webhook link; Dev.to: an API key (both are pasted, then checked on the server)
+  $('dvKeyToggle').addEventListener('click', function () {
+    var show = $('dvKey').type === 'password';
+    $('dvKey').type = show ? 'text' : 'password';
+    this.textContent = show ? 'Hide' : 'Show';
+  });
+  function bindPasted(p, platform, what, field, fieldLabel, doneMsg) {
+    $(p + 'Form').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      hideErr($(p + 'Err'));
+      var value = $(p + (platform === 'discord' ? 'Url' : 'Key')).value.trim();
+      var name = $(p + 'Name').value.trim() || what;
+      if (!value) return showErr($(p + 'Err'), $(p + 'Form'), fieldLabel);
+      var creds = {}; creds[field] = value;
+      $(p + 'Submit').disabled = true; $(p + 'Spin').classList.remove('hidden'); $(p + 'Label').textContent = 'Checking with ' + what + '…';
+      var r = await Vane.api('POST', '/api/channels/add', { platform: platform, name: name, credentials: creds });
+      $(p + 'Submit').disabled = false; $(p + 'Spin').classList.add('hidden'); $(p + 'Label').textContent = 'Verify & connect';
+      if (!r.ok) return showErr($(p + 'Err'), $(p + 'Form'), r.error);
+      closeConnect();
+      Vane.toast('ok', doneMsg(r.data));
+      S.selected.add(r.data.channel.id);
+      await loadChannels();
+      renderAll();
+    });
+  }
+  bindPasted('dc', 'discord', 'Discord', 'webhookUrl', 'Paste the webhook link you copied in Discord.', function () { return 'Connected to Discord.'; });
+  bindPasted('dv', 'devto', 'Dev.to', 'apiKey', 'Paste the API key you created on Dev.to.', function (d) { return 'Connected to Dev.to' + (d.devto && d.devto.username ? ' as @' + d.devto.username : '') + '.'; });
+
   // ---- Mastodon: the server address, then the server's own "Authorize" page
   $('mForm').addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -608,7 +646,7 @@
   function openStep(step) {
     showStep(step);
     setTimeout(function () {
-      var first = step === 'telegram' ? ($('panelQuick').classList.contains('hidden') ? $('cName') : $('qChat')) : step === 'bluesky' ? $('bHandle') : step === 'mastodon' ? $('mInstance') : step === 'linkedin' ? $('liName') : step === 'threads' ? $('thName') : dlg.querySelector('.net-card:not(:disabled)');
+      var first = step === 'telegram' ? ($('panelQuick').classList.contains('hidden') ? $('cName') : $('qChat')) : step === 'bluesky' ? $('bHandle') : step === 'mastodon' ? $('mInstance') : step === 'discord' ? $('dcUrl') : step === 'devto' ? $('dvKey') : step === 'linkedin' ? $('liName') : step === 'threads' ? $('thName') : dlg.querySelector('.net-card:not(:disabled)');
       if (first) first.focus();
     }, 60);
   }
@@ -623,6 +661,8 @@
     $('connectForm').reset(); hideErr($('cErr'));
     $('cToken').type = 'password'; $('cTokenToggle').textContent = 'Show';
     $('mForm').reset(); hideErr($('mErr')); $('mSubmit').disabled = false; $('mSpin').classList.add('hidden'); $('mLabel').textContent = 'Continue';
+    $('dcForm').reset(); hideErr($('dcErr')); $('dcSubmit').disabled = false; $('dcSpin').classList.add('hidden'); $('dcLabel').textContent = 'Verify & connect';
+    $('dvForm').reset(); hideErr($('dvErr')); $('dvKey').type = 'password'; $('dvKeyToggle').textContent = 'Show'; $('dvSubmit').disabled = false; $('dvSpin').classList.add('hidden'); $('dvLabel').textContent = 'Verify & connect';
     $('bForm').reset(); hideErr($('bErr')); $('bPass').type = 'password'; $('bPassToggle').textContent = 'Show';
     [['li', 'LinkedIn'], ['th', 'Threads']].forEach(function (n) {
       $(n[0] + 'Form').reset(); hideErr($(n[0] + 'Err')); $(n[0] + 'Submit').disabled = false; $(n[0] + 'Spin').classList.add('hidden'); $(n[0] + 'Label').textContent = 'Continue with ' + n[1];
@@ -649,6 +689,8 @@
   $('cCancel').addEventListener('click', closeConnect);
   $('bCancel').addEventListener('click', closeConnect);
   $('mCancel').addEventListener('click', closeConnect);
+  $('dcCancel').addEventListener('click', closeConnect);
+  $('dvCancel').addEventListener('click', closeConnect);
   dlg.addEventListener('click', function (e) { if (e.target === dlg) closeConnect(); });
   dlg.addEventListener('close', function () { $('cToken').value = ''; $('bPass').value = ''; qStopTimers(); });
 
@@ -993,7 +1035,25 @@
         '<div class="mt-3 flex justify-between pr-6 text-white/40">' + PV_ACTIONS + '</div>' +
       '</div></div></div></div>';
   }
-  var PV_VIEW = { telegram: viewTelegram, linkedin: viewLinkedin, threads: viewThreads, bluesky: viewBluesky, mastodon: viewMastodon };
+  function viewDiscord(c) {
+    return '<div class="p-3.5"><div class="flex gap-2.5">' + pvAvatar(40, c.title) +
+      '<div class="min-w-0 flex-1">' +
+        '<div class="flex flex-wrap items-baseline gap-x-2 text-[13px]"><span class="font-semibold text-violet-200">' + esc(c.title) + '</span><span class="rounded bg-[#5865f2] px-1 text-[10px] font-semibold">APP</span>' + (c.when ? '<span class="text-[11px] text-white/40">' + esc(c.when) + '</span>' : '') + '</div>' +
+        '<div class="mt-0.5 break-words text-[13.5px] leading-snug text-white/90">' + (c.text ? Vane.rich(c.text) : EMPTY) + '</div>' +
+        pvMedia(c.m, 'mt-2 max-h-56 w-full rounded-lg') +
+      '</div></div></div>';
+  }
+  function viewDevto(c) {
+    var lines = c.text.split('\n'), title = (lines[0] || '').replace(/^#+\s*/, '').trim();
+    var body = lines.slice(1).join('\n').trim();
+    return '<div class="p-3.5"><div class="overflow-hidden rounded-xl bg-[#171717] ring-1 ring-white/10">' +
+      pvMedia(c.m, 'max-h-44 w-full') +
+      '<div class="p-3.5"><div class="flex items-center gap-2 text-[12px] text-white/60">' + pvAvatar(24, c.name) + '<span class="font-medium text-white/80">' + esc(c.name) + '</span><span>' + esc(c.when) + '</span></div>' +
+        '<div class="mt-2 break-words text-[17px] font-bold leading-tight">' + (title ? esc(title) : EMPTY) + '</div>' +
+        (body ? '<div class="mt-2 line-clamp-6 break-words text-[13px] leading-snug text-white/65">' + Vane.rich(body) + '</div>' : '') +
+      '</div></div></div>';
+  }
+  var PV_VIEW = { telegram: viewTelegram, linkedin: viewLinkedin, threads: viewThreads, bluesky: viewBluesky, mastodon: viewMastodon, discord: viewDiscord, devto: viewDevto };
 
   // tabs are built once, then only their pressed state changes (keeps keyboard focus)
   function syncPvTabs() {

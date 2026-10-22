@@ -54,7 +54,7 @@ export interface Env {
 
 // ───────────────────────── Enums ─────────────────────────
 export type Plan = 'free' | 'pro';
-export type ChannelType = 'telegram' | 'x' | 'linkedin' | 'webhook' | 'bluesky' | 'mastodon' | 'threads';
+export type ChannelType = 'telegram' | 'x' | 'linkedin' | 'webhook' | 'bluesky' | 'mastodon' | 'threads' | 'discord' | 'devto';
 export type PostStatus =
   | 'draft'
   | 'scheduled'
@@ -135,6 +135,8 @@ export type ChannelCredentials =
   | { type: 'threads'; accessToken: string; userId: string; username: string; expiresAt: number }
   | { type: 'mastodon'; instance: string; accountId: string; acct: string; accessToken: string }
   | { type: 'bluesky'; service: string; identifier: string; did: string; appPassword: string }
+  | { type: 'discord'; webhookUrl: string; webhookId: string; guildId: string | null; channelId: string | null }
+  | { type: 'devto'; apiKey: string; userId: number; username: string }
   | { type: 'webhook'; url: string; secret?: string };
 
 // ───────────────────────── API contracts ─────────────────────────

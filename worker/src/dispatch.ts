@@ -21,6 +21,8 @@ import type { ChannelRow, CronEnv } from '../../types';
 import { CREDS_ERROR, loadTelegramCreds, type TelegramCreds } from '../../functions/api/channels/credentials';
 import { loadBlueskyCreds, openBlueskySession, sendBlueskyPost, type BlueskySession } from '../../functions/api/channels/bluesky';
 import { loadMastodonCreds, sendMastodonPost } from '../../functions/api/channels/mastodon';
+import { loadDiscordCreds, sendDiscordPost } from '../../functions/api/channels/discord';
+import { loadDevtoCreds, sendDevtoPost } from '../../functions/api/channels/devto';
 import { LINKEDIN_RENEW_BEFORE_SECONDS, linkedinBlob, loadLinkedinCreds, renewLinkedin, sendLinkedinPost, type LinkedinCreds } from '../../functions/api/channels/linkedin';
 import { THREADS_RENEW_BEFORE_SECONDS, loadThreadsCreds, refreshThreadsToken, sendThreadsPost, threadsBlob, type ThreadsCreds } from '../../functions/api/channels/threads';
 import { encryptToken } from '../../functions/api/lib/crypto';
@@ -200,6 +202,8 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
     if (!ch.is_active) return finish(post, 'failed', 'The channel is disabled.');
     if (ch.type === 'bluesky') return deliverBluesky(post, ch);
     if (ch.type === 'mastodon') return deliverMastodon(post, ch);
+    if (ch.type === 'discord') return deliverDiscord(post, ch);
+    if (ch.type === 'devto') return deliverDevto(post, ch);
     if (ch.type === 'linkedin') return deliverLinkedin(post, ch);
     if (ch.type === 'threads') return deliverThreads(post, ch);
     if (ch.type !== 'telegram') return finish(post, 'failed', `Publishing to ${ch.type} is not supported yet.`);
@@ -297,6 +301,34 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
     // The post id is the Idempotency-Key: if a try times out after Mastodon already posted, the next try gets the same status back instead of a duplicate.
     const res = await sendMastodonPost(creds, post.content, mediaUrl, post.id);
     if (res.ok) return finish(post, 'sent', null, { externalId: res.url, network: 'Mastodon' });
+    if (res.retryable && post.attempts < MAX_ATTEMPTS) return finish(post, 'retry', res.error, { retryAfter: res.retryAfter });
+    return finish(post, 'failed', res.retryable ? `${res.error} (gave up after ${post.attempts} attempts)` : res.error);
+  }
+
+  async function deliverDiscord(post: Claimed, ch: ChannelInfo): Promise<void> {
+    const creds = await loadDiscordCreds(ch.credentials, env.ENCRYPTION_KEY);
+    if (!creds) {
+      console.error(`vane-cron: could not read credentials of channel ${ch.id} (wrong ENCRYPTION_KEY or corrupt data)`);
+      return finish(post, post.attempts < MAX_ATTEMPTS ? 'retry' : 'failed', CREDS_ERROR.unreadable);
+    }
+    const media = mediaOf(post);
+    if ('error' in media) return finish(post, 'failed', media.error);
+    const res = await sendDiscordPost(creds, post.content, media.url);
+    if (res.ok) return finish(post, 'sent', null, { externalId: res.url, network: 'Discord' });
+    if (res.retryable && post.attempts < MAX_ATTEMPTS) return finish(post, 'retry', res.error, { retryAfter: res.retryAfter });
+    return finish(post, 'failed', res.retryable ? `${res.error} (gave up after ${post.attempts} attempts)` : res.error);
+  }
+
+  async function deliverDevto(post: Claimed, ch: ChannelInfo): Promise<void> {
+    const creds = await loadDevtoCreds(ch.credentials, env.ENCRYPTION_KEY);
+    if (!creds) {
+      console.error(`vane-cron: could not read credentials of channel ${ch.id} (wrong ENCRYPTION_KEY or corrupt data)`);
+      return finish(post, post.attempts < MAX_ATTEMPTS ? 'retry' : 'failed', CREDS_ERROR.unreadable);
+    }
+    const media = mediaOf(post);
+    if ('error' in media) return finish(post, 'failed', media.error);
+    const res = await sendDevtoPost(creds, post.content, media.url);
+    if (res.ok) return finish(post, 'sent', null, { externalId: res.url, network: 'Dev.to' });
     if (res.retryable && post.attempts < MAX_ATTEMPTS) return finish(post, 'retry', res.error, { retryAfter: res.retryAfter });
     return finish(post, 'failed', res.retryable ? `${res.error} (gave up after ${post.attempts} attempts)` : res.error);
   }

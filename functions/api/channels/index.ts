@@ -17,14 +17,15 @@ import { bump, retryAfter } from '../lib/throttle';
 import { checkChannelQuota } from '../lib/catalog';
 import { networkOff } from '../lib/networks';
 import { handleAddBluesky } from './bluesky-add';
+import { handleAddDevto, handleAddDiscord } from './simple-add';
 import { CREDS_ERROR, findDuplicateTelegramChannel, loadTelegramCreds } from './credentials';
 import { quickConnectAvailable, VERIFIED_VALID_SECONDS } from './quick';
 import { loadLinkedinCreds } from './linkedin';
 import { normalizeChatId, sendTelegramPost, validateTelegramBot } from './telegram';
 import { loadThreadsCreds } from './threads';
 
-const CHANNEL_TYPES: readonly ChannelType[] = ['telegram', 'x', 'linkedin', 'webhook', 'bluesky', 'mastodon', 'threads'];
-const CONNECTABLE: readonly ChannelType[] = ['telegram', 'bluesky'];
+const CHANNEL_TYPES: readonly ChannelType[] = ['telegram', 'x', 'linkedin', 'webhook', 'bluesky', 'mastodon', 'threads', 'discord', 'devto'];
+const CONNECTABLE: readonly ChannelType[] = ['telegram', 'bluesky', 'discord', 'devto'];
 const MAX_NAME_LEN = 80;
 
 const toPublic = (r: Pick<ChannelRow, 'id' | 'type' | 'name' | 'is_active' | 'created_at'>): ChannelPublic => ({
@@ -101,6 +102,8 @@ export const handleAddChannel: PagesFunction<Env> = async ({ request, env }) => 
   if (!name || name.length > MAX_NAME_LEN) return fail(400, `name is required (max ${MAX_NAME_LEN} characters)`);
 
   if (platform === 'bluesky') return handleAddBluesky(env, auth.userId, name, body.credentials);
+  if (platform === 'discord') return handleAddDiscord(env, auth.userId, name, body.credentials);
+  if (platform === 'devto') return handleAddDevto(env, auth.userId, name, body.credentials);
 
   // method
   const method = body.method === undefined ? 'custom' : body.method;
