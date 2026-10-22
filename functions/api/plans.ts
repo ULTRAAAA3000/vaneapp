@@ -3,8 +3,10 @@ import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env } from '../../types';
 import { json, methodNotAllowed } from './lib/http';
 import { listPlans } from './lib/catalog';
+import { billingEnabled, isBuyable } from './lib/billing';
 
 export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
+  const open = billingEnabled(env);
   const plans = (await listPlans(env, { publicOnly: true })).map((p) => ({
     id: p.id,
     kind: p.kind,
@@ -21,6 +23,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
     ctaLabel: p.ctaLabel,
     highlight: p.highlight,
     comingSoon: p.comingSoon,
+    buyable: open && isBuyable(p),
   }));
   return json({ ok: true, plans }, 200, { 'Cache-Control': 'public, max-age=60' });
 };

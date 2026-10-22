@@ -294,6 +294,19 @@ It needs one new table: run the whole `schema.sql` in the D1 Console again (it i
 
 The "Publish videos like you publish posts" section (`#videos` in `public/index.html`) is an iPad showing a YouTube-style channel feed plus a mini dashboard under it. Typing a title and pressing "Publish video" adds a non-clickable card to the feed (up to 3 uploads, then "Reset demo"). It is a pure front-end simulation: the filler videos are in `YT_OLD` and the upload limit is `YT_MAX` in the page script.
 
+## Payments: plans page, checkout, Monobank and crypto
+
+Pages: `/pricing` (every plan from `/admin → Plans`, monthly / yearly switch) and `/checkout?plan=<id>[&interval=year]` (the chosen plan on the left, billing details and the payment method on the right). A plan card only becomes a "buy" button when the plan is switched on (`is_active`, not `coming_soon`, price above 0) **and** at least one payment method is configured; until then the landing page keeps the waitlist buttons. The AI Pass is bought from the "Buy AI Pass" button in the editor (`/checkout?plan=ai-pass`), it is never on the landing page.
+
+Two ways to pay (each switches itself on when its settings exist):
+
+- **Card, Apple Pay, Google Pay: Monobank Acquiring.** `functions/api/lib/monobank.ts`. Checkout makes an invoice (USD by default) and sends the buyer to Monobank's own payment page; Monobank calls `POST /api/billing/monobank` (signed with `X-Sign`, ECDSA SHA-256; the call is also double-checked with the invoice status) and the plan switches on. Needs the secret `MONOBANK_TOKEN` (Pages → Settings → Variables and Secrets). `MONOBANK_CCY` (optional) picks the currency: 840 USD (default), 978 EUR, 980 UAH. Monobank's merchant cabinet decides which wallets the page offers; Google Pay and international Visa/Mastercard are part of the acquiring product (2% for foreign cards at the time of writing).
+- **Crypto: USDT or USDC on Solana.** `functions/api/lib/solana.ts`. Checkout reserves an exact amount (the price plus a few millionths, unique per open order), shows the address, a QR and a Solana Pay link. The payment is found by asking a Solana RPC node what reached the wallet (`getTokenAccountsByOwner`, `getSignaturesForAddress`, `getTransaction`), matched on the exact amount, token and time, and one transaction pays one order. Needs the plain variable `CRYPTO_WALLET` (your Solana address; it receives USDT/USDC) and optionally `SOLANA_RPC_URL` (a Helius / QuickNode address; the public node is rate-limited). The checkout page checks every 5 s; the cron (`worker/`, every minute) also checks, so a payment is activated even if the buyer closed the page. For the cron add the same `CRYPTO_WALLET` (and `MONOBANK_TOKEN`) to the Worker (see worker/wrangler.toml).
+
+What a paid order switches on (`lib/billing.ts → activate`): `video` = Vane Studio (`video_subscriptions`), `ai-pass` = AI Pass (`ai_pass`), `api-addon` = the API add-on on an active Pro plan, `suite` = Post (as plan `suite`) and Studio together, any other plan id = that plan in `subscriptions`. A renewal while the plan is still running adds a period to its end; nothing renews automatically. Every order is a row in `orders` (status pending / paid / expired / failed / canceled); `/admin → Orders` lists them and has **Check**, **Confirm** (you saw the money yourself) and **Cancel**.
+
+**Deploy:** run the whole `schema.sql` in the D1 Console once (adds `orders` and the Vane Suite plan, switched off). Then set the variables above. The Suite plan and the Studio plan (`video`) are off until you switch them on in `/admin → Plans`.
+
 ## Dashboard: adding a social network
 
 `NET` in `public/assets/dashboard.js` is the single list of networks: icon, tile colour, text limit, preview background and the card in the connect dialog. Channels are grouped by network in the Channels card, in "Publish to" and in the post list. **Connect** opens a network picker first, then that network's setup.

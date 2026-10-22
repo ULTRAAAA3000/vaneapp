@@ -658,3 +658,42 @@ INSERT OR IGNORE INTO plans (id, kind, name, tagline, price_cents, features, lim
   ('ai-pass', 'addon', 'Vane AI Pass', '150 AI credits a month for tone, hooks, per-network versions and posts from an idea.', 299,
    '["150 AI credits a month","Tone fixer, hooks, CTAs, per-network versions, post generator","Extra credits are billed per use, only if you switch it on"]',
    '{"aiCredits":150,"overageAiPostUsd":0.02}', 'Get AI Pass', 0, 1, 60);
+
+-- ───────────────────────── Payments ─────────────────────────
+-- One row per checkout. The page creates it (status 'pending'), the payment arrives (Monobank webhook / Solana check / an admin
+-- confirms it by hand), and `fulfillOrder` (functions/api/lib/billing.ts) flips it to 'paid' ONCE and switches the plan on.
+--   plan_id     the plans.id that was bought; amount_cents is what that plan cost WHEN the order was made (later price edits do not touch it)
+--   provider    'monobank' (card / Apple Pay / Google Pay on the Monobank page) | 'crypto' (USDT or USDC on Solana)
+--   provider_ref  Monobank: invoiceId                 crypto: the token mint address
+--   pay_micro   crypto: the exact amount to send in millionths of a token (the price plus a few micro-cents that make it unique)
+--   tx_ref      crypto: the Solana transaction signature that paid it (UNIQUE: one transaction pays one order)
+--   billing     JSON { name, email, country, company, vatId } typed on the checkout page
+CREATE TABLE IF NOT EXISTS orders (
+  id            TEXT    PRIMARY KEY,
+  user_id       TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  plan_id       TEXT    NOT NULL,
+  plan_name     TEXT    NOT NULL DEFAULT '',
+  interval      TEXT    NOT NULL DEFAULT 'month' CHECK (interval IN ('month', 'year')),
+  amount_cents  INTEGER NOT NULL CHECK (amount_cents >= 0),
+  currency      TEXT    NOT NULL DEFAULT 'USD',
+  provider      TEXT    NOT NULL CHECK (provider IN ('monobank', 'crypto')),
+  provider_ref  TEXT,
+  pay_url       TEXT,
+  pay_micro     INTEGER,
+  tx_ref        TEXT    UNIQUE,
+  status        TEXT    NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'expired', 'failed', 'canceled')),
+  billing       TEXT    NOT NULL DEFAULT '{}',
+  note          TEXT,
+  created_at    INTEGER NOT NULL DEFAULT (unixepoch()),
+  expires_at    INTEGER NOT NULL,
+  paid_at       INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_pending ON orders(status, provider, expires_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_invoice ON orders(provider_ref) WHERE provider = 'monobank' AND provider_ref IS NOT NULL;
+
+-- The Suite bundle (Post Pro + Studio, ECONOMY_AND_FINANCE.md §2.6). Off until you switch it on in /admin → Plans (fulfilment: Pro + Studio).
+INSERT OR IGNORE INTO plans (id, name, tagline, price_cents, features, limits, cta_label, is_public, is_active, sort) VALUES
+  ('suite', 'Vane Suite', 'Vane Post Pro and Vane Studio together.', 1800,
+   '["Everything in Vane Post Pro","Everything in Vane Studio","Announce a new video to your social networks in one click"]',
+   '{"postsPerMonth":1000,"aiCredits":250,"apiAccess":0,"overagePostUsd":0.015,"overageAiPostUsd":0.045}', 'Get Suite', 0, 0, 45);

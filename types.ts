@@ -23,6 +23,10 @@ export interface Env {
   ENCRYPTION_KEY?: string;      // for encrypting channels.credentials (>= 32 random chars)
   JWT_SECRET?: string;          // signs/verifies API bearer tokens (>= 32 chars)
   STRIPE_SECRET_KEY?: string;
+  MONOBANK_TOKEN?: string;          // Monobank Acquiring merchant token (secret): card / Apple Pay / Google Pay checkout is off without it
+  MONOBANK_CCY?: string;            // optional: ISO 4217 number the invoices are made in (default 840 = USD; 980 = UAH, 978 = EUR)
+  CRYPTO_WALLET?: string;           // plain var: the Solana address that receives USDT / USDC (crypto checkout is off without it)
+  SOLANA_RPC_URL?: string;          // optional: a Solana RPC address (Helius, QuickNode); the public one is used when empty
   SYSTEM_BOT_TOKEN?: string;        // token of the shared Vane bot used by Quick Connect
   TELEGRAM_WEBHOOK_SECRET?: string; // proves webhook calls really come from Telegram
 
@@ -283,6 +287,10 @@ export interface CronEnv {
   LINKEDIN_CLIENT_ID?: string;     // only to renew a LinkedIn sign-in that came with a refresh token
   LINKEDIN_CLIENT_SECRET?: string;
   LINKEDIN_VERSION?: string;       // the same optional value as on Pages
+  MONOBANK_TOKEN?: string;         // the same secret as on Pages: lets the cron ask Monobank about card orders whose webhook never came
+  MONOBANK_CCY?: string;
+  CRYPTO_WALLET?: string;          // the same as on Pages: lets the cron find crypto payments even when the buyer closed the checkout page
+  SOLANA_RPC_URL?: string;        // the same optional value as on Pages
 }
 
 // ───────────────────────── Quick Connect (stage 2 of the upgrade) ─────────────────────────

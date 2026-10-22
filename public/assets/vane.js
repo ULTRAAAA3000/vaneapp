@@ -21,6 +21,8 @@
     var h = location.hostname;
     if (OWN_HOST.test(h)) return '/';
     var q = new URLSearchParams(location.search);
+    var back = q.get('next');
+    if (/^\/checkout(\?[A-Za-z0-9=&%._-]*)?$/.test(back || '')) return back;       // sent to sign in from a "Buy" button: back to the checkout
     var studio = q.get('product') === 'studio';                        // chosen on the sign-in page's Post / Studio switch
     if (/^(www\.)?vaneapp\.dev$/i.test(h)) return studio ? 'https://studio.vaneapp.dev/' : 'https://post.vaneapp.dev/';
     var next = q.get('next');

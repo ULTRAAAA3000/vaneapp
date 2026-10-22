@@ -1713,7 +1713,9 @@ curl -X POST https://vaneapp.dev/api/posts \
           '<div class="mt-4 flex items-end gap-2"><span class="pixel text-5xl leading-none tracking-tight">' + esc(price) + '</span>' + per + '</div>' +
           '<p class="mt-2 text-sm text-white/50">' + compare + esc(p.tagline) + '</p>' +
           '<ul class="mt-6 space-y-3 text-sm text-white/75">' + p.features.map(function (f) { return '<li class="flex gap-3"><span class="text-emerald-400">✓</span> ' + esc(f) + '</li>'; }).join('') + '</ul>' +
-          '<div class="mt-auto pt-7"><button type="button" data-goto-join class="w-full rounded-full px-6 py-3 text-sm font-semibold ' + btn + '">' + esc(p.ctaLabel) + '</button></div></div>';
+          '<div class="mt-auto pt-7">' + (p.buyable
+            ? '<a href="/checkout?plan=' + encodeURIComponent(p.id) + '" class="block w-full rounded-full px-6 py-3 text-center text-sm font-semibold ' + btn + '">' + esc(p.ctaLabel) + '</a>'
+            : '<button type="button" data-goto-join class="w-full rounded-full px-6 py-3 text-sm font-semibold ' + btn + '">' + esc(p.ctaLabel) + '</button>') + '</div></div>';
       }
       function reveal(root) {
         $$('.reveal', root).forEach(function (el) { if (typeof io !== 'undefined' && io) io.observe(el); else el.classList.add('in'); });

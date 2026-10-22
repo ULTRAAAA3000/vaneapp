@@ -178,7 +178,7 @@
   $('logout').addEventListener('click', function () { call('POST', '/api/admin/logout').then(function () { toGate('Signed out.'); }); });
 
   // ───────────────────────── navigation ─────────────────────────
-  var TABS = [['overview', 'Overview'], ['users', 'Users'], ['plans', 'Plans'], ['social', 'Social'], ['traffic', 'Traffic'], ['search', 'Search'], ['security', 'Security'], ['settings', 'Settings'], ['activity', 'Activity']];
+  var TABS = [['overview', 'Overview'], ['users', 'Users'], ['plans', 'Plans'], ['orders', 'Orders'], ['social', 'Social'], ['traffic', 'Traffic'], ['search', 'Search'], ['security', 'Security'], ['settings', 'Settings'], ['activity', 'Activity']];
   function route() {
     var tab = (location.hash || '#overview').slice(1);
     if (!TABS.some(function (t) { return t[0] === tab; })) tab = 'overview';
@@ -386,7 +386,7 @@
         '<button class="btn btn-white btn-sm" type="button" data-act="plan-new">+ New plan</button>') +
         '<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">' + cards + '</div>' +
         card('How this connects to payments', '<ul class="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-white/60"><li>Prices are stored as integer cents with a currency, plus an optional yearly price and a "was" price, so a checkout can charge exactly what the card shows.</li>' +
-          '<li>Every plan has a slot for the provider reference (Monobank, crypto, Stripe). When the payment system is added it only has to create a subscription row; limits and the admin already read them.</li>' +
+          '<li>Every plan has a slot for the provider reference (Monobank, crypto, Stripe). Checkout (Orders tab) creates the subscription row by itself when a payment arrives.</li>' +
           '<li>A "2 in 1" or "Ultra" plan is just a new plan with its own price and limits. Give it to a user from the Users tab (a database created before the admin needs <code>scripts/migrations/001-subscriptions-any-plan.sql</code> run once for custom plans), or sell it once checkout exists.</li>' +
           '<li>The limits are what the API engine enforces (API keys, quotas, extra-post billing), so editing them here changes it within seconds. The connected-channels limit is applied only while <b>Enforce the channel limit</b> is on in Settings (off by default).</li></ul>', '', 'mt-4'));
     });
@@ -414,7 +414,7 @@
       '</div>' +
       '<h4 class="mt-6 text-sm font-semibold">Limits <span class="font-normal text-white/40">(enforced by the API engine, live within seconds)</span></h4><div class="mt-3 grid gap-4 sm:grid-cols-2">' +
         LIMITS.map(function (l) { return field('pL_' + l[0], l[1], typeof p.limits[l[0]] === 'number' ? p.limits[l[0]] : '', { type: 'number', ph: l[3], attrs: 'min="0"' + (l[2] === 'float' ? ' step="0.001"' : ' step="1"') }); }).join('') + '</div>' +
-      '<h4 class="mt-6 text-sm font-semibold">Payment provider references <span class="font-normal text-white/40">(filled in when checkout exists)</span></h4><div class="mt-3 grid gap-4 sm:grid-cols-3">' +
+      '<h4 class="mt-6 text-sm font-semibold">Payment provider references <span class="font-normal text-white/40">(optional notes for your own records; checkout does not need them)</span></h4><div class="mt-3 grid gap-4 sm:grid-cols-3">' +
         PROVIDERS.map(function (x) { return field('pR_' + x[0], x[1], p.providerRefs[x[0]] || '', { ph: 'product / price id' }); }).join('') + '</div>' +
       '<div id="planErr" role="alert" class="mt-5 hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>' +
       '<div class="mt-6 flex items-center justify-between gap-3"><div>' + (creating || p.id === 'free' ? '' : '<button class="btn btn-danger btn-sm" type="button" data-act="plan-delete" data-id="' + esc(p.id) + '">Delete</button>') + '</div>' +
@@ -749,6 +749,37 @@
     });
   };
 
+  // ── Orders (payments)
+  var ORDER_TONE = { paid: 'text-emerald-300', pending: 'text-amber-300', expired: 'text-white/40', failed: 'text-red-300', canceled: 'text-white/40' };
+  VIEWS.orders = function (seq) {
+    var st = S.orderStatus || '';
+    call('GET', '/api/admin/orders' + (st ? '?status=' + st : '')).then(function (r) {
+      if (!alive(seq)) return;
+      if (!r.ok) return show(seq, errorBox(r.error));
+      S.orders = r.data.orders;
+      var filters = [['', 'All'], ['pending', 'Waiting'], ['paid', 'Paid'], ['expired', 'Expired'], ['failed', 'Failed']].map(function (f) {
+        return '<button type="button" class="chip" data-act="order-filter" data-status="' + f[0] + '" aria-pressed="' + (f[0] === st) + '"><span>' + f[1] + '</span></button>';
+      }).join('');
+      show(seq, title('Orders', num(r.data.paid.count) + ' paid · ' + money0(r.data.paid.cents) + ' in total. Card payments confirm themselves through Monobank; crypto is found on the Solana chain. If you saw the money yourself, press Confirm.') +
+        '<div class="mb-4 flex flex-wrap gap-2">' + filters + '</div>' +
+        card('', table([
+          { h: 'When', r: function (o) { return esc(when(o.createdAt)); } },
+          { h: 'Buyer', r: function (o) { return '<span class="font-medium">' + esc(o.email) + '</span><div class="text-xs text-white/40">' + esc([o.billing.name, o.billing.country, o.billing.company].filter(Boolean).join(' · ')) + '</div>'; } },
+          { h: 'Plan', r: function (o) { return esc(o.planName) + '<div class="text-xs text-white/40">' + (o.interval === 'year' ? 'a year' : 'a month') + '</div>'; } },
+          { h: 'Amount', r: function (o) { return money(o.amountCents); } },
+          { h: 'Method', r: function (o) { return o.method === 'crypto' ? 'Crypto' + (o.payMicro ? '<div class="text-xs text-white/40">' + (o.payMicro / 1e6).toFixed(6) + '</div>' : '') : 'Card'; } },
+          { h: 'Status', r: function (o) { return '<span class="font-medium ' + (ORDER_TONE[o.status] || '') + '">' + esc(o.status) + '</span>' + (o.note ? '<div class="text-xs text-white/40">' + esc(o.note) + '</div>' : ''); } },
+          { h: '', r: function (o) {
+            if (o.status === 'paid') return '<span class="break-all text-[11px] text-white/35">' + esc((o.txRef || o.invoiceId || '').slice(0, 18)) + '</span>';
+            if (o.status === 'canceled') return '';
+            return '<div class="flex gap-2"><button type="button" class="btn btn-ghost btn-sm" data-act="order-check" data-id="' + o.id + '">Check</button>' +
+              '<button type="button" class="btn btn-white btn-sm" data-act="order-confirm" data-id="' + o.id + '">Confirm</button>' +
+              (o.status === 'pending' ? '<button type="button" class="btn btn-ghost btn-sm" data-act="order-cancel" data-id="' + o.id + '">Cancel</button>' : '') + '</div>';
+          } },
+        ], r.data.orders, { empty: 'No orders yet.' })));
+    });
+  };
+
   // ── Activity
   VIEWS.activity = function (seq) {
     call('GET', '/api/admin/audit').then(function (r) {
@@ -787,6 +818,14 @@
     else if (a === 'plan-delete') confirmBox('Delete the plan <b>' + esc(el.dataset.id) + '</b>? This only works if nobody ever had it.', 'Delete plan', function () {
       call('DELETE', '/api/admin/plans?id=' + encodeURIComponent(el.dataset.id)).then(function (r) { if (r.ok) { Vane.toast('ok', 'Plan deleted.'); route(); } else Vane.toast('err', r.error); });
     }, true);
+    else if (a === 'order-filter') { S.orderStatus = el.dataset.status; route(); }
+    else if (a === 'order-check') call('POST', '/api/admin/orders', { action: 'check', orderId: el.dataset.id }).then(function (r) { if (r.ok) { Vane.toast('ok', 'Status: ' + r.data.status + '.'); route(); } else Vane.toast('err', r.error); });
+    else if (a === 'order-cancel') confirmBox('Cancel this waiting order? Nothing is refunded or charged.', 'Cancel order', function () {
+      call('POST', '/api/admin/orders', { action: 'cancel', orderId: el.dataset.id }).then(function (r) { if (r.ok) { Vane.toast('ok', 'Order canceled.'); route(); } else Vane.toast('err', r.error); });
+    }, true);
+    else if (a === 'order-confirm') confirmBox('Mark this order as <b>paid</b> and switch the plan on for the buyer? Only do this when you saw the money arrive.', 'Confirm payment', function () {
+      call('POST', '/api/admin/orders', { action: 'confirm', orderId: el.dataset.id }).then(function (r) { if (r.ok) { Vane.toast('ok', 'Paid. The plan is on.'); route(); } else Vane.toast('err', r.error); });
+    });
     else if (a === 'soc-new') socForm(null);
     else if (a === 'soc-edit') socForm(S.social.links.filter(function (l) { return l.id === el.dataset.id; })[0]);
     else if (a === 'soc-delete') confirmBox('Remove <b>' + esc(el.dataset.name) + '</b> from the landing page? You can add it again later.', 'Remove link', function () {
