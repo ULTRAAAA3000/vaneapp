@@ -178,7 +178,8 @@ CREATE TABLE IF NOT EXISTS api_keys (
   hint          TEXT    NOT NULL,                                               -- last 4 characters, to recognise a key in the list
   created_at    INTEGER NOT NULL DEFAULT (unixepoch()),
   last_used_at  INTEGER,
-  revoked_at    INTEGER
+  revoked_at    INTEGER,
+  integration   TEXT                                                            -- where the owner uses it: claude | chatgpt | make | zapier | wordpress | api (NULL = not said: guessed from the name / the client)
 );
 CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_id);
 
@@ -768,3 +769,31 @@ CREATE TABLE IF NOT EXISTS video_ai_overage (
   micro_usd  INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (user_id, period)
 );
+
+-- ───────────────────────── Integrations: admin switches and demand statistics ─────────────────────────
+-- /admin → Integrations. The CATALOG (Claude, ChatGPT, Make, Zapier, WordPress, direct API) lives in code
+-- (functions/api/lib/integrations.ts); these tables only hold what the admin changes and what the traffic says.
+--   NOTE for databases created before this: api_keys gained an `integration` column. CREATE TABLE IF NOT EXISTS cannot add it,
+--   so run ONCE:  npm run db:migrate:integrations   (the code works without it, it just cannot tell the label of a key)
+
+-- One row per integration, created the first time the admin touches it (no row = enabled, no notes).
+CREATE TABLE IF NOT EXISTS integration_settings (
+  id          TEXT    PRIMARY KEY,                              -- 'claude' | 'chatgpt' | 'make' | 'zapier' | 'wordpress' | 'api'
+  enabled     INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),   -- 0: requests from it are refused (403 integration_disabled)
+  listing     TEXT    NOT NULL DEFAULT '',                      -- where the store / marketplace review stands (free choice from a short list)
+  note        TEXT    NOT NULL DEFAULT '',                      -- the admin's own words
+  updated_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+-- How much each integration is used: one row per (UTC day, integration, key, operation), counted on every authenticated
+-- API request. Small on purpose (no per-request log, no IPs, no bodies); history survives a revoked or deleted key.
+CREATE TABLE IF NOT EXISTS api_usage_daily (
+  day          TEXT    NOT NULL,                                -- 'YYYY-MM-DD' (UTC)
+  integration  TEXT    NOT NULL,
+  key_id       TEXT    NOT NULL,
+  op           TEXT    NOT NULL,                                -- 'POST /posts', 'GET /posts/:id', 'mcp:vane_create_post' …
+  requests     INTEGER NOT NULL DEFAULT 0,
+  last_at      INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, integration, key_id, op)
+);
+CREATE INDEX IF NOT EXISTS idx_api_usage_daily_day ON api_usage_daily(day);

@@ -332,12 +332,16 @@ export interface ApiKeyPublic {
   display: string;
   createdAt: number;
   lastUsedAt: number | null;
+  /** where the owner said the key is used ("Used with"), null when not said */
+  integration: 'claude' | 'chatgpt' | 'make' | 'zapier' | 'wordpress' | 'api' | null;
 }
 
 export interface CreateApiKeyRequest {
   name: string;
   mode?: KeyMode;
   scope?: KeyScope;
+  /** claude | chatgpt | make | zapier | wordpress | api (optional) */
+  integration?: string | null;
 }
 
 export type CreateApiKeyResponse =

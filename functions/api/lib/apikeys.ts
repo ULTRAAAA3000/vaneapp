@@ -14,6 +14,10 @@
  */
 import type { Env, KeyMode, KeyScope } from '../../../types';
 import { failCode } from './http';
+import {
+  INTEGRATION_NAMES, inferIntegration, integrationDisabled, isIntegrationId, isMissingSchema, mcpOuterOf, opOf,
+  recordApiUse, rememberMcpKey, type IntegrationId,
+} from './integrations';
 import { apiAllowed, refreshPlanSpecs, resolveSubscription, type Subscription, type SubscriptionRow } from './plans';
 import { bump, clientIp, retryAfter } from './throttle';
 import { loadVideoSubscription, videoEngineRequired } from './videoplans';
@@ -93,9 +97,34 @@ interface KeyRow extends SubscriptionRow {
   scope: KeyScope;
   mode: KeyMode;
   last_used_at: number | null;
+  /** where the owner said the key is used (NULL: not said, or the database has no such column yet) */
+  integration?: string | null;
 }
 
 const WWW = { 'WWW-Authenticate': 'Bearer' };
+
+// The key lookup. Both statements are constants. The first also reads `integration` (a column added later by
+// `npm run db:migrate:integrations`); on a database that does not have it yet the lookup quietly uses the second,
+// so a deploy before the migration cannot take the whole API down.
+const KEY_SQL = (withIntegration: boolean): string =>
+  `SELECT k.id, k.user_id, k.name, k.scope, k.mode, k.last_used_at${withIntegration ? ', k.integration' : ''},
+          s.plan, s.api_addon, s.status, s.current_period_end, s.overage_enabled
+     FROM api_keys k LEFT JOIN subscriptions s ON s.user_id = k.user_id
+    WHERE k.key_hash = ?1 AND k.revoked_at IS NULL`;
+let integrationColumnMissingUntil = 0;
+
+async function findKey(env: Env, keyHash: string): Promise<KeyRow | null> {
+  const now = Math.floor(Date.now() / 1000);
+  if (now >= integrationColumnMissingUntil) {
+    try {
+      return await env.DB.prepare(KEY_SQL(true)).bind(keyHash).first<KeyRow>();
+    } catch (err) {
+      if (!isMissingSchema(err)) throw err;
+      integrationColumnMissingUntil = now + 20;   // look again in 20 s: the migration may have been run
+    }
+  }
+  return env.DB.prepare(KEY_SQL(false)).bind(keyHash).first<KeyRow>();
+}
 
 /** Wrong API keys one address may send in a window before it is asked to wait (shield.ts covers the rest of the API). */
 export const BAD_KEYS_PER_WINDOW = 30;
@@ -147,15 +176,7 @@ export async function requireApiKey(request: Request, env: Env, need: KeyScope):
     }
   }
 
-  const row = await env.DB
-    .prepare(
-      `SELECT k.id, k.user_id, k.name, k.scope, k.mode, k.last_used_at,
-              s.plan, s.api_addon, s.status, s.current_period_end, s.overage_enabled
-         FROM api_keys k LEFT JOIN subscriptions s ON s.user_id = k.user_id
-        WHERE k.key_hash = ?1 AND k.revoked_at IS NULL`,
-    )
-    .bind(keyHash)
-    .first<KeyRow>();
+  const row = await findKey(env, keyHash);
   if (!row) {
     if (ip !== 'unknown') await bump(env, `apikey-bad:${ip}`, BAD_KEY_WINDOW_SECONDS);
     return { ok: false, response: failCode(401, 'invalid_api_key', 'Invalid API key.', {}, WWW) };
@@ -188,6 +209,21 @@ export async function requireApiKey(request: Request, env: Env, need: KeyScope):
   if (row.mode === 'live' && row.scope === 'video' && !(await loadVideoSubscription(env, row.user_id, now)).active) {
     return { ok: false, response: videoEngineRequired() };
   }
+
+  // Which integration is this (Claude, ChatGPT, Make, …), is it switched on, and count it. See lib/integrations.ts.
+  const outer = mcpOuterOf(request);
+  const integration: IntegrationId = outer
+    ? 'claude'
+    : isIntegrationId(row.integration) ? row.integration : inferIntegration(request.headers.get('user-agent'), row.name) ?? 'api';
+  if (await integrationDisabled(env, integration, now)) {
+    return {
+      ok: false,
+      response: failCode(403, 'integration_disabled', `The ${INTEGRATION_NAMES[integration]} integration is switched off for the moment. Try again later.`),
+    };
+  }
+  // A request made by the MCP endpoint is counted once, as the tool call (mcp.ts), not once per inner REST call.
+  if (outer) rememberMcpKey(outer, row.id);
+  else await recordApiUse(env, { keyId: row.id, integration, op: opOf(request.method, new URL(request.url).pathname), now });
 
   // Cheap "last used" stamp: at most one write a minute per key.
   if (row.last_used_at === null || row.last_used_at < now - LAST_USED_GRANULARITY) {

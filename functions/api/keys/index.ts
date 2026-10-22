@@ -11,6 +11,7 @@ import type { PagesFunction } from '@cloudflare/workers-types';
 import type { ApiKeyPublic, Env, KeyMode, KeyScope } from '../../../types';
 import { requireUser } from '../lib/auth';
 import { displayKey, generateApiKey, MAX_KEYS_PER_USER } from '../lib/apikeys';
+import { INTEGRATION_IDS, isIntegrationId, isMissingSchema, type IntegrationId } from '../lib/integrations';
 import { fail, failCode, isRecord, json, methodNotAllowed, readJson } from '../lib/http';
 import { apiAllowed } from '../lib/plans';
 import { loadVideoSubscription, videoEngineRequired } from '../lib/videoplans';
@@ -19,11 +20,12 @@ import { loadSubscription } from '../lib/usage';
 
 const MAX_NAME_LEN = 60;
 
-interface KeyListRow { id: string; name: string; scope: KeyScope; mode: KeyMode; hint: string; created_at: number; last_used_at: number | null }
+interface KeyListRow { id: string; name: string; scope: KeyScope; mode: KeyMode; hint: string; created_at: number; last_used_at: number | null; integration?: string | null }
 
 const toPublic = (r: KeyListRow): ApiKeyPublic => ({
   id: r.id, name: r.name, scope: r.scope, mode: r.mode,
   display: displayKey(r.scope, r.mode, r.hint), createdAt: r.created_at, lastUsedAt: r.last_used_at,
+  integration: isIntegrationId(r.integration) ? r.integration : null,
 });
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
@@ -34,10 +36,13 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (scope !== null && scope !== 'post' && scope !== 'video') return fail(400, 'scope must be "post" or "video"');
 
   // Explicit columns: key_hash is deliberately never selected.
-  const { results } = await env.DB
-    .prepare('SELECT id, name, scope, mode, hint, created_at, last_used_at FROM api_keys WHERE user_id = ?1 AND revoked_at IS NULL AND (?2 IS NULL OR scope = ?2) ORDER BY created_at DESC')
+  const list = (withIntegration: boolean) => env.DB
+    .prepare(`SELECT id, name, scope, mode, hint, created_at, last_used_at${withIntegration ? ', integration' : ''} FROM api_keys WHERE user_id = ?1 AND revoked_at IS NULL AND (?2 IS NULL OR scope = ?2) ORDER BY created_at DESC`)
     .bind(auth.userId, scope)
     .all<KeyListRow>();
+  let results: KeyListRow[];
+  try { results = (await list(true)).results; }
+  catch (err) { if (!isMissingSchema(err)) throw err; results = (await list(false)).results; }   // before `npm run db:migrate:integrations`
   return json({ ok: true, keys: results.map(toPublic), max: MAX_KEYS_PER_USER });
 };
 
@@ -81,21 +86,38 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
 
   await bump(env, rl, 3600);
+  // "Used with": where the owner will use the key (it tells the admin which integrations are in demand). Optional.
+  let integration: IntegrationId | null = null;
+  if (body.integration !== undefined && body.integration !== null && body.integration !== '') {
+    if (!isIntegrationId(body.integration)) return fail(400, `integration must be one of: ${INTEGRATION_IDS.join(', ')}`);
+    integration = body.integration;
+  }
+
   const key = await generateApiKey(scope, mode);
   const id = crypto.randomUUID();
   const now = Math.floor(Date.now() / 1000);
   try {
-    await env.DB
-      .prepare('INSERT INTO api_keys (id, user_id, name, scope, mode, key_hash, hint, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)')
-      .bind(id, auth.userId, name, scope, mode, key.hash, key.hint, now)
-      .run();
+    try {
+      await env.DB
+        .prepare('INSERT INTO api_keys (id, user_id, name, scope, mode, key_hash, hint, created_at, integration) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)')
+        .bind(id, auth.userId, name, scope, mode, key.hash, key.hint, now, integration)
+        .run();
+    } catch (err) {
+      if (!isMissingSchema(err)) throw err;
+      // The database has no `integration` column yet (run `npm run db:migrate:integrations`): the key is still created, without the label.
+      integration = null;
+      await env.DB
+        .prepare('INSERT INTO api_keys (id, user_id, name, scope, mode, key_hash, hint, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)')
+        .bind(id, auth.userId, name, scope, mode, key.hash, key.hint, now)
+        .run();
+    }
   } catch (err) {
     console.error('api key insert failed', err instanceof Error ? err.message : 'unknown');
     return fail(500, 'Could not create the key. Please try again.');
   }
 
   return json(
-    { ok: true, key: toPublic({ id, name, scope, mode, hint: key.hint, created_at: now, last_used_at: null }), secret: key.secret },
+    { ok: true, key: toPublic({ id, name, scope, mode, hint: key.hint, created_at: now, last_used_at: null, integration }), secret: key.secret },
     201,
   );
 };

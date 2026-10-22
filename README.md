@@ -294,6 +294,31 @@ They share the account and the sign-in, nothing else; each host answers 404 to t
 `script` (hook, body and CTA for Shorts/TikTok/Reels/YouTube), `metadata` (titles, description, tags, hashtags) and `chapters` (YouTube timecodes, estimated from where each part sits in the script). One generation is one credit of 250 per month (`VIDEO_AI_MONTHLY` in `functions/api/lib/videoai.ts`), given back if the model fails.
 It needs one new table: run the whole `schema.sql` in the D1 Console again (it is idempotent), or only the `video_ai_usage` block at its end.
 
+## Integrations in the admin (Claude, ChatGPT, Make, Zapier, WordPress, direct API)
+
+**Status: the backend is done and tested; the admin screen and the "Used with" picker are still to build** (see "Still to do").
+
+What it measures and controls (`functions/api/lib/integrations.ts`, `functions/api/admin/integrations.ts`):
+
+- **Catalog** (in code): each integration's kind, how far it is built (`live` / `partial` / `planned`), how a user connects it (auth, URLs, steps) and where its store review stands, taken from `documentation/AUTOMATION_INTEGRATIONS.md`.
+- **Switch** (`integration_settings`): `PUT /api/admin/integrations?id=make` `{ "enabled": false }` makes every request from that integration answer `403 integration_disabled` (also for Claude over MCP) until it is switched on again. Takes effect at once on the server that handled the change, within 10 s on the others. A refused request is not counted. The admin can also set the marketplace `listing` state and a `note` (max 500 characters).
+- **Demand** (`api_usage_daily`): one small counter per (UTC day, integration, key, operation), added on every authenticated API request. No per-request log, no IPs, no bodies; kept 120 days (the cron worker purges older rows). `GET /api/admin/integrations` returns, per integration: requests today / 7 d / 30 d, the previous 7 days (for the trend), a 30-day series, active keys (7 d / 30 d), distinct users (30 d), keys labelled for it, the last request, and the top 5 operations.
+- **MCP**: Claude's MCP endpoint is counted once **per tool call** (`mcp:vane_create_post`), not once per inner REST call; invalid keys and `tools/list` are not counted.
+
+How a request is attributed, in this order: (1) it came through MCP → Claude; (2) the key was labelled when it was created ("Used with", `integration` in `POST /api/keys`); (3) the client's `User-Agent` (ChatGPT / OpenAI, Zapier, Make / Integromat, Claude / Anthropic, WordPress); (4) the key's name ("Make.com"); (5) otherwise **Direct API**. Only (1) and (2) are certain; the share that falls into Direct API is returned as `totals.directShare`, so you can see how much is guessed.
+
+**Rolling it out** (nothing breaks if you skip a step; the new parts just stay empty):
+1. `npm run db:remote` — two new tables (`integration_settings`, `api_usage_daily`).
+2. `npm run db:migrate:integrations` — adds `api_keys.integration` and labels existing keys from their names (run once; a second run fails on the ALTER, which means it is done). Until it runs, the API, key creation and the key list keep working; labels are simply not stored (the code checks again every 20 s).
+3. Redeploy the cron worker (`npm run cron:deploy`) so the 120-day purge runs.
+
+**Testing**: `npm run test:integrations` (48 checks: attribution, counting, MCP, the switch, the admin API, and a database without the new column plus the migration). It needs `ADMIN_EMAIL` + `ADMIN_PASSWORD_HASH` in `.dev.vars` (defaults to the login `admin@example.com` / password `Admin-Test-Pass-77`; make the hash with `echo 'Admin-Test-Pass-77' | node scripts/admin-hash.mjs`).
+
+**Still to do**
+- `public/assets/admin.js`: an **Integrations** tab (add `['integrations', 'Integrations']` to `TABS` and a `VIEWS.integrations` that calls `GET /api/admin/integrations`): a card per integration with state chip (`state`: live / partial / planned / paused), activity chip (`activity`: active / idle / none), the on/off switch (`PUT … { enabled }`), the usage numbers and `series` (the existing `bars` helper), `topOps`, the setup (`endpoints` with copy buttons, `auth`, `steps`, `verification`), and the `listing` select + `note`. Show a "run `npm run db:remote`" hint when `needsDb` is true, and a ranking (30-day requests per integration) plus the `totals` row at the top.
+- The **"Used with"** select in the dashboards' create-key dialog (`public/app.html` + `dashboard.js`, and Studio's `apikeys.js`), sending `integration` to `POST /api/keys`; show `integration` on the key rows (`GET /api/keys` already returns it).
+- Put the same integration list into the user-facing docs if wanted.
+
 ## Landing video demo
 
 The "Publish videos like you publish posts" section (`#videos` in `public/index.html`) is an iPad showing a YouTube-style channel feed plus a mini dashboard under it. Typing a title and pressing "Publish video" adds a non-clickable card to the feed (up to 3 uploads, then "Reset demo"). It is a pure front-end simulation: the filler videos are in `YT_OLD` and the upload limit is `YT_MAX` in the page script.

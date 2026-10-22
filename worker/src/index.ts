@@ -4,6 +4,7 @@
  */
 import type { CronEnv } from '../../types';
 import { purgeExpiredIdempotencyKeys } from '../../functions/api/lib/idempotency';
+import { purgeOldApiUsage } from '../../functions/api/lib/integrations';
 import { runDueVideoPublications } from '../../functions/api/lib/videopublish';
 import { deliverDueWebhooks, purgeOldWebhookDeliveries } from '../../functions/api/lib/webhooks';
 import { sweepOrders } from '../../functions/api/lib/billingcheck';
@@ -27,6 +28,8 @@ export default {
         // Webhooks: send what the posts above just queued (and retries that are due), then tidy up. Never blocks or breaks posting.
         .then(() => deliverDueWebhooks(env, Math.floor(Date.now() / 1000)))
         .then(() => purgeOldWebhookDeliveries(env, Math.floor(Date.now() / 1000)))
+        // API usage counters (the admin's Integrations page) are kept for 120 days.
+        .then(() => purgeOldApiUsage(env))
         .catch((err) => console.error('vane-cron: webhooks failed:', err instanceof Error ? err.message : 'unknown'))
         // Payments: expire unpaid orders and find crypto payments whose buyer left the checkout page.
         .then(() => sweepOrders(env as never, Math.floor(Date.now() / 1000)))
