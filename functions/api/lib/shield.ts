@@ -54,7 +54,7 @@ const API_KEY_HEADER = /^Bearer\s+c(?:post|vid)_/i;
 /** Doors a person opens with a browser and nothing else: a request without a User-Agent there is a script. */
 const BROWSER_ONLY = new Set(['/api/auth/login', '/api/auth/register', '/api/auth/verify', '/api/auth/resend', '/api/waitlist', '/api/admin/login']);
 /** Called by other companies' servers: they authenticate with a secret / signature, so no blocklist, no User-Agent rule. */
-const SERVER_TO_SERVER = new Set(['/api/telegram/webhook', '/api/channels/threads/deauthorize', '/api/channels/threads/delete']);
+const SERVER_TO_SERVER = new Set(['/api/telegram/webhook', '/api/billing/monobank', '/api/channels/threads/deauthorize', '/api/channels/threads/delete']);
 /** Big bodies (uploads) and fetches by other companies' servers (Telegram, Meta read our media): no burst limit, no size cap. */
 const UPLOADS = ['/api/media/upload', '/api/video/', '/api/v1/video/'];
 const PUBLIC_MEDIA = '/api/media/';

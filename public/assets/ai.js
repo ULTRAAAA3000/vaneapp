@@ -143,9 +143,14 @@
   if (bn) bn.addEventListener('click', async function (e) {
     if (e.target.closest('#aiBuy')) {
       var o = A.ai.offer;
-      show('Vane AI Pass', '<p class="text-sm leading-relaxed text-white/80">' + money(o.priceUsd) + ' a ' + esc(o.interval === 'year' ? 'year' : 'month') + ' for ' + o.credits + ' AI credits on top of your plan. ' +
-        (o.overageUsd ? 'Need more? Extra credits cost ' + money(o.overageUsd) + ' each, and only if you switch that on.' : '') + '</p>' +
-        '<p class="mt-3 rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-sm leading-relaxed text-amber-200">Online checkout is not open yet. For now the AI Pass is switched on by hand: it will appear here as soon as it is active on your account.</p>');
+      var offer = function () {
+        show('Vane AI Pass', '<p class="text-sm leading-relaxed text-white/80">' + money(o.priceUsd) + ' a ' + esc(o.interval === 'year' ? 'year' : 'month') + ' for ' + o.credits + ' AI credits on top of your plan. ' +
+          (o.overageUsd ? 'Need more? Extra credits cost ' + money(o.overageUsd) + ' each, and only if you switch that on.' : '') + '</p>' +
+          '<p class="mt-3 rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-sm leading-relaxed text-amber-200">Online checkout is not open yet. For now the AI Pass is switched on by hand: it will appear here as soon as it is active on your account.</p>');
+      };
+      var r = await Vane.api('GET', '/api/billing/plan?id=ai-pass');
+      if (r.ok && r.data.plan && r.data.plan.buyable) Vane.go((/^(post|studio)\.vaneapp\.dev$/i.test(location.hostname) ? 'https://vaneapp.dev' : '') + '/checkout?plan=ai-pass');
+      else offer();
       return;
     }
     var b = e.target.closest('[data-extra]');

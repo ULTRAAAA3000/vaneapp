@@ -23,17 +23,17 @@ const SITE = {
     ['Networks', '/networks'],
     ['Developers', '/developers'],
     ['Integrations', '/integrations'],
-    ['Pricing', '/#pricing'],
+    ['Pricing', '/pricing'],
     ['Partners', '/partners'],
   ],
   footer: [
-    ['Product', [['Features', '/#features'], ['Networks', '/networks'], ['Pricing', '/#pricing'], ['Changelog', '/changelog']]],
+    ['Product', [['Features', '/#features'], ['Networks', '/networks'], ['Pricing', '/pricing'], ['Changelog', '/changelog']]],
     ['Developers', [['API', '/developers'], ['Integrations', '/integrations'], ['OpenAPI spec', '/api/v1/openapi.json'], ['Security', '/security']]],
     ['Company', [['About', '/about'], ['Partners', '/partners'], ['WYSB', '/partners/wysb'], ['Contact', '/about#contact']]],
     ['Legal', [['Privacy', '/privacy'], ['Terms', '/terms'], ['Data deletion', '/data-deletion']]],
   ],
 };
-const PAGES_IN_SITEMAP = ['/', '/networks', '/developers', '/integrations', '/security', '/changelog', '/about', '/partners', '/partners/wysb', '/privacy', '/terms', '/data-deletion'];
+const PAGES_IN_SITEMAP = ['/', '/pricing', '/networks', '/developers', '/integrations', '/security', '/changelog', '/about', '/partners', '/partners/wysb', '/privacy', '/terms', '/data-deletion'];
 
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
