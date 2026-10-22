@@ -336,6 +336,8 @@ Two ways to pay (each switches itself on when its settings exist):
 
 What a paid order switches on (`lib/billing.ts → activate`): `video` = Vane Studio (`video_subscriptions`), `ai-pass` = AI Pass (`ai_pass`), `api-addon` = the API add-on on an active Pro plan, `suite` = Post (as plan `suite`) and Studio together, any other plan id = that plan in `subscriptions`. A renewal while the plan is still running adds a period to its end; nothing renews automatically. Every order is a row in `orders` (status pending / paid / expired / failed / canceled); `/admin → Orders` lists them and has **Check**, **Confirm** (you saw the money yourself) and **Cancel**.
 
+**See the checkout before payment is connected:** `/admin → Settings → Checkout preview (only you)`. While it is on, a browser that is signed into `/admin` sees `/pricing` → `/checkout?plan=<any plan id>` fully (even for a plan that is switched off) with a yellow Preview bar; visitors still see nothing. Pressing Pay answers "Preview only: payment is not connected yet" and creates no order. As soon as `MONOBANK_TOKEN` or `CRYPTO_WALLET` is set, preview steps aside and the real checkout takes over.
+
 **Deploy:** run the whole `schema.sql` in the D1 Console once (adds `orders` and the Vane Suite plan, switched off). Then set the variables above. The Suite plan and the Studio plan (`video`) are off until you switch them on in `/admin → Plans`.
 
 ## Dashboard: adding a social network

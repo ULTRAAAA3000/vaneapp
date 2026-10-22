@@ -10,7 +10,7 @@ import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env } from '../../../types';
 import { requireUser } from '../lib/auth';
 import { fail, isRecord, json, methodNotAllowed, readJson, EMAIL_RE } from '../lib/http';
-import { addonAllowed, billingMethods, getPlan, ORDER_COLUMNS, orderView, PAY_WINDOW_SECONDS, quote, type Interval, type Method, type OrderRow } from '../lib/billing';
+import { addonAllowed, billingEnabled, billingMethods, getPlan, previewActive, ORDER_COLUMNS, orderView, PAY_WINDOW_SECONDS, quote, type Interval, type Method, type OrderRow } from '../lib/billing';
 import { createInvoice } from '../lib/monobank';
 import { SOLANA_ASSETS, type CryptoAsset } from '../lib/solana';
 import { bump, retryAfter } from '../lib/throttle';
@@ -28,6 +28,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   const method = b.method as Method;
   if (method !== 'monobank' && method !== 'crypto') return fail(400, 'Choose how to pay: card or crypto.');
+  if (!billingEnabled(env) && (await previewActive(env, request))) return fail(503, 'Preview only: payment is not connected yet, so nothing can be bought. (The Monobank token or the crypto wallet is missing, or the plan is not switched on.)');
   if (!billingMethods(env)[method]) return fail(503, method === 'monobank' ? 'Card payment is not open yet. You can pay with crypto, or try again later.' : 'Crypto payment is not open yet.');
   const asset = (b.asset === 'usdc' ? 'usdc' : 'usdt') as CryptoAsset;
   const interval: Interval = b.interval === 'year' ? 'year' : 'month';

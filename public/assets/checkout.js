@@ -164,6 +164,12 @@
 
     var cfg = await Vane.api('GET', '/api/billing/config');
     S.cfg = cfg.ok ? cfg.data : { methods: { monobank: false, crypto: false } };
+    if (S.cfg.preview) {
+      var bar = document.createElement('div');
+      bar.className = 'mb-5 rounded-xl border border-amber-300/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-200';
+      bar.textContent = 'Preview mode: only you can see this page. Pay shows an error because payment is not connected yet.';
+      $('main').insertBefore(bar, $('main').firstChild);
+    }
 
     var orderId = q.get('order');
     if (orderId) {

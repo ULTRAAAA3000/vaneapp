@@ -12,6 +12,7 @@ export interface Settings {
   registration_open: boolean;   // kill switch for new sign-ups
   track_visits: boolean;        // record page views for the Traffic tab
   enforce_limits: boolean;      // apply the plan limits (channels / posts) to users
+  checkout_preview: boolean;    // lets a browser signed into /admin open the checkout before any payment method is connected (nothing can be bought)
   ai_budget_usd: number;        // monthly budget for AI model calls, shown against the real spend in /admin → AI (0 = none)
 }
 
@@ -26,6 +27,7 @@ export const DEFAULT_SETTINGS: Settings = {
   registration_open: true,
   track_visits: true,
   enforce_limits: false,
+  checkout_preview: false,
   ai_budget_usd: 0,
 };
 
