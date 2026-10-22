@@ -64,6 +64,7 @@
     if (!r.ok) return false;
     S.active = r.data.entitlement.active;
     S.lapsed = r.data.entitlement.lapsed;
+    S.endsAt = r.data.entitlement.currentPeriodEnd;
     S.limits = r.data.limits;
     S.usage = { videos: r.data.usage.videos.used, storageBytes: r.data.usage.storageBytes };
     S.uploadsOn = r.data.features.uploads;
@@ -861,6 +862,16 @@
         '<p class="mt-4 border-t border-white/10 pt-4 text-xs leading-relaxed text-white/45">Each key can make up to 10 requests a minute. A full library answers with a 409 until you delete a video.</p>';
     }
     box.innerHTML = html;
+    var buy = async function () {
+      var r = await Vane.api('GET', '/api/billing/plan?id=video');
+      if (!r.ok || !r.data.plan || !r.data.plan.buyable || !box.isConnected) return;
+      var a = document.createElement('a');
+      a.className = 'btn btn-white mt-4 inline-flex';
+      a.href = (/^studio\.vaneapp\.dev$/i.test(location.hostname) ? 'https://vaneapp.dev' : '') + '/checkout?plan=video';
+      a.textContent = S.active || S.lapsed ? 'Renew Vane Studio' : 'Get Vane Studio';
+      if (!S.active || (S.endsAt && S.endsAt - Date.now() / 1000 < 7 * 86400)) box.appendChild(a);
+    };
+    buy();
   }
 
   /** Quick start: base URL, your videos' ids and a ready-made request (never contains a real key). Returns the request text. */
