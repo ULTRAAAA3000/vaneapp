@@ -32,6 +32,8 @@ export interface PlanSpec {
   channels: number | null;
   /** AI credits the plan includes (free utilities are not counted) */
   aiCredits: number | null;
+  /** Library storage in MB; null = unlimited (applied only while the "enforce_limits" switch is on) */
+  storageMb: number | null;
 }
 
 /**
@@ -40,11 +42,11 @@ export interface PlanSpec {
  */
 export const PLANS: Record<string, PlanSpec> = {
   // §2.1 — 30 posts in total, 2 channels, 10 AI credits, hard stop (never charged)
-  free: { id: 'free', label: 'Free Trial', lifetime: true, ui: 0, api: 0, shared: 30, apiIncluded: true, overage: null, channels: 2, aiCredits: 10 },
+  free: { id: 'free', label: 'Free Trial', lifetime: true, ui: 0, api: 0, shared: 30, apiIncluded: true, overage: null, channels: 2, aiCredits: 10, storageMb: null },
   // §2.2 — $5.99: 180 API posts a month; overage $0.03 / $0.09 per AI post
-  api: { id: 'api', label: 'Developer API', lifetime: false, ui: 0, api: 180, shared: null, apiIncluded: true, overage: { post: 0.03 * USD, aiPost: 0.09 * USD }, channels: null, aiCredits: null },
+  api: { id: 'api', label: 'Developer API', lifetime: false, ui: 0, api: 180, shared: null, apiIncluded: true, overage: { post: 0.03 * USD, aiPost: 0.09 * USD }, channels: null, aiCredits: null, storageMb: null },
   // §2.4 — $9.99 Early Bird / $12: 1,000 dashboard posts a month; overage $0.015 / $0.045 per AI post
-  pro: { id: 'pro', label: 'Pro Dashboard', lifetime: false, ui: 1000, api: 0, shared: null, apiIncluded: false, overage: { post: 0.015 * USD, aiPost: 0.045 * USD }, channels: null, aiCredits: 250 },
+  pro: { id: 'pro', label: 'Pro Dashboard', lifetime: false, ui: 1000, api: 0, shared: null, apiIncluded: false, overage: { post: 0.015 * USD, aiPost: 0.045 * USD }, channels: null, aiCredits: 250, storageMb: null },
 };
 
 /** §2.5 — Pro + API Add-on: +180 API posts a month, with Pro's overage rates. */
@@ -190,6 +192,7 @@ export function specFromCatalog(id: string, label: string, limits: Record<string
     overage: op !== null || oa !== null ? { post: Math.round((op ?? oa ?? 0) * USD), aiPost: Math.round((oa ?? op ?? 0) * USD) } : null,
     channels: num(limits.channels),
     aiCredits: num(limits.aiCredits),
+    storageMb: num(limits.storageMb),
   };
 }
 

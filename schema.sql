@@ -330,6 +330,34 @@ INSERT OR IGNORE INTO plans (id, kind, name, tagline, price_cents, limits, is_ac
   ('api-addon', 'addon', 'Need the dashboard and the API?', 'Add the API to Pro for {price} a month. It adds 180 API posts and keeps Pro’s low overage rates.', 299,
    '{"apiPostsPerMonth":180}', 0, 50);
 
+-- ───────────────────────── Library ─────────────────────────
+-- Every file a person uploads for their posts (POST /api/media/upload) leaves a row here, so the Library tab can list, reuse and delete
+-- it and the storage can be counted against the plan's `storageMb`. Studio videos are NOT here: they have their own table, `videos`.
+--   r2_key   the object key in the `vane-media` bucket, the same uuid.ext the public link /api/media/<key> uses
+--   alt_text, folder_id, tags, sha256, thumb_key, used_count, last_used_at: reserved for the next steps (alt text, folders and tags,
+--   duplicate check, thumbnails), so adding them later does not need a migration of this table
+CREATE TABLE IF NOT EXISTS media_assets (
+  id           TEXT    PRIMARY KEY,                         -- uuid
+  user_id      TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  r2_key       TEXT    NOT NULL UNIQUE,
+  thumb_key    TEXT,
+  kind         TEXT    NOT NULL CHECK (kind IN ('image', 'video')),
+  content_type TEXT    NOT NULL,
+  size_bytes   INTEGER NOT NULL,
+  width        INTEGER,
+  height       INTEGER,
+  name         TEXT    NOT NULL,
+  alt_text     TEXT    NOT NULL DEFAULT '',
+  sha256       TEXT,
+  folder_id    TEXT,
+  tags         TEXT    NOT NULL DEFAULT '[]',
+  used_count   INTEGER NOT NULL DEFAULT 0,
+  last_used_at INTEGER,
+  created_at   INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_media_user ON media_assets(user_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_media_user_sha ON media_assets(user_id, sha256) WHERE sha256 IS NOT NULL;
+
 -- ───────────────────────── Social links ─────────────────────────
 -- The "Follow Vane" section of the landing page. Edited in /admin → Social: the words, the links and the order are data, the
 -- card design is fixed. The section's own heading and intro live in `settings` under the key 'landing.socials'.
