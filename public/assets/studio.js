@@ -20,6 +20,8 @@
     armed: {},            // two-step delete: ids waiting for the second click
     file: null,           // the file chosen in the uploader
     preview: null,        // Promise of its preview frame and length (made in the browser), see makePreview()
+    cover: null,          // the cover picture chosen in the uploader (optional)
+    coverUrl: '',
     up: null              // the upload in progress (see "uploading")
   };
 
@@ -183,8 +185,33 @@
       '<div><label for="eTitle" class="mb-1 block text-xs text-white/55">Title</label><input id="eTitle" class="field" maxlength="100" value="' + esc(v.title) + '" /></div>' +
       '<div><label for="eDesc" class="mb-1 block text-xs text-white/55">Description</label><textarea id="eDesc" class="field" rows="4" maxlength="5000">' + esc(v.description) + '</textarea></div>' +
       '<div><label for="eTags" class="mb-1 block text-xs text-white/55">Tags, separated by commas</label><input id="eTags" class="field" value="' + esc(v.tags.join(', ')) + '" /></div>' +
+      '<div><span class="mb-1 block text-xs text-white/55">Cover</span><div class="flex flex-wrap items-center gap-3">' +
+        (v.thumbnailUrl ? '<img id="eCoverImg" src="' + esc(v.thumbnailUrl) + '?t=' + Date.now() + '" alt="" class="h-14 w-24 rounded-lg object-cover ring-1 ring-white/10" />' : '') +
+        '<label for="eCover" class="btn btn-ghost btn-sm cursor-pointer">' + (v.hasCover ? 'Change cover' : 'Upload a cover') + '</label>' +
+        (v.hasCover ? '<button type="button" class="text-xs text-white/45 underline underline-offset-4 hover:text-white" id="eCoverRemove">Use a frame from the video</button>' : '') +
+        '<input id="eCover" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" class="sr-only" /></div>' +
+        '<p class="mt-1 text-xs text-white/40">JPEG, PNG or WebP up to 2 MB. It is the picture people see before they press play.</p></div>' +
       '</div><div class="mt-5 flex justify-end gap-2"><button class="btn btn-ghost btn-sm" id="mCancel">Cancel</button><button class="btn btn-white btn-sm" id="mSave">Save</button></div>');
     $('mCancel').addEventListener('click', closeModal);
+    $('eCover').addEventListener('change', async function () {
+      var f = this.files[0];
+      if (!f) return;
+      var problem = coverProblem(f);
+      if (problem) { Vane.toast('err', problem); this.value = ''; return; }
+      var r = await uploadCover(v.id, f);
+      if (!r.ok) { Vane.toast('err', r.error); this.value = ''; return; }
+      closeModal();
+      Vane.toast('ok', 'Cover saved');
+      await loadLibrary();
+    });
+    if ($('eCoverRemove')) $('eCoverRemove').addEventListener('click', async function () {
+      this.disabled = true;
+      var r = await Vane.api('DELETE', '/api/video/videos/' + v.id + '/cover');
+      if (!r.ok) { this.disabled = false; Vane.toast('err', r.error); return; }
+      closeModal();
+      Vane.toast('ok', 'The cover was removed');
+      await loadLibrary();
+    });
     $('mSave').addEventListener('click', async function () {
       this.disabled = true;
       var r = await Vane.api('PATCH', '/api/video/videos/' + v.id, { title: $('eTitle').value, description: $('eDesc').value, tags: parseTags($('eTags').value) });
@@ -576,6 +603,46 @@
     if (v) openAnnounce(v);
   });
 
+  // ───────────────────────── cover ─────────────────────────
+  var COVER_MAX = 2 * 1024 * 1024;
+  /** A picture the person chose, or null (with a message) when it cannot be a cover. The server checks it again from the bytes. */
+  function coverProblem(f) {
+    if (!f) return 'Choose a picture.';
+    if (!/\.(jpe?g|png|webp)$/i.test(f.name) && !/^image\/(jpeg|png|webp)$/.test(f.type)) return 'The cover must be a JPEG, PNG or WebP picture.';
+    if (f.size > COVER_MAX) return 'The cover can be up to 2 MB.';
+    return '';
+  }
+  function setCover(f) {
+    var problem = f ? coverProblem(f) : '';
+    if (problem) { Vane.toast('err', problem); return; }
+    if (S.coverUrl) URL.revokeObjectURL(S.coverUrl);
+    S.cover = f || null;
+    S.coverUrl = f ? URL.createObjectURL(f) : '';
+    $('upCoverImg').src = S.coverUrl;
+    $('upCoverImg').classList.toggle('hidden', !f);
+    $('upCoverClear').classList.toggle('hidden', !f);
+    $('upCoverBtn').textContent = f ? 'Change' : 'Choose a picture';
+    if (!f) $('upCover').value = '';
+  }
+  $('upCover').addEventListener('change', function () { if (this.files[0]) setCover(this.files[0]); });
+  $('upCoverClear').addEventListener('click', function () { setCover(null); });
+
+  /** Sends the chosen cover of a finished upload. Says so when it is refused (the video itself is safe). */
+  async function sendCover(videoId, file) {
+    var r = await uploadCover(videoId, file);
+    if (!r.ok) Vane.toast('err', 'The video is uploaded, but its cover was not: ' + r.error);
+    return r.ok;
+  }
+  async function uploadCover(videoId, file) {
+    try {
+      var res = await fetch('/api/video/videos/' + videoId + '/cover', { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file });
+      var data = null;
+      try { data = await res.json(); } catch (e) { /* not JSON */ }
+      if (res.status === 401) { Vane.go(Vane.loginUrl()); return { ok: false, error: 'Please sign in again.' }; }
+      return res.ok && data && data.ok ? { ok: true } : { ok: false, error: (data && data.error) || 'The cover could not be saved (' + res.status + ').' };
+    } catch (e) { return { ok: false, error: 'Network error. Check your connection.' }; }
+  }
+
   // ───────────────────────── choosing a file ─────────────────────────
   function setFile(f) {
     if (!f) return;
@@ -710,7 +777,7 @@
 
   function setBusy(busy) {
     $('uploadBtn').disabled = busy || !S.file;
-    $('fileInput').disabled = busy;
+    $('fileInput').disabled = busy; $('upCover').disabled = busy; $('upCoverClear').disabled = busy;
     ['upTitle', 'upDesc', 'upTags'].forEach(function (id) { $(id).disabled = busy; });
     $('cancelBtn').classList.toggle('hidden', !busy);
     $('progressBox').classList.toggle('hidden', !busy);
@@ -726,6 +793,7 @@
     $('uploadBtn').disabled = true;
     $('dropPreview').classList.add('hidden');
     S.preview = null;
+    setCover(null);
   }
 
   /** Starts a new upload, or picks up the unfinished one that belongs to this same file. Resolves to the upload state or null. */
@@ -754,7 +822,7 @@
   async function startUpload() {
     if (!S.file || S.up) return;
     var meta = { title: $('upTitle').value.trim(), description: $('upDesc').value.trim(), tags: parseTags($('upTags').value) };
-    var previewPromise = S.preview;
+    var previewPromise = S.preview, coverFile = S.cover;
     setBusy(true);
     $('progressLabel').textContent = 'Preparing…';
     var U = await openUpload(S.file, meta);
@@ -796,6 +864,7 @@
     resetForm();
     Vane.toast('ok', 'Video uploaded');
     await sendPreview(U.videoId, previewPromise);
+    if (coverFile) await sendCover(U.videoId, coverFile);
     await Promise.all([loadLibrary(), refreshOverview()]);
     offerAnnounce(U.videoId);
   }

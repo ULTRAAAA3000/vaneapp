@@ -6,6 +6,7 @@
 import type { Env, VideoPublic, VideoRow, VideoRowJoined } from '../../../types';
 import { studioOrigin } from './hosts';
 import { fail, isRecord, json, UUID_RE } from './http';
+import { isMissingSchema } from './integrations';
 
 export const MEDIA_OFF = 'Video storage is not enabled on this server yet.';
 
@@ -33,14 +34,32 @@ export const DESCRIPTION_MAX = 5000;    // YouTube's description limit
 export const TAGS_MAX = 30;
 export const TAG_MAX_LEN = 40;
 
-/** A video with its optional preview/length and public link. v.* are the video's own columns. */
-const SELECT_VIDEO = `
+/** A video with its optional preview/length, cover and public link. v.* are the video's own columns. */
+const SELECT_VIDEO = (withCover: boolean): string => `
   SELECT v.id, v.user_id, v.title, v.description, v.tags, v.status, v.r2_key, v.content_type, v.size_bytes, v.part_size,
          v.upload_id, v.upload_expires_at, v.error, v.source, v.created_at, v.updated_at, v.completed_at,
-         a.thumb_key, a.duration_ms, a.width, a.height, l.token AS link_token
+         a.thumb_key, a.duration_ms, a.width, a.height, l.token AS link_token${withCover ? ', c.r2_key AS cover_key, c.content_type AS cover_type' : ', NULL AS cover_key, NULL AS cover_type'}
     FROM videos v
     LEFT JOIN video_assets a ON a.video_id = v.id
-    LEFT JOIN video_links  l ON l.video_id = v.id`;
+    LEFT JOIN video_links  l ON l.video_id = v.id${withCover ? '\n    LEFT JOIN video_covers c ON c.video_id = v.id' : ''}`;
+
+let coverTableMissingUntil = 0;
+
+/** Runs a library query. A database that does not have the covers table yet (schema.sql not run) quietly answers without covers. */
+async function selectVideos(env: Env, tail: string, binds: (string | number)[], all: boolean): Promise<VideoRowJoined[]> {
+  const run = async (withCover: boolean): Promise<VideoRowJoined[]> => {
+    const st = env.DB.prepare(`${SELECT_VIDEO(withCover)} ${tail}`).bind(...binds);
+    return all ? (await st.all<VideoRowJoined>()).results : [await st.first<VideoRowJoined>()].filter((r): r is VideoRowJoined => r !== null);
+  };
+  const now = Math.floor(Date.now() / 1000);
+  if (now >= coverTableMissingUntil) {
+    try { return await run(true); } catch (err) {
+      if (!isMissingSchema(err)) throw err;
+      coverTableMissingUntil = now + 20;
+    }
+  }
+  return run(false);
+}
 
 /** Private R2 key. A separate prefix from the public `<uuid>.<ext>` post media, which /api/media/:key serves to anyone. */
 export const videoKey = (userId: string, videoId: string, ext: 'mp4' | 'mov'): string => `videos/${userId}/${videoId}.${ext}`;
@@ -68,7 +87,9 @@ export function toPublicVideo(row: VideoRowJoined, view: VideoView): VideoPublic
     completedAt: row.completed_at,
     uploadExpiresAt: row.status === 'uploading' ? row.upload_expires_at : null,
     fileUrl: view.fileBase && row.status === 'ready' ? `${view.fileBase}/${row.id}/file` : null,
-    thumbnailUrl: view.fileBase && row.thumb_key ? `${view.fileBase}/${row.id}/thumbnail` : null,
+    thumbnailUrl: view.fileBase && (row.cover_key || row.thumb_key) ? `${view.fileBase}/${row.id}/thumbnail` : null,
+    hasCover: Boolean(row.cover_key),
+    coverUrl: row.cover_key && row.link_token ? `${view.linkBase}/${row.link_token}/cover` : null,
     durationMs: row.duration_ms,
     width: row.width,
     height: row.height,
@@ -78,7 +99,7 @@ export function toPublicVideo(row: VideoRowJoined, view: VideoView): VideoPublic
 
 export async function getVideoRow(env: Env, userId: string, id: string): Promise<VideoRowJoined | null> {
   if (!UUID_RE.test(id)) return null;
-  return env.DB.prepare(`${SELECT_VIDEO} WHERE v.id = ?1 AND v.user_id = ?2`).bind(id, userId).first<VideoRowJoined>();
+  return (await selectVideos(env, 'WHERE v.id = ?1 AND v.user_id = ?2', [id, userId], false))[0] ?? null;
 }
 
 // ───────────────────────── title, description, tags ─────────────────────────
@@ -126,10 +147,7 @@ export function parseVideoMeta(body: Record<string, unknown>): MetaResult {
 
 export async function listVideosForUser(env: Env, userId: string, view: VideoView): Promise<Response> {
   // The cap is far above the plan's 90 videos; it only guards against a runaway table.
-  const { results } = await env.DB
-    .prepare(`${SELECT_VIDEO} WHERE v.user_id = ?1 ORDER BY v.created_at DESC LIMIT 200`)
-    .bind(userId)
-    .all<VideoRowJoined>();
+  const results = await selectVideos(env, 'WHERE v.user_id = ?1 ORDER BY v.created_at DESC LIMIT 200', [userId], true);
   return json({ ok: true, videos: results.map((r) => toPublicVideo(r, view)) });
 }
 
@@ -170,7 +188,7 @@ export async function deleteVideoForUser(env: Env, userId: string, id: string, s
 
   try {
     if (row.status === 'uploading' && row.upload_id) await env.MEDIA.resumeMultipartUpload(row.r2_key, row.upload_id).abort();
-    else await env.MEDIA.delete(row.thumb_key ? [row.r2_key, row.thumb_key] : row.r2_key);
+    else await env.MEDIA.delete([row.r2_key, ...(row.thumb_key ? [row.thumb_key] : []), ...(row.cover_key ? [row.cover_key] : [])]);
   } catch (err) {
     // An upload R2 already forgot is fine; a real storage outage must not leave a row pointing at a file we kept.
     if (row.status !== 'uploading') {

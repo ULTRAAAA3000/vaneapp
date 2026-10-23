@@ -581,6 +581,18 @@ CREATE TABLE IF NOT EXISTS video_assets (
   updated_at  INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
+-- The cover a person chose for a video (a picture they uploaded; it wins over the frame in video_assets). Separate table for the same
+-- reason: no ALTER, this file stays re-runnable.
+CREATE TABLE IF NOT EXISTS video_covers (
+  video_id     TEXT    PRIMARY KEY REFERENCES videos(id) ON DELETE CASCADE,
+  r2_key       TEXT    NOT NULL,                                                    -- 'videos/<user id>/<video id>.cover.<jpg|png|webp>'
+  content_type TEXT    NOT NULL CHECK (content_type IN ('image/jpeg', 'image/png', 'image/webp')),
+  width        INTEGER,
+  height       INTEGER,
+  size_bytes   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
 -- A public link: anyone who has the address can watch/download the video. One link per video; removing it kills the address.
 -- Platforms that pull a file by URL (TikTok, Instagram Reels) and the "announce in Vane Post" hand-off use it.
 CREATE TABLE IF NOT EXISTS video_links (

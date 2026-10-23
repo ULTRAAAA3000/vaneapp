@@ -450,6 +450,8 @@ export interface VideoRow {
 /** A video row joined with its optional preview/length and its public link (what every library query returns). */
 export interface VideoRowJoined extends VideoRow {
   thumb_key: string | null;
+  cover_key: string | null;
+  cover_type: string | null;
   duration_ms: number | null;
   width: number | null;
   height: number | null;
@@ -475,6 +477,10 @@ export interface VideoPublic {
   fileUrl: string | null;
   /** dashboard only: the preview frame (needs the session cookie) */
   thumbnailUrl: string | null;
+  /** true when the owner uploaded their own cover (otherwise the preview is a frame taken from the video) */
+  hasCover: boolean;
+  /** the cover at an address anyone can open: only when the video has a public link and a cover. Networks and link previews use it. */
+  coverUrl: string | null;
   durationMs: number | null;
   width: number | null;
   height: number | null;
