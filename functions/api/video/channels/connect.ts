@@ -10,7 +10,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!auth.ok) return auth.response;
   const parsed = await readJson(request, 4096);
   if (!parsed.ok) return parsed.response;
-  return connectVideoChannel(env, auth.userId, parsed.data);
+  return connectVideoChannel(env, request, parsed.data);
 };
 
 export const onRequest: PagesFunction<Env> = async () => methodNotAllowed('POST');

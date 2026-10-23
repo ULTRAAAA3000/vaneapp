@@ -17,6 +17,8 @@
  */
 import type { Env } from '../../../types';
 import { fail, failCode, isRecord, json, UUID_RE } from './http';
+import { youtubeConfigured } from './youtube';
+import { youtubeStartUrl } from './youtubeconnect';
 
 export type VideoPlatform = 'youtube' | 'tiktok' | 'instagram';
 
@@ -52,6 +54,13 @@ interface VideoChannelRow {
   created_at: number;
 }
 
+/** The catalog as this server sees it: YouTube opens by itself once its Google keys are set (no code change, no redeploy of the page). */
+export function platformsFor(env: Env): VideoPlatformInfo[] {
+  return VIDEO_PLATFORMS.map((p) => (p.id === 'youtube' && youtubeConfigured(env)
+    ? { ...p, available: true, note: "Until Google approves Vane, YouTube keeps uploads private." }
+    : p));
+}
+
 export async function listVideoChannels(env: Env, userId: string): Promise<Response> {
   // Explicit columns: `credentials` is deliberately never selected.
   const { results } = await env.DB
@@ -59,14 +68,17 @@ export async function listVideoChannels(env: Env, userId: string): Promise<Respo
     .bind(userId)
     .all<VideoChannelRow>();
   const channels: VideoChannelPublic[] = results.map((r) => ({ id: r.id, platform: r.platform, name: r.name, isActive: r.is_active === 1, createdAt: r.created_at }));
-  return json({ ok: true, channels, platforms: VIDEO_PLATFORMS });
+  return json({ ok: true, channels, platforms: platformsFor(env) });
 }
 
-export async function connectVideoChannel(_env: Env, _userId: string, body: unknown): Promise<Response> {
+export async function connectVideoChannel(env: Env, request: Request, body: unknown): Promise<Response> {
   if (!isRecord(body)) return fail(400, 'Body must be a JSON object');
-  const info = VIDEO_PLATFORMS.find((p) => p.id === body.platform);
+  const info = platformsFor(env).find((p) => p.id === body.platform);
   if (!info) return fail(400, `platform must be one of: ${VIDEO_PLATFORMS.map((p) => p.id).join(', ')}`);
   if (!info.available) return failCode(409, 'platform_unavailable', `${info.name} is not open yet. ${info.note}`);
+
+  // YouTube connects through Google's own page: the dashboard goes to this address (a full page navigation, the callback comes back to it).
+  if (info.id === 'youtube') return json({ ok: true, redirect: youtubeStartUrl(request) });
 
   // A network that is marked available must have its connect flow added here (see the note at the top of this file).
   return failCode(501, 'not_implemented', `${info.name} cannot be connected yet.`);
