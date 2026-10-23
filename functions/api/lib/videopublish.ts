@@ -118,10 +118,17 @@ async function runOne(env: PublishEnv, row: Claimed, active: Map<string, boolean
   let tags: string[] = [];
   try { const t: unknown = JSON.parse(ctx.tags); if (Array.isArray(t)) tags = t.filter((x): x is string => typeof x === 'string'); } catch { /* none */ }
 
+  // The owner's cover goes along with the video (best effort: a database without the covers table just has none).
+  const cover = await env.DB
+    .prepare('SELECT r2_key, content_type FROM video_covers WHERE video_id = ?1')
+    .bind(row.video_id)
+    .first<{ r2_key: string; content_type: string }>()
+    .catch(() => null);
+
   try {
     const outcome = await publisher.publish(env, {
       publicationId: row.id, attempt: row.attempts, title: row.title, description: row.description, privacy: row.privacy,
-      video: { id: row.video_id, tags, r2Key: ctx.r2_key, sizeBytes: ctx.size_bytes, contentType: ctx.content_type },
+      video: { id: row.video_id, tags, r2Key: ctx.r2_key, sizeBytes: ctx.size_bytes, contentType: ctx.content_type, cover: cover ? { r2Key: cover.r2_key, contentType: cover.content_type } : null },
       channel: { id: row.channel_id, platform: row.platform, name: ctx.channel_name, credentials: ctx.credentials },
     });
     await done(outcome);

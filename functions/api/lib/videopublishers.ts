@@ -30,7 +30,8 @@ export interface PublishJob {
   title: string;
   description: string;
   privacy: VideoPrivacy;
-  video: { id: string; tags: string[]; r2Key: string; sizeBytes: number; contentType: string };
+  /** `cover`: the picture the owner chose for the video (its R2 key and type), or null: then use the frame, or let the network pick one. A publisher sends it as the network's thumbnail / cover / poster. */
+  video: { id: string; tags: string[]; r2Key: string; sizeBytes: number; contentType: string; cover: { r2Key: string; contentType: string } | null };
   /** `credentials` is exactly what is stored (encrypted for real networks): the publisher decrypts it itself */
   channel: { id: string; platform: VideoPlatform; name: string; credentials: string };
 }
@@ -74,7 +75,7 @@ const MOCK: VideoPublisher = {
     const bytes = new Uint8Array(await head.arrayBuffer());
     if (String.fromCharCode(...bytes.subarray(4, 8)) !== 'ftyp') return { ok: false, retryable: false, error: 'The stored file is not an MP4/MOV.' };
 
-    const q = new URLSearchParams({ privacy: job.privacy, title: job.title, size: String(job.video.sizeBytes) });
+    const q = new URLSearchParams({ privacy: job.privacy, title: job.title, size: String(job.video.sizeBytes), cover: job.video.cover ? job.video.cover.contentType : 'none' });
     return { ok: true, externalId: `mock-${job.publicationId.slice(0, 8)}`, url: `https://example.test/${job.channel.platform}/${job.publicationId}?${q.toString()}` };
   },
 };

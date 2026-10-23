@@ -6,6 +6,7 @@ import type { Env } from '../../../types';
 import { toB64Url } from './encoding';
 import { fail, failCode, json, readBodyLimited } from './http';
 import { requireVideoAccess } from './videoplans';
+import { serveOwnerPicture } from './videocover';
 import { getVideoRow, MEDIA_OFF, toPublicVideo, type VideoView } from './videos';
 
 export const THUMB_MAX_BYTES = 300 * 1024;
@@ -59,23 +60,8 @@ export async function putThumbnail(env: Env, userId: string, id: string, request
   return fresh ? json({ ok: true, video: toPublicVideo(fresh, view) }) : fail(404, 'Video not found');
 }
 
-/** The owner's preview image. */
-export async function serveThumbnail(env: Env, userId: string, id: string): Promise<Response> {
-  if (!env.MEDIA) return fail(503, MEDIA_OFF);
-  const row = await getVideoRow(env, userId, id);
-  if (!row || !row.thumb_key) return fail(404, 'Not found');
-  const obj = await env.MEDIA.get(row.thumb_key);
-  if (!obj) return fail(404, 'Not found');
-  return new Response(obj.body, {
-    headers: {
-      'Content-Type': 'image/jpeg',
-      'Content-Length': String(obj.size),
-      'Cache-Control': 'private, max-age=86400',
-      'X-Content-Type-Options': 'nosniff',
-      'Content-Security-Policy': "default-src 'none'; sandbox",
-    },
-  });
-}
+/** The owner's preview image: their cover when they chose one, otherwise the frame taken from the video. */
+export const serveThumbnail = serveOwnerPicture;
 
 // ───────────────────────── public link ─────────────────────────
 
