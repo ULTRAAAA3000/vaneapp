@@ -14,6 +14,7 @@
 import type { Env, PostPublic } from '../../../types';
 import { loadPostPublic } from '../posts/list';
 import { decryptToken } from './crypto';
+import { publicHttpsUrl } from './netsafe';
 
 export const WEBHOOK_EVENTS = ['post.published', 'post.failed'] as const;
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
@@ -25,24 +26,8 @@ const MAX_ATTEMPTS = RETRY_DELAYS.length + 1;
 const LEASE_SECONDS = 120;
 const KEEP_SECONDS = 7 * 24 * 3600;
 
-/** Names that only make sense inside a private network. */
-const PRIVATE_SUFFIXES = /(^|\.)(localhost|local|internal|lan|home|home\.arpa|intranet|corp|test|invalid|example)$/;
-/** Vane's own hosts: a webhook that calls back into Vane could be used to reach its internals (or loop forever). */
-const OWN_HOSTS = ['vaneapp.dev'];
-
-/** A receiver address Vane is willing to call: https, a real host name, the normal port, no password in it, not Vane itself. */
-export function validateWebhookUrl(v: unknown): string | null {
-  if (typeof v !== 'string' || v.length > 2048) return null;
-  let u: URL;
-  try { u = new URL(v); } catch { return null; }
-  if (u.protocol !== 'https:' || u.username || u.password || (u.port && u.port !== '443')) return null;
-  // "localhost." (a trailing dot) is the same name: look at the host without it, so the rules below cannot be sidestepped
-  const host = u.hostname.toLowerCase().replace(/\.+$/, '');
-  if (!host.includes('.') || host.startsWith('[') || /^\d+(\.\d+){3}$/.test(host)) return null;       // IP addresses, "localhost"
-  if (PRIVATE_SUFFIXES.test(host)) return null;
-  if (OWN_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))) return null;
-  return u.toString();
-}
+/** A receiver address Vane is willing to call (rules in netsafe.ts). Vane's own hosts are never allowed here. */
+export const validateWebhookUrl = (v: unknown): string | null => publicHttpsUrl(v);
 
 const hex = (buf: ArrayBuffer): string => Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
 
