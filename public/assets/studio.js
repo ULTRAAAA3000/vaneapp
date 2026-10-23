@@ -262,7 +262,7 @@
   // POST /api/video/channels/connect (see functions/api/lib/videochannels.ts), then `ready: true` here and a setup block in the dialog.
   var VNET = {
     youtube: {
-      name: 'YouTube', ready: false, blurb: 'Videos and Shorts', setup: 'Choose which channel Vane should publish to.',
+      name: 'YouTube', ready: true, blurb: 'Videos and Shorts', setup: 'Choose which channel Vane should publish to.',
       tile: 'bg-red-500/15 text-red-300',
       icon: { d: 'M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17zM10 15l5-3-5-3z' }
     },
@@ -377,10 +377,37 @@
   // The connect step of an open network goes here (the setup block of that network, see the note above VNET).
   $('netGrid').addEventListener('click', function (e) {
     var b = e.target.closest('[data-net]');
-    if (b && !b.disabled) Vane.toast('info', netName(b.getAttribute('data-net')) + ' cannot be connected yet.');
+    if (!b || b.disabled) return;
+    var key = b.getAttribute('data-net');
+    if (!isOpen(key)) { Vane.toast('info', netName(key) + ' cannot be connected yet.'); return; }
+    b.disabled = true;
+    Vane.api('POST', '/api/video/channels/connect', { platform: key }).then(function (r) {
+      // The network's own page asks for permission; it brings the person back here with the result in the address.
+      if (r.ok && r.data && r.data.redirect) { window.location.assign(r.data.redirect); return; }
+      b.disabled = false;
+      Vane.toast('err', r.ok ? 'Could not start the connection.' : r.error);
+    });
   });
 
+  // Back from Google: say how it went, then clean the address.
+  var CONNECT_ERRORS = {
+    cancelled: 'You cancelled the connection.', expired: 'The sign-in took too long or was opened in another browser. Try again.',
+    no_upload: 'Vane needs the permission to upload videos. Connect again and leave that box ticked.',
+    no_refresh: 'Google did not give a lasting connection. Remove Vane at myaccount.google.com/permissions and connect again.',
+    unavailable: 'This network is not available yet.', plan: 'Vane Studio is not active on your account.', busy: 'Too many attempts. Wait a little and try again.',
+    signin: 'Sign in again, then connect the channel.', failed: 'Google did not complete the connection. Try again.'
+  };
+  (function () {
+    var q = new URLSearchParams(window.location.search);
+    var ok = q.get('connected'), err = q.get('connect_error');
+    if (!ok && !err) return;
+    if (ok) Vane.toast('ok', netName(ok) + ' is connected.');
+    else Vane.toast('err', CONNECT_ERRORS[err] || 'The connection did not finish.');
+    try { window.history.replaceState(null, '', window.location.pathname); } catch (e) { /* not important */ }
+  })();
+
   // ───────────────────────── publishing (the queue is network-agnostic; the networks plug in behind it) ─────────────────────────
+  var YT_CATS = { '22': 'People & Blogs', '1': 'Film & Animation', '2': 'Autos & Vehicles', '10': 'Music', '15': 'Pets & Animals', '17': 'Sports', '19': 'Travel & Events', '20': 'Gaming', '23': 'Comedy', '24': 'Entertainment', '25': 'News & Politics', '26': 'Howto & Style', '27': 'Education', '28': 'Science & Technology', '29': 'Nonprofits & Activism' };
   var PRIVACY_TEXT = {
     private: 'Only you can see it.',
     unlisted: 'Anyone with the link can see it, but it is not listed.',
@@ -412,6 +439,7 @@
       if (p.status === 'queued') detail = (p.error ? esc(p.error) + ' ' : '') + 'Next try ' + untilText(p.nextAttemptAt) + ' (attempt ' + (p.attempts + 1) + ' of ' + p.maxAttempts + ').';
       else if (p.status === 'publishing') detail = 'Uploading to ' + esc(netName(p.platform)) + '…';
       else if (p.status === 'failed') detail = esc(p.error || 'Something went wrong.');
+      else if (p.status === 'published' && p.error) detail = esc(p.error);
       var actions = '';
       if (p.status === 'published' && p.url) actions += '<a class="btn btn-ghost btn-sm" href="' + esc(p.url) + '" target="_blank" rel="noopener noreferrer">View</a>';
       if (p.status === 'failed') actions += '<button class="btn btn-white btn-sm" data-act="retry" data-id="' + esc(p.id) + '">Retry</button>';
@@ -480,14 +508,25 @@
         '<div><label for="pubDesc" class="mb-1 block text-xs text-white/55">Description</label><textarea id="pubDesc" class="field" rows="4" maxlength="5000">' + esc(v.description) + '</textarea></div>' +
         '<div><label for="pubPrivacy" class="mb-1 block text-xs text-white/55">Who can see it</label><select id="pubPrivacy" class="field"><option value="private">Private</option><option value="unlisted">Unlisted</option><option value="public">Public</option></select>' +
           '<p id="pubPrivacyHint" class="mt-1.5 text-xs text-white/45"></p></div>' +
+        '<div id="pubYt" class="hidden space-y-3 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/5">' +
+          '<p class="text-xs font-medium text-white/70">YouTube</p>' +
+          '<div><label for="pubKids" class="mb-1 block text-xs text-white/55">Is this video made for kids?</label><select id="pubKids" class="field"><option value="">Choose…</option><option value="no">No, it is not made for kids</option><option value="yes">Yes, it is made for kids</option></select>' +
+            '<p class="mt-1.5 text-xs text-white/45">YouTube requires this answer for every video.</p></div>' +
+          '<div><label for="pubCat" class="mb-1 block text-xs text-white/55">Category</label><select id="pubCat" class="field">' +
+            Object.keys(YT_CATS).map(function (k) { return '<option value="' + k + '"' + (k === '22' ? ' selected' : '') + '>' + esc(YT_CATS[k]) + '</option>'; }).join('') + '</select></div>' +
+          '<p class="text-xs leading-relaxed text-amber-200/80">Until Google approves Vane, YouTube may keep new videos private whatever you choose here. Vane tells you what YouTube did.</p>' +
+        '</div>' +
       '</div>' +
       '<div class="mt-5 flex justify-end gap-2"><button class="btn btn-ghost btn-sm" id="mClose">Cancel</button><button class="btn btn-white btn-sm" id="pubSend" disabled>Publish</button></div>');
 
     function picked() { return Array.prototype.slice.call(document.querySelectorAll('#pubChannels input:checked')); }
     function sync() {
       $('pubPrivacyHint').textContent = PRIVACY_TEXT[$('pubPrivacy').value];
-      $('pubSend').disabled = !picked().length || !$('pubName').value.trim();
+      var yt = picked().some(function (i) { var c = channels.filter(function (x) { return x.id === i.value; })[0]; return c && c.platform === 'youtube'; });
+      $('pubYt').classList.toggle('hidden', !yt);
+      $('pubSend').disabled = !picked().length || !$('pubName').value.trim() || (yt && !$('pubKids').value);
     }
+    $('pubKids').addEventListener('change', function () { sync(); });
     $('pubChannels').addEventListener('change', sync);
     $('pubName').addEventListener('input', sync);
     $('pubPrivacy').addEventListener('change', sync);
@@ -497,10 +536,12 @@
     $('pubSend').addEventListener('click', async function () {
       var btn = this;
       btn.disabled = true;
-      var res = await Vane.api('POST', '/api/video/videos/' + v.id + '/publish', {
+      var payload = {
         channelIds: picked().map(function (i) { return i.value; }),
         title: $('pubName').value.trim(), description: $('pubDesc').value, privacy: $('pubPrivacy').value
-      });
+      };
+      if (!$('pubYt').classList.contains('hidden')) payload.youtube = { madeForKids: $('pubKids').value === 'yes', category: $('pubCat').value };
+      var res = await Vane.api('POST', '/api/video/videos/' + v.id + '/publish', payload);
       if (!res.ok) { btn.disabled = false; Vane.toast('err', res.error); return; }
       closeModal();
       var n = res.data.publications.length;

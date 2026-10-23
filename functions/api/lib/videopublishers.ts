@@ -18,9 +18,10 @@
  */
 import type { CronEnv, VideoPrivacy } from '../../../types';
 import type { VideoPlatform } from './videochannels';
+import { youtubePublisher, type YoutubeOptions } from './youtube';
 
 /** What a publisher needs; both the Pages env and the cron worker's env satisfy it. */
-export type PublishEnv = Pick<CronEnv, 'DB' | 'MEDIA' | 'ENCRYPTION_KEY' | 'VIDEO_PUBLISH_MOCK'>;
+export type PublishEnv = Pick<CronEnv, 'DB' | 'MEDIA' | 'ENCRYPTION_KEY' | 'VIDEO_PUBLISH_MOCK' | 'YOUTUBE_CLIENT_ID' | 'YOUTUBE_CLIENT_SECRET'>;
 
 export interface PublishJob {
   publicationId: string;
@@ -30,6 +31,8 @@ export interface PublishJob {
   title: string;
   description: string;
   privacy: VideoPrivacy;
+  /** network-specific choices made in the publish dialog (YouTube: made for kids, category) */
+  options?: { youtube?: YoutubeOptions };
   /** `cover`: the picture the owner chose for the video (its R2 key and type), or null: then use the frame, or let the network pick one. A publisher sends it as the network's thumbnail / cover / poster. */
   video: { id: string; tags: string[]; r2Key: string; sizeBytes: number; contentType: string; cover: { r2Key: string; contentType: string } | null };
   /** `credentials` is exactly what is stored (encrypted for real networks): the publisher decrypts it itself */
@@ -37,7 +40,8 @@ export interface PublishJob {
 }
 
 export type PublishOutcome =
-  | { ok: true; externalId: string; url: string | null }
+  /** note: something the person should know about a SUCCESSFUL publish (shown next to it) */
+  | { ok: true; externalId: string; url: string | null; note?: string }
   /** retryable: a temporary trouble (network, rate limit, 5xx) worth trying again; otherwise the user has to act */
   | { ok: false; retryable: boolean; error: string };
 
@@ -46,7 +50,7 @@ export interface VideoPublisher {
 }
 
 /** The real networks. Empty until each one is approved: see the note at the top of this file. */
-const REAL: Partial<Record<VideoPlatform, VideoPublisher>> = {};
+const REAL: Partial<Record<VideoPlatform, VideoPublisher>> = { youtube: youtubePublisher };
 
 // ───────────────────────── the fake network (dev and tests only) ─────────────────────────
 

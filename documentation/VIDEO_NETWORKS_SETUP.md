@@ -69,6 +69,11 @@
 
 ## 3. YouTube (Google)
 
+**Статус: код готов.** Кнопка Connect включается сама, как только на Pages заданы `YOUTUBE_CLIENT_ID` и `YOUTUBE_CLIENT_SECRET`; те же два значения нужны воркеру `vane-cron` (он делает загрузку).
+Файлы: `functions/api/lib/youtube.ts` (вход и публикатор), `functions/api/video/channels/youtube/{start,callback}.ts`. Загрузка идёт кусками по 8 МБ прямо из R2, обложка уходит как thumbnail,
+refresh-токен хранится зашифрованным. В окне Publish для YouTube обязательны «сделано для детей» и категория. В базе нужна таблица `video_publication_options` (запусти `schema.sql` целиком).
+Тестирование своим аккаунтом: см. шаги ниже, в Test users добавь свою почту; до проверки Google видео будут приватными, а refresh-токен в режиме Testing живёт 7 дней (потом «Connect» заново).
+
 1. https://console.cloud.google.com → новый проект → **APIs & Services → Library → YouTube Data API v3 → Enable**.
 2. **OAuth consent screen**: тип **External**; название (как на главной странице), email поддержки, логотип, Application home page `https://vaneapp.dev`,
    Privacy policy и Terms из раздела 2, **Authorized domains**: `vaneapp.dev`, контакт разработчика.

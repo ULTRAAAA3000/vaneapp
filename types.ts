@@ -58,6 +58,9 @@ export interface Env {
   GITHUB_CLIENT_SECRET?: string;    // secret
   GOOGLE_CLIENT_ID?: string;        // plain var
   GOOGLE_CLIENT_SECRET?: string;    // secret
+  /** Vane Studio → YouTube (a separate Google OAuth client with the youtube.upload scope): the connect button is off until both are set */
+  YOUTUBE_CLIENT_ID?: string;       // plain var
+  YOUTUBE_CLIENT_SECRET?: string;   // secret
   /** Threads (Meta app with the Threads API): the connect button is off until both are set */
   THREADS_APP_ID?: string;          // plain var
   THREADS_APP_SECRET?: string;      // secret (also checks Meta's deauthorize / data-deletion calls)
@@ -299,6 +302,8 @@ export interface CronEnv {
   MONOBANK_CCY?: string;
   CRYPTO_WALLET?: string;          // the same as on Pages: lets the cron find crypto payments even when the buyer closed the checkout page
   SOLANA_RPC_URL?: string;        // the same optional value as on Pages
+  YOUTUBE_CLIENT_ID?: string;     // the same as on Pages: renews the YouTube access before each upload
+  YOUTUBE_CLIENT_SECRET?: string; // the same secret as on Pages
 }
 
 // ───────────────────────── Quick Connect (stage 2 of the upgrade) ─────────────────────────

@@ -690,6 +690,12 @@ CREATE INDEX IF NOT EXISTS idx_video_publications_due  ON video_publications(sta
 CREATE INDEX IF NOT EXISTS idx_video_publications_user ON video_publications(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_video_publications_video ON video_publications(video_id);
 
+-- Choices made in the publish dialog that only one network needs (YouTube: made for kids, category). JSON; a separate table so this file stays re-runnable.
+CREATE TABLE IF NOT EXISTS video_publication_options (
+  publication_id TEXT PRIMARY KEY REFERENCES video_publications(id) ON DELETE CASCADE,
+  options        TEXT NOT NULL
+);
+
 -- Vane AI Pass (admin → Plans → "Vane AI Pass"): $2.99 a month, 150 AI credits, on top of any posting plan. Not on the landing page (is_public = 0).
 -- Nobody pays for it online yet: an admin switches it on for an account (admin → user → AI credits); a payment webhook will write the same row.
 CREATE TABLE IF NOT EXISTS ai_pass (
