@@ -46,6 +46,7 @@ export interface Env {
   GSC_SITE_URL?: string;        // Search Console property, e.g. sc-domain:vaneapp.dev
   TURNSTILE_SITE_KEY?: string;  // Cloudflare Turnstile site key (public, rendered on /login)
   SHIELD_OFF?: string;          // "1" switches the API shield off (functions/api/lib/shield.ts): the emergency brake if it ever blocks the wrong people
+  CONTACT_TO?: string;          // optional: where the contact form on /about sends messages (default info.vaneapp@gmail.com)
   EMAIL_FROM?: string;          // sender on a domain verified in Resend, e.g. "Vane <noreply@vaneapp.dev>"
 
   /** LinkedIn (Share on LinkedIn + Sign In with LinkedIn using OpenID Connect): the connect button is off until both are set */
