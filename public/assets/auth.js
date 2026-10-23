@@ -105,6 +105,34 @@
     $('meterText').textContent = s < 0 ? 'At least 8 characters.' : WORDS[s];
   });
 
+  // ── Sign in with GitHub / Google: the buttons are links to the main site (the providers know one fixed return address)
+  var OAUTH_ERRORS = {
+    cancelled: 'Sign-in was cancelled.', expired: 'The sign-in took too long or was opened in another browser. Please try again.',
+    failed: 'Could not sign in with that account. Make sure it has a verified email address and try again.',
+    closed: 'Sign-ups are closed right now.', disabled: 'This account has been disabled.', busy: 'Too many attempts. Try again in a few minutes.'
+  };
+  function oauthHref(p) {
+    var base = /^(www\.)?vaneapp\.dev$|^(post|studio)\.vaneapp\.dev$/i.test(location.hostname) ? 'https://vaneapp.dev' : '';
+    var q = ['product=' + product], next = new URLSearchParams(location.search).get('next');
+    if (/^\/checkout(\?[A-Za-z0-9=&%._-]*)?$/.test(next || '')) q.push('next=' + encodeURIComponent(next));
+    return base + '/api/auth/oauth/' + p + '/start?' + q.join('&');
+  }
+  var oauthOn = null;
+  function showOauth(o) {
+    oauthOn = o || oauthOn;
+    if (!oauthOn) return;
+    var any = false;
+    ['github', 'google'].forEach(function (p) {
+      var a = $('oauth' + p.charAt(0).toUpperCase() + p.slice(1));
+      if (!oauthOn[p]) return;
+      any = true; a.classList.remove('hidden'); a.href = oauthHref(p);
+    });
+    $('oauthBox').classList.toggle('hidden', !any);
+  }
+  document.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('#oauthBox a')) showOauth(); }, true);   // the product switch may have changed since the buttons were drawn
+  var oauthError = new URLSearchParams(location.search).get('error');
+  if (oauthError && OAUTH_ERRORS[oauthError]) { errBox.textContent = OAUTH_ERRORS[oauthError]; errBox.classList.remove('hidden'); }
+
   // ── Turnstile (bot protection): active only when the server reports a site key
   var ts = { key: null, id: null, token: '' };
   function tsReset() {                       // a token works once, so fetch a fresh one after every attempt
@@ -113,6 +141,7 @@
   }
   Vane.api('GET', '/api/auth/config', undefined, { noRedirect: true }).then(function (r) {
     if (!r.ok) { console.warn('[vane] could not read /api/auth/config:', r.error); return; }
+    showOauth(r.data.oauth);
     if (!r.data.turnstileSiteKey) {
       // The check is OFF. Say why in the console (the page itself stays clean for real visitors).
       var st = r.data.turnstile || {};

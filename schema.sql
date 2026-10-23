@@ -25,6 +25,17 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at          INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
+-- ───────────────────────── Sign in with GitHub / Google ─────────────────────────
+-- One row = one provider account linked to a user (the provider's stable id, never the email, identifies the person)
+CREATE TABLE IF NOT EXISTS oauth_identities (
+  provider    TEXT    NOT NULL CHECK (provider IN ('github', 'google')),
+  subject     TEXT    NOT NULL,
+  user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+  PRIMARY KEY (provider, subject)
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_user ON oauth_identities(user_id);
+
 -- ───────────────────────── Channels ─────────────────────────
 -- One row = one connected destination (Telegram chat, Bluesky / Mastodon / Threads account, X account, LinkedIn profile, webhook URL)
 -- A database created before 'bluesky' existed has the older CHECK: run `npm run db:migrate:networks` once (see migrations/).
