@@ -97,6 +97,8 @@ What is inside: **Overview** (users, conversion funnel, sources, MRR), **Users**
 
 **Library (dashboard).** The **Library** tab lists the files a person uploaded for their posts (`GET /api/library/assets`: filter by type, search by name, 60 per page) and lets them copy a link or delete a file. Every upload (from the editor or from the tab) is recorded in `media_assets` (`schema.sql`, `npm run db:remote`, safe to repeat). A file that a post still waiting to be sent points at cannot be deleted. The plan limit `storageMb` (a key in the plan's limits, empty = unlimited) is applied only while the *Enforce limits* switch is on, like the channel limit. Files uploaded before the table existed are not listed and do not count; Studio videos are not part of the Library. Until the table exists, uploads keep working and the tab says the library is not available yet.
 
+**Upload safety.** Only JPEG, PNG, WebP, MP4 and MOV are accepted, decided from the file's bytes (never the name or the Content-Type). On top of that `functions/api/lib/mediacheck.ts` walks the whole file: PNG chunks and checksums, JPEG segments, WebP chunks and MP4 boxes must be well-formed and end exactly at the end of the file, so nothing can be hidden after the picture or clip; pictures containing script or markup signatures are refused. Files are served with a fixed type, `nosniff` and a sandbox CSP, under random names.
+
 **Search Console.** Create a Google Cloud service account, enable the *Search Console API*, add the service account's e-mail as a (restricted) user of your property in Search Console, then:
 ```
 npx wrangler pages secret put GSC_SERVICE_ACCOUNT --project-name=vaneapp   # paste the whole JSON key
