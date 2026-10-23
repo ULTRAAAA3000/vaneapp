@@ -52,6 +52,11 @@ export interface Env {
   LINKEDIN_CLIENT_ID?: string;      // plain var
   LINKEDIN_CLIENT_SECRET?: string;  // secret
   LINKEDIN_VERSION?: string;        // optional: the Linkedin-Version header, YYYYMM (default in channels/linkedin.ts)
+  /** Sign in with GitHub / Google: each button is off until both of its values are set */
+  GITHUB_CLIENT_ID?: string;        // plain var
+  GITHUB_CLIENT_SECRET?: string;    // secret
+  GOOGLE_CLIENT_ID?: string;        // plain var
+  GOOGLE_CLIENT_SECRET?: string;    // secret
   /** Threads (Meta app with the Threads API): the connect button is off until both are set */
   THREADS_APP_ID?: string;          // plain var
   THREADS_APP_SECRET?: string;      // secret (also checks Meta's deauthorize / data-deletion calls)
