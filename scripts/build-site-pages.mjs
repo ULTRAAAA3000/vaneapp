@@ -37,7 +37,9 @@ const PAGES_IN_SITEMAP = ['/', '/pricing', '/networks', '/developers', '/integra
 
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
-const emailHtml = SITE.email ? `<a href="mailto:${SITE.email}">${SITE.email}</a>` : '<span class="todo">[CONTACT EMAIL]</span>';
+/** The address is NOT written into the page: it is put together in the browser (assets/nav-auth.js) from two halves, so mail harvesters reading the HTML never see it. */
+const [mailUser, mailHost] = SITE.email.split('@');
+const emailHtml = SITE.email ? `<span data-mail-u="${mailUser}" data-mail-h="${mailHost}"><a href="/about#contact">the contact form</a></span>` : '<span class="todo">[CONTACT EMAIL]</span>';
 const mailto = '/about#contact';   // every "Tell us" / "Get in touch" button opens the contact form
 
 function layout({ slug, title, desc, body }) {
