@@ -1,5 +1,7 @@
 /**
- * GET /api/admin/ai?days=30 → the AI token ledger: tokens, neurons, cost, by feature / model / user, the month against the budget
+ * GET /api/admin/ai?days=30 → the AI token ledger: tokens, neurons, cost, by feature / model / user, the month against the budget,
+ *     the month's projection and a `setup` check (is the AI binding there, is the model priced?)
+ * GET /api/admin/ai?days=30&format=csv → the same period's calls, one row each, as a CSV download (logged in the audit trail)
  * PUT /api/admin/ai { model, inputUsdPerM, outputUsdPerM, inputNeuronsPerM, outputNeuronsPerM } → set what a model costs
  *
  * "List cost" is tokens × the model's price. Cloudflare also gives 10 000 neurons a day free and bills the rest at
@@ -10,7 +12,7 @@ import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env } from '../../../types';
 import { audit, requireAdmin } from '../lib/admin';
 import { invalidateAiPrices } from '../lib/aimeter';
-import { isPremiumTool } from '../lib/ai';
+import { isPremiumTool, modelOf } from '../lib/ai';
 import { fail, isRecord, json, methodNotAllowed, readJson } from '../lib/http';
 import { dayLabels, daysParam, fillSeries } from '../lib/range';
 import { getSettings } from '../lib/settings';
@@ -25,9 +27,12 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const auth = await requireAdmin(request, env);
   if (!auth.ok) return auth.response;
 
-  const days = daysParam(new URL(request.url), 30);
+  const url = new URL(request.url);
+  const days = daysParam(url, 30);
   const now = Math.floor(Date.now() / 1000);
   const since = now - days * 86400;
+
+  if (url.searchParams.get('format') === 'csv') return exportCsv(env, request, days, since);
   const d = new Date();
   const monthStart = Math.floor(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 1000);
   const q = (sql: string, ...b: unknown[]) => env.DB.prepare(sql).bind(...b);
@@ -59,6 +64,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const afterFreeUsd = daily.reduce((a, x) => a + Math.max(0, num(x.neurons) - FREE_NEURONS_PER_DAY) * (USD_PER_1000_NEURONS / 1000), 0);
   const budget = (await getSettings(env)).ai_budget_usd;
   const monthUsd = num(rows(6)[0]?.cost) / 1e6;
+  // where the month is heading at today's pace (needs a day of data, otherwise it would be noise)
+  const daysInMonth = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+  const elapsedDays = (now - monthStart) / 86400;
+  const projectedUsd = monthUsd > 0 && elapsedDays >= 1 ? (monthUsd / elapsedDays) * daysInMonth : null;
+  const model = modelOf(env);
 
   return json({
     ok: true,
@@ -69,7 +79,12 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       users: num(t.users), avgMs: num(t.ms),
     },
     today: { neurons: Math.round(num(rows(8)[0]?.neurons)), freeNeurons: FREE_NEURONS_PER_DAY },
-    month: { costUsd: monthUsd, tokens: num(rows(6)[0]?.tokens), budgetUsd: budget, budgetUsedPct: budget > 0 ? Math.round((monthUsd / budget) * 1000) / 10 : null },
+    month: {
+      costUsd: monthUsd, tokens: num(rows(6)[0]?.tokens), budgetUsd: budget, budgetUsedPct: budget > 0 ? Math.round((monthUsd / budget) * 1000) / 10 : null,
+      projectedUsd, projectedPct: budget > 0 && projectedUsd !== null ? Math.round((projectedUsd / budget) * 1000) / 10 : null,
+    },
+    // why a panel might be empty: no AI binding on this server, or the model it runs on has no price yet
+    setup: { aiBinding: Boolean(env.AI), model, modelPriced: rows(5).some((x) => x.model === model), budgetSet: budget > 0 },
     series: {
       labels,
       inputTokens: fillSeries(labels, daily, (x) => num(x.i)),
@@ -87,6 +102,41 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     recent: rows(7).map((x) => ({ ts: x.ts, tool: x.tool, model: x.model, inputTokens: num(x.i), outputTokens: num(x.o), estimated: x.estimated === 1, ok: x.ok === 1, ms: x.ms, email: x.email })),
   });
 };
+
+const CSV_COLUMNS = ['time_utc', 'user', 'feature', 'model', 'input_tokens', 'output_tokens', 'tokens_estimated', 'neurons', 'cost_usd', 'ok', 'ms'];
+const CSV_MAX_ROWS = 50_000;
+
+/** One CSV cell. Quotes when needed, and defuses a spreadsheet formula ("=", "+", "-", "@" at the start) so an exported email or tool name can never run. */
+export function csvCell(v: unknown): string {
+  let s = v === null || v === undefined ? '' : String(v);
+  if (/^[=+\-@\t\r]/.test(s) && !/^-?\d+(\.\d+)?$/.test(s)) s = `'${s}`;
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+async function exportCsv(env: Env, request: Request, days: number, since: number): Promise<Response> {
+  const { results } = await env.DB
+    .prepare(
+      `SELECT u.ts, x.email, u.tool, u.model, u.input_tokens, u.output_tokens, u.estimated, u.neurons, u.cost_micro, u.ok, u.ms
+         FROM ai_usage u LEFT JOIN users x ON x.id = u.user_id WHERE u.ts >= ?1 ORDER BY u.id DESC LIMIT ?2`,
+    )
+    .bind(since, CSV_MAX_ROWS)
+    .all<{ ts: number; email: string | null; tool: string; model: string; input_tokens: number; output_tokens: number; estimated: number; neurons: number; cost_micro: number; ok: number; ms: number | null }>();
+  const lines = [CSV_COLUMNS.join(',')];
+  for (const r of results) {
+    lines.push([
+      new Date(r.ts * 1000).toISOString().replace('T', ' ').slice(0, 19), r.email ?? 'system', r.tool, r.model, r.input_tokens, r.output_tokens, r.estimated ? 'yes' : 'no',
+      Math.round(r.neurons * 100) / 100, (r.cost_micro / 1e6).toFixed(6), r.ok ? 'yes' : 'no', r.ms,
+    ].map(csvCell).join(','));
+  }
+  await audit(env, request, 'ai.export', `${days}d`, { rows: results.length });
+  return new Response(lines.join('\r\n') + '\r\n', {
+    headers: {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="vane-ai-usage-${days}d.csv"`,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
 
 export const onRequestPut: PagesFunction<Env> = async ({ request, env }) => {
   const auth = await requireAdmin(request, env);

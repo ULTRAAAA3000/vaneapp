@@ -434,3 +434,7 @@ The text lives in `site/*.html` (the first line of each is a `<!--page {"slug","
 - `/changelog` is written by hand from the shipped features: add an entry at the top when something ships.
 - `/networks` and `/developers` repeat limits and endpoints from the code and `public/vane-openapi.json`: update them when those change.
 - `public/robots.txt` keeps `/api/`, `/app`, `/studio` and `/admin` out of search.
+
+## Admin → AI
+
+`/admin#ai` is the AI spend ledger: tokens and list-price cost per day, by feature, model and user, the month against `ai_budget_usd`, today's use of Cloudflare's free neurons, and every model's price (editable). Besides the numbers it tells you **why it is empty**: a red note when this server has no Workers AI binding (Pages → Settings → Bindings → Workers AI, variable `AI`), an amber one when the model in use has no price yet. The month card shows where the month is heading at today's pace, and **Export CSV** downloads every call of the period (`GET /api/admin/ai?days=30&format=csv`, up to 50,000 rows, logged in the audit trail; names that start with `=`, `+`, `-` or `@` are defused so a spreadsheet cannot run them).
