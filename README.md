@@ -452,3 +452,8 @@ The text lives in `site/*.html` (the first line of each is a `<!--page {"slug","
 ## Admin → AI
 
 `/admin#ai` is the AI spend ledger: tokens and list-price cost per day, by feature, model and user, the month against `ai_budget_usd`, today's use of Cloudflare's free neurons, and every model's price (editable). Besides the numbers it tells you **why it is empty**: a red note when this server has no Workers AI binding (Pages → Settings → Bindings → Workers AI, variable `AI`), an amber one when the model in use has no price yet. The month card shows where the month is heading at today's pace, and **Export CSV** downloads every call of the period (`GET /api/admin/ai?days=30&format=csv`, up to 50,000 rows, logged in the audit trail; names that start with `=`, `+`, `-` or `@` are defused so a spreadsheet cannot run them).
+
+## Landing hero video
+
+The hero plays `public/assets/hero-boomerang-v1.mp4`: the original clip followed by the same shot reversed (the zoom-out, then the zoom-in), so the plain `loop` never cuts. Browsers cannot play video backwards and reversing live by seeking looked choppy, so the reverse is baked into the file. If it fails to load, the second `<source>` falls back to the original clip on CloudFront.
+To change it: `scripts/make-hero-boomerang.sh new.mp4 hero-boomerang-v2.mp4` (needs ffmpeg), commit the file (Cloudflare Pages takes up to 25 MiB per file; raise the crf if it is bigger), and point the `<source>` and the cache rule in `public/_headers` at the new name. A new name matters: the file is cached for a year.
