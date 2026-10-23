@@ -28,7 +28,7 @@ export function emailConfigured(env: Env): boolean {
   return st.enabled;
 }
 
-export interface Mail { to: string; subject: string; text: string; html: string }
+export interface Mail { to: string; subject: string; text: string; html: string; replyTo?: string }
 
 /** true = Resend accepted the message. Never throws, and never logs the address or the code. */
 export async function sendMail(env: Env, mail: Mail): Promise<boolean> {
@@ -36,7 +36,7 @@ export async function sendMail(env: Env, mail: Mail): Promise<boolean> {
     const res = await fetch(RESEND_URL, {
       method: 'POST',
       headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: env.EMAIL_FROM, to: [mail.to], subject: mail.subject, text: mail.text, html: mail.html }),
+      body: JSON.stringify({ from: env.EMAIL_FROM, to: [mail.to], subject: mail.subject, text: mail.text, html: mail.html, ...(mail.replyTo ? { reply_to: mail.replyTo } : {}) }),
       signal: AbortSignal.timeout(8000),
     });
     if (res.ok) return true;

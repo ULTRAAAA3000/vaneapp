@@ -848,3 +848,17 @@ CREATE TABLE IF NOT EXISTS api_usage_daily (
   PRIMARY KEY (day, integration, key_id, op)
 );
 CREATE INDEX IF NOT EXISTS idx_api_usage_daily_day ON api_usage_daily(day);
+
+-- ───────────────────────── Contact form (/about#contact) ─────────────────────────
+-- Every message is kept, so nothing is lost when the email could not be sent. Read them in the D1 Console:
+--   SELECT datetime(created_at,'unixepoch') AS at, topic, name, email, message, mailed FROM contact_messages ORDER BY id DESC LIMIT 50;
+CREATE TABLE IF NOT EXISTS contact_messages (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+  topic       TEXT    NOT NULL,
+  name        TEXT    NOT NULL,
+  email       TEXT    NOT NULL,
+  message     TEXT    NOT NULL,
+  ip          TEXT,
+  mailed      INTEGER NOT NULL DEFAULT 0 CHECK (mailed IN (0, 1))
+);

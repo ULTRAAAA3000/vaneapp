@@ -16,8 +16,8 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SITE = {
   origin: 'https://vaneapp.dev',
-  /** The public contact address. While it is empty the pages show a yellow [CONTACT EMAIL] mark and "mailto" buttons point to /about#contact. */
-  email: '',
+  /** The public contact address. While it is empty the pages show a yellow [CONTACT EMAIL] mark. */
+  email: 'info.vaneapp@gmail.com',
   nav: [
     ['Features', '/#features'],
     ['Networks', '/networks'],
@@ -38,7 +38,7 @@ const PAGES_IN_SITEMAP = ['/', '/pricing', '/networks', '/developers', '/integra
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
 const emailHtml = SITE.email ? `<a href="mailto:${SITE.email}">${SITE.email}</a>` : '<span class="todo">[CONTACT EMAIL]</span>';
-const mailto = SITE.email ? `mailto:${SITE.email}` : '/about#contact';
+const mailto = '/about#contact';   // every "Tell us" / "Get in touch" button opens the contact form
 
 function layout({ slug, title, desc, body }) {
   const path = '/' + slug;
