@@ -204,9 +204,11 @@ export function withApiHeaders(res: Response): Response {
   if (res.status === 101) return res;
   const h = res.headers;
   const json = (h.get('content-type') ?? '').includes('json');
-  const need = !h.has('x-content-type-options') || (json && !h.has('cache-control')) || !h.has('referrer-policy');
+  const need = !h.has('strict-transport-security') || (json && !h.has('content-security-policy')) || !h.has('x-content-type-options') || (json && !h.has('cache-control')) || !h.has('referrer-policy');
   if (!need) return res;
   const out = new Response(res.body, res);
+  if (!h.has('strict-transport-security')) out.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  if (json && !h.has('content-security-policy')) out.headers.set('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
   if (!h.has('x-content-type-options')) out.headers.set('X-Content-Type-Options', 'nosniff');
   if (!h.has('referrer-policy')) out.headers.set('Referrer-Policy', 'no-referrer');
   if (json && !h.has('cache-control')) out.headers.set('Cache-Control', 'no-store');
