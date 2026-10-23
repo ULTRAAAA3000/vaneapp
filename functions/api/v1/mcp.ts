@@ -170,6 +170,7 @@ async function handle(env: Env, request: Request, msg: Rpc): Promise<unknown | n
 }
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
+  if (Number(request.headers.get('content-length') ?? 0) > MAX_BODY) return json(rpcError(null, -32600, 'Request too large'), 413);
   const raw = await request.text();
   if (raw.length > MAX_BODY) return json(rpcError(null, -32600, 'Request too large'), 413);
   let body: unknown;
