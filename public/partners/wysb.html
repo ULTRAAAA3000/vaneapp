@@ -76,7 +76,7 @@
       </a>
       <div class="hidden items-center gap-3 md:flex">
         <nav class="flex items-center gap-1 rounded-full bg-white/10 px-1.5 py-1.5 backdrop-blur-lg" aria-label="Main"><a href="/#features" class="nav-link">Features</a><a href="/networks" class="nav-link">Networks</a><a href="/developers" class="nav-link">Developers</a><a href="/integrations" class="nav-link">Integrations</a><a href="/pricing" class="nav-link">Pricing</a><a href="/partners" class="nav-link">Partners</a></nav>
-        <a href="/login" class="btn-grad rounded-full px-5 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90">Log in</a>
+        <a href="/login" data-auth-link class="btn-grad rounded-full px-5 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90">Log in</a>
       </div>
       <details class="menu relative md:hidden">
         <summary class="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 backdrop-blur-lg" aria-label="Menu">
@@ -84,7 +84,7 @@
         </summary>
         <div class="absolute right-0 top-12 w-56 rounded-2xl border border-white/10 bg-black/90 p-2 shadow-2xl backdrop-blur-xl">
           <a href="/#features" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Features</a><a href="/networks" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Networks</a><a href="/developers" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Developers</a><a href="/integrations" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Integrations</a><a href="/pricing" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Pricing</a><a href="/partners" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Partners</a>
-          <a href="/login" class="btn-grad mt-1 block rounded-xl px-4 py-3 text-center text-sm font-medium text-white">Log in</a>
+          <a href="/login" data-auth-link class="btn-grad mt-1 block rounded-xl px-4 py-3 text-center text-sm font-medium text-white">Log in</a>
         </div>
       </details>
      </div>
@@ -107,7 +107,7 @@
             <p class="lead mt-5">WYSB is a web studio. It designs and builds websites, online stores and web apps, from the first brief to launch and support, and it is the team behind <a href="https://wysb.eu" target="_blank" rel="noopener" class="link">wysb.eu</a>.</p>
             <div class="mt-8 flex flex-wrap gap-3">
               <a href="https://wysb.eu" target="_blank" rel="noopener" class="btn btn-white">Visit wysb.eu ↗</a>
-              <a href="mailto:wysbweb@gmail.com" class="btn btn-ghost">Write to WYSB</a>
+              <span data-mail-u="wysbweb" data-mail-h="gmail.com" data-mail-label="Write to WYSB" data-mail-class="btn btn-ghost"><a href="/about?topic=partnership#contact" class="btn btn-ghost">Write to WYSB</a></span>
             </div>
           </div>
         </div>
@@ -177,7 +177,7 @@
         <div class="glass-d card flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-center sm:p-8">
           <div>
             <h2>Talk to WYSB</h2>
-            <p class="copy mt-2">Tell them about your project. Start at <a href="https://wysb.eu" target="_blank" rel="noopener">wysb.eu</a> or write to <a href="mailto:wysbweb@gmail.com">wysbweb@gmail.com</a>.</p>
+            <p class="copy mt-2">Tell them about your project. Start at <a href="https://wysb.eu" target="_blank" rel="noopener">wysb.eu</a> or write to <span data-mail-u="wysbweb" data-mail-h="gmail.com"><a href="/about?topic=partnership#contact">the contact form</a></span>.</p>
           </div>
           <a href="https://wysb.eu" target="_blank" rel="noopener" class="btn btn-white shrink-0">Visit wysb.eu ↗</a>
         </div>
@@ -205,5 +205,6 @@
       els.forEach(function (e) { io.observe(e); });
     })();
   </script>
+  <script src="/assets/nav-auth.js?v=20261023a"></script>
 </body>
 </html>

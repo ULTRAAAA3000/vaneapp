@@ -37,7 +37,9 @@ const PAGES_IN_SITEMAP = ['/', '/pricing', '/networks', '/developers', '/integra
 
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
-const emailHtml = SITE.email ? `<a href="mailto:${SITE.email}">${SITE.email}</a>` : '<span class="todo">[CONTACT EMAIL]</span>';
+/** The address is NOT written into the page: it is put together in the browser (assets/nav-auth.js) from two halves, so mail harvesters reading the HTML never see it. */
+const [mailUser, mailHost] = SITE.email.split('@');
+const emailHtml = SITE.email ? `<span data-mail-u="${mailUser}" data-mail-h="${mailHost}"><a href="/about#contact">the contact form</a></span>` : '<span class="todo">[CONTACT EMAIL]</span>';
 const mailto = '/about#contact';   // every "Tell us" / "Get in touch" button opens the contact form
 
 function layout({ slug, title, desc, body }) {
@@ -127,7 +129,7 @@ function layout({ slug, title, desc, body }) {
       </a>
       <div class="hidden items-center gap-3 md:flex">
         <nav class="flex items-center gap-1 rounded-full bg-white/10 px-1.5 py-1.5 backdrop-blur-lg" aria-label="Main">${nav}</nav>
-        <a href="/login" class="btn-grad rounded-full px-5 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90">Log in</a>
+        <a href="/login" data-auth-link class="btn-grad rounded-full px-5 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90">Log in</a>
       </div>
       <details class="menu relative md:hidden">
         <summary class="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 backdrop-blur-lg" aria-label="Menu">
@@ -135,7 +137,7 @@ function layout({ slug, title, desc, body }) {
         </summary>
         <div class="absolute right-0 top-12 w-56 rounded-2xl border border-white/10 bg-black/90 p-2 shadow-2xl backdrop-blur-xl">
           ${SITE.nav.map(([label, href]) => `<a href="${href}" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">${label}</a>`).join('')}
-          <a href="/login" class="btn-grad mt-1 block rounded-xl px-4 py-3 text-center text-sm font-medium text-white">Log in</a>
+          <a href="/login" data-auth-link class="btn-grad mt-1 block rounded-xl px-4 py-3 text-center text-sm font-medium text-white">Log in</a>
         </div>
       </details>
      </div>
@@ -164,6 +166,7 @@ ${body}
       els.forEach(function (e) { io.observe(e); });
     })();
   </script>
+  <script src="/assets/nav-auth.js?v=20261023a"></script>
 </body>
 </html>
 `;
