@@ -371,6 +371,18 @@ All of it is computed in the browser from the two post lists the dashboard alrea
 - **Reuse** (History): copies a finished post's text and channels back into the editor. **Ctrl / ⌘ + Enter** schedules.
 
 
+## Dashboard: post box tools (Tidy up, Clear, Tidy on paste)
+
+`public/assets/composer-tools.js`, loaded after `dashboard.js` (it uses `Vane.composer`). In the toolbar under the post text:
+
+- **Tidy up** (one button): removes extra spaces and blank lines (one blank line between paragraphs stays), hidden characters (zero-width space, word joiner, BOM, soft hyphen), turns no-break and typographic spaces into plain ones, and strips **tracking parameters** from links (`utm_*`, `fbclid`, `gclid`, `msclkid`, `igshid`, `mc_eid`, … and `si` on YouTube/Spotify). Real parameters (`ref`, `v`, `id`, `page`) are never touched. The bar below the toolbar says what was removed, in words.
+  It deliberately keeps the zero-width joiner and non-joiner (emoji sequences and Persian/Indic text need them), the left/right marks and the CJK space, so no language or emoji is broken. A clean text is reported as clean, and tidying twice equals tidying once.
+- **Clear**: empties the box.
+- **Tidy on paste**: a switch (remembered in this browser, off by default) that does the same to whatever is pasted, at the caret or over the selection. Pasting an image still goes to the media picker.
+- Every change shows **Undo** for 10 seconds. The counter, preview and draft autosave follow, because the tools go through the same `input` event as typing.
+
+The rules are a pure function (`VaneTidy.tidy`); `npm run test:composer` tests them without a server.
+
 ## AI in the post editor
 
 `POST /api/ai` (dashboard session) runs on Cloudflare Workers AI (`@cf/meta/llama-3.1-8b-instruct`). The binding is declared in `wrangler.toml` (`[ai] binding = "AI"`); if it does not show up after a deploy, add it in Pages → Settings → Bindings → Workers AI with the variable name `AI`. Without it the AI bar stays hidden and `/api/ai` answers 503.
