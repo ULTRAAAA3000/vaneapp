@@ -1,0 +1,54 @@
+# Temporary: builds the "forward + reversed" hero video once, on GitHub's servers, and commits it to this branch.
+# Runs only when this file is pushed to the branch ci/hero-boomerang. Safe to delete after use.
+name: hero boomerang
+on:
+  push:
+    branches: [ci/hero-boomerang]
+    paths: ['.github/workflows/hero-boomerang.yml']
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      SRC: https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260803_192301_9231ed6b-c55c-4a48-909c-4ebe11cf2e11.mp4
+      LIMIT_BYTES: 24000000   # Cloudflare Pages takes files up to 25 MiB
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - name: Download the source video
+        run: |
+          mkdir -p hero-out
+          curl -fL --retry 3 -o hero.mp4 "$SRC"
+          ls -l hero.mp4
+      - name: Probe
+        run: |
+          ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,profile,width,height,r_frame_rate,avg_frame_rate,nb_frames,duration,bit_rate,pix_fmt -of default=nw=1 hero.mp4 | tee hero-out/source-info.txt
+          N=$(ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of csv=p=0 hero.mp4)
+          echo "frames=$N" | tee -a hero-out/source-info.txt
+          echo "bytes=$(stat -c%s hero.mp4)" | tee -a hero-out/source-info.txt
+      - name: Build the boomerang (first quality that fits the size limit)
+        run: |
+          N=$(ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of csv=p=0 hero.mp4)
+          ok=0
+          for attempt in "20 -" "23 -" "26 -" "28 1280" "30 1280" "32 960"; do
+            set -- $attempt; CRF=$1; W=$2
+            if [ "$W" = "-" ]; then SCALE=""; else SCALE="scale=$W:-2,"; fi
+            # forward as is, then the same frames backwards without the two turning frames, so nothing is shown twice at the joints
+            ffmpeg -y -loglevel error -i hero.mp4 \
+              -filter_complex "[0:v]${SCALE}split[f][r];[r]reverse,trim=start_frame=1:end_frame=$((N-1)),setpts=PTS-STARTPTS[rv];[f][rv]concat=n=2:v=1:a=0,format=yuv420p[v]" \
+              -map "[v]" -an -c:v libx264 -preset slow -crf "$CRF" -g 48 -movflags +faststart -fps_mode cfr hero-out/hero-boomerang.mp4
+            SIZE=$(stat -c%s hero-out/hero-boomerang.mp4)
+            echo "crf=$CRF width=$W size=$SIZE" | tee -a hero-out/build-info.txt
+            if [ "$SIZE" -le "$LIMIT_BYTES" ]; then ok=1; break; fi
+          done
+          echo "fits=$ok" | tee -a hero-out/build-info.txt
+          ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=width,height,nb_read_frames,duration -of default=nw=1 hero-out/hero-boomerang.mp4 | tee -a hero-out/build-info.txt
+      - name: Commit the result to this branch
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add hero-out
+          git commit -m "hero boomerang build output [skip ci]"
+          git push
