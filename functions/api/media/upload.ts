@@ -9,7 +9,7 @@
  * Limits:  images JPEG/PNG/WebP up to 5 MB · videos MP4/MOV up to 20 MB
  *          (Telegram's limits for media fetched by link).
  * Checks, in order: signed-in user → R2 bound → per-user rate limit → body size (read with a hard
- * cap, never fully buffered beyond it) → real file type from the BYTES → image dimensions → the plan's library storage.
+ * cap, never fully buffered beyond it) → real file type from the BYTES → whole-file structure (nothing hidden after the end, no script/archive/executable inside) → image dimensions → the plan's library storage.
  * Every stored file also gets a row in `media_assets`, which is what the Library tab lists.
  */
 import type { PagesFunction } from '@cloudflare/workers-types';
@@ -18,6 +18,7 @@ import { requireUser } from '../lib/auth';
 import { fail, json, methodNotAllowed, readBodyLimited } from '../lib/http';
 import { imageSize, sniffImage, telegramPhotoProblem } from '../lib/image';
 import { checkStorageQuota, cleanFileName, recordUpload } from '../lib/library';
+import { imageProblem, videoProblem } from '../lib/mediacheck';
 import { sniffVideo } from '../lib/video';
 import { bump, retryAfter } from '../lib/throttle';
 
@@ -68,6 +69,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const image = sniffImage(bytes);
   const video = image ? null : sniffVideo(bytes);
   if (!image && !video) return fail(415, 'Only JPEG, PNG and WebP images and MP4 or MOV videos are supported.');
+
+  const dirty = image ? imageProblem(bytes, image) : videoProblem(bytes, video!);
+  if (dirty) return fail(422, dirty);
 
   let size: { width: number; height: number } | null = null;
   if (image) {
