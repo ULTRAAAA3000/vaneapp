@@ -5,6 +5,7 @@ import { fail, methodNotAllowed } from '../../../lib/http';
 import { fetchIdentity, isProvider, oauthProviders, signInWith } from '../../../lib/oauthlogin';
 import { callbackUrl, clearedStateCookie, loginRedirect, readState, successUrl } from '../../../lib/oauthflow';
 import { logAttempt } from '../../../lib/attempts';
+import { clearedProofCookie } from '../../../lib/age';
 
 export const onRequestGet: PagesFunction<Env, 'provider'> = async ({ request, env, params }) => {
   const p = params.provider;
@@ -26,6 +27,7 @@ export const onRequestGet: PagesFunction<Env, 'provider'> = async ({ request, en
   if (!r.ok) return done(loginRedirect(request, r.code));
   const res = new Response(null, { status: 302, headers: { Location: successUrl(request, saved.product, saved.next), 'Cache-Control': 'no-store' } });
   res.headers.append('Set-Cookie', r.cookie);
+  res.headers.append('Set-Cookie', clearedProofCookie(request));
   return done(res);
 };
 

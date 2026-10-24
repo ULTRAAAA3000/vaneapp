@@ -103,6 +103,12 @@
                 </div>
               </div>
 
+              <div id="birthRow" class="hidden">
+                <label for="birth" class="lbl">Date of birth</label>
+                <input id="birth" name="birth" type="date" autocomplete="bday" min="1900-01-01" class="field" style="color-scheme:dark" />
+                <p class="mt-1.5 text-xs text-white/40">You must be 16 or older. We only check it, we don’t store your date of birth.</p>
+              </div>
+
               <div id="tsBox" class="hidden min-h-[65px]" aria-label="Human check"></div>
 
               <div id="err" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
@@ -163,7 +169,7 @@
   </div>
 
   <script src="/assets/vane.js?v=20261022a"></script>
-  <script src="/assets/auth.js?v=20261023a"></script>
+  <script src="/assets/auth.js?v=20261024a"></script>
   <script src="/assets/track.js?v=20261017" defer></script>
 </body>
 </html>

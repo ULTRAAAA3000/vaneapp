@@ -17,6 +17,7 @@ import { createSession, purgeExpired, revokeSessions, SESSION_TTL_SECONDS, sessi
 import { createUser } from '../lib/users';
 import { logAttempt } from '../lib/attempts';
 import { recordAttribution } from '../lib/attribution';
+import { recordAgeConfirmed } from '../lib/age';
 
 const CODE_RE = /^\d{6}$/;
 
@@ -67,6 +68,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         ? fail(409, 'An account with this email already exists. Try signing in.')
         : fail(500, 'Could not create the account. Please try again.');
     }
+    await recordAgeConfirmed(env, id);   // register.ts only parks a sign-up after the date of birth passed
     await markSeen(env, id);
     await logAttempt(env, request, { kind: 'register', ok: true, email });
     await recordAttribution(env, request, id, pending.visitorId);
