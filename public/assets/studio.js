@@ -272,7 +272,7 @@
       icon: { d: 'M9 18V5l12-2v13M3 18a3 3 0 1 0 6 0 3 3 0 1 0-6 0M15 16a3 3 0 1 0 6 0 3 3 0 1 0-6 0' }
     },
     instagram: {
-      name: 'Instagram Reels', ready: false, blurb: 'Business and Creator accounts', setup: 'Choose which account Vane should publish to.',
+      name: 'Instagram Reels', ready: true, blurb: 'Business and Creator accounts', setup: 'Choose which account Vane should publish to.',
       tile: 'bg-orange-500/15 text-orange-300',
       icon: { d: 'M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zM16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37zM17.5 6.5h.01' }
     },
@@ -395,6 +395,7 @@
     no_upload: 'Vane needs the permission to upload videos. Connect again and leave that box ticked.',
     no_refresh: 'Google did not give a lasting connection. Remove Vane at myaccount.google.com/permissions and connect again.',
     unavailable: 'This network is not available yet.', plan: 'Vane Studio is not active on your account.', busy: 'Too many attempts. Wait a little and try again.',
+    no_publish: 'Vane needs the permission to publish. Connect again and keep it ticked.',
     signin: 'Sign in again, then connect the channel.', failed: 'Google did not complete the connection. Try again.'
   };
   (function () {
@@ -508,6 +509,11 @@
         '<div><label for="pubDesc" class="mb-1 block text-xs text-white/55">Description</label><textarea id="pubDesc" class="field" rows="4" maxlength="5000">' + esc(v.description) + '</textarea></div>' +
         '<div><label for="pubPrivacy" class="mb-1 block text-xs text-white/55">Who can see it</label><select id="pubPrivacy" class="field"><option value="private">Private</option><option value="unlisted">Unlisted</option><option value="public">Public</option></select>' +
           '<p id="pubPrivacyHint" class="mt-1.5 text-xs text-white/45"></p></div>' +
+        '<div id="pubIg" class="hidden space-y-2 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/5">' +
+          '<p class="text-xs font-medium text-white/70">Instagram Reels</p>' +
+          '<label class="flex items-center gap-2 text-xs text-white/65"><input type="checkbox" id="pubFeed" checked /> Also show the Reel in my profile feed</label>' +
+          '<p class="text-xs leading-relaxed text-amber-200/80">Instagram has no private or unlisted videos: a Reel is always public, so choose <b>Public</b> above. Business and Creator accounts only; the video can be up to 300 MB.</p>' +
+        '</div>' +
         '<div id="pubYt" class="hidden space-y-3 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/5">' +
           '<p class="text-xs font-medium text-white/70">YouTube</p>' +
           '<div><label for="pubKids" class="mb-1 block text-xs text-white/55">Is this video made for kids?</label><select id="pubKids" class="field"><option value="">Choose…</option><option value="no">No, it is not made for kids</option><option value="yes">Yes, it is made for kids</option></select>' +
@@ -524,7 +530,9 @@
       $('pubPrivacyHint').textContent = PRIVACY_TEXT[$('pubPrivacy').value];
       var yt = picked().some(function (i) { var c = channels.filter(function (x) { return x.id === i.value; })[0]; return c && c.platform === 'youtube'; });
       $('pubYt').classList.toggle('hidden', !yt);
-      $('pubSend').disabled = !picked().length || !$('pubName').value.trim() || (yt && !$('pubKids').value);
+      var ig = picked().some(function (i) { var c = channels.filter(function (x) { return x.id === i.value; })[0]; return c && c.platform === 'instagram'; });
+      $('pubIg').classList.toggle('hidden', !ig);
+      $('pubSend').disabled = !picked().length || !$('pubName').value.trim() || (yt && !$('pubKids').value) || (ig && $('pubPrivacy').value !== 'public');
     }
     $('pubKids').addEventListener('change', function () { sync(); });
     $('pubChannels').addEventListener('change', sync);
@@ -540,6 +548,7 @@
         channelIds: picked().map(function (i) { return i.value; }),
         title: $('pubName').value.trim(), description: $('pubDesc').value, privacy: $('pubPrivacy').value
       };
+      if (!$('pubIg').classList.contains('hidden')) payload.instagram = { shareToFeed: $('pubFeed').checked };
       if (!$('pubYt').classList.contains('hidden')) payload.youtube = { madeForKids: $('pubKids').value === 'yes', category: $('pubCat').value };
       var res = await Vane.api('POST', '/api/video/videos/' + v.id + '/publish', payload);
       if (!res.ok) { btn.disabled = false; Vane.toast('err', res.error); return; }

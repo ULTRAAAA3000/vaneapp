@@ -188,3 +188,9 @@ refresh-токен хранится зашифрованным. В окне Publ
 | 6 | После одобрения: поднять квоту YouTube (аудит), снять «private only» | владелец |
 
 Самое долгое обычно Meta (Business Verification) и аудит квоты YouTube; подавать их можно сразу после шага 4, не дожидаясь остальных.
+
+## 5a. Instagram Reels: что уже сделано в коде
+Код готов: `functions/api/lib/instagram.ts`, `functions/api/video/channels/instagram/{start,callback}.ts`. Кнопка включается сама, когда на Pages заданы `INSTAGRAM_APP_ID` (переменная) и `INSTAGRAM_APP_SECRET` (секрет). В воркере ключи не нужны.
+Как это работает: Instagram сам скачивает видео по публичной ссылке, поэтому Vane на время публикации делает временную ссылку `https://studio.vaneapp.dev/api/video/public/<токен>` (если у видео уже есть ссылка владельца, берёт её и не трогает), создаёт REELS-контейнер, ждёт обработки и публикует. Временная ссылка удаляется сразу.
+Настройка в Meta: приложение с продуктом **Instagram API with Instagram Login**, redirect `https://vaneapp.dev/api/video/channels/instagram/callback`, права `instagram_business_basic` и `instagram_business_content_publish`; аккаунт Instagram должен быть Business или Creator; в режиме Development работает для ролей приложения (добавь свой аккаунт как Instagram Tester), для всех нужен App Review.
+Ограничения Instagram: Reel всегда публичный (приватного нет, диалог Publish требует Public), файл до 300 МБ, MP4/MOV (H.264 + AAC), 3 с до 15 мин, лимит около 25 публикаций через API в сутки на аккаунт.

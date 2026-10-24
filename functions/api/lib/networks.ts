@@ -49,7 +49,7 @@ export const NETWORKS: readonly NetworkInfo[] = [
   { id: 'webhook', name: 'Webhook channel', product: 'post', implemented: false, code: 'Not written yet (post webhooks for your own endpoint are a separate feature)' },
   studio('youtube', 'YouTube', 'Connect (Google OAuth, upload scope only) and upload (resumable, cover, made-for-kids, category)'),
   studio('tiktok', 'TikTok', ''),
-  studio('instagram', 'Instagram Reels', ''),
+  studio('instagram', 'Instagram Reels', 'Connect (Instagram Login, Business/Creator) and publish Reels from a temporary public link'),
   studio('pinterest', 'Pinterest', ''),
 ];
 

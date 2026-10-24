@@ -64,6 +64,9 @@ export interface Env {
   REDDIT_CLIENT_SECRET?: string;    // secret
   FACEBOOK_APP_ID?: string;         // plain var
   FACEBOOK_APP_SECRET?: string;     // secret
+  /** Vane Studio → Instagram Reels (Meta app with Instagram API / Instagram Login): the connect button is off until both are set */
+  INSTAGRAM_APP_ID?: string;        // plain var
+  INSTAGRAM_APP_SECRET?: string;    // secret
   YOUTUBE_CLIENT_ID?: string;       // plain var
   YOUTUBE_CLIENT_SECRET?: string;   // secret
   /** Threads (Meta app with the Threads API): the connect button is off until both are set */

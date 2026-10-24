@@ -18,8 +18,9 @@
 import type { Env } from '../../../types';
 import { fail, failCode, isRecord, json, UUID_RE } from './http';
 import { networkFlags, isOn } from './networks';
+import { instagramConfigured } from './instagram';
 import { youtubeConfigured } from './youtube';
-import { youtubeStartUrl } from './youtubeconnect';
+import { netStartUrl } from './youtubeconnect';
 
 export type VideoPlatform = 'youtube' | 'tiktok' | 'instagram';
 
@@ -58,9 +59,14 @@ interface VideoChannelRow {
 /** The catalog as this server sees it: YouTube opens by itself once its Google keys are set (no code change, no redeploy of the page). */
 export async function platformsFor(env: Env): Promise<VideoPlatformInfo[]> {
   const flags = await networkFlags(env);
+  const open: Partial<Record<VideoPlatform, string>> = {
+    ...(youtubeConfigured(env) ? { youtube: 'Until Google approves Vane, YouTube keeps uploads private.' } : {}),
+    ...(instagramConfigured(env) ? { instagram: 'Business and Creator accounts only. Reels are always public.' } : {}),
+  };
   return VIDEO_PLATFORMS.map((p) => {
-    if (!isOn(p.id, flags)) return p.id === 'youtube' && youtubeConfigured(env) ? { ...p, available: false, note: 'Switched off for now.' } : p;
-    return p.id === 'youtube' && youtubeConfigured(env) ? { ...p, available: true, note: 'Until Google approves Vane, YouTube keeps uploads private.' } : p;
+    const note = open[p.id];
+    if (note === undefined) return p;
+    return isOn(p.id, flags) ? { ...p, available: true, note } : { ...p, available: false, note: 'Switched off for now.' };
   });
 }
 
@@ -81,7 +87,7 @@ export async function connectVideoChannel(env: Env, request: Request, body: unkn
   if (!info.available) return failCode(409, 'platform_unavailable', `${info.name} is not open yet. ${info.note}`);
 
   // YouTube connects through Google's own page: the dashboard goes to this address (a full page navigation, the callback comes back to it).
-  if (info.id === 'youtube') return json({ ok: true, redirect: youtubeStartUrl(request) });
+  if (info.id === 'youtube' || info.id === 'instagram') return json({ ok: true, redirect: netStartUrl(request, info.id) });
 
   // A network that is marked available must have its connect flow added here (see the note at the top of this file).
   return failCode(501, 'not_implemented', `${info.name} cannot be connected yet.`);
