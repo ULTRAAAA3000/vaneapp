@@ -77,7 +77,17 @@
       icon: { d: 'M7 7v10h3.2a3 3 0 003-3v-4a3 3 0 00-3-3zM16.5 7v10M16.5 7h3M16.5 12h2.5M16.5 17h3' }
     }
   };
-  var NET_ORDER = ['telegram', 'linkedin', 'threads', 'bluesky', 'mastodon', 'discord', 'devto'];
+  NET.reddit = {
+    name: 'Reddit', ready: false, blurb: 'Text posts to a subreddit', setup: 'Name the subreddit, then sign in with Reddit and allow Vane to post.',
+    tile: 'bg-orange-500/15 text-orange-300', limit: 10000, bg: '#0b1416', hint: 'The first line is the post title (up to 300 characters), the rest is the text. Each channel posts to one subreddit; read its rules first.',
+    icon: { d: 'M12 12m-9 0a9 9 0 1 0 18 0 9 9 0 1 0-18 0M8.5 13.5h.01M15.5 13.5h.01M9 16.5c1.6 1 4.4 1 6 0M12 8l1-4 4 1' }
+  };
+  NET.facebook = {
+    name: 'Facebook Pages', ready: false, blurb: 'Pages you manage', setup: 'Sign in with Facebook and choose the Pages Vane may post to.',
+    tile: 'bg-blue-500/15 text-blue-300', limit: 5000, bg: '#18191a', hint: 'Posts go to your Facebook Pages (not personal profiles). A picture or video is posted with your text as its caption.',
+    icon: { fill: true, d: 'M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.413c0-3.026 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.971H15.83c-1.491 0-1.956.93-1.956 1.886v2.264h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z' }
+  };
+  var NET_ORDER = ['telegram', 'linkedin', 'threads', 'facebook', 'reddit', 'bluesky', 'mastodon', 'discord', 'devto'];
   // channels of a network this dashboard has no entry for (for example "x" or "webhook") get the generic link icon
   var NET_OTHER = { tile: 'bg-white/[0.08] text-white/70', icon: { d: 'M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7' } };
 
@@ -138,6 +148,7 @@
       expired: ['err', 'That sign-in took too long or was already used. ' + again],
       duplicate: ['err', 'This ' + name + ' account is already connected.'],
       migrate: ['err', name + ' is not enabled on this server yet. The database needs one update.'],
+      nopages: ['err', 'No Facebook Pages were found. Vane can only post to Pages you manage: create or get access to one, then connect again.'],
       limit: ['err', 'Your plan has no room for another channel. Upgrade to connect more.'],
       off: ['err', name + ' is switched off right now. Try again later.'],
       failed: ['err', 'Could not finish connecting ' + name + '. Try again.']
@@ -146,7 +157,7 @@
   }
   function reportConnectReturn() {
     var q = new URLSearchParams(location.search), net = q.get('connect');
-    if (net !== 'mastodon' && net !== 'linkedin' && net !== 'threads') return;
+    if (['mastodon', 'linkedin', 'threads', 'reddit', 'facebook'].indexOf(net) < 0) return;
     var res = connectMessage(net, q.get('status'));
     Vane.toast(res[0], res[1]);
     try { history.replaceState(null, '', location.pathname); } catch (e) { /* address bar left as it is */ }
@@ -163,6 +174,8 @@
     if (feats.systemBot) S.systemBot = feats.systemBot;
     NET.linkedin.ready = !!feats.linkedin;
     NET.threads.ready = !!feats.threads;
+    NET.reddit.ready = !!feats.reddit;
+    NET.facebook.ready = !!feats.facebook;
     // networks the admin switched off (/admin → Networks): shown as paused and cannot be connected
     (feats.pausedNetworks || []).forEach(function (k) { if (NET[k]) { NET[k].ready = false; NET[k].paused = true; } });
 
@@ -608,7 +621,9 @@
       var btn = $(p + 'Submit');
       hideErr($(p + 'Err'));
       btn.disabled = true; $(p + 'Spin').classList.remove('hidden'); $(p + 'Label').textContent = 'Opening ' + NET[net].name + '…';
-      var r = await Vane.api('POST', '/api/channels/' + net + '/start', { name: $(p + 'Name').value.trim() });
+      var payload = { name: $(p + 'Name').value.trim() };
+      if (net === 'reddit') payload.subreddit = $('rdSub').value.trim();
+      var r = await Vane.api('POST', '/api/channels/' + net + '/start', payload);
       if (!r.ok) {
         btn.disabled = false; $(p + 'Spin').classList.add('hidden'); $(p + 'Label').textContent = 'Continue with ' + NET[net].name;
         return showErr($(p + 'Err'), $(p + 'Form'), r.error);
@@ -619,6 +634,8 @@
   }
   bindSignIn('linkedin', 'li');
   bindSignIn('threads', 'th');
+  bindSignIn('reddit', 'rd');
+  bindSignIn('facebook', 'fb');
 
   // ---- steps: pick a network, then set it up (each network's setup is the block with its data-step)
   function renderNetGrid() {
@@ -646,7 +663,7 @@
   function openStep(step) {
     showStep(step);
     setTimeout(function () {
-      var first = step === 'telegram' ? ($('panelQuick').classList.contains('hidden') ? $('cName') : $('qChat')) : step === 'bluesky' ? $('bHandle') : step === 'mastodon' ? $('mInstance') : step === 'discord' ? $('dcUrl') : step === 'devto' ? $('dvKey') : step === 'linkedin' ? $('liName') : step === 'threads' ? $('thName') : dlg.querySelector('.net-card:not(:disabled)');
+      var first = step === 'telegram' ? ($('panelQuick').classList.contains('hidden') ? $('cName') : $('qChat')) : step === 'bluesky' ? $('bHandle') : step === 'mastodon' ? $('mInstance') : step === 'discord' ? $('dcUrl') : step === 'devto' ? $('dvKey') : step === 'linkedin' ? $('liName') : step === 'threads' ? $('thName') : step === 'reddit' ? $('rdSub') : step === 'facebook' ? $('fbName') : dlg.querySelector('.net-card:not(:disabled)');
       if (first) first.focus();
     }, 60);
   }
@@ -664,7 +681,7 @@
     $('dcForm').reset(); hideErr($('dcErr')); $('dcSubmit').disabled = false; $('dcSpin').classList.add('hidden'); $('dcLabel').textContent = 'Verify & connect';
     $('dvForm').reset(); hideErr($('dvErr')); $('dvKey').type = 'password'; $('dvKeyToggle').textContent = 'Show'; $('dvSubmit').disabled = false; $('dvSpin').classList.add('hidden'); $('dvLabel').textContent = 'Verify & connect';
     $('bForm').reset(); hideErr($('bErr')); $('bPass').type = 'password'; $('bPassToggle').textContent = 'Show';
-    [['li', 'LinkedIn'], ['th', 'Threads']].forEach(function (n) {
+    [['li', 'LinkedIn'], ['th', 'Threads'], ['rd', 'Reddit'], ['fb', 'Facebook']].forEach(function (n) {
       $(n[0] + 'Form').reset(); hideErr($(n[0] + 'Err')); $(n[0] + 'Submit').disabled = false; $(n[0] + 'Spin').classList.add('hidden'); $(n[0] + 'Label').textContent = 'Continue with ' + n[1];
     });
     qReset(); $('qChat').value = '';
@@ -1053,7 +1070,24 @@
         (body ? '<div class="mt-2 line-clamp-6 break-words text-[13px] leading-snug text-white/65">' + Vane.rich(body) + '</div>' : '') +
       '</div></div></div>';
   }
-  var PV_VIEW = { telegram: viewTelegram, linkedin: viewLinkedin, threads: viewThreads, bluesky: viewBluesky, mastodon: viewMastodon, discord: viewDiscord, devto: viewDevto };
+  function viewReddit(c) {
+    var lines = c.text.split('\n'), title = (lines[0] || '').replace(/^#+\s*/, '').trim();
+    var body = lines.slice(1).join('\n').trim();
+    return '<div class="p-3.5"><div class="overflow-hidden rounded-xl bg-[#1a1a1b] ring-1 ring-white/10"><div class="p-3.5">' +
+      '<div class="flex items-center gap-2 text-[12px] text-white/55">' + pvAvatar(20, 'r') + '<span class="font-semibold text-white/85">r/subreddit</span><span>· u/' + esc(c.handle) + ' · ' + esc(c.when || 'now') + '</span></div>' +
+      '<div class="mt-2 break-words text-[16px] font-semibold leading-snug">' + (title ? esc(title) : EMPTY) + '</div>' +
+      (body ? '<div class="mt-2 line-clamp-6 break-words text-[13px] leading-snug text-white/70">' + Vane.rich(body) + '</div>' : '') +
+      pvMedia(c.m, 'mt-2 max-h-44 w-full rounded-lg') +
+      '<div class="mt-3 flex gap-4 text-[11.5px] text-white/45"><span>▲ Vote ▼</span><span>Comments</span><span>Share</span></div></div></div></div>';
+  }
+  function viewFacebook(c) {
+    return '<div class="p-3"><div class="overflow-hidden rounded-xl bg-[#242526] ring-1 ring-white/10">' +
+      '<div class="flex gap-2.5 p-3 pb-0">' + pvAvatar(40, c.name) + '<div class="min-w-0 leading-tight"><div class="truncate text-[13px] font-semibold">' + esc(c.name) + '</div><div class="text-[11px] text-white/45">' + esc(c.when || 'Scheduled') + ' · Public</div></div></div>' +
+      '<div class="break-words px-3 pt-2.5 text-[13.5px] leading-snug text-white/90">' + (c.text ? Vane.rich(c.text) : EMPTY) + '</div>' +
+      pvMedia(c.m, 'mt-2.5 max-h-56 w-full') +
+      '<div class="mt-3 flex justify-around border-t border-white/10 px-3 py-2 text-[12px] text-white/55"><span>Like</span><span>Comment</span><span>Share</span></div></div></div>';
+  }
+  var PV_VIEW = { reddit: viewReddit, facebook: viewFacebook, telegram: viewTelegram, linkedin: viewLinkedin, threads: viewThreads, bluesky: viewBluesky, mastodon: viewMastodon, discord: viewDiscord, devto: viewDevto };
 
   // tabs are built once, then only their pressed state changes (keeps keyboard focus)
   function syncPvTabs() {

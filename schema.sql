@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS channels (
   id           TEXT    PRIMARY KEY,                         -- uuid
   user_id      TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   type         TEXT    NOT NULL
-               CHECK (type IN ('telegram', 'x', 'linkedin', 'webhook', 'bluesky', 'mastodon', 'threads', 'discord', 'devto')),
+               CHECK (type IN ('telegram', 'x', 'linkedin', 'webhook', 'bluesky', 'mastodon', 'threads', 'discord', 'devto', 'reddit', 'facebook')),
   name         TEXT    NOT NULL,                            -- display label, e.g. "@vane_dev"
   credentials  TEXT    NOT NULL,                            -- JSON, encrypted at app level (tokens, chat_id, url, secret)
   is_active    INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
