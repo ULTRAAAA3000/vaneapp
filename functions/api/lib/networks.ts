@@ -35,6 +35,8 @@ export const NETWORKS: readonly NetworkInfo[] = [
   { id: 'threads', name: 'Threads', product: 'post', implemented: true, code: 'Connect (OAuth) and publish, token renewal' },
   { id: 'discord', name: 'Discord', product: 'post', implemented: true, code: 'Connect (channel webhook) and publish' },
   { id: 'devto', name: 'Dev.to', product: 'post', implemented: true, code: 'Connect (API key) and publish' },
+  { id: 'reddit', name: 'Reddit', product: 'post', implemented: true, code: 'Connect (OAuth, one subreddit per channel) and publish text posts, token renewal' },
+  { id: 'facebook', name: 'Facebook Pages', product: 'post', implemented: true, code: 'Connect (Facebook Login, every Page you manage) and publish text, photo and video posts' },
   { id: 'x', name: 'X', product: 'post', implemented: false, code: 'Not written yet (only reserved in the database)' },
   { id: 'webhook', name: 'Webhook channel', product: 'post', implemented: false, code: 'Not written yet (post webhooks for your own endpoint are a separate feature)' },
   { id: 'youtube', name: 'YouTube', product: 'studio', implemented: false, code: 'Connect and upload flow not written yet' },

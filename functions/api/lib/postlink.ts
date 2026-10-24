@@ -39,6 +39,14 @@ export function postUrl(platform: string, externalId: string | null, telegramCha
       const url = httpsUrl(externalId);
       return url && /(^|\.)threads\.(net|com)$/.test(new URL(url).hostname) ? url : null;
     }
+    case 'reddit': {
+      const url = httpsUrl(externalId);
+      return url && /(^|\.)reddit\.com$/.test(new URL(url).hostname) ? url : null;
+    }
+    case 'facebook': {
+      const url = httpsUrl(externalId);
+      return url && /(^|\.)facebook\.com$/.test(new URL(url).hostname) ? url : null;
+    }
     case 'telegram': {
       if (!/^\d{1,12}$/.test(externalId) || !telegramChatId) return null;
       const named = /^@([A-Za-z][A-Za-z0-9_]{3,31})$/.exec(telegramChatId);
