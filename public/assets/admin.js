@@ -726,7 +726,7 @@
       var section = function (product, heading, hint) {
         var rows = list.filter(function (n) { return n.product === product; });
         return card(heading, '<p class="mb-4 text-sm text-white/50">' + hint + '</p>' + table([
-          { h: 'Network', r: function (n) { return '<div class="font-medium">' + esc(n.name) + '</div><div class="text-[11px] text-white/40">' + esc(n.code) + '</div>'; } },
+          { h: 'Network', r: function (n) { return '<div class="font-medium">' + esc(n.name) + '</div><div class="text-[11px] text-white/40">' + esc(n.code) + '</div>' + (n.setup ? '<div class="mt-1 text-[11px] text-amber-300/90">' + esc(n.setup) + '</div>' : ''); } },
           { h: 'Status', r: netStatus },
           { h: 'Channels', cls: 'text-right', r: function (n) { return n.stats ? num(n.stats.activeChannels) + (n.stats.channels !== n.stats.activeChannels ? ' <span class="text-white/35">/ ' + num(n.stats.channels) + '</span>' : '') : '<span class="text-white/30">—</span>'; } },
           { h: 'Scheduled', cls: 'text-right', r: function (n) { return n.stats ? num(n.stats.scheduled) : '—'; } },
@@ -742,7 +742,7 @@
       };
       show(seq, title('Networks', 'Switch a network on or off. A network can be switched on as soon as its code is written, even if the platform has not approved Vane yet.') +
         section('post', 'Vane Post', 'Switched off: nobody can connect a new account, no new post can be scheduled to it, and posts already scheduled for it <b>wait</b> (they are not lost). If it stays off more than 2 hours past a post’s time, that post fails with a clear reason.') +
-        '<div class="mt-4"></div>' + section('studio', 'Vane Studio', 'The connect and upload flows for these are not written yet, so they cannot be switched on. When the code exists, flip its <code>implemented</code> flag in <code>lib/networks.ts</code> and the switch becomes live.'));
+        '<div class="mt-4"></div>' + section('studio', 'Vane Studio', 'Detected from the code: a network becomes switchable as soon as its publisher exists. Networks marked “code not written” have no connect and upload flow yet. A switched-off network cannot be connected and nothing can be published to it.'));
     });
   };
 
