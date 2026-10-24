@@ -27,10 +27,12 @@
     "test:unit": "node scripts/webhooks-unit.mjs && node scripts/socials-unit.mjs && node scripts/library-unit.mjs",
     "build:pages": "node scripts/build-site-pages.mjs",
     "db:migrate:integrations": "wrangler d1 execute vane-db --remote --file=./scripts/migrations/002-api-key-integration.sql",
-    "test:integrations": "node scripts/integrations-e2e.mjs"
+    "test:integrations": "node scripts/integrations-e2e.mjs",
+    "build:css": "tailwindcss -c tailwind.config.cjs -i scripts/site.tailwind.css -o public/assets/site.css --minify"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250101.0",
+    "tailwindcss": "^3.4.17",
     "typescript": "^5.6.0",
     "wrangler": "^3.90.0"
   }

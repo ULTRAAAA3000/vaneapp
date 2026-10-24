@@ -12,6 +12,7 @@
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { NETWORK_PAGES } from './network-pages.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SITE = {
@@ -33,7 +34,7 @@ const SITE = {
     ['Legal', [['Privacy', '/privacy'], ['Terms', '/terms'], ['Data deletion', '/data-deletion']]],
   ],
 };
-const PAGES_IN_SITEMAP = ['/', '/pricing', '/networks', '/developers', '/integrations', '/security', '/changelog', '/about', '/partners', '/partners/wysb', '/privacy', '/terms', '/data-deletion'];
+const PAGES_IN_SITEMAP = ['/', '/pricing', '/networks', ...NETWORK_PAGES.map((n) => `/networks/${n.id}`), '/developers', '/integrations', '/security', '/changelog', '/about', '/partners', '/partners/wysb', '/privacy', '/terms', '/data-deletion'];
 
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
@@ -42,7 +43,11 @@ const [mailUser, mailHost] = SITE.email.split('@');
 const emailHtml = SITE.email ? `<span data-mail-u="${mailUser}" data-mail-h="${mailHost}"><a href="/about#contact">the contact form</a></span>` : '<span class="todo">[CONTACT EMAIL]</span>';
 const mailto = '/about#contact';   // every "Tell us" / "Get in touch" button opens the contact form
 
-function layout({ slug, title, desc, body }) {
+const OG_IMAGE = `${SITE.origin}/assets/og.png`;
+const ldTag = (o) => `<script type="application/ld+json">${JSON.stringify(o).replace(/</g, '\\u003c')}</script>`;
+const ORGANIZATION = { '@type': 'Organization', '@id': `${SITE.origin}/#org`, name: 'Vane', url: SITE.origin, logo: `${SITE.origin}/assets/logo.svg`, parentOrganization: { '@type': 'Organization', name: 'WYSB', url: 'https://wysb.eu' } };
+
+function layout({ slug, title, desc, body, crumbs = [], faq = [], ogTitle }) {
   const path = '/' + slug;
   const url = SITE.origin + path;
   const nav = SITE.nav.map(([label, href]) => {
@@ -66,14 +71,28 @@ function layout({ slug, title, desc, body }) {
   <meta property="og:title" content="${esc(title)} — Vane" />
   <meta property="og:description" content="${esc(desc)}" />
   <meta property="og:url" content="${url}" />
-  <meta name="twitter:card" content="summary" />
+  <meta property="og:image" content="${OG_IMAGE}" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Vane: schedule once, post everywhere" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${esc(title)} — Vane" />
+  <meta name="twitter:description" content="${esc(desc)}" />
+  <meta name="twitter:image" content="${OG_IMAGE}" />
+  ${ldTag({ '@context': 'https://schema.org', '@graph': [
+    ORGANIZATION,
+    { '@type': 'WebSite', '@id': `${SITE.origin}/#site`, url: SITE.origin, name: 'Vane', publisher: { '@id': `${SITE.origin}/#org` } },
+    { '@type': 'WebPage', '@id': `${url}#page`, url, name: `${title} — Vane`, description: desc, isPartOf: { '@id': `${SITE.origin}/#site` }, publisher: { '@id': `${SITE.origin}/#org` } },
+    { '@type': 'BreadcrumbList', itemListElement: [{ name: 'Vane', item: SITE.origin + '/' }, ...crumbs.map(([n, h]) => ({ name: n, item: SITE.origin + h })), { name: title, item: url }].map((c, i) => ({ '@type': 'ListItem', position: i + 1, name: c.name, item: c.item })) },
+    ...(faq.length ? [{ '@type': 'FAQPage', mainEntity: faq.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) }] : []),
+  ] })}
   <link rel="icon" href="/favicon.ico" sizes="32x32" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/assets/site.css?v=20261024a" />
   <link rel="stylesheet" href="/assets/vane.css?v=20261017" />
   <style>
     html { scroll-behavior: smooth; scroll-padding-top: 5rem; }
@@ -184,6 +203,99 @@ for (const file of readdirSync(dir).filter((f) => f.endsWith('.html')).sort()) {
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, layout({ ...meta, body }));
   built.push('/' + meta.slug);
+}
+
+// One page per network (data in scripts/network-pages.mjs)
+const BADGE = { live: ['badge-live', 'Live'], next: ['badge-next', 'Next'] };
+for (const n of NETWORK_PAGES) {
+  const [cls, label] = BADGE[n.status];
+  const others = NETWORK_PAGES.filter((o) => o.id !== n.id);
+  const body = `      <section class="reveal">
+        <nav class="text-xs text-white/40" aria-label="Breadcrumb"><a href="/networks" class="hover:text-white">Networks</a> / ${esc(n.name)}</nav>
+        <p class="eyebrow mt-4">${esc(n.product)} · <span class="badge ${cls}">${label}</span></p>
+        <h1 class="mt-3 max-w-3xl">${esc(n.h1)}</h1>
+        <p class="lead mt-5">${esc(n.lead)}</p>
+        <div class="mt-7 flex flex-wrap gap-3">
+          <a href="/login?mode=register&amp;product=${n.product === 'Vane Studio' ? 'studio' : 'post'}" class="btn-grad rounded-full px-6 py-3 text-sm font-medium text-white hover:opacity-90">Start free</a>
+          <a href="/pricing" class="rounded-full bg-white/10 px-6 py-3 text-sm font-medium text-white/85 hover:bg-white/15">See pricing</a>
+        </div>
+        ${n.status === 'next' ? '<p class="copy mt-5">This network is built and is switched on as soon as it approves Vane. The Channels screen always shows whether it is open for you.</p>' : ''}
+      </section>
+
+      <section class="reveal mt-14 grid gap-5 md:grid-cols-2">
+        <div class="glass-d card"><h2>What Vane publishes</h2><ul class="check mt-3">${n.publishes.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>
+        <div class="glass-d card"><h2>Limits and rules</h2><div class="table-wrap mt-4"><table class="tbl" style="min-width:0"><tbody>${n.limits.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('')}</tbody></table></div></div>
+      </section>
+
+      <section class="reveal mt-14">
+        <h2>How to connect ${esc(n.name)}</h2>
+        <ol class="copy mt-4 list-decimal space-y-2 pl-5">${n.connect.map((x) => `<li>${esc(x)}</li>`).join('')}</ol>
+        <p class="copy mt-4">Tokens and keys are stored encrypted and you can disconnect at any time. <a href="/security">How we protect them</a>.</p>
+      </section>
+
+      <section class="reveal mt-14">
+        <h2>Questions about ${esc(n.name)}</h2>
+        <div class="mt-5 grid gap-4">${n.faq.map(([q, a]) => `<div class="glass-d card"><h3>${esc(q)}</h3><p class="copy mt-2">${esc(a)}</p></div>`).join('')}</div>
+      </section>
+
+      <section class="reveal mt-14">
+        <h2>More networks</h2>
+        <p class="copy mt-4">${others.map((o) => `<a href="/networks/${o.id}" class="mr-4 inline-block">${esc(o.name)}</a>`).join('')}<a href="/networks" class="inline-block">All networks</a></p>
+      </section>`;
+  const meta = { slug: `networks/${n.id}`, title: n.product === 'Vane Studio' ? `${n.name} publishing` : `${n.name} scheduler`, desc: `${n.lead} Flat pricing, no per-channel fees.`.slice(0, 300), body, crumbs: [['Networks', '/networks']], faq: n.faq };
+  const out = join(root, 'public', meta.slug + '.html');
+  mkdirSync(dirname(out), { recursive: true });
+  writeFileSync(out, layout(meta));
+  built.push('/' + meta.slug);
+}
+
+// ───────────── the hand-written pages: the landing page and the legal pages get the same social and structured-data tags ─────────────
+const strip = (h) => h.replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&#39;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, ' ').trim();
+function injectSeo(file, { path, title, desc, canonical, extra = [] }) {
+  const f = join(root, 'public', file);
+  let html = readFileSync(f, 'utf8');
+  const url = SITE.origin + path;
+  const graph = [ORGANIZATION, { '@type': 'WebSite', '@id': `${SITE.origin}/#site`, url: SITE.origin, name: 'Vane', publisher: { '@id': `${SITE.origin}/#org` } },
+    { '@type': 'WebPage', '@id': `${url}#page`, url, name: title, description: desc, isPartOf: { '@id': `${SITE.origin}/#site` } }, ...extra];
+  if (path !== '/') graph.push({ '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Vane', item: SITE.origin + '/' }, { '@type': 'ListItem', position: 2, name: title, item: url }] });
+  const block = `<!-- seo:start (generated by scripts/build-site-pages.mjs) -->
+  ${canonical ? `<link rel="canonical" href="${url}" />\n  ` : ''}<meta property="og:site_name" content="Vane" />
+  <meta property="og:image" content="${OG_IMAGE}" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Vane: schedule once, post everywhere" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${esc(title)}" />
+  <meta name="twitter:description" content="${esc(desc)}" />
+  <meta name="twitter:image" content="${OG_IMAGE}" />
+  ${ldTag({ '@context': 'https://schema.org', '@graph': graph })}
+  <!-- seo:end -->`;
+  if (html.includes('<!-- seo:start')) html = html.replace(/<!-- seo:start[\s\S]*?<!-- seo:end -->/, () => block);
+  else html = html.replace('</head>', () => `  ${block}\n</head>`);
+  writeFileSync(f, html);
+}
+{
+  const idx = readFileSync(join(root, 'public', 'index.html'), 'utf8');
+  const faq = [...idx.matchAll(/<summary[^>]*>([\s\S]*?)<span class="faq-plus[\s\S]*?<\/summary>\s*<(?:p|div)[^>]*>([\s\S]*?)<\/(?:p|div)>\s*<\/details>/g)].map((m) => [strip(m[1]), strip(m[2])]).filter(([q, a]) => q && a);
+  const titleIdx = 'Vane — Schedule once. Post everywhere.';
+  const descIdx = 'Schedule once and post to Telegram, LinkedIn, Threads, Bluesky, Mastodon, Discord, Dev.to and more, plus video with Vane Studio. Flat pricing from $9.99/mo, unlimited channels, built-in AI and a REST API. Start free, no card required.';
+  injectSeo('index.html', { path: '/', title: titleIdx, desc: descIdx, canonical: true, extra: [
+    { '@type': 'SoftwareApplication', '@id': `${SITE.origin}/#post`, name: 'Vane Post', url: SITE.origin, applicationCategory: 'BusinessApplication', operatingSystem: 'Web', description: 'Social media scheduler: write once, publish to many networks at the time you choose, with built-in AI and a REST API.', offers: { '@type': 'AggregateOffer', priceCurrency: 'USD', lowPrice: '0', highPrice: '9.99' }, publisher: { '@id': `${SITE.origin}/#org` } },
+    { '@type': 'SoftwareApplication', '@id': `${SITE.origin}/#studio`, name: 'Vane Studio', url: SITE.origin, applicationCategory: 'MultimediaApplication', operatingSystem: 'Web', description: 'Video library and publisher: upload a video once and publish it to the video networks you connect.', publisher: { '@id': `${SITE.origin}/#org` } },
+    ...(faq.length ? [{ '@type': 'FAQPage', mainEntity: faq.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) }] : []),
+  ] });
+  let html = readFileSync(join(root, 'public', 'index.html'), 'utf8');
+  html = html.replace(/(<meta name="description" content=")[^"]*(")/, (_, a, b) => a + esc(descIdx) + b).replace(/(<meta property="og:description" content=")[^"]*(")/, (_, a, b) => a + esc(descIdx) + b);
+  writeFileSync(join(root, 'public', 'index.html'), html);
+  console.log(`index.html: ${faq.length} FAQ entries in structured data`);
+}
+for (const [file, path, title, desc] of [['privacy.html', '/privacy', 'Privacy Policy — Vane', 'How Vane handles your data.'], ['terms.html', '/terms', 'Terms of Service — Vane', 'The terms that apply when you use Vane.'], ['data-deletion.html', '/data-deletion', 'Data deletion — Vane', 'How to delete your Vane data.']]) {
+  const h = readFileSync(join(root, 'public', file), 'utf8');
+  const d = /<meta name="description" content="([^"]*)"/.exec(h)?.[1] ?? desc;
+  injectSeo(file, { path, title, desc: d.replace(/&quot;/g, '"'), canonical: false });
+  let t = readFileSync(join(root, 'public', file), 'utf8');
+  if (!t.includes('property="og:title"')) t = t.replace('<!-- seo:start', `<meta property="og:type" content="website" />\n  <meta property="og:title" content="${esc(title)}" />\n  <meta property="og:description" content="${esc(d.replace(/&quot;/g, '"'))}" />\n  <meta property="og:url" content="${SITE.origin}${path}" />\n  <!-- seo:start`);
+  writeFileSync(join(root, 'public', file), t);
 }
 
 const missing = built.filter((p) => !PAGES_IN_SITEMAP.includes(p));
