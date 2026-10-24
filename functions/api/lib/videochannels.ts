@@ -17,6 +17,7 @@
  */
 import type { Env } from '../../../types';
 import { fail, failCode, isRecord, json, UUID_RE } from './http';
+import { networkFlags, isOn } from './networks';
 import { youtubeConfigured } from './youtube';
 import { youtubeStartUrl } from './youtubeconnect';
 
@@ -55,10 +56,12 @@ interface VideoChannelRow {
 }
 
 /** The catalog as this server sees it: YouTube opens by itself once its Google keys are set (no code change, no redeploy of the page). */
-export function platformsFor(env: Env): VideoPlatformInfo[] {
-  return VIDEO_PLATFORMS.map((p) => (p.id === 'youtube' && youtubeConfigured(env)
-    ? { ...p, available: true, note: "Until Google approves Vane, YouTube keeps uploads private." }
-    : p));
+export async function platformsFor(env: Env): Promise<VideoPlatformInfo[]> {
+  const flags = await networkFlags(env);
+  return VIDEO_PLATFORMS.map((p) => {
+    if (!isOn(p.id, flags)) return p.id === 'youtube' && youtubeConfigured(env) ? { ...p, available: false, note: 'Switched off for now.' } : p;
+    return p.id === 'youtube' && youtubeConfigured(env) ? { ...p, available: true, note: 'Until Google approves Vane, YouTube keeps uploads private.' } : p;
+  });
 }
 
 export async function listVideoChannels(env: Env, userId: string): Promise<Response> {
@@ -68,12 +71,12 @@ export async function listVideoChannels(env: Env, userId: string): Promise<Respo
     .bind(userId)
     .all<VideoChannelRow>();
   const channels: VideoChannelPublic[] = results.map((r) => ({ id: r.id, platform: r.platform, name: r.name, isActive: r.is_active === 1, createdAt: r.created_at }));
-  return json({ ok: true, channels, platforms: platformsFor(env) });
+  return json({ ok: true, channels, platforms: await platformsFor(env) });
 }
 
 export async function connectVideoChannel(env: Env, request: Request, body: unknown): Promise<Response> {
   if (!isRecord(body)) return fail(400, 'Body must be a JSON object');
-  const info = platformsFor(env).find((p) => p.id === body.platform);
+  const info = (await platformsFor(env)).find((p) => p.id === body.platform);
   if (!info) return fail(400, `platform must be one of: ${VIDEO_PLATFORMS.map((p) => p.id).join(', ')}`);
   if (!info.available) return failCode(409, 'platform_unavailable', `${info.name} is not open yet. ${info.note}`);
 

@@ -14,6 +14,8 @@
  */
 import type { D1Database } from '@cloudflare/workers-types';
 import { failCode } from './http';
+import { hasRealPublisher } from './videopublishers';
+import type { VideoPlatform } from './videochannels';
 
 export type NetworkProduct = 'post' | 'studio';
 
@@ -27,6 +29,12 @@ export interface NetworkInfo {
   code: string;
 }
 
+/** Vane Studio networks are detected from the code itself: implemented as soon as a real publisher is registered (videopublishers.ts). */
+const studio = (id: VideoPlatform | 'pinterest', name: string, what: string): NetworkInfo => {
+  const done = id !== 'pinterest' && hasRealPublisher(id);
+  return { id, name, product: 'studio', implemented: done, code: done ? what : 'Connect and upload flow not written yet' };
+};
+
 export const NETWORKS: readonly NetworkInfo[] = [
   { id: 'telegram', name: 'Telegram', product: 'post', implemented: true, code: 'Connect (own bot or Vane bot) and publish' },
   { id: 'bluesky', name: 'Bluesky', product: 'post', implemented: true, code: 'Connect (app password) and publish' },
@@ -39,10 +47,10 @@ export const NETWORKS: readonly NetworkInfo[] = [
   { id: 'facebook', name: 'Facebook Pages', product: 'post', implemented: true, code: 'Connect (Facebook Login, every Page you manage) and publish text, photo and video posts' },
   { id: 'x', name: 'X', product: 'post', implemented: false, code: 'Not written yet (only reserved in the database)' },
   { id: 'webhook', name: 'Webhook channel', product: 'post', implemented: false, code: 'Not written yet (post webhooks for your own endpoint are a separate feature)' },
-  { id: 'youtube', name: 'YouTube', product: 'studio', implemented: false, code: 'Connect and upload flow not written yet' },
-  { id: 'tiktok', name: 'TikTok', product: 'studio', implemented: false, code: 'Connect and upload flow not written yet' },
-  { id: 'instagram', name: 'Instagram Reels', product: 'studio', implemented: false, code: 'Connect and upload flow not written yet' },
-  { id: 'pinterest', name: 'Pinterest', product: 'studio', implemented: false, code: 'Connect and upload flow not written yet' },
+  studio('youtube', 'YouTube', 'Connect (Google OAuth, upload scope only) and upload (resumable, cover, made-for-kids, category)'),
+  studio('tiktok', 'TikTok', ''),
+  studio('instagram', 'Instagram Reels', ''),
+  studio('pinterest', 'Pinterest', ''),
 ];
 
 export const networkInfo = (id: string): NetworkInfo | undefined => NETWORKS.find((n) => n.id === id);

@@ -84,6 +84,9 @@ const MOCK: VideoPublisher = {
   },
 };
 
+/** Does this network have real publishing code? (The admin's Networks tab reads this, so a network becomes switchable the moment its publisher is registered in REAL.) */
+export const hasRealPublisher = (platform: VideoPlatform): boolean => REAL[platform] !== undefined;
+
 /** The publisher for a channel, or null when its network has none yet. */
 export function publisherFor(env: PublishEnv, platform: VideoPlatform, credentials: string): VideoPublisher | null {
   if (env.VIDEO_PUBLISH_MOCK === '1' && parseMock(credentials)) return MOCK;

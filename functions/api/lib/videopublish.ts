@@ -16,6 +16,7 @@
  */
 import type { Env, VideoPrivacy, VideoPublicationPublic, VideoPublicationStatus } from '../../../types';
 import { fail, failCode, isRecord, json, UUID_RE } from './http';
+import { networkOff } from './networks';
 import { bump, retryAfter } from './throttle';
 import { publisherFor, type PublishEnv, type PublishJob } from './videopublishers';
 import { YT_CATEGORIES, type YoutubeOptions } from './youtube';
@@ -207,6 +208,10 @@ export async function publishVideo(env: Env, userId: string, videoId: string, bo
     .bind(userId, ...channelIds)
     .all<{ id: string; platform: VideoPlatform; name: string; is_active: number }>();
   if (channels.length !== channelIds.length) return fail(404, 'Channel not found');
+  for (const platform of new Set(channels.map((c) => c.platform))) {
+    const paused = await networkOff(env, platform);
+    if (paused) return paused;
+  }
   const off = channels.find((c) => c.is_active !== 1);
   if (off) return failCode(409, 'channel_inactive', `${off.name} is switched off.`);
 
