@@ -868,3 +868,12 @@ CREATE TABLE IF NOT EXISTS contact_messages (
   ip          TEXT,
   mailed      INTEGER NOT NULL DEFAULT 0 CHECK (mailed IN (0, 1))
 );
+
+-- ───────────────────────── Age gate (new accounts must be 16+) ─────────────────────────
+-- We keep only the fact that the person confirmed their age at sign-up, never the date of birth.
+-- Accounts that existed before the gate have no row.
+CREATE TABLE IF NOT EXISTS age_confirmations (
+  user_id       TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  min_age       INTEGER NOT NULL,
+  confirmed_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);

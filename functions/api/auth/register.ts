@@ -1,5 +1,5 @@
 /**
- * POST /api/auth/register  { email, password, name?, timezone?, turnstileToken? }
+ * POST /api/auth/register  { email, password, birthDate, name?, timezone?, turnstileToken? }   (403 under 16, see lib/age.ts)
  *   → 201 + session cookie                         emailed codes off: the account is created right away
  *   → 202 { ok, verify }, NO account yet           emailed codes on: a 6-digit code was mailed; the account is
  *                                                  created by POST /api/auth/verify once the code is entered
@@ -18,6 +18,7 @@ import { recordAttribution } from '../lib/attribution';
 import { logAttempt, maybeAutoBan } from '../lib/attempts';
 import { getSettings } from '../lib/settings';
 import { createUser } from '../lib/users';
+import { ageOf, blockCookie, isBlockedMinor, MIN_AGE, NEED_BIRTH, parseBirth, recordAgeConfirmed, TOO_YOUNG } from '../lib/age';
 
 const MIN_PASSWORD = 8;
 const MAX_PASSWORD = 128; // also caps the CPU an attacker can make us spend hashing
@@ -62,6 +63,14 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return human;
   }
 
+  if (isBlockedMinor(request)) return fail(403, TOO_YOUNG);
+  const birth = parseBirth(body.birthDate);
+  if (!birth) return fail(400, NEED_BIRTH);
+  if (ageOf(birth) < MIN_AGE) {
+    await logAttempt(env, request, { kind: 'register', ok: false, reason: 'underage' });   // no email, no date: nothing about the child is kept
+    return fail(403, TOO_YOUNG, { 'Set-Cookie': blockCookie(request) });
+  }
+
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
   if (!EMAIL_RE.test(email) || email.length > 254) return fail(400, 'Enter a valid email address.');
 
@@ -102,6 +111,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       : fail(500, 'Could not create the account. Please try again.');
   }
 
+  await recordAgeConfirmed(env, id);
   await logAttempt(env, request, { kind: 'register', ok: true, email });
   await maybeAutoBan(env, request, 'register');
   await recordAttribution(env, request, id, body.visitorId);
