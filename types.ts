@@ -59,6 +59,14 @@ export interface Env {
   GOOGLE_CLIENT_ID?: string;        // plain var
   GOOGLE_CLIENT_SECRET?: string;    // secret
   /** Vane Studio → YouTube (a separate Google OAuth client with the youtube.upload scope): the connect button is off until both are set */
+  /** Vane Post → Reddit (OAuth app of type "web app") and Facebook Pages (Meta app with Facebook Login): each connect button is off until both are set */
+  REDDIT_CLIENT_ID?: string;        // plain var
+  REDDIT_CLIENT_SECRET?: string;    // secret
+  FACEBOOK_APP_ID?: string;         // plain var
+  FACEBOOK_APP_SECRET?: string;     // secret
+  /** Vane Studio → Instagram Reels (Meta app with Instagram API / Instagram Login): the connect button is off until both are set */
+  INSTAGRAM_APP_ID?: string;        // plain var
+  INSTAGRAM_APP_SECRET?: string;    // secret
   YOUTUBE_CLIENT_ID?: string;       // plain var
   YOUTUBE_CLIENT_SECRET?: string;   // secret
   /** Threads (Meta app with the Threads API): the connect button is off until both are set */
@@ -69,7 +77,7 @@ export interface Env {
 
 // ───────────────────────── Enums ─────────────────────────
 export type Plan = 'free' | 'pro';
-export type ChannelType = 'telegram' | 'x' | 'linkedin' | 'webhook' | 'bluesky' | 'mastodon' | 'threads' | 'discord' | 'devto';
+export type ChannelType = 'telegram' | 'x' | 'linkedin' | 'webhook' | 'bluesky' | 'mastodon' | 'threads' | 'discord' | 'devto' | 'reddit' | 'facebook';
 export type PostStatus =
   | 'draft'
   | 'scheduled'
@@ -152,6 +160,8 @@ export type ChannelCredentials =
   | { type: 'bluesky'; service: string; identifier: string; did: string; appPassword: string }
   | { type: 'discord'; webhookUrl: string; webhookId: string; guildId: string | null; channelId: string | null }
   | { type: 'devto'; apiKey: string; userId: number; username: string }
+  | { type: 'reddit'; username: string; subreddit: string; accessToken: string; refreshToken: string; expiresAt: number }
+  | { type: 'facebook'; pageId: string; pageName: string; accessToken: string }
   | { type: 'webhook'; url: string; secret?: string };
 
 // ───────────────────────── API contracts ─────────────────────────
@@ -241,6 +251,8 @@ export interface UserFeatures {
   /** the LinkedIn / Threads app is configured on this server, so their connect buttons work */
   linkedin: boolean;
   threads: boolean;
+  reddit: boolean;
+  facebook: boolean;
 }
 export type MeResponse = { ok: true; user: UserPublic; features: UserFeatures } | ApiError;
 
@@ -302,6 +314,8 @@ export interface CronEnv {
   MONOBANK_CCY?: string;
   CRYPTO_WALLET?: string;          // the same as on Pages: lets the cron find crypto payments even when the buyer closed the checkout page
   SOLANA_RPC_URL?: string;        // the same optional value as on Pages
+  REDDIT_CLIENT_ID?: string;      // the same as on Pages: renews the Reddit access (an hour) before each post
+  REDDIT_CLIENT_SECRET?: string;  // the same secret as on Pages
   YOUTUBE_CLIENT_ID?: string;     // the same as on Pages: renews the YouTube access before each upload
   YOUTUBE_CLIENT_SECRET?: string; // the same secret as on Pages
 }

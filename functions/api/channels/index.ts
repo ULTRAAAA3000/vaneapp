@@ -24,7 +24,7 @@ import { loadLinkedinCreds } from './linkedin';
 import { normalizeChatId, sendTelegramPost, validateTelegramBot } from './telegram';
 import { loadThreadsCreds } from './threads';
 
-const CHANNEL_TYPES: readonly ChannelType[] = ['telegram', 'x', 'linkedin', 'webhook', 'bluesky', 'mastodon', 'threads', 'discord', 'devto'];
+const CHANNEL_TYPES: readonly ChannelType[] = ['telegram', 'x', 'linkedin', 'webhook', 'bluesky', 'mastodon', 'threads', 'discord', 'devto', 'reddit', 'facebook'];
 const CONNECTABLE: readonly ChannelType[] = ['telegram', 'bluesky', 'discord', 'devto'];
 const MAX_NAME_LEN = 80;
 
@@ -92,7 +92,7 @@ export const handleAddChannel: PagesFunction<Env> = async ({ request, env }) => 
   const paused = await networkOff(env, platform);   // switched off in /admin → Networks
   if (paused) return paused;
   if (platform === 'mastodon') return fail(400, 'Mastodon connects through a sign-in on your server: POST /api/channels/mastodon/start { instance }.');
-  if (platform === 'linkedin' || platform === 'threads') return fail(400, `${platform === 'linkedin' ? 'LinkedIn' : 'Threads'} connects through a sign-in on its own page: POST /api/channels/${platform}/start.`);
+  if (platform === 'linkedin' || platform === 'threads' || platform === 'reddit' || platform === 'facebook') return fail(400, `${({ linkedin: 'LinkedIn', threads: 'Threads', reddit: 'Reddit', facebook: 'Facebook' } as Record<string, string>)[platform]} connects through a sign-in on its own page: POST /api/channels/${platform}/start.`);
   if (!CONNECTABLE.includes(platform as ChannelType)) {
     return fail(501, `Platform "${platform}" is not supported yet. Available: ${CONNECTABLE.join(', ')}.`);
   }

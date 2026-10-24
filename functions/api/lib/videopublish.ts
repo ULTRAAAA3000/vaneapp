@@ -16,6 +16,7 @@
  */
 import type { Env, VideoPrivacy, VideoPublicationPublic, VideoPublicationStatus } from '../../../types';
 import { fail, failCode, isRecord, json, UUID_RE } from './http';
+import { networkOff } from './networks';
 import { bump, retryAfter } from './throttle';
 import { publisherFor, type PublishEnv, type PublishJob } from './videopublishers';
 import { YT_CATEGORIES, type YoutubeOptions } from './youtube';
@@ -207,6 +208,10 @@ export async function publishVideo(env: Env, userId: string, videoId: string, bo
     .bind(userId, ...channelIds)
     .all<{ id: string; platform: VideoPlatform; name: string; is_active: number }>();
   if (channels.length !== channelIds.length) return fail(404, 'Channel not found');
+  for (const platform of new Set(channels.map((c) => c.platform))) {
+    const paused = await networkOff(env, platform);
+    if (paused) return paused;
+  }
   const off = channels.find((c) => c.is_active !== 1);
   if (off) return failCode(409, 'channel_inactive', `${off.name} is switched off.`);
 
@@ -218,6 +223,13 @@ export async function publishVideo(env: Env, userId: string, videoId: string, bo
     const category = y.category === undefined ? '22' : y.category;
     if (typeof category !== 'string' || !YT_CATEGORIES[category]) return fail(400, 'category is not a known YouTube category');
     youtube = { madeForKids: y.madeForKids, category };
+  }
+  // Instagram has only public Reels; "share to the feed" is the one choice.
+  let instagram: { shareToFeed: boolean } | null = null;
+  if (channels.some((c) => c.platform === 'instagram')) {
+    if (privacy !== 'public') return failCode(400, 'instagram_public_only', 'Instagram has no private or unlisted videos. Choose Public to publish a Reel.');
+    const i = isRecord(body.instagram) ? body.instagram : null;
+    instagram = { shareToFeed: i?.shareToFeed !== false };
   }
 
   // The same video twice to the same channel while the first is still going: almost always a double click.
@@ -239,10 +251,10 @@ export async function publishVideo(env: Env, userId: string, videoId: string, bo
      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'queued', ?10, ?10, ?10)`,
   );
   await env.DB.batch(channels.map((c, i) => insert.bind(ids[i], userId, videoId, c.id, c.platform, c.name, title, description, privacy, now)));
-  if (youtube) {
+  if (youtube || instagram) {
     const opt = env.DB.prepare('INSERT INTO video_publication_options (publication_id, options) VALUES (?1, ?2)');
     try {
-      await env.DB.batch(channels.flatMap((c, i) => (c.platform === 'youtube' ? [opt.bind(ids[i], JSON.stringify({ youtube }))] : [])));
+      await env.DB.batch(channels.flatMap((c, i) => (c.platform === 'youtube' && youtube ? [opt.bind(ids[i], JSON.stringify({ youtube }))] : c.platform === 'instagram' && instagram ? [opt.bind(ids[i], JSON.stringify({ instagram }))] : [])));
     } catch {
       // The table is missing (schema.sql was not run again): do not queue a YouTube upload without the "made for kids" answer.
       await env.DB.batch(ids.map((id) => env.DB.prepare('DELETE FROM video_publications WHERE id = ?1').bind(id)));

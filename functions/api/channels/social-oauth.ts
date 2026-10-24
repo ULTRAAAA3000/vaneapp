@@ -24,23 +24,26 @@ import { sha256Hex } from '../lib/session';
 import { bump, clientIp, retryAfter } from '../lib/throttle';
 import * as li from './linkedin';
 import * as th from './threads';
+import * as rd from './reddit';
+import * as fb from './facebook';
 
-export type Network = 'linkedin' | 'threads';
-type Reason = 'ok' | 'reconnected' | 'denied' | 'noperm' | 'expired' | 'failed' | 'migrate' | 'limit' | 'off';
+export type Network = 'linkedin' | 'threads' | 'reddit' | 'facebook';
+type Reason = 'ok' | 'reconnected' | 'denied' | 'noperm' | 'expired' | 'failed' | 'migrate' | 'limit' | 'off' | 'nopages';
 
 const STATE_TTL_SECONDS = 600;
 const STARTS_PER_USER_PER_HOUR = 10;
 const STARTS_PER_IP_PER_HOUR = 30;
 const MAX_NAME_LEN = 80;
-const LABEL: Record<Network, string> = { linkedin: 'LinkedIn', threads: 'Threads' };
+const LABEL: Record<Network, string> = { linkedin: 'LinkedIn', threads: 'Threads', reddit: 'Reddit', facebook: 'Facebook' };
 
 const originOf = (request: Request, env: Env): string => (env.APP_URL ? env.APP_URL.replace(/\/+$/, '') : new URL(request.url).origin);
 /** The address to register in the LinkedIn / Meta developer portal as the redirect (callback) URL. */
 export const redirectUriFor = (net: Network, request: Request, env: Env): string => `${originOf(request, env)}/api/channels/${net}/callback`;
 
-const configured = (net: Network, env: Env): boolean => (net === 'linkedin' ? li.linkedinConfigured(env) : th.threadsConfigured(env));
+const configured = (net: Network, env: Env): boolean =>
+  net === 'linkedin' ? li.linkedinConfigured(env) : net === 'threads' ? th.threadsConfigured(env) : net === 'reddit' ? rd.redditConfigured(env) : fb.facebookConfigured(env);
 const authorizeUrl = (net: Network, env: Env, redirectUri: string, state: string): string =>
-  net === 'linkedin' ? li.authorizeUrl(env, redirectUri, state) : th.authorizeUrl(env, redirectUri, state);
+  net === 'linkedin' ? li.authorizeUrl(env, redirectUri, state) : net === 'threads' ? th.authorizeUrl(env, redirectUri, state) : net === 'reddit' ? rd.authorizeUrl(env, redirectUri, state) : fb.authorizeUrl(env, redirectUri, state);
 
 // ───────────────────────── start ─────────────────────────
 export const startHandler = (net: Network): PagesFunction<Env> => async ({ request, env }) => {
@@ -60,6 +63,14 @@ export const startHandler = (net: Network): PagesFunction<Env> => async ({ reque
   const name = typeof parsed.data.name === 'string' ? parsed.data.name.replace(/[\u0000-\u001f\u007f]/g, '').trim() : '';
   if (name.length > MAX_NAME_LEN) return fail(400, `name can be at most ${MAX_NAME_LEN} characters`);
 
+  // Reddit: the subreddit this channel posts to travels with the sign-in (in the `instance` column of the one-time state).
+  let target = '';
+  if (net === 'reddit') {
+    const sub = rd.cleanSubreddit(parsed.data.subreddit);
+    if (!sub) return fail(400, 'Enter the subreddit to post to, for example r/webdev (letters, digits and underscore).');
+    target = sub;
+  }
+
   const userKey = `${net}:start:${auth.userId}`;
   const ipKey = `${net}:start:ip:${clientIp(request)}`;
   const wait = Math.max(await retryAfter(env, userKey, STARTS_PER_USER_PER_HOUR), await retryAfter(env, ipKey, STARTS_PER_IP_PER_HOUR));
@@ -74,7 +85,7 @@ export const startHandler = (net: Network): PagesFunction<Env> => async ({ reque
       env.DB.prepare('DELETE FROM oauth_states WHERE expires_at <= ?1').bind(now),
       env.DB
         .prepare('INSERT INTO oauth_states (state_hash, user_id, provider, instance, name, created_at, expires_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)')
-        .bind(await sha256Hex(state), auth.userId, net, '', name, now, now + STATE_TTL_SECONDS),
+        .bind(await sha256Hex(state), auth.userId, net, target, name, now, now + STATE_TTL_SECONDS),
     ]);
   } catch (err) {
     console.error(`${net} start failed`, err instanceof Error ? err.message : 'unknown');
@@ -96,16 +107,31 @@ interface Connected {
   defaultName: string;
   blob: Record<string, unknown>;
 }
-type ConnectOutcome = { ok: true; connected: Connected } | { ok: false; reason: 'failed' | 'noperm' };
+type ConnectOutcome = { ok: true; connected: Connected[] } | { ok: false; reason: 'failed' | 'noperm' | 'nopages' };
 
-async function connect(net: Network, env: Env, redirectUri: string, code: string, now: number): Promise<ConnectOutcome> {
+async function connect(net: Network, env: Env, redirectUri: string, code: string, now: number, target: string, customName: string): Promise<ConnectOutcome> {
   if (net === 'linkedin') {
     const t = await li.exchangeCode(env, redirectUri, code, now);
     if (!t.ok) return t;
     const me = await li.readProfile(t.tokens.accessToken);
     if (!me.ok) return { ok: false, reason: 'failed' };
     const urn = `urn:li:person:${me.id}`;
-    return { ok: true, connected: { identity: urn, defaultName: me.name || 'LinkedIn', blob: li.linkedinBlob(urn, me.name, t.tokens) } };
+    return { ok: true, connected: [{ identity: urn, defaultName: me.name || 'LinkedIn', blob: li.linkedinBlob(urn, me.name, t.tokens) }] };
+  }
+  if (net === 'reddit') {
+    const sub = rd.cleanSubreddit(target);
+    if (!sub) return { ok: false, reason: 'failed' };
+    const t = await rd.exchangeCode(env, redirectUri, code, now);
+    if (!t.ok) return t;
+    const me = await rd.readProfile(t.tokens.accessToken);
+    if (!me.ok) return { ok: false, reason: 'failed' };
+    return { ok: true, connected: [{ identity: rd.redditIdentityOf(me.username, sub), defaultName: `r/${sub} (u/${me.username})`, blob: rd.redditBlob({ username: me.username, subreddit: sub, ...t.tokens }) }] };
+  }
+  if (net === 'facebook') {
+    const t = await fb.exchangeCode(env, redirectUri, code);
+    if (!t.ok) return t;
+    // Every Page the person manages becomes a channel; a custom name is only used when there is exactly one.
+    return { ok: true, connected: t.pages.map((p) => ({ identity: p.pageId, defaultName: t.pages.length === 1 && customName ? customName : p.name, blob: fb.facebookBlob({ pageId: p.pageId, pageName: p.name, accessToken: p.accessToken }) })) };
   }
   const t = await th.exchangeCode(env, redirectUri, code, now);
   if (!t.ok) return t;
@@ -113,7 +139,7 @@ async function connect(net: Network, env: Env, redirectUri: string, code: string
   if (!me.ok) return { ok: false, reason: 'failed' };
   return {
     ok: true,
-    connected: { identity: t.connected.userId, defaultName: `@${me.username}`, blob: th.threadsBlob({ ...t.connected, username: me.username }) },
+    connected: [{ identity: t.connected.userId, defaultName: `@${me.username}`, blob: th.threadsBlob({ ...t.connected, username: me.username }) }],
   };
 }
 
@@ -126,7 +152,11 @@ async function findSameAccount(net: Network, env: Env, userId: string, identity:
   for (const row of results) {
     const same = net === 'linkedin'
       ? (await li.loadLinkedinCreds(row.credentials, env.ENCRYPTION_KEY))?.urn === identity
-      : (await th.threadsIdentity(row.credentials, env.ENCRYPTION_KEY)) === identity; // by account, so a channel whose access was removed is revived
+      : net === 'reddit'
+        ? (await rd.redditIdentity(row.credentials, env.ENCRYPTION_KEY)) === identity
+        : net === 'facebook'
+          ? (await fb.facebookIdentity(row.credentials, env.ENCRYPTION_KEY)) === identity
+          : (await th.threadsIdentity(row.credentials, env.ENCRYPTION_KEY)) === identity; // by account, so a channel whose access was removed is revived
     if (same) return { id: row.id };
   }
   return null;
@@ -144,9 +174,9 @@ export const callbackHandler = (net: Network): PagesFunction<Env> => async ({ re
   // Single use: whoever deletes the row owns the attempt, so a replayed or doubled callback finds nothing.
   const now = Math.floor(Date.now() / 1000);
   const row = await env.DB
-    .prepare('DELETE FROM oauth_states WHERE state_hash = ?1 AND provider = ?2 RETURNING user_id, name, expires_at')
+    .prepare('DELETE FROM oauth_states WHERE state_hash = ?1 AND provider = ?2 RETURNING user_id, name, instance, expires_at')
     .bind(await sha256Hex(state), net)
-    .first<{ user_id: string; name: string; expires_at: number }>();
+    .first<{ user_id: string; name: string; instance: string; expires_at: number }>();
   if (!row || row.expires_at <= now || row.user_id !== auth.userId) return back(net, 'expired');
 
   if (q.get('error')) return back(net, 'denied');
@@ -158,28 +188,33 @@ export const callbackHandler = (net: Network): PagesFunction<Env> => async ({ re
   }
   if (!configured(net, env)) return back(net, 'failed');
 
-  const outcome = await connect(net, env, redirectUriFor(net, request, env), code, now);
+  const outcome = await connect(net, env, redirectUriFor(net, request, env), code, now, row.instance, row.name);
   if (!outcome.ok) return back(net, outcome.reason);
-  const { identity, defaultName, blob } = outcome.connected;
-  const encrypted = await encryptToken(JSON.stringify(blob), env.ENCRYPTION_KEY);
-
+  let added = 0, renewed = 0, full = false;
   try {
-    const same = await findSameAccount(net, env, auth.userId, identity);
-    if (same) {
-      // "Reconnect": keep the channel (and its scheduled posts), give it the new sign-in.
-      await env.DB.prepare('UPDATE channels SET credentials = ?1, is_active = 1, updated_at = ?2 WHERE id = ?3 AND user_id = ?4').bind(encrypted, now, same.id, auth.userId).run();
-      return back(net, 'reconnected');
+    for (const { identity, defaultName, blob } of outcome.connected) {
+      const encrypted = await encryptToken(JSON.stringify(blob), env.ENCRYPTION_KEY);
+      const same = await findSameAccount(net, env, auth.userId, identity);
+      if (same) {
+        // "Reconnect": keep the channel (and its scheduled posts), give it the new sign-in.
+        await env.DB.prepare('UPDATE channels SET credentials = ?1, is_active = 1, updated_at = ?2 WHERE id = ?3 AND user_id = ?4').bind(encrypted, now, same.id, auth.userId).run();
+        renewed++;
+        continue;
+      }
+      // A new channel counts against the plan (only while "enforce_limits" is on); renewing a sign-in above does not.
+      if (await checkChannelQuota(env, auth.userId)) { full = true; break; }
+      await env.DB
+        .prepare(`INSERT INTO channels (id, user_id, type, name, credentials, is_active, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?6)`)
+        .bind(crypto.randomUUID(), auth.userId, net, (outcome.connected.length === 1 && row.name) || defaultName, encrypted, now)
+        .run();
+      added++;
     }
-    // A new channel counts against the plan (only while "enforce_limits" is on); renewing a sign-in above does not.
-    if (await checkChannelQuota(env, auth.userId)) return back(net, 'limit');
-    await env.DB
-      .prepare(`INSERT INTO channels (id, user_id, type, name, credentials, is_active, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?6)`)
-      .bind(crypto.randomUUID(), auth.userId, net, row.name || defaultName, encrypted, now)
-      .run();
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'unknown';
     console.error(`${net} channel save failed`, msg);
     return back(net, /CHECK constraint/i.test(msg) ? 'migrate' : 'failed');
   }
+  if (!added && full) return back(net, 'limit');
+  if (!added && renewed) return back(net, 'reconnected');
   return back(net, 'ok');
 };

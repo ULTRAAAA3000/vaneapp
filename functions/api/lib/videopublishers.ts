@@ -18,6 +18,7 @@
  */
 import type { CronEnv, VideoPrivacy } from '../../../types';
 import type { VideoPlatform } from './videochannels';
+import { instagramPublisher } from './instagram';
 import { youtubePublisher, type YoutubeOptions } from './youtube';
 
 /** What a publisher needs; both the Pages env and the cron worker's env satisfy it. */
@@ -32,7 +33,7 @@ export interface PublishJob {
   description: string;
   privacy: VideoPrivacy;
   /** network-specific choices made in the publish dialog (YouTube: made for kids, category) */
-  options?: { youtube?: YoutubeOptions };
+  options?: { youtube?: YoutubeOptions; instagram?: { shareToFeed: boolean } };
   /** `cover`: the picture the owner chose for the video (its R2 key and type), or null: then use the frame, or let the network pick one. A publisher sends it as the network's thumbnail / cover / poster. */
   video: { id: string; tags: string[]; r2Key: string; sizeBytes: number; contentType: string; cover: { r2Key: string; contentType: string } | null };
   /** `credentials` is exactly what is stored (encrypted for real networks): the publisher decrypts it itself */
@@ -50,7 +51,7 @@ export interface VideoPublisher {
 }
 
 /** The real networks. Empty until each one is approved: see the note at the top of this file. */
-const REAL: Partial<Record<VideoPlatform, VideoPublisher>> = { youtube: youtubePublisher };
+const REAL: Partial<Record<VideoPlatform, VideoPublisher>> = { youtube: youtubePublisher, instagram: instagramPublisher };
 
 // ───────────────────────── the fake network (dev and tests only) ─────────────────────────
 
@@ -83,6 +84,9 @@ const MOCK: VideoPublisher = {
     return { ok: true, externalId: `mock-${job.publicationId.slice(0, 8)}`, url: `https://example.test/${job.channel.platform}/${job.publicationId}?${q.toString()}` };
   },
 };
+
+/** Does this network have real publishing code? (The admin's Networks tab reads this, so a network becomes switchable the moment its publisher is registered in REAL.) */
+export const hasRealPublisher = (platform: VideoPlatform): boolean => REAL[platform] !== undefined;
 
 /** The publisher for a channel, or null when its network has none yet. */
 export function publisherFor(env: PublishEnv, platform: VideoPlatform, credentials: string): VideoPublisher | null {
