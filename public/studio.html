@@ -330,6 +330,18 @@
           <input id="keyName" type="text" maxlength="60" placeholder="Make.com" class="field" />
         </div>
         <div>
+          <label for="keyIntegration" class="lbl">Used with <span class="normal-case tracking-normal text-white/30">(optional)</span></label>
+          <select id="keyIntegration" class="field">
+            <option value="">Not sure, or something else</option>
+            <option value="claude">Claude</option>
+            <option value="chatgpt">ChatGPT</option>
+            <option value="make">Make</option>
+            <option value="zapier">Zapier</option>
+            <option value="wordpress">WordPress plugin</option>
+            <option value="api">My own script or another tool</option>
+          </select>
+        </div>
+        <div>
           <span class="mb-2 block text-[0.7rem] font-medium uppercase tracking-widest text-white/40">Type</span>
           <div class="grid gap-2.5 sm:grid-cols-2" role="group" aria-label="Key type">
             <button type="button" id="modeLive" data-mode="live" aria-pressed="true" class="mode-btn">
@@ -366,7 +378,7 @@
   </dialog>
 
   <script src="/assets/vane.js?v=20261022a"></script>
-  <script src="/assets/apikeys.js?v=20261019a"></script>
+  <script src="/assets/apikeys.js?v=20261024b"></script>
   <script src="/assets/studio.js?v=20261023b"></script>
   <script src="/assets/studio-ai.js?v=20261021c"></script>
 </body>
