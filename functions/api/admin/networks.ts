@@ -8,6 +8,7 @@ import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env } from '../../../types';
 import { audit, requireAdmin } from '../lib/admin';
 import { fail, isRecord, json, methodNotAllowed, readJson } from '../lib/http';
+import { youtubeConfigured } from '../lib/youtube';
 import { invalidateNetworkFlags, isOn, networkFlags, networkInfo, NETWORKS } from '../lib/networks';
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
@@ -34,6 +35,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       return {
         id: n.id, name: n.name, product: n.product, implemented: n.implemented, code: n.code,
         enabled: isOn(n.id, flags), switchedOff: n.implemented && f?.enabled === false,
+        setup: n.implemented && n.id === 'youtube' && !youtubeConfigured(env) ? 'Code is ready. Add YOUTUBE_CLIENT_ID and YOUTUBE_CLIENT_SECRET (Pages and the cron worker) to open it for users.' : null,
         note: f?.note ?? '', updatedAt: f?.updatedAt ?? null, updatedBy: f?.updatedBy ?? null,
         stats: post ? { channels: ch.get(n.id)?.n ?? 0, activeChannels: ch.get(n.id)?.active ?? 0, waiting: wt.get(n.id)?.n ?? 0, scheduled: up.get(n.id)?.n ?? 0, failed24h: fl.get(n.id)?.n ?? 0 } : null,
       };
