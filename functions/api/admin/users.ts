@@ -137,6 +137,16 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       }
       throw err;
     }
+    // The Suite bundle is Post + Studio: the gift switches both on for the same time.
+    if (plan.id === 'suite') {
+      await env.DB
+        .prepare(
+          `INSERT INTO video_subscriptions (user_id, status, current_period_end, provider, created_at, updated_at) VALUES (?1, 'active', ?2, 'manual', ?3, ?3)
+           ON CONFLICT(user_id) DO UPDATE SET status = 'active', current_period_end = excluded.current_period_end, provider = 'manual', provider_ref = NULL, updated_at = excluded.updated_at`,
+        )
+        .bind(user.id, days === null ? null : now + days * 86400, now)
+        .run();
+    }
     await audit(env, request, 'user.grant_plan', user.email, { plan: plan.id, addon, overage, days, note });
     return json({ ok: true }, 201);
   }
@@ -196,11 +206,16 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     if (typeof b.userId !== 'string' || !UUID_RE.test(b.userId)) return fail(400, 'userId is invalid.');
     const user = await env.DB.prepare('SELECT email FROM users WHERE id = ?1').bind(b.userId).first<{ email: string }>();
     if (!user) return fail(404, 'User not found.');
+    const was = await env.DB.prepare(`SELECT plan FROM subscriptions WHERE user_id = ?1 AND status = 'active'`).bind(b.userId).first<{ plan: string }>();
     const res = await env.DB
       .prepare(`UPDATE subscriptions SET status = 'canceled', current_period_end = ?2, updated_at = ?2 WHERE user_id = ?1 AND plan <> 'free' AND status = 'active'`)
       .bind(b.userId, now)
       .run();
     if (!res.meta.changes) return fail(404, 'This user has no active paid plan.');
+    // Ending Suite ends the Studio half too (it was one purchase).
+    if (was?.plan === 'suite') {
+      await env.DB.prepare(`UPDATE video_subscriptions SET status = 'canceled', current_period_end = ?2, updated_at = ?2 WHERE user_id = ?1 AND status = 'active'`).bind(b.userId, now).run();
+    }
     await audit(env, request, 'user.revoke_plan', user.email);
     return json({ ok: true });
   }

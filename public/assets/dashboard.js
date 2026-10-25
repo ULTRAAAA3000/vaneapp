@@ -1364,6 +1364,18 @@
       html += '<p class="mt-4 border-t border-white/10 pt-4 text-xs leading-relaxed text-white/45">' + esc(line) + '</p>';
     }
     box.innerHTML = html;
+    // Vane Suite = posting + video in one plan. Offered to everyone who is not on it yet, once it is switched on.
+    if (u.plan.id !== 'suite') {
+      Vane.api('GET', '/api/billing/plan?id=suite').then(function (r) {
+        if (!r.ok || !r.data.plan || !r.data.plan.buyable || !box.isConnected || box.querySelector('[data-suite]')) return;
+        var a = document.createElement('a');
+        a.setAttribute('data-suite', '1');
+        a.className = 'btn btn-white mt-4 inline-flex';
+        a.href = '/checkout?plan=suite';
+        a.textContent = 'Get Vane Suite: posting + video';
+        box.appendChild(a);
+      }).catch(function () { /* the offer is optional */ });
+    }
   }
 
   var KEY_ICON = '<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2M17 6l3 3M14 9l2 2"/></svg>';
