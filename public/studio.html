@@ -112,6 +112,16 @@
             <label for="upTags" class="mb-1 block text-xs text-white/55">Tags, separated by commas</label>
             <input id="upTags" class="field" placeholder="travel, vlog" />
           </div>
+          <div>
+            <span class="mb-1 block text-xs text-white/55">Cover <span class="text-white/30">(optional)</span></span>
+            <div class="flex items-center gap-3">
+              <img id="upCoverImg" class="hidden h-12 w-20 rounded-lg object-cover ring-1 ring-white/10" alt="Chosen cover" />
+              <label for="upCover" id="upCoverBtn" class="btn btn-ghost btn-sm cursor-pointer">Choose a picture</label>
+              <button type="button" id="upCoverClear" class="hidden text-xs text-white/45 underline underline-offset-4 hover:text-white">Remove</button>
+              <input id="upCover" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" class="sr-only" />
+            </div>
+            <p class="mt-1 text-xs text-white/40">JPEG, PNG or WebP up to 2 MB. Without one, a frame from the video is used.</p>
+          </div>
         </div>
       </div>
 
@@ -357,7 +367,7 @@
 
   <script src="/assets/vane.js?v=20261022a"></script>
   <script src="/assets/apikeys.js?v=20261019a"></script>
-  <script src="/assets/studio.js?v=20261022a"></script>
+  <script src="/assets/studio.js?v=20261023b"></script>
   <script src="/assets/studio-ai.js?v=20261021c"></script>
 </body>
 </html>

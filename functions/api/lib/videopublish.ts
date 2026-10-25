@@ -16,8 +16,10 @@
  */
 import type { Env, VideoPrivacy, VideoPublicationPublic, VideoPublicationStatus } from '../../../types';
 import { fail, failCode, isRecord, json, UUID_RE } from './http';
+import { networkOff } from './networks';
 import { bump, retryAfter } from './throttle';
-import { publisherFor, type PublishEnv } from './videopublishers';
+import { publisherFor, type PublishEnv, type PublishJob } from './videopublishers';
+import { YT_CATEGORIES, type YoutubeOptions } from './youtube';
 import { loadVideoSubscription, requireVideoAccess } from './videoplans';
 import { getVideoRow, parseVideoMeta, TITLE_MAX } from './videos';
 import type { VideoPlatform } from './videochannels';
@@ -52,7 +54,7 @@ function toPublic(r: PublicationRow): VideoPublicationPublic {
     id: r.id, videoId: r.video_id, videoTitle: r.video_title, platform: r.platform, channelName: r.channel_name,
     title: r.title, description: r.description, privacy: r.privacy, status: r.status,
     attempts: r.attempts, maxAttempts: MAX_ATTEMPTS, nextAttemptAt: r.status === 'queued' ? r.next_attempt_at : null,
-    error: r.status === 'published' ? null : r.last_error, url: r.external_url, createdAt: r.created_at, publishedAt: r.published_at,
+    error: r.last_error, url: r.external_url, createdAt: r.created_at, publishedAt: r.published_at,   // on a published row `error` is a note (e.g. "YouTube kept the video private")
   };
 }
 
@@ -95,7 +97,7 @@ export async function runDueVideoPublications(env: PublishEnv, now: number, only
 }
 
 async function runOne(env: PublishEnv, row: Claimed, active: Map<string, boolean>): Promise<void> {
-  const done = (outcome: { ok: true; externalId: string; url: string | null } | { ok: false; retryable: boolean; error: string }) => settle(env, row, outcome);
+  const done = (outcome: { ok: true; externalId: string; url: string | null; note?: string } | { ok: false; retryable: boolean; error: string }) => settle(env, row, outcome);
 
   if (!active.has(row.user_id)) active.set(row.user_id, (await loadVideoSubscription(env, row.user_id)).active);
   if (!active.get(row.user_id)) return done({ ok: false, retryable: false, error: 'Vane Studio is not active on your account.' });
@@ -118,10 +120,26 @@ async function runOne(env: PublishEnv, row: Claimed, active: Map<string, boolean
   let tags: string[] = [];
   try { const t: unknown = JSON.parse(ctx.tags); if (Array.isArray(t)) tags = t.filter((x): x is string => typeof x === 'string'); } catch { /* none */ }
 
+  // The owner's cover goes along with the video (best effort: a database without the covers table just has none).
+  const cover = await env.DB
+    .prepare('SELECT r2_key, content_type FROM video_covers WHERE video_id = ?1')
+    .bind(row.video_id)
+    .first<{ r2_key: string; content_type: string }>()
+    .catch(() => null);
+
+  const optRow = await env.DB
+    .prepare('SELECT options FROM video_publication_options WHERE publication_id = ?1')
+    .bind(row.id)
+    .first<{ options: string }>()
+    .catch(() => null);
+  let options: PublishJob['options'];
+  try { if (optRow) options = JSON.parse(optRow.options) as PublishJob['options']; } catch { /* defaults */ }
+
   try {
     const outcome = await publisher.publish(env, {
+      options,
       publicationId: row.id, attempt: row.attempts, title: row.title, description: row.description, privacy: row.privacy,
-      video: { id: row.video_id, tags, r2Key: ctx.r2_key, sizeBytes: ctx.size_bytes, contentType: ctx.content_type },
+      video: { id: row.video_id, tags, r2Key: ctx.r2_key, sizeBytes: ctx.size_bytes, contentType: ctx.content_type, cover: cover ? { r2Key: cover.r2_key, contentType: cover.content_type } : null },
       channel: { id: row.channel_id, platform: row.platform, name: ctx.channel_name, credentials: ctx.credentials },
     });
     await done(outcome);
@@ -133,12 +151,12 @@ async function runOne(env: PublishEnv, row: Claimed, active: Map<string, boolean
 }
 
 /** Writes what happened. `WHERE status = 'publishing'` keeps a late finisher from overwriting a row someone else already moved on. */
-async function settle(env: PublishEnv, row: Claimed, outcome: { ok: true; externalId: string; url: string | null } | { ok: false; retryable: boolean; error: string }): Promise<void> {
+async function settle(env: PublishEnv, row: Claimed, outcome: { ok: true; externalId: string; url: string | null; note?: string } | { ok: false; retryable: boolean; error: string }): Promise<void> {
   const now = nowSeconds();
   if (outcome.ok) {
     await env.DB
-      .prepare(`UPDATE video_publications SET status = 'published', external_id = ?2, external_url = ?3, last_error = NULL, published_at = ?4, updated_at = ?4 WHERE id = ?1 AND status = 'publishing'`)
-      .bind(row.id, outcome.externalId, outcome.url, now)
+      .prepare(`UPDATE video_publications SET status = 'published', external_id = ?2, external_url = ?3, last_error = ?5, published_at = ?4, updated_at = ?4 WHERE id = ?1 AND status = 'publishing'`)
+      .bind(row.id, outcome.externalId, outcome.url, now, outcome.note ? outcome.note.slice(0, 500) : null)
       .run();
     return;
   }
@@ -190,8 +208,29 @@ export async function publishVideo(env: Env, userId: string, videoId: string, bo
     .bind(userId, ...channelIds)
     .all<{ id: string; platform: VideoPlatform; name: string; is_active: number }>();
   if (channels.length !== channelIds.length) return fail(404, 'Channel not found');
+  for (const platform of new Set(channels.map((c) => c.platform))) {
+    const paused = await networkOff(env, platform);
+    if (paused) return paused;
+  }
   const off = channels.find((c) => c.is_active !== 1);
   if (off) return failCode(409, 'channel_inactive', `${off.name} is switched off.`);
+
+  // YouTube asks for two answers that Vane must not guess: is the video made for kids, and which category.
+  let youtube: YoutubeOptions | null = null;
+  if (channels.some((c) => c.platform === 'youtube')) {
+    const y = isRecord(body.youtube) ? body.youtube : null;
+    if (!y || typeof y.madeForKids !== 'boolean') return failCode(400, 'made_for_kids_required', 'Tell YouTube whether this video is made for kids.');
+    const category = y.category === undefined ? '22' : y.category;
+    if (typeof category !== 'string' || !YT_CATEGORIES[category]) return fail(400, 'category is not a known YouTube category');
+    youtube = { madeForKids: y.madeForKids, category };
+  }
+  // Instagram has only public Reels; "share to the feed" is the one choice.
+  let instagram: { shareToFeed: boolean } | null = null;
+  if (channels.some((c) => c.platform === 'instagram')) {
+    if (privacy !== 'public') return failCode(400, 'instagram_public_only', 'Instagram has no private or unlisted videos. Choose Public to publish a Reel.');
+    const i = isRecord(body.instagram) ? body.instagram : null;
+    instagram = { shareToFeed: i?.shareToFeed !== false };
+  }
 
   // The same video twice to the same channel while the first is still going: almost always a double click.
   const { results: busy } = await env.DB
@@ -212,6 +251,16 @@ export async function publishVideo(env: Env, userId: string, videoId: string, bo
      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'queued', ?10, ?10, ?10)`,
   );
   await env.DB.batch(channels.map((c, i) => insert.bind(ids[i], userId, videoId, c.id, c.platform, c.name, title, description, privacy, now)));
+  if (youtube || instagram) {
+    const opt = env.DB.prepare('INSERT INTO video_publication_options (publication_id, options) VALUES (?1, ?2)');
+    try {
+      await env.DB.batch(channels.flatMap((c, i) => (c.platform === 'youtube' && youtube ? [opt.bind(ids[i], JSON.stringify({ youtube }))] : c.platform === 'instagram' && instagram ? [opt.bind(ids[i], JSON.stringify({ instagram }))] : [])));
+    } catch {
+      // The table is missing (schema.sql was not run again): do not queue a YouTube upload without the "made for kids" answer.
+      await env.DB.batch(ids.map((id) => env.DB.prepare('DELETE FROM video_publications WHERE id = ?1').bind(id)));
+      return failCode(503, 'schema_outdated', 'Publishing to YouTube needs a database update (run schema.sql once).');
+    }
+  }
   await bump(env, rl, 3600);
 
   after(runDueVideoPublications(env, now, { ids }).catch((err) => console.error('video publish run failed', err instanceof Error ? err.message : 'unknown')));

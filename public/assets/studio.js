@@ -20,6 +20,8 @@
     armed: {},            // two-step delete: ids waiting for the second click
     file: null,           // the file chosen in the uploader
     preview: null,        // Promise of its preview frame and length (made in the browser), see makePreview()
+    cover: null,          // the cover picture chosen in the uploader (optional)
+    coverUrl: '',
     up: null              // the upload in progress (see "uploading")
   };
 
@@ -183,8 +185,33 @@
       '<div><label for="eTitle" class="mb-1 block text-xs text-white/55">Title</label><input id="eTitle" class="field" maxlength="100" value="' + esc(v.title) + '" /></div>' +
       '<div><label for="eDesc" class="mb-1 block text-xs text-white/55">Description</label><textarea id="eDesc" class="field" rows="4" maxlength="5000">' + esc(v.description) + '</textarea></div>' +
       '<div><label for="eTags" class="mb-1 block text-xs text-white/55">Tags, separated by commas</label><input id="eTags" class="field" value="' + esc(v.tags.join(', ')) + '" /></div>' +
+      '<div><span class="mb-1 block text-xs text-white/55">Cover</span><div class="flex flex-wrap items-center gap-3">' +
+        (v.thumbnailUrl ? '<img id="eCoverImg" src="' + esc(v.thumbnailUrl) + '?t=' + Date.now() + '" alt="" class="h-14 w-24 rounded-lg object-cover ring-1 ring-white/10" />' : '') +
+        '<label for="eCover" class="btn btn-ghost btn-sm cursor-pointer">' + (v.hasCover ? 'Change cover' : 'Upload a cover') + '</label>' +
+        (v.hasCover ? '<button type="button" class="text-xs text-white/45 underline underline-offset-4 hover:text-white" id="eCoverRemove">Use a frame from the video</button>' : '') +
+        '<input id="eCover" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" class="sr-only" /></div>' +
+        '<p class="mt-1 text-xs text-white/40">JPEG, PNG or WebP up to 2 MB. It is the picture people see before they press play.</p></div>' +
       '</div><div class="mt-5 flex justify-end gap-2"><button class="btn btn-ghost btn-sm" id="mCancel">Cancel</button><button class="btn btn-white btn-sm" id="mSave">Save</button></div>');
     $('mCancel').addEventListener('click', closeModal);
+    $('eCover').addEventListener('change', async function () {
+      var f = this.files[0];
+      if (!f) return;
+      var problem = coverProblem(f);
+      if (problem) { Vane.toast('err', problem); this.value = ''; return; }
+      var r = await uploadCover(v.id, f);
+      if (!r.ok) { Vane.toast('err', r.error); this.value = ''; return; }
+      closeModal();
+      Vane.toast('ok', 'Cover saved');
+      await loadLibrary();
+    });
+    if ($('eCoverRemove')) $('eCoverRemove').addEventListener('click', async function () {
+      this.disabled = true;
+      var r = await Vane.api('DELETE', '/api/video/videos/' + v.id + '/cover');
+      if (!r.ok) { this.disabled = false; Vane.toast('err', r.error); return; }
+      closeModal();
+      Vane.toast('ok', 'The cover was removed');
+      await loadLibrary();
+    });
     $('mSave').addEventListener('click', async function () {
       this.disabled = true;
       var r = await Vane.api('PATCH', '/api/video/videos/' + v.id, { title: $('eTitle').value, description: $('eDesc').value, tags: parseTags($('eTags').value) });
@@ -235,7 +262,7 @@
   // POST /api/video/channels/connect (see functions/api/lib/videochannels.ts), then `ready: true` here and a setup block in the dialog.
   var VNET = {
     youtube: {
-      name: 'YouTube', ready: false, blurb: 'Videos and Shorts', setup: 'Choose which channel Vane should publish to.',
+      name: 'YouTube', ready: true, blurb: 'Videos and Shorts', setup: 'Choose which channel Vane should publish to.',
       tile: 'bg-red-500/15 text-red-300',
       icon: { d: 'M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17zM10 15l5-3-5-3z' }
     },
@@ -245,7 +272,7 @@
       icon: { d: 'M9 18V5l12-2v13M3 18a3 3 0 1 0 6 0 3 3 0 1 0-6 0M15 16a3 3 0 1 0 6 0 3 3 0 1 0-6 0' }
     },
     instagram: {
-      name: 'Instagram Reels', ready: false, blurb: 'Business and Creator accounts', setup: 'Choose which account Vane should publish to.',
+      name: 'Instagram Reels', ready: true, blurb: 'Business and Creator accounts', setup: 'Choose which account Vane should publish to.',
       tile: 'bg-orange-500/15 text-orange-300',
       icon: { d: 'M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zM16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37zM17.5 6.5h.01' }
     },
@@ -350,10 +377,38 @@
   // The connect step of an open network goes here (the setup block of that network, see the note above VNET).
   $('netGrid').addEventListener('click', function (e) {
     var b = e.target.closest('[data-net]');
-    if (b && !b.disabled) Vane.toast('info', netName(b.getAttribute('data-net')) + ' cannot be connected yet.');
+    if (!b || b.disabled) return;
+    var key = b.getAttribute('data-net');
+    if (!isOpen(key)) { Vane.toast('info', netName(key) + ' cannot be connected yet.'); return; }
+    b.disabled = true;
+    Vane.api('POST', '/api/video/channels/connect', { platform: key }).then(function (r) {
+      // The network's own page asks for permission; it brings the person back here with the result in the address.
+      if (r.ok && r.data && r.data.redirect) { window.location.assign(r.data.redirect); return; }
+      b.disabled = false;
+      Vane.toast('err', r.ok ? 'Could not start the connection.' : r.error);
+    });
   });
 
+  // Back from Google: say how it went, then clean the address.
+  var CONNECT_ERRORS = {
+    cancelled: 'You cancelled the connection.', expired: 'The sign-in took too long or was opened in another browser. Try again.',
+    no_upload: 'Vane needs the permission to upload videos. Connect again and leave that box ticked.',
+    no_refresh: 'Google did not give a lasting connection. Remove Vane at myaccount.google.com/permissions and connect again.',
+    unavailable: 'This network is not available yet.', plan: 'Vane Studio is not active on your account.', busy: 'Too many attempts. Wait a little and try again.',
+    no_publish: 'Vane needs the permission to publish. Connect again and keep it ticked.',
+    signin: 'Sign in again, then connect the channel.', failed: 'Google did not complete the connection. Try again.'
+  };
+  (function () {
+    var q = new URLSearchParams(window.location.search);
+    var ok = q.get('connected'), err = q.get('connect_error');
+    if (!ok && !err) return;
+    if (ok) Vane.toast('ok', netName(ok) + ' is connected.');
+    else Vane.toast('err', CONNECT_ERRORS[err] || 'The connection did not finish.');
+    try { window.history.replaceState(null, '', window.location.pathname); } catch (e) { /* not important */ }
+  })();
+
   // ───────────────────────── publishing (the queue is network-agnostic; the networks plug in behind it) ─────────────────────────
+  var YT_CATS = { '22': 'People & Blogs', '1': 'Film & Animation', '2': 'Autos & Vehicles', '10': 'Music', '15': 'Pets & Animals', '17': 'Sports', '19': 'Travel & Events', '20': 'Gaming', '23': 'Comedy', '24': 'Entertainment', '25': 'News & Politics', '26': 'Howto & Style', '27': 'Education', '28': 'Science & Technology', '29': 'Nonprofits & Activism' };
   var PRIVACY_TEXT = {
     private: 'Only you can see it.',
     unlisted: 'Anyone with the link can see it, but it is not listed.',
@@ -385,6 +440,7 @@
       if (p.status === 'queued') detail = (p.error ? esc(p.error) + ' ' : '') + 'Next try ' + untilText(p.nextAttemptAt) + ' (attempt ' + (p.attempts + 1) + ' of ' + p.maxAttempts + ').';
       else if (p.status === 'publishing') detail = 'Uploading to ' + esc(netName(p.platform)) + '…';
       else if (p.status === 'failed') detail = esc(p.error || 'Something went wrong.');
+      else if (p.status === 'published' && p.error) detail = esc(p.error);
       var actions = '';
       if (p.status === 'published' && p.url) actions += '<a class="btn btn-ghost btn-sm" href="' + esc(p.url) + '" target="_blank" rel="noopener noreferrer">View</a>';
       if (p.status === 'failed') actions += '<button class="btn btn-white btn-sm" data-act="retry" data-id="' + esc(p.id) + '">Retry</button>';
@@ -453,14 +509,32 @@
         '<div><label for="pubDesc" class="mb-1 block text-xs text-white/55">Description</label><textarea id="pubDesc" class="field" rows="4" maxlength="5000">' + esc(v.description) + '</textarea></div>' +
         '<div><label for="pubPrivacy" class="mb-1 block text-xs text-white/55">Who can see it</label><select id="pubPrivacy" class="field"><option value="private">Private</option><option value="unlisted">Unlisted</option><option value="public">Public</option></select>' +
           '<p id="pubPrivacyHint" class="mt-1.5 text-xs text-white/45"></p></div>' +
+        '<div id="pubIg" class="hidden space-y-2 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/5">' +
+          '<p class="text-xs font-medium text-white/70">Instagram Reels</p>' +
+          '<label class="flex items-center gap-2 text-xs text-white/65"><input type="checkbox" id="pubFeed" checked /> Also show the Reel in my profile feed</label>' +
+          '<p class="text-xs leading-relaxed text-amber-200/80">Instagram has no private or unlisted videos: a Reel is always public, so choose <b>Public</b> above. Business and Creator accounts only; the video can be up to 300 MB.</p>' +
+        '</div>' +
+        '<div id="pubYt" class="hidden space-y-3 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/5">' +
+          '<p class="text-xs font-medium text-white/70">YouTube</p>' +
+          '<div><label for="pubKids" class="mb-1 block text-xs text-white/55">Is this video made for kids?</label><select id="pubKids" class="field"><option value="">Choose…</option><option value="no">No, it is not made for kids</option><option value="yes">Yes, it is made for kids</option></select>' +
+            '<p class="mt-1.5 text-xs text-white/45">YouTube requires this answer for every video.</p></div>' +
+          '<div><label for="pubCat" class="mb-1 block text-xs text-white/55">Category</label><select id="pubCat" class="field">' +
+            Object.keys(YT_CATS).map(function (k) { return '<option value="' + k + '"' + (k === '22' ? ' selected' : '') + '>' + esc(YT_CATS[k]) + '</option>'; }).join('') + '</select></div>' +
+          '<p class="text-xs leading-relaxed text-amber-200/80">Until Google approves Vane, YouTube may keep new videos private whatever you choose here. Vane tells you what YouTube did.</p>' +
+        '</div>' +
       '</div>' +
       '<div class="mt-5 flex justify-end gap-2"><button class="btn btn-ghost btn-sm" id="mClose">Cancel</button><button class="btn btn-white btn-sm" id="pubSend" disabled>Publish</button></div>');
 
     function picked() { return Array.prototype.slice.call(document.querySelectorAll('#pubChannels input:checked')); }
     function sync() {
       $('pubPrivacyHint').textContent = PRIVACY_TEXT[$('pubPrivacy').value];
-      $('pubSend').disabled = !picked().length || !$('pubName').value.trim();
+      var yt = picked().some(function (i) { var c = channels.filter(function (x) { return x.id === i.value; })[0]; return c && c.platform === 'youtube'; });
+      $('pubYt').classList.toggle('hidden', !yt);
+      var ig = picked().some(function (i) { var c = channels.filter(function (x) { return x.id === i.value; })[0]; return c && c.platform === 'instagram'; });
+      $('pubIg').classList.toggle('hidden', !ig);
+      $('pubSend').disabled = !picked().length || !$('pubName').value.trim() || (yt && !$('pubKids').value) || (ig && $('pubPrivacy').value !== 'public');
     }
+    $('pubKids').addEventListener('change', function () { sync(); });
     $('pubChannels').addEventListener('change', sync);
     $('pubName').addEventListener('input', sync);
     $('pubPrivacy').addEventListener('change', sync);
@@ -470,10 +544,13 @@
     $('pubSend').addEventListener('click', async function () {
       var btn = this;
       btn.disabled = true;
-      var res = await Vane.api('POST', '/api/video/videos/' + v.id + '/publish', {
+      var payload = {
         channelIds: picked().map(function (i) { return i.value; }),
         title: $('pubName').value.trim(), description: $('pubDesc').value, privacy: $('pubPrivacy').value
-      });
+      };
+      if (!$('pubIg').classList.contains('hidden')) payload.instagram = { shareToFeed: $('pubFeed').checked };
+      if (!$('pubYt').classList.contains('hidden')) payload.youtube = { madeForKids: $('pubKids').value === 'yes', category: $('pubCat').value };
+      var res = await Vane.api('POST', '/api/video/videos/' + v.id + '/publish', payload);
       if (!res.ok) { btn.disabled = false; Vane.toast('err', res.error); return; }
       closeModal();
       var n = res.data.publications.length;
@@ -575,6 +652,46 @@
     hideBanner();
     if (v) openAnnounce(v);
   });
+
+  // ───────────────────────── cover ─────────────────────────
+  var COVER_MAX = 2 * 1024 * 1024;
+  /** A picture the person chose, or null (with a message) when it cannot be a cover. The server checks it again from the bytes. */
+  function coverProblem(f) {
+    if (!f) return 'Choose a picture.';
+    if (!/\.(jpe?g|png|webp)$/i.test(f.name) && !/^image\/(jpeg|png|webp)$/.test(f.type)) return 'The cover must be a JPEG, PNG or WebP picture.';
+    if (f.size > COVER_MAX) return 'The cover can be up to 2 MB.';
+    return '';
+  }
+  function setCover(f) {
+    var problem = f ? coverProblem(f) : '';
+    if (problem) { Vane.toast('err', problem); return; }
+    if (S.coverUrl) URL.revokeObjectURL(S.coverUrl);
+    S.cover = f || null;
+    S.coverUrl = f ? URL.createObjectURL(f) : '';
+    $('upCoverImg').src = S.coverUrl;
+    $('upCoverImg').classList.toggle('hidden', !f);
+    $('upCoverClear').classList.toggle('hidden', !f);
+    $('upCoverBtn').textContent = f ? 'Change' : 'Choose a picture';
+    if (!f) $('upCover').value = '';
+  }
+  $('upCover').addEventListener('change', function () { if (this.files[0]) setCover(this.files[0]); });
+  $('upCoverClear').addEventListener('click', function () { setCover(null); });
+
+  /** Sends the chosen cover of a finished upload. Says so when it is refused (the video itself is safe). */
+  async function sendCover(videoId, file) {
+    var r = await uploadCover(videoId, file);
+    if (!r.ok) Vane.toast('err', 'The video is uploaded, but its cover was not: ' + r.error);
+    return r.ok;
+  }
+  async function uploadCover(videoId, file) {
+    try {
+      var res = await fetch('/api/video/videos/' + videoId + '/cover', { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file });
+      var data = null;
+      try { data = await res.json(); } catch (e) { /* not JSON */ }
+      if (res.status === 401) { Vane.go(Vane.loginUrl()); return { ok: false, error: 'Please sign in again.' }; }
+      return res.ok && data && data.ok ? { ok: true } : { ok: false, error: (data && data.error) || 'The cover could not be saved (' + res.status + ').' };
+    } catch (e) { return { ok: false, error: 'Network error. Check your connection.' }; }
+  }
 
   // ───────────────────────── choosing a file ─────────────────────────
   function setFile(f) {
@@ -710,7 +827,7 @@
 
   function setBusy(busy) {
     $('uploadBtn').disabled = busy || !S.file;
-    $('fileInput').disabled = busy;
+    $('fileInput').disabled = busy; $('upCover').disabled = busy; $('upCoverClear').disabled = busy;
     ['upTitle', 'upDesc', 'upTags'].forEach(function (id) { $(id).disabled = busy; });
     $('cancelBtn').classList.toggle('hidden', !busy);
     $('progressBox').classList.toggle('hidden', !busy);
@@ -726,6 +843,7 @@
     $('uploadBtn').disabled = true;
     $('dropPreview').classList.add('hidden');
     S.preview = null;
+    setCover(null);
   }
 
   /** Starts a new upload, or picks up the unfinished one that belongs to this same file. Resolves to the upload state or null. */
@@ -754,7 +872,7 @@
   async function startUpload() {
     if (!S.file || S.up) return;
     var meta = { title: $('upTitle').value.trim(), description: $('upDesc').value.trim(), tags: parseTags($('upTags').value) };
-    var previewPromise = S.preview;
+    var previewPromise = S.preview, coverFile = S.cover;
     setBusy(true);
     $('progressLabel').textContent = 'Preparing…';
     var U = await openUpload(S.file, meta);
@@ -796,6 +914,7 @@
     resetForm();
     Vane.toast('ok', 'Video uploaded');
     await sendPreview(U.videoId, previewPromise);
+    if (coverFile) await sendCover(U.videoId, coverFile);
     await Promise.all([loadLibrary(), refreshOverview()]);
     offerAnnounce(U.videoId);
   }

@@ -208,6 +208,8 @@ const NETWORK_BRIEF: Partial<Record<ChannelType, string>> = {
   threads: 'Threads post: casual and conversational, one idea, easy to reply to.',
   discord: 'Discord message: friendly and short, line breaks and a few emoji, keep links on their own line.',
   devto: 'Dev.to article: the FIRST line is the title (a clear, specific headline), then the body in Markdown with short paragraphs and, if it fits, a list; end with a question for the readers.',
+  reddit: 'Reddit post: the FIRST line is the title (honest, specific, no clickbait, at most 300 characters), then the body in Markdown; Reddit dislikes self-promotion, so give value first.',
+  facebook: 'Facebook Page post: friendly and conversational, a clear first sentence, short paragraphs, a few emoji, one call to action.',
   webhook: 'plain text summary.',
 };
 

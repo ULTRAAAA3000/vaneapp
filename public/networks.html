@@ -13,14 +13,22 @@
   <meta property="og:title" content="Networks — Vane" />
   <meta property="og:description" content="Every network Vane publishes to, what it supports, the limits it enforces and how you connect. One flat price, no per-channel fees." />
   <meta property="og:url" content="https://vaneapp.dev/networks" />
-  <meta name="twitter:card" content="summary" />
+  <meta property="og:image" content="https://vaneapp.dev/assets/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Vane: schedule once, post everywhere" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Networks — Vane" />
+  <meta name="twitter:description" content="Every network Vane publishes to, what it supports, the limits it enforces and how you connect. One flat price, no per-channel fees." />
+  <meta name="twitter:image" content="https://vaneapp.dev/assets/og.png" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://vaneapp.dev/#org","name":"Vane","url":"https://vaneapp.dev","logo":"https://vaneapp.dev/assets/logo.svg","parentOrganization":{"@type":"Organization","name":"WYSB","url":"https://wysb.eu"}},{"@type":"WebSite","@id":"https://vaneapp.dev/#site","url":"https://vaneapp.dev","name":"Vane","publisher":{"@id":"https://vaneapp.dev/#org"}},{"@type":"WebPage","@id":"https://vaneapp.dev/networks#page","url":"https://vaneapp.dev/networks","name":"Networks — Vane","description":"Every network Vane publishes to, what it supports, the limits it enforces and how you connect. One flat price, no per-channel fees.","isPartOf":{"@id":"https://vaneapp.dev/#site"},"publisher":{"@id":"https://vaneapp.dev/#org"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Vane","item":"https://vaneapp.dev/"},{"@type":"ListItem","position":2,"name":"Networks","item":"https://vaneapp.dev/networks"}]}]}</script>
   <link rel="icon" href="/favicon.ico" sizes="32x32" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/assets/site.css?v=20261024a" />
   <link rel="stylesheet" href="/assets/vane.css?v=20261017" />
   <style>
     html { scroll-behavior: smooth; scroll-padding-top: 5rem; }
@@ -76,7 +84,7 @@
       </a>
       <div class="hidden items-center gap-3 md:flex">
         <nav class="flex items-center gap-1 rounded-full bg-white/10 px-1.5 py-1.5 backdrop-blur-lg" aria-label="Main"><a href="/#features" class="nav-link">Features</a><a href="/networks" aria-current="page" class="nav-link">Networks</a><a href="/developers" class="nav-link">Developers</a><a href="/integrations" class="nav-link">Integrations</a><a href="/pricing" class="nav-link">Pricing</a><a href="/partners" class="nav-link">Partners</a></nav>
-        <a href="/login" class="btn-grad rounded-full px-5 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90">Log in</a>
+        <a href="/login" data-auth-link class="btn-grad rounded-full px-5 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90">Log in</a>
       </div>
       <details class="menu relative md:hidden">
         <summary class="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 backdrop-blur-lg" aria-label="Menu">
@@ -84,7 +92,7 @@
         </summary>
         <div class="absolute right-0 top-12 w-56 rounded-2xl border border-white/10 bg-black/90 p-2 shadow-2xl backdrop-blur-xl">
           <a href="/#features" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Features</a><a href="/networks" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Networks</a><a href="/developers" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Developers</a><a href="/integrations" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Integrations</a><a href="/pricing" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Pricing</a><a href="/partners" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Partners</a>
-          <a href="/login" class="btn-grad mt-1 block rounded-xl px-4 py-3 text-center text-sm font-medium text-white">Log in</a>
+          <a href="/login" data-auth-link class="btn-grad mt-1 block rounded-xl px-4 py-3 text-center text-sm font-medium text-white">Log in</a>
         </div>
       </details>
      </div>
@@ -107,11 +115,15 @@
           <table class="tbl">
             <thead><tr><th>Network</th><th>Status</th><th>What Vane publishes</th><th>Limit in the editor</th><th>How you connect</th></tr></thead>
             <tbody>
-              <tr><td>Telegram</td><td><span class="badge badge-live">Live</span></td><td>Text, images and video to channels and groups.</td><td>4,096 characters; 1,024 under an image or video</td><td>Add the Vane bot (Quick Connect) or your own bot as a channel admin.</td></tr>
-              <tr><td>Bluesky</td><td><span class="badge badge-live">Live</span></td><td>Text with links and tags, one image.</td><td>300 characters (counted as Bluesky counts them)</td><td>An app password you create. It never opens your main account.</td></tr>
-              <tr><td>Mastodon</td><td><span class="badge badge-live">Live</span></td><td>Text and pictures, on any server.</td><td>500 characters; every link counts as 23</td><td>Enter your server, then allow Vane on it.</td></tr>
-              <tr><td>LinkedIn</td><td><span class="badge badge-next">Next</span></td><td>Text with clickable hashtags, one image, on your profile.</td><td>3,000 characters</td><td>Sign in with LinkedIn and allow Vane to post. Company pages follow later.</td></tr>
-              <tr><td>Threads</td><td><span class="badge badge-next">Next</span></td><td>Text, an image or a video.</td><td>500 characters (emoji count by size)</td><td>Sign in with Threads and allow Vane to publish. The sign-in renews itself.</td></tr>
+              <tr><td><a href="/networks/telegram" class="link">Telegram</a></td><td><span class="badge badge-live">Live</span></td><td>Text, images and video to channels and groups.</td><td>4,096 characters; 1,024 under an image or video</td><td>Add the Vane bot (Quick Connect) or your own bot as a channel admin.</td></tr>
+              <tr><td><a href="/networks/bluesky" class="link">Bluesky</a></td><td><span class="badge badge-live">Live</span></td><td>Text with links and tags, one image.</td><td>300 characters (counted as Bluesky counts them)</td><td>An app password you create. It never opens your main account.</td></tr>
+              <tr><td><a href="/networks/mastodon" class="link">Mastodon</a></td><td><span class="badge badge-live">Live</span></td><td>Text and pictures, on any server.</td><td>500 characters; every link counts as 23</td><td>Enter your server, then allow Vane on it.</td></tr>
+              <tr><td><a href="/networks/discord" class="link">Discord</a></td><td><span class="badge badge-live">Live</span></td><td>Text and one image to a channel.</td><td>2,000 characters</td><td>Paste a channel webhook link. Mentions are turned off.</td></tr>
+              <tr><td><a href="/networks/devto" class="link">Dev.to</a></td><td><span class="badge badge-live">Live</span></td><td>Articles: the first line is the title, #hashtags become tags.</td><td>10,000 characters; up to 4 tags</td><td>Paste an API key from your Dev.to settings.</td></tr>
+              <tr><td><a href="/networks/linkedin" class="link">LinkedIn</a></td><td><span class="badge badge-next">Next</span></td><td>Text with clickable hashtags, one image, on your profile.</td><td>3,000 characters</td><td>Sign in with LinkedIn and allow Vane to post. Company pages follow later.</td></tr>
+              <tr><td><a href="/networks/threads" class="link">Threads</a></td><td><span class="badge badge-next">Next</span></td><td>Text, an image or a video.</td><td>500 characters (emoji count by size)</td><td>Sign in with Threads and allow Vane to publish. The sign-in renews itself.</td></tr>
+              <tr><td><a href="/networks/reddit" class="link">Reddit</a></td><td><span class="badge badge-next">Next</span></td><td>Text posts to a subreddit; the first line is the title.</td><td>300-character title, 10,000-character text</td><td>Name the subreddit, sign in with Reddit and allow Vane to submit.</td></tr>
+              <tr><td><a href="/networks/facebook" class="link">Facebook Pages</a></td><td><span class="badge badge-next">Next</span></td><td>Text, photo and video posts on Pages you manage.</td><td>5,000 characters</td><td>Sign in with Facebook and choose the Pages. Each becomes a channel.</td></tr>
             </tbody>
           </table>
         </div>
@@ -136,11 +148,11 @@
         <h2>Video networks, with Vane Studio</h2>
         <p class="lead mt-4">Studio uploads a video once and publishes it to the video networks you connect.</p>
         <div class="mt-6 grid gap-5 sm:grid-cols-3">
-          <div class="glass-d card"><div class="flex items-center justify-between"><h3>YouTube</h3><span class="badge badge-soon">Soon</span></div><p class="copy mt-2">Titles, descriptions, tags, thumbnails and privacy.</p></div>
+          <div class="glass-d card"><div class="flex items-center justify-between"><h3><a href="/networks/youtube" class="link">YouTube</a></h3><span class="badge badge-next">Next</span></div><p class="copy mt-2">Titles, descriptions, tags, category, thumbnails and privacy.</p></div>
           <div class="glass-d card"><div class="flex items-center justify-between"><h3>TikTok</h3><span class="badge badge-soon">Soon</span></div><p class="copy mt-2">Vertical video straight from your Studio library.</p></div>
-          <div class="glass-d card"><div class="flex items-center justify-between"><h3>Instagram Reels</h3><span class="badge badge-soon">Soon</span></div><p class="copy mt-2">Reels for Business and Creator accounts.</p></div>
+          <div class="glass-d card"><div class="flex items-center justify-between"><h3><a href="/networks/instagram" class="link">Instagram Reels</a></h3><span class="badge badge-next">Next</span></div><p class="copy mt-2">Reels for Business and Creator accounts.</p></div>
         </div>
-        <p class="copy mt-5">Each of these networks has to approve Vane before it lets us post for you. We switch them on one by one as the approvals arrive, and the Channels screen in Studio always shows where each one stands.</p>
+        <p class="copy mt-5">YouTube and Instagram Reels are built and are switched on when each network approves Vane; TikTok is next in line. The Channels screen in Studio always shows where each one stands.</p>
       </section>
 
       <section class="reveal mt-16">
@@ -150,7 +162,7 @@
             <p class="copy mt-2">Tell us which one you need. What people ask for most decides what we build next.</p>
           </div>
           <div class="flex shrink-0 flex-wrap gap-3">
-            <a href="/about#contact" class="btn btn-white">Tell us</a>
+            <a href="/about?topic=network#contact" class="btn btn-white">Tell us</a>
             <a href="/#join" class="btn btn-ghost">Join the waitlist</a>
           </div>
         </div>
@@ -177,5 +189,6 @@
       els.forEach(function (e) { io.observe(e); });
     })();
   </script>
+  <script src="/assets/nav-auth.js?v=20261023a"></script>
 </body>
 </html>

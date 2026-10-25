@@ -209,7 +209,7 @@
         }).join('') + '</div><p class="mt-3 text-xs text-white/40">Click a day to load its text into the editor.</p>');
     }
   };
-  function label(p) { return { telegram: 'Telegram', linkedin: 'LinkedIn', bluesky: 'Bluesky', mastodon: 'Mastodon', discord: 'Discord', devto: 'Dev.to', threads: 'Threads', x: 'X', webhook: 'Webhook' }[p] || p; }
+  function label(p) { return { telegram: 'Telegram', linkedin: 'LinkedIn', bluesky: 'Bluesky', mastodon: 'Mastodon', discord: 'Discord', devto: 'Dev.to', threads: 'Threads', reddit: 'Reddit', facebook: 'Facebook', x: 'X', webhook: 'Webhook' }[p] || p; }
   function options(title, list, kind) {
     return shell(title, '<div class="space-y-2">' + list.map(function (o, i) { return '<button type="button" class="ai-opt" data-act="' + kind + '" data-i="' + i + '">' + esc(o) + '</button>'; }).join('') + '</div>');
   }

@@ -13,14 +13,22 @@
   <meta property="og:title" content="Changelog — Vane" />
   <meta property="og:description" content="What is new in Vane: every feature and fix as it ships, newest first." />
   <meta property="og:url" content="https://vaneapp.dev/changelog" />
-  <meta name="twitter:card" content="summary" />
+  <meta property="og:image" content="https://vaneapp.dev/assets/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Vane: schedule once, post everywhere" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Changelog — Vane" />
+  <meta name="twitter:description" content="What is new in Vane: every feature and fix as it ships, newest first." />
+  <meta name="twitter:image" content="https://vaneapp.dev/assets/og.png" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://vaneapp.dev/#org","name":"Vane","url":"https://vaneapp.dev","logo":"https://vaneapp.dev/assets/logo.svg","parentOrganization":{"@type":"Organization","name":"WYSB","url":"https://wysb.eu"}},{"@type":"WebSite","@id":"https://vaneapp.dev/#site","url":"https://vaneapp.dev","name":"Vane","publisher":{"@id":"https://vaneapp.dev/#org"}},{"@type":"WebPage","@id":"https://vaneapp.dev/changelog#page","url":"https://vaneapp.dev/changelog","name":"Changelog — Vane","description":"What is new in Vane: every feature and fix as it ships, newest first.","isPartOf":{"@id":"https://vaneapp.dev/#site"},"publisher":{"@id":"https://vaneapp.dev/#org"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Vane","item":"https://vaneapp.dev/"},{"@type":"ListItem","position":2,"name":"Changelog","item":"https://vaneapp.dev/changelog"}]}]}</script>
   <link rel="icon" href="/favicon.ico" sizes="32x32" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/assets/site.css?v=20261024a" />
   <link rel="stylesheet" href="/assets/vane.css?v=20261017" />
   <style>
     html { scroll-behavior: smooth; scroll-padding-top: 5rem; }
@@ -76,7 +84,7 @@
       </a>
       <div class="hidden items-center gap-3 md:flex">
         <nav class="flex items-center gap-1 rounded-full bg-white/10 px-1.5 py-1.5 backdrop-blur-lg" aria-label="Main"><a href="/#features" class="nav-link">Features</a><a href="/networks" class="nav-link">Networks</a><a href="/developers" class="nav-link">Developers</a><a href="/integrations" class="nav-link">Integrations</a><a href="/pricing" class="nav-link">Pricing</a><a href="/partners" class="nav-link">Partners</a></nav>
-        <a href="/login" class="btn-grad rounded-full px-5 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90">Log in</a>
+        <a href="/login" data-auth-link class="btn-grad rounded-full px-5 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90">Log in</a>
       </div>
       <details class="menu relative md:hidden">
         <summary class="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 backdrop-blur-lg" aria-label="Menu">
@@ -84,7 +92,7 @@
         </summary>
         <div class="absolute right-0 top-12 w-56 rounded-2xl border border-white/10 bg-black/90 p-2 shadow-2xl backdrop-blur-xl">
           <a href="/#features" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Features</a><a href="/networks" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Networks</a><a href="/developers" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Developers</a><a href="/integrations" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Integrations</a><a href="/pricing" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Pricing</a><a href="/partners" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Partners</a>
-          <a href="/login" class="btn-grad mt-1 block rounded-xl px-4 py-3 text-center text-sm font-medium text-white">Log in</a>
+          <a href="/login" data-auth-link class="btn-grad mt-1 block rounded-xl px-4 py-3 text-center text-sm font-medium text-white">Log in</a>
         </div>
       </details>
      </div>
@@ -201,5 +209,6 @@
       els.forEach(function (e) { io.observe(e); });
     })();
   </script>
+  <script src="/assets/nav-auth.js?v=20261023a"></script>
 </body>
 </html>

@@ -5,6 +5,7 @@
   var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
   var form = $('form'), email = $('email'), password = $('password'), nameInput = $('name');
+  var birth = $('birth');
   var errBox = $('err'), submit = $('submit'), spin = $('spin'), label = $('submitLabel');
   var mode = 'login';
   var product = 'post';   // 'post' | 'studio': where the visitor is signing in to
@@ -69,6 +70,7 @@
       : (studio ? 'Sign in to your video library.' : 'Sign in to schedule your next post.');
     $('nameRow').classList.toggle('hidden', !reg);
     $('meter').classList.toggle('hidden', !reg);
+    $('birthRow').classList.toggle('hidden', !reg);
     password.setAttribute('autocomplete', reg ? 'new-password' : 'current-password');
     label.textContent = reg ? 'Create account' : 'Sign in';
     hideError();
@@ -105,6 +107,48 @@
     $('meterText').textContent = s < 0 ? 'At least 8 characters.' : WORDS[s];
   });
 
+  // ── Sign in with GitHub / Google: the buttons are links to the main site (the providers know one fixed return address)
+  var OAUTH_ERRORS = {
+    cancelled: 'Sign-in was cancelled.', expired: 'The sign-in took too long or was opened in another browser. Please try again.',
+    failed: 'Could not sign in with that account. Make sure it has a verified email address and try again.',
+    closed: 'Sign-ups are closed right now.', disabled: 'This account has been disabled.', busy: 'Too many attempts. Try again in a few minutes.',
+    age: 'This account is new, so we need your date of birth first. Enter it below, then choose GitHub or Google again.',
+    minor: 'Vane is for people 16 and older, so we can\u2019t create an account for you.'
+  };
+  function oauthHref(p) {
+    var base = /^(www\.)?vaneapp\.dev$|^(post|studio)\.vaneapp\.dev$/i.test(location.hostname) ? 'https://vaneapp.dev' : '';
+    var q = ['product=' + product], next = new URLSearchParams(location.search).get('next');
+    if (/^\/checkout(\?[A-Za-z0-9=&%._-]*)?$/.test(next || '')) q.push('next=' + encodeURIComponent(next));
+    return base + '/api/auth/oauth/' + p + '/start?' + q.join('&');
+  }
+  var oauthOn = null;
+  function showOauth(o) {
+    oauthOn = o || oauthOn;
+    if (!oauthOn) return;
+    var any = false;
+    ['github', 'google'].forEach(function (p) {
+      var a = $('oauth' + p.charAt(0).toUpperCase() + p.slice(1));
+      if (!oauthOn[p]) return;
+      any = true; a.classList.remove('hidden'); a.href = oauthHref(p);
+    });
+    $('oauthBox').classList.toggle('hidden', !any);
+  }
+  document.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('#oauthBox a')) showOauth(); }, true);
+  // A new account made with GitHub / Google needs the date of birth first: the server checks it and lets this browser through for 30 minutes.
+  $('oauthBox').addEventListener('click', async function (e) {
+    var a = e.target.closest && e.target.closest('a');
+    if (!a || mode !== 'register') return;
+    e.preventDefault();
+    hideError();
+    if (!birth.value) return showError('Enter your date of birth.', birth);
+    var r = await Vane.api('POST', '/api/auth/age', { birthDate: birth.value }, { noRedirect: true });
+    if (!r.ok) return showError(r.error, r.status === 400 ? birth : null);
+    location.assign(a.href);
+  });   // the product switch may have changed since the buttons were drawn
+  var oauthError = new URLSearchParams(location.search).get('error');
+  if (oauthError === 'age') setMode('register');
+  if (oauthError && OAUTH_ERRORS[oauthError]) { errBox.textContent = OAUTH_ERRORS[oauthError]; errBox.classList.remove('hidden'); }
+
   // ── Turnstile (bot protection): active only when the server reports a site key
   var ts = { key: null, id: null, token: '' };
   function tsReset() {                       // a token works once, so fetch a fresh one after every attempt
@@ -113,6 +157,7 @@
   }
   Vane.api('GET', '/api/auth/config', undefined, { noRedirect: true }).then(function (r) {
     if (!r.ok) { console.warn('[vane] could not read /api/auth/config:', r.error); return; }
+    showOauth(r.data.oauth);
     if (!r.data.turnstileSiteKey) {
       // The check is OFF. Say why in the console (the page itself stays clean for real visitors).
       var st = r.data.turnstile || {};
@@ -175,6 +220,7 @@
     if (!EMAIL_RE.test(em)) return showError('Enter a valid email address.', email);
     if (!pw) return showError('Enter your password.', password);
     if (mode === 'register' && pw.length < 8) return showError('Password must be at least 8 characters.', password);
+    if (mode === 'register' && !birth.value) return showError('Enter your date of birth.', birth);
     if (ts.key && !ts.token) return showError('Please complete the human check.');
 
     setLoading(true);
@@ -183,6 +229,7 @@
     if (mode === 'register' && window.VaneTrack) body.visitorId = window.VaneTrack.vid;
     if (mode === 'register') {
       body.name = nameInput.value.trim();
+      body.birthDate = birth.value;
       try { body.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (err) { /* server falls back to UTC */ }
     }
     var r = await Vane.api('POST', mode === 'register' ? '/api/auth/register' : '/api/auth/login', body, { noRedirect: true });
@@ -191,7 +238,7 @@
     if (r.ok) { label.textContent = 'Redirecting…'; Vane.go(Vane.home()); return; }
     setLoading(false);
     tsReset();
-    showError(r.error, r.status === 409 ? email : (r.status === 401 ? password : null));
+    showError(r.error, r.status === 409 ? email : (r.status === 401 ? password : (r.status === 400 && /birth/i.test(r.error) ? birth : null)));
   });
 
   // ───────────────────────── step 2: the 6-digit code ─────────────────────────

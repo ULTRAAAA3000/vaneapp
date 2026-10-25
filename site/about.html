@@ -22,7 +22,7 @@
         </div>
         <div>
           <h2>Who is behind it</h2>
-          <p class="copy mt-3"><span class="todo">[A SHORT PARAGRAPH ABOUT THE TEAM, if you want one here]</span></p>
+          <p class="copy mt-3">Vane is built by a team of developers who ship web products for a living. We design, write and run everything ourselves, from the posting engine to the video pipeline, so what you read here is what we actually build.</p>
           <p class="copy mt-3">Vane is powered by our partner <a href="/partners/wysb">WYSB</a>, a web studio.</p>
         </div>
       </section>
@@ -30,6 +30,25 @@
       <section id="contact" class="reveal mt-16">
         <div class="glass-d card sm:p-8">
           <h2>Contact</h2>
-          <p class="copy mt-3">Questions, a missing network, a partnership or a problem: write to {{EMAIL}}. For security reports see <a href="/security#report">Security</a>; for your data see the <a href="/privacy">Privacy Policy</a>.</p>
+          <p class="copy mt-3">Questions, a missing network, a partnership or a problem: write to us here, or email {{EMAIL}}. For security reports see <a href="/security#report">Security</a>; for your data see the <a href="/privacy">Privacy Policy</a>.</p>
+          <form id="contactForm" class="mt-6 grid gap-4 sm:grid-cols-2" novalidate>
+            <div><label for="cName" class="mb-1 block text-xs text-white/55">Your name</label><input id="cName" class="field" maxlength="80" autocomplete="name" required /></div>
+            <div><label for="cEmail" class="mb-1 block text-xs text-white/55">Your email</label><input id="cEmail" type="email" class="field" maxlength="254" autocomplete="email" inputmode="email" required /></div>
+            <div class="sm:col-span-2"><label for="cTopic" class="mb-1 block text-xs text-white/55">What is it about</label>
+              <select id="cTopic" class="field">
+                <option value="question">A question</option>
+                <option value="network">A network I need</option>
+                <option value="partnership">Partnership</option>
+                <option value="problem">A problem</option>
+                <option value="other">Something else</option>
+              </select></div>
+            <div class="sm:col-span-2"><label for="cMessage" class="mb-1 block text-xs text-white/55">Message</label><textarea id="cMessage" class="field" rows="5" maxlength="3000" required></textarea></div>
+            <div class="hidden" aria-hidden="true"><label>Website <input id="cWebsite" tabindex="-1" autocomplete="off" /></label></div>
+            <div id="cTs" class="hidden min-h-[65px] sm:col-span-2"></div>
+            <div id="cErr" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300 sm:col-span-2"></div>
+            <div id="cOk" role="status" class="hidden rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-3.5 py-2.5 text-sm text-emerald-200 sm:col-span-2">Thank you! Your message is on its way to us. We will answer by email.</div>
+            <div class="sm:col-span-2"><button id="cSend" type="submit" class="btn btn-white">Send message</button></div>
+          </form>
+          <script src="/assets/contact.js?v=20261023a"></script>
         </div>
       </section>

@@ -726,7 +726,7 @@
       var section = function (product, heading, hint) {
         var rows = list.filter(function (n) { return n.product === product; });
         return card(heading, '<p class="mb-4 text-sm text-white/50">' + hint + '</p>' + table([
-          { h: 'Network', r: function (n) { return '<div class="font-medium">' + esc(n.name) + '</div><div class="text-[11px] text-white/40">' + esc(n.code) + '</div>'; } },
+          { h: 'Network', r: function (n) { return '<div class="font-medium">' + esc(n.name) + '</div><div class="text-[11px] text-white/40">' + esc(n.code) + '</div>' + (n.setup ? '<div class="mt-1 text-[11px] text-amber-300/90">' + esc(n.setup) + '</div>' : ''); } },
           { h: 'Status', r: netStatus },
           { h: 'Channels', cls: 'text-right', r: function (n) { return n.stats ? num(n.stats.activeChannels) + (n.stats.channels !== n.stats.activeChannels ? ' <span class="text-white/35">/ ' + num(n.stats.channels) + '</span>' : '') : '<span class="text-white/30">—</span>'; } },
           { h: 'Scheduled', cls: 'text-right', r: function (n) { return n.stats ? num(n.stats.scheduled) : '—'; } },
@@ -742,7 +742,7 @@
       };
       show(seq, title('Networks', 'Switch a network on or off. A network can be switched on as soon as its code is written, even if the platform has not approved Vane yet.') +
         section('post', 'Vane Post', 'Switched off: nobody can connect a new account, no new post can be scheduled to it, and posts already scheduled for it <b>wait</b> (they are not lost). If it stays off more than 2 hours past a post’s time, that post fails with a clear reason.') +
-        '<div class="mt-4"></div>' + section('studio', 'Vane Studio', 'The connect and upload flows for these are not written yet, so they cannot be switched on. When the code exists, flip its <code>implemented</code> flag in <code>lib/networks.ts</code> and the switch becomes live.'));
+        '<div class="mt-4"></div>' + section('studio', 'Vane Studio', 'Detected from the code: a network becomes switchable as soon as its publisher exists. Networks marked “code not written” have no connect and upload flow yet. A switched-off network cannot be connected and nothing can be published to it.'));
     });
   };
 
@@ -754,21 +754,30 @@
       if (!alive(seq)) return;
       if (!r.ok) return show(seq, errorBox(r.error));
       var d = r.data, t = d.totals, m = d.month, td = d.today;
+      // where the month is heading at today's pace (shown once there is a day of data)
+      var proj = m.projectedUsd != null ? ' · on pace for ' + usd(m.projectedUsd) + (m.projectedPct != null ? ' (' + m.projectedPct + '%)' : '') : '';
+      var su = d.setup || {};
+      var notice = function (cls, html) { return '<div class="mb-4 rounded-2xl border px-4 py-3 text-sm ' + cls + '">' + html + '</div>'; };
+      var setupNotes =
+        (su.aiBinding === false ? notice('border-red-400/25 bg-red-500/10 text-red-200', '<b>AI is not connected to this server</b>, so no call can be made or counted, and this page will stay at zero. In Cloudflare open Workers &amp; Pages → your Pages project → Settings → Bindings → Add → <b>Workers AI</b>, name the variable <code class="rounded bg-white/10 px-1 text-xs">AI</code>, then redeploy.') : '') +
+        (su.aiBinding !== false && su.modelPriced === false ? notice('border-amber-400/25 bg-amber-500/10 text-amber-200', 'The model this server runs on, <b>' + esc(su.model) + '</b>, has no price yet. Its tokens will be counted but its cost will show as $0. Add its price in the table at the bottom.') : '');
+      var noData = function (what) { return '<div class="flex h-28 flex-col items-center justify-center text-center text-sm text-white/40"><span>' + what + '</span></div>'; };
+      var none = !t.calls;
       var budget = m.budgetUsd > 0
-        ? stat('This month vs budget', usd(m.costUsd) + ' <span class="text-base font-normal text-white/40">/ ' + usd(m.budgetUsd, 0) + '</span>', '<span class="' + (m.budgetUsedPct >= 100 ? 'text-red-300' : m.budgetUsedPct >= 80 ? 'text-amber-300' : '') + '">' + m.budgetUsedPct + '% used</span> · ' + tokens(m.tokens) + ' tokens')
-        : stat('This month', usd(m.costUsd), tokens(m.tokens) + ' tokens · <a class="underline" href="#settings">set a budget</a>');
+        ? stat('This month vs budget', usd(m.costUsd) + ' <span class="text-base font-normal text-white/40">/ ' + usd(m.budgetUsd, 0) + '</span>', '<span class="' + (m.budgetUsedPct >= 100 ? 'text-red-300' : m.budgetUsedPct >= 80 ? 'text-amber-300' : '') + '">' + m.budgetUsedPct + '% used</span> · ' + tokens(m.tokens) + ' tokens' + proj)
+        : stat('This month', usd(m.costUsd), tokens(m.tokens) + ' tokens · <a class="underline" href="#settings">set a budget</a>' + proj);
       var freePct = Math.min(100, Math.round((td.neurons / td.freeNeurons) * 100));
       var noPrice = d.byModel.filter(function (x) { return !x.priced; });
-      show(seq, title('AI spend', 'Every model call the AI features make, counted in tokens. Cost is tokens × the model price below.', rangeChips([7, 30, 90], d.days, 'range')) +
-        (noPrice.length ? '<div class="mb-4 rounded-2xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">No price set for <b>' + noPrice.map(function (x) { return esc(x.model); }).join(', ') + '</b>: its tokens are counted but its cost shows as $0. Add the price in the table at the bottom.</div>' : '') +
+      show(seq, title('AI spend', 'Every model call the AI features make, counted in tokens. Cost is tokens × the model price below.', rangeChips([7, 30, 90], d.days, 'range') + '<a class="chip !px-3 !py-1.5 !text-xs" href="/api/admin/ai?days=' + d.days + '&format=csv" download title="Every call of this period, one row each">Export CSV</a>') +
+        setupNotes + (noPrice.length ? '<div class="mb-4 rounded-2xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">No price set for <b>' + noPrice.map(function (x) { return esc(x.model); }).join(', ') + '</b>: its tokens are counted but its cost shows as $0. Add the price in the table at the bottom.</div>' : '') +
         '<div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">' +
           stat('Tokens', tokens(t.tokens), tokens(t.inputTokens) + ' in · ' + tokens(t.outputTokens) + ' out') +
-          stat('Cost at list price', usd(t.costUsd), 'after the free allowance: ' + usd(t.afterFreeAllowanceUsd)) +
+          stat('Cost at list price', usd(t.costUsd), 'after the free allowance: ' + usd(t.afterFreeAllowanceUsd) + (t.calls ? ' · ' + usd(t.costUsd / t.calls, 4) + ' per call' : '')) +
           stat('Model calls', num(t.calls), num(t.failed) + ' failed · ' + (t.avgMs ? t.avgMs + ' ms avg' : '—')) + budget +
         '</div>' +
         '<div class="mt-4 grid gap-4 lg:grid-cols-2">' +
-          card('Tokens per day', bars(d.series.labels, [{ name: 'input', color: 'rgba(125,211,252,.85)', values: d.series.inputTokens }, { name: 'output', color: 'rgba(196,181,253,.9)', values: d.series.outputTokens }])) +
-          card('Cost per day (list price)', bars(d.series.labels, [{ name: 'USD', color: 'rgba(252,211,77,.85)', values: d.series.costUsd }])) +
+          card('Tokens per day', none ? noData('No AI calls in this period yet.<br>They appear here as soon as someone uses an AI tool in the editor.') : bars(d.series.labels, [{ name: 'input', color: 'rgba(125,211,252,.85)', values: d.series.inputTokens }, { name: 'output', color: 'rgba(196,181,253,.9)', values: d.series.outputTokens }])) +
+          card('Cost per day (list price)', none ? noData('Nothing to price yet.') : bars(d.series.labels, [{ name: 'USD', color: 'rgba(252,211,77,.85)', values: d.series.costUsd }])) +
         '</div>' +
         card('Free allowance today', hbar('Workers AI neurons used today (this ledger)', td.neurons, td.freeNeurons, num(td.neurons) + ' of ' + num(td.freeNeurons) + ' free (' + freePct + '%)', freePct >= 100 ? '#fca5a5' : undefined) +
           '<p class="mt-2 text-xs text-white/40">Cloudflare gives 10 000 neurons a day free and bills the rest at $0.011 per 1000. The allowance belongs to the whole Cloudflare account, so anything else that uses Workers AI also eats it; this ledger only sees Vane’s own calls.' + (t.estimatedCalls ? ' ' + num(t.estimatedCalls) + ' calls had no usage numbers from the provider and use a 4-characters-per-token estimate.' : '') + '</p>', '', 'mt-4') +
@@ -834,7 +843,8 @@
       ['ai_budget_usd', 'Monthly AI budget (USD)', 'What you are willing to spend on AI model calls per month. It is only shown against the real spend in the AI tab (0 = no budget); nothing is stopped.', 'usd']]],
     ['Product', [
       ['enforce_limits', 'Enforce the channel limit', 'When on, users cannot connect more channels than their plan allows (the Free Trial: 2). Posts are always metered by the API engine. Off by default so you can test freely; switch it on at launch.', 'bool'],
-      ['track_visits', 'Record page views', 'Feeds the Traffic tab and the conversion funnel. Respects the browser Do-Not-Track setting.', 'bool']]]
+      ['track_visits', 'Record page views', 'Feeds the Traffic tab and the conversion funnel. Respects the browser Do-Not-Track setting.', 'bool'],
+      ['checkout_preview', 'Checkout preview (only you)', 'Opens the checkout page for this browser while you are signed in here, even before a payment method is connected, so you can see how it looks. Pay shows an error: nothing can be bought. Visitors never see it.', 'bool']]]
   ];
   VIEWS.settings = function (seq) {
     call('GET', '/api/admin/settings').then(function (r) {

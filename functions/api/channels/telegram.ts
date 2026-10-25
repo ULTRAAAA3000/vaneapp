@@ -13,6 +13,7 @@
  * This file is NOT a route: it only exports helpers (Pages ignores files without onRequest*).
  */
 
+import { publicHttpsUrl } from '../lib/netsafe';
 import { mediaKindFromUrl } from '../lib/media';
 
 const TG_API = 'https://api.telegram.org';
@@ -41,14 +42,11 @@ export function normalizeChatId(v: unknown): string | null {
   return null;
 }
 
+/** The only addresses on Vane's own hosts that may be used as media: uploads and public video links. */
+const OWN_MEDIA_PATHS = ['/api/media/', '/api/video/public/'];
+
 export function isValidMediaUrl(v: unknown): v is string {
-  if (typeof v !== 'string' || v.length > 2048) return false;
-  try {
-    const u = new URL(v);
-    return u.protocol === 'https:' && !u.username && !u.password;
-  } catch {
-    return false;
-  }
+  return publicHttpsUrl(v, OWN_MEDIA_PATHS) !== null;
 }
 
 // ───────────────────────── low-level call ─────────────────────────

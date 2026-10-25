@@ -25,6 +25,17 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at          INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
+-- ───────────────────────── Sign in with GitHub / Google ─────────────────────────
+-- One row = one provider account linked to a user (the provider's stable id, never the email, identifies the person)
+CREATE TABLE IF NOT EXISTS oauth_identities (
+  provider    TEXT    NOT NULL CHECK (provider IN ('github', 'google')),
+  subject     TEXT    NOT NULL,
+  user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+  PRIMARY KEY (provider, subject)
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_user ON oauth_identities(user_id);
+
 -- ───────────────────────── Channels ─────────────────────────
 -- One row = one connected destination (Telegram chat, Bluesky / Mastodon / Threads account, X account, LinkedIn profile, webhook URL)
 -- A database created before 'bluesky' existed has the older CHECK: run `npm run db:migrate:networks` once (see migrations/).
@@ -32,7 +43,7 @@ CREATE TABLE IF NOT EXISTS channels (
   id           TEXT    PRIMARY KEY,                         -- uuid
   user_id      TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   type         TEXT    NOT NULL
-               CHECK (type IN ('telegram', 'x', 'linkedin', 'webhook', 'bluesky', 'mastodon', 'threads', 'discord', 'devto')),
+               CHECK (type IN ('telegram', 'x', 'linkedin', 'webhook', 'bluesky', 'mastodon', 'threads', 'discord', 'devto', 'reddit', 'facebook')),
   name         TEXT    NOT NULL,                            -- display label, e.g. "@vane_dev"
   credentials  TEXT    NOT NULL,                            -- JSON, encrypted at app level (tokens, chat_id, url, secret)
   is_active    INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
@@ -570,6 +581,18 @@ CREATE TABLE IF NOT EXISTS video_assets (
   updated_at  INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
+-- The cover a person chose for a video (a picture they uploaded; it wins over the frame in video_assets). Separate table for the same
+-- reason: no ALTER, this file stays re-runnable.
+CREATE TABLE IF NOT EXISTS video_covers (
+  video_id     TEXT    PRIMARY KEY REFERENCES videos(id) ON DELETE CASCADE,
+  r2_key       TEXT    NOT NULL,                                                    -- 'videos/<user id>/<video id>.cover.<jpg|png|webp>'
+  content_type TEXT    NOT NULL CHECK (content_type IN ('image/jpeg', 'image/png', 'image/webp')),
+  width        INTEGER,
+  height       INTEGER,
+  size_bytes   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
 -- A public link: anyone who has the address can watch/download the video. One link per video; removing it kills the address.
 -- Platforms that pull a file by URL (TikTok, Instagram Reels) and the "announce in Vane Post" hand-off use it.
 CREATE TABLE IF NOT EXISTS video_links (
@@ -666,6 +689,12 @@ CREATE TABLE IF NOT EXISTS video_publications (
 CREATE INDEX IF NOT EXISTS idx_video_publications_due  ON video_publications(status, next_attempt_at);
 CREATE INDEX IF NOT EXISTS idx_video_publications_user ON video_publications(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_video_publications_video ON video_publications(video_id);
+
+-- Choices made in the publish dialog that only one network needs (YouTube: made for kids, category). JSON; a separate table so this file stays re-runnable.
+CREATE TABLE IF NOT EXISTS video_publication_options (
+  publication_id TEXT PRIMARY KEY REFERENCES video_publications(id) ON DELETE CASCADE,
+  options        TEXT NOT NULL
+);
 
 -- Vane AI Pass (admin → Plans → "Vane AI Pass"): $2.99 a month, 150 AI credits, on top of any posting plan. Not on the landing page (is_public = 0).
 -- Nobody pays for it online yet: an admin switches it on for an account (admin → user → AI credits); a payment webhook will write the same row.
@@ -825,3 +854,26 @@ CREATE TABLE IF NOT EXISTS api_usage_daily (
   PRIMARY KEY (day, integration, key_id, op)
 );
 CREATE INDEX IF NOT EXISTS idx_api_usage_daily_day ON api_usage_daily(day);
+
+-- ───────────────────────── Contact form (/about#contact) ─────────────────────────
+-- Every message is kept, so nothing is lost when the email could not be sent. Read them in the D1 Console:
+--   SELECT datetime(created_at,'unixepoch') AS at, topic, name, email, message, mailed FROM contact_messages ORDER BY id DESC LIMIT 50;
+CREATE TABLE IF NOT EXISTS contact_messages (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+  topic       TEXT    NOT NULL,
+  name        TEXT    NOT NULL,
+  email       TEXT    NOT NULL,
+  message     TEXT    NOT NULL,
+  ip          TEXT,
+  mailed      INTEGER NOT NULL DEFAULT 0 CHECK (mailed IN (0, 1))
+);
+
+-- ───────────────────────── Age gate (new accounts must be 16+) ─────────────────────────
+-- We keep only the fact that the person confirmed their age at sign-up, never the date of birth.
+-- Accounts that existed before the gate have no row.
+CREATE TABLE IF NOT EXISTS age_confirmations (
+  user_id       TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  min_age       INTEGER NOT NULL,
+  confirmed_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);

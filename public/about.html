@@ -13,14 +13,22 @@
   <meta property="og:title" content="About — Vane" />
   <meta property="og:description" content="Vane is a social scheduler for people who would rather ship than configure. What we believe, how it is built and how to reach us." />
   <meta property="og:url" content="https://vaneapp.dev/about" />
-  <meta name="twitter:card" content="summary" />
+  <meta property="og:image" content="https://vaneapp.dev/assets/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Vane: schedule once, post everywhere" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="About — Vane" />
+  <meta name="twitter:description" content="Vane is a social scheduler for people who would rather ship than configure. What we believe, how it is built and how to reach us." />
+  <meta name="twitter:image" content="https://vaneapp.dev/assets/og.png" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://vaneapp.dev/#org","name":"Vane","url":"https://vaneapp.dev","logo":"https://vaneapp.dev/assets/logo.svg","parentOrganization":{"@type":"Organization","name":"WYSB","url":"https://wysb.eu"}},{"@type":"WebSite","@id":"https://vaneapp.dev/#site","url":"https://vaneapp.dev","name":"Vane","publisher":{"@id":"https://vaneapp.dev/#org"}},{"@type":"WebPage","@id":"https://vaneapp.dev/about#page","url":"https://vaneapp.dev/about","name":"About — Vane","description":"Vane is a social scheduler for people who would rather ship than configure. What we believe, how it is built and how to reach us.","isPartOf":{"@id":"https://vaneapp.dev/#site"},"publisher":{"@id":"https://vaneapp.dev/#org"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Vane","item":"https://vaneapp.dev/"},{"@type":"ListItem","position":2,"name":"About","item":"https://vaneapp.dev/about"}]}]}</script>
   <link rel="icon" href="/favicon.ico" sizes="32x32" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/assets/site.css?v=20261024a" />
   <link rel="stylesheet" href="/assets/vane.css?v=20261017" />
   <style>
     html { scroll-behavior: smooth; scroll-padding-top: 5rem; }
@@ -76,7 +84,7 @@
       </a>
       <div class="hidden items-center gap-3 md:flex">
         <nav class="flex items-center gap-1 rounded-full bg-white/10 px-1.5 py-1.5 backdrop-blur-lg" aria-label="Main"><a href="/#features" class="nav-link">Features</a><a href="/networks" class="nav-link">Networks</a><a href="/developers" class="nav-link">Developers</a><a href="/integrations" class="nav-link">Integrations</a><a href="/pricing" class="nav-link">Pricing</a><a href="/partners" class="nav-link">Partners</a></nav>
-        <a href="/login" class="btn-grad rounded-full px-5 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90">Log in</a>
+        <a href="/login" data-auth-link class="btn-grad rounded-full px-5 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90">Log in</a>
       </div>
       <details class="menu relative md:hidden">
         <summary class="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 backdrop-blur-lg" aria-label="Menu">
@@ -84,7 +92,7 @@
         </summary>
         <div class="absolute right-0 top-12 w-56 rounded-2xl border border-white/10 bg-black/90 p-2 shadow-2xl backdrop-blur-xl">
           <a href="/#features" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Features</a><a href="/networks" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Networks</a><a href="/developers" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Developers</a><a href="/integrations" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Integrations</a><a href="/pricing" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Pricing</a><a href="/partners" class="block rounded-xl px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">Partners</a>
-          <a href="/login" class="btn-grad mt-1 block rounded-xl px-4 py-3 text-center text-sm font-medium text-white">Log in</a>
+          <a href="/login" data-auth-link class="btn-grad mt-1 block rounded-xl px-4 py-3 text-center text-sm font-medium text-white">Log in</a>
         </div>
       </details>
      </div>
@@ -114,7 +122,7 @@
         </div>
         <div>
           <h2>Who is behind it</h2>
-          <p class="copy mt-3"><span class="todo">[A SHORT PARAGRAPH ABOUT THE TEAM, if you want one here]</span></p>
+          <p class="copy mt-3">Vane is built by a team of developers who ship web products for a living. We design, write and run everything ourselves, from the posting engine to the video pipeline, so what you read here is what we actually build.</p>
           <p class="copy mt-3">Vane is powered by our partner <a href="/partners/wysb">WYSB</a>, a web studio.</p>
         </div>
       </section>
@@ -122,7 +130,26 @@
       <section id="contact" class="reveal mt-16">
         <div class="glass-d card sm:p-8">
           <h2>Contact</h2>
-          <p class="copy mt-3">Questions, a missing network, a partnership or a problem: write to <span class="todo">[CONTACT EMAIL]</span>. For security reports see <a href="/security#report">Security</a>; for your data see the <a href="/privacy">Privacy Policy</a>.</p>
+          <p class="copy mt-3">Questions, a missing network, a partnership or a problem: write to us here, or email <span data-mail-u="info.vaneapp" data-mail-h="gmail.com"><a href="/about#contact">the contact form</a></span>. For security reports see <a href="/security#report">Security</a>; for your data see the <a href="/privacy">Privacy Policy</a>.</p>
+          <form id="contactForm" class="mt-6 grid gap-4 sm:grid-cols-2" novalidate>
+            <div><label for="cName" class="mb-1 block text-xs text-white/55">Your name</label><input id="cName" class="field" maxlength="80" autocomplete="name" required /></div>
+            <div><label for="cEmail" class="mb-1 block text-xs text-white/55">Your email</label><input id="cEmail" type="email" class="field" maxlength="254" autocomplete="email" inputmode="email" required /></div>
+            <div class="sm:col-span-2"><label for="cTopic" class="mb-1 block text-xs text-white/55">What is it about</label>
+              <select id="cTopic" class="field">
+                <option value="question">A question</option>
+                <option value="network">A network I need</option>
+                <option value="partnership">Partnership</option>
+                <option value="problem">A problem</option>
+                <option value="other">Something else</option>
+              </select></div>
+            <div class="sm:col-span-2"><label for="cMessage" class="mb-1 block text-xs text-white/55">Message</label><textarea id="cMessage" class="field" rows="5" maxlength="3000" required></textarea></div>
+            <div class="hidden" aria-hidden="true"><label>Website <input id="cWebsite" tabindex="-1" autocomplete="off" /></label></div>
+            <div id="cTs" class="hidden min-h-[65px] sm:col-span-2"></div>
+            <div id="cErr" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300 sm:col-span-2"></div>
+            <div id="cOk" role="status" class="hidden rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-3.5 py-2.5 text-sm text-emerald-200 sm:col-span-2">Thank you! Your message is on its way to us. We will answer by email.</div>
+            <div class="sm:col-span-2"><button id="cSend" type="submit" class="btn btn-white">Send message</button></div>
+          </form>
+          <script src="/assets/contact.js?v=20261023a"></script>
         </div>
       </section>
 
@@ -147,5 +174,6 @@
       els.forEach(function (e) { io.observe(e); });
     })();
   </script>
+  <script src="/assets/nav-auth.js?v=20261023a"></script>
 </body>
 </html>

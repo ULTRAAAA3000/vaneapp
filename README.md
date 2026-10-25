@@ -97,6 +97,8 @@ What is inside: **Overview** (users, conversion funnel, sources, MRR), **Users**
 
 **Library (dashboard).** The **Library** tab lists the files a person uploaded for their posts (`GET /api/library/assets`: filter by type, search by name, 60 per page) and lets them copy a link or delete a file. Every upload (from the editor or from the tab) is recorded in `media_assets` (`schema.sql`, `npm run db:remote`, safe to repeat). A file that a post still waiting to be sent points at cannot be deleted. The plan limit `storageMb` (a key in the plan's limits, empty = unlimited) is applied only while the *Enforce limits* switch is on, like the channel limit. Files uploaded before the table existed are not listed and do not count; Studio videos are not part of the Library. Until the table exists, uploads keep working and the tab says the library is not available yet.
 
+**Upload safety.** Only JPEG, PNG, WebP, MP4 and MOV are accepted, decided from the file's bytes (never the name or the Content-Type). On top of that `functions/api/lib/mediacheck.ts` walks the whole file: PNG chunks and checksums, JPEG segments, WebP chunks and MP4 boxes must be well-formed and end exactly at the end of the file, so nothing can be hidden after the picture or clip; pictures containing script or markup signatures are refused. Files are served with a fixed type, `nosniff` and a sandbox CSP, under random names.
+
 **Search Console.** Create a Google Cloud service account, enable the *Search Console API*, add the service account's e-mail as a (restricted) user of your property in Search Console, then:
 ```
 npx wrangler pages secret put GSC_SERVICE_ACCOUNT --project-name=vaneapp   # paste the whole JSON key
@@ -336,6 +338,8 @@ Two ways to pay (each switches itself on when its settings exist):
 
 What a paid order switches on (`lib/billing.ts → activate`): `video` = Vane Studio (`video_subscriptions`), `ai-pass` = AI Pass (`ai_pass`), `api-addon` = the API add-on on an active Pro plan, `suite` = Post (as plan `suite`) and Studio together, any other plan id = that plan in `subscriptions`. A renewal while the plan is still running adds a period to its end; nothing renews automatically. Every order is a row in `orders` (status pending / paid / expired / failed / canceled); `/admin → Orders` lists them and has **Check**, **Confirm** (you saw the money yourself) and **Cancel**.
 
+**See the checkout before payment is connected:** `/admin → Settings → Checkout preview (only you)`. While it is on, a browser that is signed into `/admin` sees `/pricing` → `/checkout?plan=<any plan id>` fully (even for a plan that is switched off) with a yellow Preview bar; visitors still see nothing. Pressing Pay answers "Preview only: payment is not connected yet" and creates no order. As soon as `MONOBANK_TOKEN` or `CRYPTO_WALLET` is set, preview steps aside and the real checkout takes over.
+
 **Deploy:** run the whole `schema.sql` in the D1 Console once (adds `orders` and the Vane Suite plan, switched off). Then set the variables above. The Suite plan and the Studio plan (`video`) are off until you switch them on in `/admin → Plans`.
 
 ## Dashboard: adding a social network
@@ -366,6 +370,18 @@ All of it is computed in the browser from the two post lists the dashboard alrea
 - **Draft:** the editor text is kept in this browser's `localStorage` (key `vane:draft:<userId>`), restored on the next visit, removed once the post is scheduled and on sign-out.
 - **Reuse** (History): copies a finished post's text and channels back into the editor. **Ctrl / ⌘ + Enter** schedules.
 
+
+## Dashboard: post box tools (Tidy up, Clear, Tidy on paste)
+
+`public/assets/composer-tools.js`, loaded after `dashboard.js` (it uses `Vane.composer`). In the toolbar under the post text:
+
+- **Tidy up** (one button): removes extra spaces and blank lines (one blank line between paragraphs stays), hidden characters (zero-width space, word joiner, BOM, soft hyphen), turns no-break and typographic spaces into plain ones, and strips **tracking parameters** from links (`utm_*`, `fbclid`, `gclid`, `msclkid`, `igshid`, `mc_eid`, … and `si` on YouTube/Spotify). Real parameters (`ref`, `v`, `id`, `page`) are never touched. The bar below the toolbar says what was removed, in words.
+  It deliberately keeps the zero-width joiner and non-joiner (emoji sequences and Persian/Indic text need them), the left/right marks and the CJK space, so no language or emoji is broken. A clean text is reported as clean, and tidying twice equals tidying once.
+- **Clear**: empties the box.
+- **Tidy on paste**: a switch (remembered in this browser, off by default) that does the same to whatever is pasted, at the caret or over the selection. Pasting an image still goes to the media picker.
+- Every change shows **Undo** for 10 seconds. The counter, preview and draft autosave follow, because the tools go through the same `input` event as typing.
+
+The rules are a pure function (`VaneTidy.tidy`); `npm run test:composer` tests them without a server.
 
 ## AI in the post editor
 
@@ -432,3 +448,12 @@ The text lives in `site/*.html` (the first line of each is a `<!--page {"slug","
 - `/changelog` is written by hand from the shipped features: add an entry at the top when something ships.
 - `/networks` and `/developers` repeat limits and endpoints from the code and `public/vane-openapi.json`: update them when those change.
 - `public/robots.txt` keeps `/api/`, `/app`, `/studio` and `/admin` out of search.
+
+## Admin → AI
+
+`/admin#ai` is the AI spend ledger: tokens and list-price cost per day, by feature, model and user, the month against `ai_budget_usd`, today's use of Cloudflare's free neurons, and every model's price (editable). Besides the numbers it tells you **why it is empty**: a red note when this server has no Workers AI binding (Pages → Settings → Bindings → Workers AI, variable `AI`), an amber one when the model in use has no price yet. The month card shows where the month is heading at today's pace, and **Export CSV** downloads every call of the period (`GET /api/admin/ai?days=30&format=csv`, up to 50,000 rows, logged in the audit trail; names that start with `=`, `+`, `-` or `@` are defused so a spreadsheet cannot run them).
+
+## Landing hero video
+
+The hero plays `public/assets/hero-boomerang-v1.mp4`: the original clip followed by the same shot reversed (the zoom-out, then the zoom-in), so the plain `loop` never cuts. Browsers cannot play video backwards and reversing live by seeking looked choppy, so the reverse is baked into the file. If it fails to load, the second `<source>` falls back to the original clip on CloudFront.
+To change it: `scripts/make-hero-boomerang.sh new.mp4 hero-boomerang-v2.mp4` (needs ffmpeg), commit the file (Cloudflare Pages takes up to 25 MiB per file; raise the crf if it is bigger), and point the `<source>` and the cache rule in `public/_headers` at the new name. A new name matters: the file is cached for a year.
