@@ -110,7 +110,7 @@ try {
 
   section('One sign-in covers both products');
   const email = `hosts-e2e-${Date.now()}@example.com`;
-  const reg = await req(STUDIO, 'POST', '/api/auth/register', { body: { email, password: 'Correct-Horse-9', name: 'E2E', timezone: 'UTC' } });
+  const reg = await req(STUDIO, 'POST', '/api/auth/register', { body: { email, password: 'Correct-Horse-9', name: 'E2E', timezone: 'UTC', birthDate: '1990-01-15' } });
   check('sign-up works on studio.', reg.status === 200 || reg.status === 201, `${reg.status} ${reg.text.slice(0, 120)}`);
   const login = await req(STUDIO, 'POST', '/api/auth/login', { body: { email, password: 'Correct-Horse-9' } });
   const setCookie = [].concat(login.headers['set-cookie'] ?? []).join('\n');

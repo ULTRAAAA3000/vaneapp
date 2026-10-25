@@ -31,7 +31,7 @@ const inHours = (h) => new Date(Date.now() + h * 3600_000).toISOString().replace
 
 async function signUp(email) {
   const pw = 'Correct-Horse-9';
-  await http('POST', '/api/auth/register', { body: { email, password: pw, name: 'I', timezone: 'UTC' } });
+  await http('POST', '/api/auth/register', { body: { email, password: pw, name: 'I', timezone: 'UTC', birthDate: '1990-01-15' } });
   const r = await fetch(BASE + '/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password: pw }) });
   return { email, cookie: (r.headers.getSetCookie?.() ?? []).map((c) => c.split(';')[0]).join('; '), id: sql(`SELECT id FROM users WHERE email = '${email}'`)[0].id };
 }
