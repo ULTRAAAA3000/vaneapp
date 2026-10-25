@@ -991,6 +991,17 @@
       if (!S.active || (S.endsAt && S.endsAt - Date.now() / 1000 < 7 * 86400)) box.appendChild(a);
     };
     buy();
+    // Vane Suite = Studio + Vane Post Pro in one payment.
+    (async function () {
+      var r = await Vane.api('GET', '/api/billing/plan?id=suite');
+      if (!r.ok || !r.data.plan || !r.data.plan.buyable || !box.isConnected || box.querySelector('[data-suite]')) return;
+      var a = document.createElement('a');
+      a.setAttribute('data-suite', '1');
+      a.className = 'btn mt-3 inline-flex';
+      a.href = (/^studio\.vaneapp\.dev$/i.test(location.hostname) ? 'https://vaneapp.dev' : '') + '/checkout?plan=suite';
+      a.textContent = 'Or get Vane Suite: video + posting';
+      box.appendChild(a);
+    })();
   }
 
   /** Quick start: base URL, your videos' ids and a ready-made request (never contains a real key). Returns the request text. */
