@@ -17,6 +17,7 @@ import type { Env } from '../types';
 import { fail } from './api/lib/http';
 import { productUrl, siteOf } from './api/lib/hosts';
 import { clientOf } from './api/lib/guard';
+import { adminHidden, isAdminPath } from './api/lib/admin';
 import { shieldAfter, shieldBefore, withApiHeaders } from './api/lib/shield';
 
 const VIDEO_API = ['/api/video/', '/api/v1/video/'];
@@ -71,6 +72,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   const isApi = url.pathname.startsWith('/api/');
   const client = clientOf(context.request);
   try {
+    if (isAdminPath(url.pathname)) {
+      const hidden = await adminHidden(context.env, context.request, url.pathname);
+      if (hidden) {
+        context.waitUntil(shieldAfter(context.env, context.request, url.pathname, 404, client));   // probing the admin counts as a strike
+        return isApi ? withApiHeaders(hidden) : hidden;
+      }
+    }
     if (isApi) {
       // The shield (functions/api/lib/shield.ts): cheap refusals before any route code runs.
       const refused = await shieldBefore(context.env, context.request, url.pathname, client);
