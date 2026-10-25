@@ -28,6 +28,8 @@ import { countUiPosts } from '../lib/usage';
 import { BLUESKY_TEXT_LIMIT, BLUESKY_TEXT_MAX_BYTES } from '../channels/bluesky';
 import { MASTODON_TEXT_LIMIT } from '../channels/mastodon';
 import { isValidMediaUrl, TELEGRAM_CAPTION_LIMIT } from '../channels/telegram';
+import { mediaUrlProblem } from '../lib/mediaurl';
+import { textProblem } from '../lib/moderation';
 
 const MAX_CHANNELS = 20;
 const MAX_HORIZON_SECONDS = 366 * 24 * 3600;
@@ -94,6 +96,14 @@ export async function validateCreatePost(env: Env, userId: string, body: unknown
   if (body.mediaUrl !== undefined && body.mediaUrl !== null && body.mediaUrl !== '') {
     if (!isValidMediaUrl(body.mediaUrl)) return bad(fail(400, 'mediaUrl must be a public https URL'));
     mediaUrl = body.mediaUrl;
+  }
+
+  // ── content rules: no obscene language, no 18+ or graphic-violence pictures (see lib/moderation.ts)
+  const dirty = textProblem(env, content);
+  if (dirty) return bad(failCode(422, 'profanity', dirty));
+  if (mediaUrl) {
+    const m = await mediaUrlProblem(env, mediaUrl);
+    if (m) return bad(failCode(422, m.code, m.message));
   }
 
   // ── channelIds

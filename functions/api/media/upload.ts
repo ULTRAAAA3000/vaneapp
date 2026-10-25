@@ -20,11 +20,14 @@ import { imageSize, sniffImage, telegramPhotoProblem } from '../lib/image';
 import { checkStorageQuota, cleanFileName, recordUpload } from '../lib/library';
 import { imageProblem, videoProblem } from '../lib/mediacheck';
 import { sniffVideo } from '../lib/video';
+import { mediaMessage, moderateImages, modOff, type Picture } from '../lib/moderation';
 import { bump, retryAfter } from '../lib/throttle';
 
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 export const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
-const MULTIPART_OVERHEAD = 256 * 1024; // boundaries and part headers around the file
+const MULTIPART_OVERHEAD = 1280 * 1024; // boundaries and part headers around the file, and up to 3 frames of a video
+const MAX_FRAMES = 3;
+const MAX_FRAME_BYTES = 300 * 1024;
 const UPLOADS_PER_HOUR = 40;
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
@@ -47,10 +50,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   // ── get the file bytes
   let bytes: Uint8Array;
   let fileName: unknown = null;
+  const frames: Picture[] = [];   // pictures taken from a video by the browser: a video is judged by them
   if (multipart) {
     let part: unknown;
+    let form: FormData;
     try {
-      const form = await new Response(body, { headers: { 'content-type': contentType } }).formData();
+      form = await new Response(body, { headers: { 'content-type': contentType } }).formData();
       part = form.get('file');
     } catch {
       return fail(400, 'Could not read the upload form.');
@@ -60,6 +65,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     }
     bytes = new Uint8Array(await (part as File).arrayBuffer());
     fileName = (part as File).name;
+    for (const f of form.getAll('frame').slice(0, MAX_FRAMES)) {
+      if (typeof f === 'string' || typeof (f as File).arrayBuffer !== 'function' || (f as File).size > MAX_FRAME_BYTES) continue;
+      const fb = new Uint8Array(await (f as File).arrayBuffer());
+      const fk = sniffImage(fb);
+      if (fk) frames.push({ bytes: fb, mime: fk.mime });
+    }
   } else {
     bytes = body;
   }
@@ -82,6 +93,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     if (problem) return fail(422, problem);
   } else if (bytes.length > MAX_VIDEO_BYTES) {
     return fail(413, 'Videos can be up to 20 MB (Telegram\'s limit for media sent by link).');
+  }
+
+  if (!modOff(env)) {
+    let pics: Picture[] = [];
+    if (image) pics = [{ bytes, mime: image.mime }];
+    else if (frames.length) pics = frames;
+    else return fail(422, 'A video needs a few frames from it so we can check it for 18+ or violent content. The Vane app adds them by itself; for the API, send up to 3 JPEG frames in form fields named "frame" (multipart).');
+    const verdict = await moderateImages(env, pics);
+    if (!verdict.ok) return fail(422, mediaMessage(verdict.reason, !image));
   }
 
   const kind = image ?? video!;

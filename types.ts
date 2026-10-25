@@ -20,6 +20,10 @@ export interface Env {
   /** optional: the Workers AI model id to use instead of the built-in one */
   AI_MODEL?: string;
   AI?: { run(model: string, input: unknown): Promise<unknown> };
+  /** optional: with it, pictures are checked for adult and violent content by OpenAI's free moderation endpoint (without it Workers AI is used). See documentation/MODERATION.md */
+  OPENAI_API_KEY?: string;
+  /** '1' switches every content check off (local development and tests only) */
+  MODERATION_OFF?: string;
 
   /** Secrets (wrangler secret put / Pages → Settings → Variables) */
   ENCRYPTION_KEY?: string;      // for encrypting channels.credentials (>= 32 random chars)
