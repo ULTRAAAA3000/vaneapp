@@ -30,7 +30,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   if (!adminIpAllowed(env, request)) {
     await logAttempt(env, request, { kind: 'admin_login', ok: false, reason: 'not_allowed_ip' });
-    return fail(403, 'Not allowed from this network.');
+    return fail(404, 'Not found');
   }
   const blocked = await guard(env, request, 'admin', 'admin_login');
   if (blocked) return blocked;
