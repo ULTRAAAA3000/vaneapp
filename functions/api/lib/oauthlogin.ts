@@ -17,6 +17,7 @@
 import type { Env } from '../../../types';
 import { markSeen } from './activity';
 import { logAttempt } from './attempts';
+import { hasProof, isBlockedMinor, recordAgeConfirmed } from './age';
 import { emailConfigured } from './mail';
 import { callJson } from './httpcall';
 import { createSession, SESSION_TTL_SECONDS, sessionCookie } from './session';
@@ -81,7 +82,7 @@ export async function fetchIdentity(p: Provider, env: Env, redirectUri: string, 
   return { subject: clean(u.data.sub, 64), email, name: clean(u.data.name, 80) || null };
 }
 
-export type SignIn = { ok: true; cookie: string } | { ok: false; code: 'closed' | 'disabled' | 'failed' };
+export type SignIn = { ok: true; cookie: string } | { ok: false; code: 'closed' | 'disabled' | 'failed' | 'age' | 'minor' };
 
 export async function signInWith(env: Env, request: Request, p: Provider, id: Identity): Promise<SignIn> {
   let userId: string | null = null;
@@ -93,10 +94,13 @@ export async function signInWith(env: Env, request: Request, p: Provider, id: Id
     if (byMail) userId = byMail.id;
     else {
       if (!(await getSettings(env)).registration_open) return { ok: false, code: 'closed' };
+      if (isBlockedMinor(request)) return { ok: false, code: 'minor' };
+      if (!(await hasProof(env, request))) return { ok: false, code: 'age' };   // a brand-new account needs the date of birth first (see lib/age.ts)
       userId = crypto.randomUUID();
       try {
         await env.DB.prepare('INSERT INTO users (id, email, password_hash, name, timezone) VALUES (?1, ?2, NULL, ?3, \'UTC\')').bind(userId, id.email, id.name).run();
         created = true;
+        await recordAgeConfirmed(env, userId);
       } catch {
         return { ok: false, code: 'failed' };
       }

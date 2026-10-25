@@ -204,6 +204,7 @@
           <tbody>
             <tr><td>vane_session (cookie)</td><td>Keeps you signed in across our sites. Strictly necessary; HttpOnly.</td><td>Up to 30 days</td></tr>
             <tr><td>vane_oauth (cookie)</td><td>Protects “Sign in with GitHub / Google” from forged returns. Strictly necessary; HttpOnly; set only while you sign in.</td><td>10 minutes</td></tr>
+            <tr><td>vane_age, vane_minor (cookies)</td><td>Age check at sign-up. <i>vane_age</i> lets a new GitHub / Google sign-up continue after you entered a date of birth that is old enough; <i>vane_minor</i> stops a repeat attempt after one that was not. Strictly necessary; HttpOnly; they never contain the date.</td><td>30 minutes / 1 day</td></tr>
             <tr><td>Cloudflare Turnstile</td><td>Bot check on sign-in and sign-up; strictly necessary for security.</td><td>Session / short</td></tr>
             <tr><td>vane_vid, vane_sid (browser storage)</td><td>Anonymous browser and visit ids for our own analytics. Not used when Do Not Track or Global Privacy Control is on.</td><td>Browser id until cleared; visit id 30 minutes</td></tr>
             <tr><td>vane:draft, vane:emoji and similar (browser storage)</td><td>Remembers an unsent draft, recent emoji and an interrupted video upload on your device. Never sent to us until you submit.</td><td>Until you clear it, the draft until you schedule or sign out</td></tr>
@@ -223,7 +224,7 @@
         <p>In the last 12 months we collected the categories described in section 3 (identifiers, account and commercial information, internet activity, approximate location, and content you provide) for the business purposes in section 4. We do <b>not sell</b> personal information and do not <b>share</b> it for cross-context behavioral advertising. Residents of states with privacy laws can ask us to tell them what we hold, to delete or correct it, and can appeal a refusal by writing to <span data-mail-u="info.vaneapp" data-mail-h="gmail.com"><a href="/about#contact">the contact form</a></span>. We will not treat you differently for exercising these rights.</p>
 
         <h2 id="children">15. Children</h2>
-        <p>Vane is not meant for anyone under 16, and we do not knowingly collect their data. If you think a child has given us personal data, write to <span data-mail-u="info.vaneapp" data-mail-h="gmail.com"><a href="/about#contact">the contact form</a></span> and we will delete it.</p>
+        <p>Vane is not meant for anyone under 16, and we do not knowingly collect their data. When you create an account we ask for your date of birth and refuse the sign-up if you are under 16. We use the date only for that check and do not store it; we keep just a note that you confirmed you are old enough, and the day you did. If you think a child has given us personal data, write to <span data-mail-u="info.vaneapp" data-mail-h="gmail.com"><a href="/about#contact">the contact form</a></span> and we will delete it.</p>
 
         <h2 id="changes">16. Changes to this policy</h2>
         <p>When this policy changes in a way that matters, we will tell you in the dashboard or by email before the change takes effect. The date at the top shows the current version.</p>

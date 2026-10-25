@@ -297,10 +297,10 @@
       return;
     }
     box.innerHTML = groupChannels(S.channels).map(function (g, i) {
-      return '<div' + (i ? ' class="pt-2"' : '') + '>' + groupHead(g) + '<div class="space-y-2.5">' + g.items.map(function (c) {
+      return '<div>' + groupHead(g) + '<div class="flex flex-wrap gap-2.5">' + g.items.map(function (c) {
         var armed = !!S.armed['del:' + c.id];
         var exp = expiryNote(c);
-        return '<div class="flex items-center gap-3 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/5">' +
+        return '<div class="flex w-full items-center gap-3 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/5 sm:w-auto sm:min-w-[17rem]">' +
           '<div class="net-tile ' + netTile(c.platform) + '">' + netIcon(c.platform, 'h-5 w-5') + '</div>' +
           '<div class="min-w-0 flex-1">' +
             '<div class="truncate text-sm font-medium">' + esc(c.name) + '</div>' +
@@ -1392,7 +1392,8 @@
         '<div class="net-tile bg-white/[0.07] text-white/80">' + KEY_ICON + '</div>' +
         '<div class="min-w-0 flex-1">' +
           '<div class="flex items-center gap-2"><span class="truncate text-sm font-medium">' + esc(k.name) + '</span>' +
-            '<span class="badge ' + (k.mode === 'live' ? 'badge-sent' : 'badge-scheduled') + '">' + (k.mode === 'live' ? 'Live' : 'Test') + '</span></div>' +
+            '<span class="badge ' + (k.mode === 'live' ? 'badge-sent' : 'badge-scheduled') + '">' + (k.mode === 'live' ? 'Live' : 'Test') + '</span>' +
+          (k.integration ? '<span class="truncate text-[11px] text-white/45">' + esc(INT_NAMES[k.integration] || k.integration) + '</span>' : '') + '</div>' +
           '<div class="mt-0.5 truncate font-mono text-xs text-white/50">' + esc(k.display) + '</div>' +
           '<div class="mt-0.5 text-xs text-white/35">Created ' + esc(fmtDay(k.createdAt)) + ' · ' + esc(used) + '</div>' +
         '</div>' +
@@ -1501,6 +1502,13 @@
     if (typeof kdlg.close === 'function') kdlg.close(); else kdlg.removeAttribute('open');
   }
 
+  var INT_NAMES = { claude: 'Claude', chatgpt: 'ChatGPT', make: 'Make', zapier: 'Zapier', wordpress: 'WordPress plugin', api: 'Own script / other' };
+  // Picking where the key will be used fills in the name if it is still empty (it stays editable).
+  $('keyIntegration').addEventListener('change', function () {
+    var n = $('keyName');
+    if (!n.value.trim() && this.value && this.value !== 'api') n.value = INT_NAMES[this.value];
+  });
+
   $('keyForm').addEventListener('submit', async function (e) {
     e.preventDefault();
     if (K.busy) return;
@@ -1509,7 +1517,7 @@
     if (!name) return showErr($('keyErr'), $('keyForm'), 'Give the key a name, for example Make.com.');
 
     K.busy = true; $('keySubmit').disabled = true; $('keySpin').classList.remove('hidden'); $('keyLabel').textContent = 'Creating…';
-    var r = await Vane.api('POST', '/api/keys', { name: name, mode: K.mode });
+    var r = await Vane.api('POST', '/api/keys', { name: name, mode: K.mode, integration: $('keyIntegration').value || undefined });
     K.busy = false; $('keySubmit').disabled = false; $('keySpin').classList.add('hidden'); $('keyLabel').textContent = 'Create key';
     if (!r.ok) return showErr($('keyErr'), $('keyForm'), r.error);
 
