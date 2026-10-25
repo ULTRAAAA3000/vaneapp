@@ -41,12 +41,35 @@
     var yr = S.interval === 'year' || p.interval === 'year';
     $('total').textContent = fmt(price(), p.currency);
     $('totalNote').textContent = (yr ? 'For one year of ' : 'For one month of ') + p.name + '. No automatic renewal.';
+    renderTerms(yr);
     updatePay();
   }
+  // The terms of this purchase, in plain words, before anything is paid: what is bought, for how long, that it does not renew, how to stop, refunds.
+  function renderTerms(yr) {
+    var end = new Date(); if (yr) end.setFullYear(end.getFullYear() + 1); else end.setMonth(end.getMonth() + 1);
+    var until = end.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
+    var items = [
+      'One payment of ' + fmt(price(), S.plan.currency) + ' for one ' + (yr ? 'year' : 'month') + ' of ' + S.plan.name + '. Access runs for the full period, about until ' + until + ' if you pay today (a period you still have left is added to).',
+      'No automatic renewal: we never charge you again by ourselves. To continue, pay again before the period ends; after it ends your account returns to the Free plan.',
+      'Nothing to cancel: there is no subscription to stop. Your data stays; features and limits above the Free plan switch off when the period ends.',
+      'Paid periods are not refunded for the part you have used, except where the law gives you a right to a refund. Details: Terms, “Cancelling and refunds”.'
+    ];
+    $('purchaseTerms').innerHTML = items.map(function () { return '<li class="flex gap-2.5"><span class="mt-[0.4rem] h-1 w-1 shrink-0 rounded-full bg-white/40" aria-hidden="true"></span><span></span></li>'; }).join('');
+    Array.prototype.forEach.call($('purchaseTerms').children, function (li, i) { li.lastChild.textContent = items[i]; });
+  }
+  // EU, EEA, UK and Switzerland: the 14-day withdrawal right applies, so the buyer must ask for an immediate start
+  var WITHDRAWAL = 'AT BE BG HR CY CZ DK EE FI FR DE GR HU IE IT LV LT LU MT NL PL PT RO SK SI ES SE IS LI NO GB CH'.split(' ');
+  function needsWaiver() { return WITHDRAWAL.indexOf($('fCountry').value) !== -1; }
+  function syncConsent() {
+    var w = needsWaiver();
+    $('waiverRow').classList.toggle('hidden', !w); $('waiverRow').classList.toggle('flex', w);
+    updatePay();
+  }
+  function consented() { return $('fAccept').checked && (!needsWaiver() || $('fWaiver').checked); }
   function updatePay() {
     var label = !S.method ? 'Choose a payment method' : S.method === 'crypto' ? 'Continue to crypto payment · ' + fmt(price(), S.plan.currency) : 'Pay ' + fmt(price(), S.plan.currency) + ' by card';
     $('payLabel').textContent = S.busy ? 'Please wait…' : label;
-    $('pay').disabled = S.busy || !S.method;
+    $('pay').disabled = S.busy || !S.method || !consented();
   }
 
   // ── methods
@@ -67,6 +90,8 @@
     updatePay();
   }
 
+  ['fAccept', 'fWaiver', 'fCountry'].forEach(function (id) { $(id).addEventListener('change', syncConsent); });
+
   // ── submit
   $('form').addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -76,9 +101,11 @@
     if (name.length < 2) return err('Enter your name.');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return err('Enter a valid email for the receipt.');
     if (!country) return err('Choose your country.');
+    if (!$('fAccept').checked) return err('Please agree to the Terms and the purchase terms to continue.');
+    if (needsWaiver() && !$('fWaiver').checked) return err('Please confirm that you want the plan to start immediately.');
     S.busy = true; updatePay(); $('paySpin').classList.remove('hidden');
     var r = await Vane.api('POST', '/api/billing/checkout', {
-      planId: S.plan.id, interval: S.interval, method: S.method, asset: S.asset,
+      planId: S.plan.id, interval: S.interval, method: S.method, asset: S.asset, accept: true, waiver: needsWaiver() ? true : undefined,
       billing: { name: name, email: email, country: country, company: $('fCompany').value.trim(), vatId: $('fVat').value.trim() },
     }, { noRedirect: true });
     S.busy = false; $('paySpin').classList.add('hidden'); updatePay();
