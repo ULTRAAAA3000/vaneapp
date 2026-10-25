@@ -712,6 +712,16 @@ CREATE TABLE IF NOT EXISTS ai_pass_usage (
   used     INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (user_id, period)
 );
+CREATE TABLE IF NOT EXISTS ai_history (
+  id          TEXT    PRIMARY KEY,
+  user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  tool        TEXT    NOT NULL,
+  prompt      TEXT    NOT NULL,
+  result      TEXT    NOT NULL,
+  pinned      INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1)),
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_ai_history_user ON ai_history(user_id, created_at DESC);
 INSERT OR IGNORE INTO plans (id, kind, name, tagline, price_cents, features, limits, cta_label, is_public, is_active, sort) VALUES
   ('ai-pass', 'addon', 'Vane AI Pass', '150 AI credits a month for tone, hooks, per-network versions and posts from an idea.', 299,
    '["150 AI credits a month","Tone fixer, hooks, CTAs, per-network versions, post generator","Extra credits are billed per use, only if you switch it on"]',
