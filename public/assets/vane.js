@@ -106,8 +106,38 @@
    *   { ok:true, kind, url, key, size, contentType, width?, height? }  or  { ok:false, error, aborted? }
    * (XMLHttpRequest is used because fetch() cannot report upload progress.)
    */
+  /** Up to 3 small JPEG frames of a video (10%, 50%, 90%), taken in the browser: the server checks a video by them. Resolves to [] when the browser cannot decode it. */
+  Vane.videoFrames = function (file) {
+    return new Promise(function (resolve) {
+      var url = URL.createObjectURL(file), v = document.createElement('video'), out = [], at = [0.1, 0.5, 0.9], i = 0, done = false;
+      var timer = setTimeout(function () { finish(); }, 10000);
+      function finish() {
+        if (done) return;
+        done = true; clearTimeout(timer);
+        v.removeAttribute('src'); v.load(); URL.revokeObjectURL(url);
+        resolve(out);
+      }
+      function next() {
+        if (i >= at.length) return finish();
+        v.currentTime = Math.max(0.05, (isFinite(v.duration) ? v.duration : 1) * at[i++]);
+      }
+      v.muted = true; v.playsInline = true; v.preload = 'auto';
+      v.onerror = function () { finish(); };
+      v.onloadedmetadata = next;
+      v.onseeked = function () {
+        if (!v.videoWidth) return finish();
+        var w = Math.min(480, v.videoWidth), h = Math.max(1, Math.round(v.videoHeight * w / v.videoWidth));
+        var c = document.createElement('canvas'); c.width = w; c.height = h;
+        try { c.getContext('2d').drawImage(v, 0, 0, w, h); } catch (e) { return finish(); }
+        c.toBlob(function (b) { if (b) out.push(b); next(); }, 'image/jpeg', 0.7);
+      };
+      v.src = url;
+    });
+  };
+
   Vane.uploadFile = function (file, onProgress) {
     var xhr = new XMLHttpRequest();
+    var aborted = false;
     var promise = new Promise(function (resolve) {
       xhr.open('POST', '/api/media/upload');
       xhr.responseType = 'text';
@@ -126,9 +156,14 @@
       xhr.onabort = function () { resolve({ ok: false, aborted: true, error: 'Upload cancelled.' }); };
       var fd = new FormData();
       fd.append('file', file, file.name || 'upload');
-      xhr.send(fd);
+      var isVideo = /^video\//.test(file.type || '') || /\.(mp4|mov)$/i.test(file.name || '');
+      (isVideo ? Vane.videoFrames(file) : Promise.resolve([])).then(function (frames) {
+        if (aborted) return resolve({ ok: false, aborted: true, error: 'Upload cancelled.' });
+        frames.forEach(function (b, n) { fd.append('frame', b, 'frame' + n + '.jpg'); });
+        xhr.send(fd);
+      });
     });
-    return { promise: promise, abort: function () { try { xhr.abort(); } catch (e) { /* already finished */ } } };
+    return { promise: promise, abort: function () { aborted = true; try { xhr.abort(); } catch (e) { /* already finished */ } } };
   };
 
   /** Toasts: Vane.toast('ok' | 'err' | 'info', text) */

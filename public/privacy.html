@@ -156,6 +156,7 @@
             <tr><td>Resend</td><td>Sending our emails: sign-in codes, payment receipts, and delivering contact-form messages to us</td><td>Your email address and the message</td></tr>
             <tr><td>GitHub, Google</td><td>Only if you choose “Sign in with GitHub / Google”: they confirm who you are</td><td>Your name, verified email address and account id, received from them; we send them nothing about you</td></tr>
             <tr><td>Payment providers</td><td>Taking payment. At launch: monobank acquiring for cards, Apple Pay and Google Pay; and direct on-chain payments in stablecoins, checked through a blockchain node provider. We may add or replace providers (for example a merchant of record) and will update this list.</td><td>Order reference, plan and amount; for on-chain payments the public wallet address and transaction id. Card details stay with the card provider.</td></tr>
+            <tr><td>OpenAI</td><td>Only if enabled: an automatic check of pictures (and a few frames of videos) you upload or link, to refuse adult (18+) and graphically violent content. Otherwise the same check runs on Cloudflare Workers AI</td><td>The picture or the video frames, for the check only; no name, email or account id</td></tr>
             <tr><td>proxycheck.io</td><td>Optional check of whether an address is a proxy or VPN at sign-in and sign-up</td><td>The IP address</td></tr>
             <tr><td>The networks you connect</td><td>Publishing what you scheduled</td><td>Your content and the identifiers needed to post it</td></tr>
           </tbody>
