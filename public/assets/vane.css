@@ -212,3 +212,7 @@ html.is-leaving #app { opacity: 0 !important; transform: translateY(-8px); trans
 .chip[aria-pressed="true"] { color: #fff; background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.3); }
 .chip:focus-visible { outline: 2px solid rgba(255,255,255,.6); outline-offset: 2px; }
 #viewLibrary.is-over { outline: 2px dashed rgba(255,255,255,.4); outline-offset: -6px; }
+
+/* post editor: one tidy toolbar (emoji · text tools | AI tools) */
+#toolbar #composerTools { padding-left: .6rem; margin-left: .15rem; border-left: 1px solid rgba(255,255,255,.1); }
+#toolbar #aiBar { margin-left: auto; }

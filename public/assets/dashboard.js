@@ -297,10 +297,10 @@
       return;
     }
     box.innerHTML = groupChannels(S.channels).map(function (g, i) {
-      return '<div' + (i ? ' class="pt-2"' : '') + '>' + groupHead(g) + '<div class="space-y-2.5">' + g.items.map(function (c) {
+      return '<div>' + groupHead(g) + '<div class="flex flex-wrap gap-2.5">' + g.items.map(function (c) {
         var armed = !!S.armed['del:' + c.id];
         var exp = expiryNote(c);
-        return '<div class="flex items-center gap-3 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/5">' +
+        return '<div class="flex w-full items-center gap-3 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/5 sm:w-auto sm:min-w-[17rem]">' +
           '<div class="net-tile ' + netTile(c.platform) + '">' + netIcon(c.platform, 'h-5 w-5') + '</div>' +
           '<div class="min-w-0 flex-1">' +
             '<div class="truncate text-sm font-medium">' + esc(c.name) + '</div>' +
