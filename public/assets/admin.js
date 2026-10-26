@@ -183,6 +183,8 @@
     var tab = (location.hash || '#overview').slice(1);
     if (!TABS.some(function (t) { return t[0] === tab; })) tab = 'overview';
     $('nav').innerHTML = TABS.map(function (t) { return '<a class="nav-tab" href="#' + t[0] + '"' + (t[0] === tab ? ' aria-current="page"' : '') + '>' + t[1] + '</a>'; }).join('');
+    var on = $('nav').querySelector('[aria-current]');
+    if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'center' });
     var seq = ++S.seq;
     $('view').innerHTML = skeleton();
     VIEWS[tab](seq);
