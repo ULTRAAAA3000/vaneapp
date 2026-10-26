@@ -116,6 +116,7 @@
     <nav id="dashTabs" class="fade-up mt-6 flex gap-1.5" style="animation-delay:.08s" aria-label="Dashboard sections">
       <a href="#create" data-tab="create" class="dtab" aria-current="page">Create</a>
       <a href="#library" data-tab="library" class="dtab">Library</a>
+      <a href="#history" data-tab="history" class="dtab">AI history</a>
     </nav>
 
     <div data-view="create" class="mt-5">
@@ -226,6 +227,12 @@
         </summary>
         <div id="apiQuickBody" class="space-y-5 px-5 pb-5"></div>
       </details>
+    </section>
+
+    <section id="viewHistory" data-view="history" hidden class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" aria-labelledby="historyTitle">
+      <h2 id="historyTitle" class="text-lg font-semibold tracking-tight">AI history</h2>
+      <p class="mt-1 text-xs text-white/45">Your latest AI posts and weekly plans. We keep the last 10; pin up to 4 to keep them.</p>
+      <div id="histList" class="mt-5 space-y-3" aria-live="polite"></div>
     </section>
 
     <!-- ═══════════ LIBRARY ═══════════ -->
@@ -713,7 +720,8 @@
   <script src="/assets/insights.js?v=20261017"></script>
   <script src="/assets/dashboard.js?v=20261024b"></script>
   <script src="/assets/ai.js?v=20261022a"></script>
-  <script src="/assets/library.js?v=20261021b"></script>
+  <script src="/assets/library.js?v=20261025a"></script>
+  <script src="/assets/aihistory.js?v=20261025a"></script>
   <script src="/assets/composer-tools.js?v=20261022a"></script>
   <script src="/assets/track.js?v=20261017" data-path="/app" defer></script>
 </body>

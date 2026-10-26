@@ -24,6 +24,7 @@ import {
   toolPlan, toolReformat, toolTone, type Tone,
 } from '../lib/ai';
 import { requireUser } from '../lib/auth';
+import { saveHistory } from '../lib/aihistory';
 import { fail, failCode, isRecord, json, methodNotAllowed, readJson } from '../lib/http';
 import { CONTENT_LIMIT } from '../posts/create';
 import { bump, retryAfter } from '../lib/throttle';
@@ -115,7 +116,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       await aiLogStatement(env, { userId: auth.userId, overage: reservation.overage, costMicro: reservation.costMicro, ref: tool, now }).run().catch(() => undefined);
     }
     const usage = await usageSummary(env, auth.userId, sub, now);
-    return json({ ok: true, tool, ...result, ai: usage.ai });
+    const historyId = await saveHistory(env, auth.userId, tool, text, result);
+    return json({ ok: true, tool, ...result, historyId, ai: usage.ai });
   } catch (err) {
     if (reservation && reservation.ok) await releaseAiGeneration(env, auth.userId, reservation);
     if (err instanceof AiError) return failCode(err.status, err.code, err.message);
