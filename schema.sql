@@ -712,6 +712,10 @@ CREATE TABLE IF NOT EXISTS ai_pass_usage (
   used     INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (user_id, period)
 );
+CREATE TABLE IF NOT EXISTS email_optouts (
+  email       TEXT    PRIMARY KEY,
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);
 CREATE TABLE IF NOT EXISTS ai_history (
   id          TEXT    PRIMARY KEY,
   user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,

@@ -161,6 +161,7 @@ export async function sendReceipt(env: Env, o: OrderRow, now: number): Promise<v
   const lines = [`Plan: ${o.plan_name} (${o.interval === 'year' ? '1 year' : '1 month'})`, `Amount: ${amount} USD`, `Paid with: ${how}`, `Active until about: ${until}`, `Order: ${o.id}`];
   await sendMail(env, {
     to,
+    optional: true,
     subject: `Your Vane receipt: ${o.plan_name}`,
     text: `${name ? `Hi ${name},\n\n` : ''}Thank you, your payment was received and ${o.plan_name} is active.\n\n${lines.join('\n')}\n\nThe plan is not renewed automatically: pay again from vaneapp.dev/pricing when the period ends.\n`,
     html: `<div style="font-family:-apple-system,Segoe UI,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#111"><h2 style="margin:0 0 12px">Payment received</h2><p style="margin:0 0 16px">${name ? `Hi ${escHtml(name)}, t` : 'T'}hank you. <b>${escHtml(o.plan_name)}</b> is active on your account.</p><table style="width:100%;border-collapse:collapse;font-size:14px">${lines.map((l) => { const i = l.indexOf(':'); return `<tr><td style="padding:6px 0;color:#666">${escHtml(l.slice(0, i))}</td><td style="padding:6px 0;text-align:right">${escHtml(l.slice(i + 1).trim())}</td></tr>`; }).join('')}</table><p style="margin:20px 0 0;font-size:12px;color:#777">The plan is not renewed automatically. Pay again from vaneapp.dev/pricing when the period ends.</p></div>`,
