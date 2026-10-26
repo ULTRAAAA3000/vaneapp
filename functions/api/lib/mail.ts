@@ -7,6 +7,7 @@
  *   EMAIL_FROM      (variable)  sender on a domain verified in Resend, e.g.  Vane <noreply@vaneapp.dev>
  */
 import type { Env, VerifyPurpose } from '../../../types';
+import { isOptedOut, unsubscribeLinks } from './unsubscribe';
 
 const RESEND_URL = 'https://api.resend.com/emails';
 
@@ -28,15 +29,25 @@ export function emailConfigured(env: Env): boolean {
   return st.enabled;
 }
 
-export interface Mail { to: string; subject: string; text: string; html: string; replyTo?: string }
+export interface Mail { to: string; subject: string; text: string; html: string; replyTo?: string; unsubscribe?: boolean; optional?: boolean }
 
 /** true = Resend accepted the message. Never throws, and never logs the address or the code. */
 export async function sendMail(env: Env, mail: Mail): Promise<boolean> {
   try {
+    let { text, html } = mail;
+    let headers: Record<string, string> | undefined;
+    if (mail.unsubscribe !== false) {
+      if (mail.optional && (await isOptedOut(env, mail.to))) return true;
+      const link = await unsubscribeLinks(env, mail.to);
+      text += `\n\n---\nUnsubscribe from Vane emails: ${link.page}`;
+      const foot = `<p style="margin:24px 0 0;text-align:center;font-family:-apple-system,Segoe UI,Arial,sans-serif;font-size:12px;color:#71717a;"><a href="${link.page}" style="color:#71717a;text-decoration:underline;">Unsubscribe</a> from Vane emails</p>`;
+      html = html.includes('</body>') ? html.replace('</body>', `${foot}</body>`) : html + foot;
+      headers = { 'List-Unsubscribe': `<${link.api}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' };
+    }
     const res = await fetch(RESEND_URL, {
       method: 'POST',
       headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: env.EMAIL_FROM, to: [mail.to], subject: mail.subject, text: mail.text, html: mail.html, ...(mail.replyTo ? { reply_to: mail.replyTo } : {}) }),
+      body: JSON.stringify({ from: env.EMAIL_FROM, to: [mail.to], subject: mail.subject, text, html, ...(headers ? { headers } : {}), ...(mail.replyTo ? { reply_to: mail.replyTo } : {}) }),
       signal: AbortSignal.timeout(8000),
     });
     if (res.ok) return true;
