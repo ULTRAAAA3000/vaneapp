@@ -34,7 +34,7 @@
     select.field { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right .9rem center; padding-right: 2.2rem; }
     select.field option { background: #111; color: #fff; }
     .scroll-x { overflow-x: auto; }
-    @media (max-width: 1023px) { .nav-row { overflow-x: auto; scrollbar-width: none; } .nav-row::-webkit-scrollbar { display: none; } }
+    .nav-row { min-width: 0; overflow-x: auto; scrollbar-width: none; } .nav-row::-webkit-scrollbar { display: none; } .nav-tab { flex-shrink: 0; } @media (max-width: 1535px) { #panel header > div { flex-wrap: wrap; row-gap: .5rem; } #nav { order: 10; flex-basis: 100%; margin-left: 0; } #who { margin-left: auto; }}
   </style>
 </head>
 
@@ -97,6 +97,6 @@
   </div>
 
   <script src="/assets/vane.js?v=20261025a"></script>
-  <script src="/assets/admin.js?v=20261024b"></script>
+  <script src="/assets/admin.js?v=20261026a"></script>
 </body>
 </html>
