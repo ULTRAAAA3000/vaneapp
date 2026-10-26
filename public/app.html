@@ -116,6 +116,7 @@
     <nav id="dashTabs" class="fade-up mt-6 flex gap-1.5" style="animation-delay:.08s" aria-label="Dashboard sections">
       <a href="#create" data-tab="create" class="dtab" aria-current="page">Create</a>
       <a href="#library" data-tab="library" class="dtab">Library</a>
+      <a href="#drafts" data-tab="drafts" class="dtab">Drafts</a>
       <a href="#history" data-tab="history" class="dtab">AI history</a>
     </nav>
 
@@ -177,6 +178,7 @@
           <span id="schedSpin" class="spinner spinner-dark hidden"></span>
           <span id="schedLabel">Schedule post</span>
         </button>
+        <button id="draftBtn" type="button" class="btn btn-ghost !py-3">Save draft</button>
         <span id="hint" class="text-xs text-white/45"></span>
       </div>
     </section>
@@ -227,6 +229,12 @@
         </summary>
         <div id="apiQuickBody" class="space-y-5 px-5 pb-5"></div>
       </details>
+    </section>
+
+    <section id="viewDrafts" data-view="drafts" hidden class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" aria-labelledby="draftsTitle">
+      <h2 id="draftsTitle" class="text-lg font-semibold tracking-tight">Drafts</h2>
+      <p class="mt-1 text-xs text-white/45">Unfinished posts. We keep the last 5; saving a sixth removes the oldest.</p>
+      <div id="draftList" class="mt-5 space-y-3" aria-live="polite"></div>
     </section>
 
     <section id="viewHistory" data-view="history" hidden class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" aria-labelledby="historyTitle">
@@ -716,11 +724,12 @@
   </dialog>
 
   <script src="/assets/vane.js?v=45d70bde3c"></script>
-  <script src="/assets/media-picker.js?v=59d3a2ce3e"></script>
+  <script src="/assets/media-picker.js?v=77ebb5a885"></script>
   <script src="/assets/insights.js?v=be1faaaac6"></script>
-  <script src="/assets/dashboard.js?v=6e70ed8f52"></script>
+  <script src="/assets/dashboard.js?v=c8bdf9eb66"></script>
   <script src="/assets/ai.js?v=aaab853db4"></script>
-  <script src="/assets/library.js?v=33853a034f"></script>
+  <script src="/assets/library.js?v=dd235ad0f3"></script>
+  <script src="/assets/drafts.js?v=9ce82a983a"></script>
   <script src="/assets/aihistory.js?v=46de172c9e"></script>
   <script src="/assets/composer-tools.js?v=0c636c4c2b"></script>
   <script src="/assets/track.js?v=a3d04e70d1" data-path="/app" defer></script>

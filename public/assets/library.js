@@ -71,11 +71,11 @@
     [].forEach.call(document.querySelectorAll('#dashTabs [data-tab]'), function (a) {
       if (a.getAttribute('data-tab') === view) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
-    if (view === 'history') document.dispatchEvent(new CustomEvent('vane:history'));
+    if (view === 'history' || view === 'drafts') document.dispatchEvent(new CustomEvent('vane:' + view));
     if (view === 'library') load(false);                 // always fresh: a file may have been uploaded from the editor meanwhile
   }
   function route() {
-    setView(location.hash === '#library' ? 'library' : location.hash === '#history' ? 'history' : 'create');
+    setView({ '#library': 'library', '#history': 'history', '#drafts': 'drafts' }[location.hash] || 'create');
     if (S.view === 'create' && location.hash.length > 1) {   // the header's API link is #api: show the create view first, then scroll to it
       var target = document.getElementById(location.hash.slice(1));
       if (target) requestAnimationFrame(function () { target.scrollIntoView(); });   // after the swap has been laid out
