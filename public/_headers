@@ -5,7 +5,7 @@
   Permissions-Policy: camera=(), microphone=(), geolocation=()
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   Cross-Origin-Opener-Policy: same-origin-allow-popups
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://challenges.cloudflare.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob: https://d8j0ntlcm91z4.cloudfront.net https://*.vaneapp.dev; connect-src 'self' https://vaneapp.dev https://*.vaneapp.dev; frame-src https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob: https://d8j0ntlcm91z4.cloudfront.net https://*.vaneapp.dev; connect-src 'self' https://vaneapp.dev https://*.vaneapp.dev; frame-src https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
 
 /app
   Cache-Control: no-store
@@ -29,8 +29,11 @@
   Cache-Control: no-store
   Referrer-Policy: no-referrer
 
-/assets/*
-  Cache-Control: no-cache
+/assets/*.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/*.css
+  Cache-Control: public, max-age=31536000, immutable
 
 /vane-openapi.json
   Content-Type: application/json; charset=utf-8
@@ -41,5 +44,11 @@
   Cache-Control: no-store
   Referrer-Policy: no-referrer
 
-/assets/hero-boomerang-v1.mp4
+/assets/hero-boomerang-v2.mp4
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/hero-boomerang-v2-m.mp4
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/hero-poster-v2.jpg
   Cache-Control: public, max-age=31536000, immutable
