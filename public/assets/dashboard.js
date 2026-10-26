@@ -853,6 +853,17 @@
   Vane.composer = {
     text: function () { return textEl.value; },
     set: function (t) { textEl.value = String(t).slice(0, MAX_LEN); textEl.focus(); textEl.dispatchEvent(new Event('input', { bubbles: true })); },
+    state: function () {
+      var m = picker.getMedia();
+      return { text: textEl.value, channelIds: Array.from(S.selected), media: m ? { url: m.url, kind: m.kind, name: m.name } : null };
+    },
+    load: function (d) {
+      textEl.value = String(d.content || '').slice(0, MAX_LEN);
+      var ids = (d.channelIds || []).filter(function (id) { return S.channels.some(function (c) { return c.id === id; }); });
+      if (ids.length) { S.selected = new Set(ids); S.selectionTouched = true; }
+      picker.set(d.media || null);
+      renderChips(); renderPreview(); validate(); saveDraft();
+    },
     networks: function () {
       var seen = {};
       return S.channels.filter(function (c) { return S.selected.has(c.id); }).map(function (c) { return c.platform; }).filter(function (p) { return !seen[p] && (seen[p] = 1); });
@@ -1161,6 +1172,7 @@
     var n = r.data.posts.length;
     Vane.toast('ok', 'Scheduled for ' + fmtWhen.format(new Date(r.data.scheduledAt * 1000)) + (n > 1 ? ' on ' + n + ' channels.' : '.'));
     textEl.value = ''; picker.clear(); saveDraft();
+    document.dispatchEvent(new CustomEvent('vane:scheduled'));
     initQuick();
     refreshApiQuietly();   // dashboard posts count toward the quota
     await Promise.all([loadPosts('upcoming')]);

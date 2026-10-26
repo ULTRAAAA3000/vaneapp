@@ -716,6 +716,15 @@ CREATE TABLE IF NOT EXISTS email_optouts (
   email       TEXT    PRIMARY KEY,
   created_at  INTEGER NOT NULL DEFAULT (unixepoch())
 );
+CREATE TABLE IF NOT EXISTS post_drafts (
+  id          TEXT    PRIMARY KEY,
+  user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  content     TEXT    NOT NULL DEFAULT '',
+  channel_ids TEXT    NOT NULL DEFAULT '[]',
+  media       TEXT,
+  updated_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_post_drafts_user ON post_drafts(user_id, updated_at DESC);
 CREATE TABLE IF NOT EXISTS ai_history (
   id          TEXT    PRIMARY KEY,
   user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
