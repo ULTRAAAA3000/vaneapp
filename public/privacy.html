@@ -75,7 +75,7 @@
       <div class="glass-d rounded-3xl p-6 sm:p-10 doc">
 
         <h1 class="text-3xl font-semibold tracking-tight">Privacy Policy</h1>
-        <p class="!mt-2 text-xs !text-white/40">Effective: <span class="todo">[EFFECTIVE DATE]</span> · Applies to vaneapp.dev, post.vaneapp.dev, studio.vaneapp.dev and the Vane API</p>
+        <p class="!mt-2 text-xs !text-white/40">Effective: <span class="todo">[EFFECTIVE DATE]</span> · Last updated: 26 October 2026 · Applies to vaneapp.dev, post.vaneapp.dev, studio.vaneapp.dev and the Vane API</p>
         <nav aria-label="Contents"><ol class="toc"><li><a href="#who">1. Who we are</a></li><li><a href="#short">2. The short version</a></li><li><a href="#collect">3. What we collect</a></li><li><a href="#use">4. How we use it, and why we may</a></li><li><a href="#networks">5. Social networks and Google / YouTube data</a></li><li><a href="#ai">6. AI features</a></li><li><a href="#integrations">7. API, webhooks and connectors</a></li><li><a href="#share">8. Who we share it with</a></li><li><a href="#transfers">9. International transfers</a></li><li><a href="#retention">10. How long we keep it</a></li><li><a href="#security">11. How we protect it</a></li><li><a href="#cookies">12. Cookies and similar storage</a></li><li><a href="#rights">13. Your rights and choices</a></li><li><a href="#us">14. Notes for US residents</a></li><li><a href="#children">15. Children</a></li><li><a href="#changes">16. Changes to this policy</a></li><li><a href="#contact">17. Contact</a></li></ol></nav>
 
         <h2 id="who">1. Who we are</h2>
@@ -97,7 +97,9 @@
         <h3>Information you give us</h3>
         <ul>
           <li><b>Account:</b> email address, an optional name, your time zone and a salted hash of your password. We also email you one-time codes to confirm sign-up and new sign-ins. If you sign in with GitHub or Google, we receive your name, your verified email address and the provider’s id for your account, and nothing else (no repositories, contacts, files or mail).</li>
-          <li><b>Content:</b> the text, pictures, videos, thumbnails and drafts you write or upload, the time you chose to publish, and the results (sent, failed, the link to the published post).</li>
+          <li><b>Content:</b> the text, pictures, videos, thumbnails and drafts you write or upload, the time you chose to publish, and the results (sent, failed, the link to the published post). We also keep what you save on purpose: up to 5 unfinished <b>drafts</b> and your <b>snippets</b> (reusable texts; 5 on the Free Trial, up to 100 on paid plans).</li>
+          <li><b>AI history:</b> the last 10 answers of the post and week-plan generators, each with the idea you typed to get it. You can pin up to 4 of them and delete any of them.</li>
+          <li><b>Email preferences:</b> if you use the unsubscribe link in one of our emails, we keep your email address on a list so that we do not write to you again.</li>
           <li><b>Connected accounts:</b> a sign-in token or app password for each network you connect, kept encrypted, plus the public name, handle or id of the account so you can tell them apart.</li>
           <li><b>API keys and webhooks:</b> the name you give a key, its last four characters and a hash of it (never the key itself); the address of each webhook and its signing secret, kept encrypted.</li>
           <li><b>Billing:</b> your plan and its status, payment references and amounts. Card numbers are entered on our payment provider’s page and never reach us. For on-chain payments we see the public wallet address and transaction id.</li>
@@ -117,6 +119,7 @@
         <ul>
           <li><b>To run the service:</b> create your account, publish at the times you chose, store your media, apply your plan’s limits, send you sign-in codes and service messages. (Contract.)</li>
           <li><b>To take payment and keep records:</b> process subscriptions and usage charges, prevent fraud, meet tax and accounting duties. (Contract; legal obligation.)</li>
+          <li><b>To keep content within our rules:</b> text, pictures and a few frames of videos are checked automatically for obscene language, adult (18+) material and graphic violence before they are published, and what fails is refused. (Legitimate interests in keeping the service lawful and safe; contract.)</li>
           <li><b>To keep Vane safe:</b> detect bots, abuse, password guessing and scanning, enforce our <a href="/terms">Terms</a>, and investigate incidents. (Legitimate interests in securing the service and our users.)</li>
           <li><b>To improve Vane:</b> understand, in aggregate, which pages and features are used. (Legitimate interests; you can opt out with Do Not Track or Global Privacy Control.)</li>
           <li><b>To answer you</b> and give support. (Contract; legitimate interests.)</li>
@@ -142,7 +145,7 @@
         <p><b>Google API Services.</b> Vane’s use and transfer to any other app of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy" rel="noopener noreferrer">Google API Services User Data Policy</a>, including the Limited Use requirements. By using Vane Studio’s YouTube features you also agree to the <a href="https://www.youtube.com/t/terms" rel="noopener noreferrer">YouTube Terms of Service</a>, and Google’s handling of your data is described in the <a href="https://policies.google.com/privacy" rel="noopener noreferrer">Google Privacy Policy</a>.</p>
 
         <h2 id="ai">6. AI features</h2>
-        <p>When you use an AI feature (hashtags, clean-up, re-formatting, post and idea generation, tone, hooks, video scripts and metadata), the text you submit and your instruction are sent to the AI model running on our infrastructure provider, Cloudflare Workers AI, to produce the answer. We keep a count of the credits you use, not a copy of your prompts for any other purpose. We do not use your content to train or fine-tune models, and we do not send it to AI providers other than the ones listed in section 8. AI output can be wrong or unsuitable: you review it before anything is published.</p>
+        <p>When you use an AI feature (hashtags, clean-up, re-formatting, post and idea generation, tone, hooks, video scripts and metadata), the text you submit and your instruction are sent to the AI model running on our infrastructure provider, Cloudflare Workers AI, to produce the answer. The model is chosen by the language of your text: Cloudflare Workers AI runs open models from providers such as Meta and Google on its own infrastructure. We keep a count of the credits you use, and the last 10 post and week-plan answers with the idea behind them so that you can find them again (see section 3); we do not keep your prompts for any other purpose. We do not use your content to train or fine-tune models, and we do not send it to AI providers other than the ones listed in section 8. AI output can be wrong or unsuitable: you review it before anything is published.</p>
 
         <h2 id="integrations">7. API, webhooks and connectors</h2>
         <p>If you connect Make, Zapier, a custom GPT, Claude (MCP), the WordPress plugin or your own scripts with a Vane API key, those services send requests to Vane on your behalf and receive what the API returns (your channel list, post status, the posts they create). Their handling of data is governed by their own policies; revoke the key in Vane to cut the connection. If you add a webhook, Vane sends the events you chose (for example that a post was published or failed) to the address you gave, signed so you can verify them; you are responsible for that endpoint and for what it does with the data.</p>
@@ -153,7 +156,7 @@
           <thead><tr><th>Provider</th><th>What for</th><th>Data involved</th></tr></thead>
           <tbody>
             <tr><td>Cloudflare</td><td>Hosting, database, file storage, content delivery, bot protection (Turnstile) and AI models (Workers AI)</td><td>Everything you store with us; request details such as your IP address; text you send to AI features</td></tr>
-            <tr><td>Resend</td><td>Sending our emails: sign-in codes, payment receipts, and delivering contact-form messages to us</td><td>Your email address and the message</td></tr>
+            <tr><td>Resend</td><td>Sending our emails: sign-in codes, payment receipts, and delivering contact-form messages to us. Emails to you carry an unsubscribe link; sign-in codes are always sent because you need them to log in</td><td>Your email address and the message</td></tr>
             <tr><td>GitHub, Google</td><td>Only if you choose “Sign in with GitHub / Google”: they confirm who you are</td><td>Your name, verified email address and account id, received from them; we send them nothing about you</td></tr>
             <tr><td>Payment providers</td><td>Taking payment. At launch: monobank acquiring for cards, Apple Pay and Google Pay; and direct on-chain payments in stablecoins, checked through a blockchain node provider. We may add or replace providers (for example a merchant of record) and will update this list.</td><td>Order reference, plan and amount; for on-chain payments the public wallet address and transaction id. Card details stay with the card provider.</td></tr>
             <tr><td>OpenAI</td><td>Only if enabled: an automatic check of pictures (and a few frames of videos) you upload or link, to refuse adult (18+) and graphically violent content. Otherwise the same check runs on Cloudflare Workers AI</td><td>The picture or the video frames, for the check only; no name, email or account id</td></tr>
@@ -174,6 +177,9 @@
             <tr><td>Posts, drafts, media, videos, thumbnails</td><td>Until you delete them or the account is closed. Posts still waiting for a channel are cancelled when you remove it.</td></tr>
             <tr><td>Connected-account sign-ins</td><td>Until you disconnect, revoke, or remove Vane in the network (then they are wiped)</td></tr>
             <tr><td>API keys, webhooks</td><td>Until you revoke or delete them</td></tr>
+            <tr><td>Drafts and snippets</td><td>Drafts: the last 5, the oldest is removed when a sixth is saved. Snippets: until you delete them. Both go when you delete the account.</td></tr>
+            <tr><td>AI history</td><td>The last 10 answers; the oldest unpinned one is removed when a new one arrives. Pinned answers (up to 4) until you unpin or delete them.</td></tr>
+            <tr><td>Email unsubscribe list</td><td>Your email address, until you subscribe again or ask us to remove it. It stays after the account is deleted so that we respect your choice.</td></tr>
             <tr><td>Sign-in sessions</td><td>Up to 30 days, or until you sign out</td></tr>
             <tr><td>Email codes</td><td>They expire after 10 minutes and are removed soon after</td></tr>
             <tr><td>Sign-in and sign-up attempt records</td><td>90 days</td></tr>
