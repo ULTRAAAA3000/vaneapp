@@ -454,5 +454,11 @@ The text lives in `site/*.html` (the first line of each is a `<!--page {"slug","
 
 ## Landing hero video
 
-The hero plays `public/assets/hero-boomerang-v1.mp4`: the original clip followed by the same shot reversed (the zoom-out, then the zoom-in), so the plain `loop` never cuts. Browsers cannot play video backwards and reversing live by seeking looked choppy, so the reverse is baked into the file. If it fails to load, the second `<source>` falls back to the original clip on CloudFront.
+The hero plays `public/assets/hero-boomerang-v2.mp4` (1080p, about 5 MB) or `hero-boomerang-v2-m.mp4` (960 px, about 1 MB, chosen on phones by a small script), with `hero-poster-v2.jpg` shown instantly; nothing is downloaded when the visitor asked for reduced motion or data saving. It is the original clip followed by the same shot reversed (the zoom-out, then the zoom-in), so the plain `loop` never cuts. Browsers cannot play video backwards and reversing live by seeking looked choppy, so the reverse is baked into the file. If it fails to load, the script falls back to the original clip on CloudFront.
 To change it: `scripts/make-hero-boomerang.sh new.mp4 hero-boomerang-v2.mp4` (needs ffmpeg), commit the file (Cloudflare Pages takes up to 25 MiB per file; raise the crf if it is bigger), and point the `<source>` and the cache rule in `public/_headers` at the new name. A new name matters: the file is cached for a year.
+
+## Speed: static CSS and cached assets
+
+- The dashboard, Studio, admin, checkout and helper pages use the prebuilt `public/assets/app.css` (Tailwind, about 36 KB) instead of the Tailwind script from a CDN; the public site uses `site.css`. After adding new Tailwind classes to any page or script, run `npm run build:css`.
+- Every `/assets/*.js` and `*.css` file is cached for a year (`immutable`); the `?v=` in the HTML is the hash of the file's content. After editing any file in `public/assets` run `npm run build:assets` (or `npm run build:pages`, which does it too). `npm run test:unit` fails when a version is stale.
+- The landing hero video is 5 MB (1 MB on phones) with an instant poster.

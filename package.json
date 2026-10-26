@@ -24,11 +24,12 @@
     "db:migrate:reddit-facebook": "wrangler d1 execute vane-db --remote --file=./migrations/0003-channel-types-reddit-facebook.sql",
     "db:migrate:networks": "wrangler d1 execute vane-db --remote --file=./migrations/0001-channel-types.sql",
     "check:integrations": "node scripts/check-integrations.mjs",
-    "test:unit": "node scripts/webhooks-unit.mjs && node scripts/socials-unit.mjs && node scripts/library-unit.mjs && node scripts/age-unit.mjs && node scripts/moderation-unit.mjs",
-    "build:pages": "node scripts/build-site-pages.mjs",
+    "test:unit": "node scripts/webhooks-unit.mjs && node scripts/socials-unit.mjs && node scripts/library-unit.mjs && node scripts/age-unit.mjs && node scripts/moderation-unit.mjs && node scripts/stamp-assets.mjs --check",
+    "build:pages": "node scripts/build-site-pages.mjs && node scripts/stamp-assets.mjs",
     "db:migrate:integrations": "wrangler d1 execute vane-db --remote --file=./scripts/migrations/002-api-key-integration.sql",
     "test:integrations": "node scripts/integrations-e2e.mjs",
-    "build:css": "tailwindcss -c tailwind.config.cjs -i scripts/site.tailwind.css -o public/assets/site.css --minify"
+    "build:assets": "node scripts/stamp-assets.mjs",
+    "build:css": "tailwindcss -c tailwind.config.cjs -i scripts/site.tailwind.css -o public/assets/site.css --minify && tailwindcss -c tailwind.app.config.cjs -i scripts/site.tailwind.css -o public/assets/app.css --minify"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250101.0",
