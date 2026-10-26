@@ -725,6 +725,16 @@ CREATE TABLE IF NOT EXISTS post_drafts (
   updated_at  INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_post_drafts_user ON post_drafts(user_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS post_snippets (
+  id          TEXT    PRIMARY KEY,
+  user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title       TEXT    NOT NULL,
+  body        TEXT    NOT NULL,
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_post_snippets_user ON post_snippets(user_id, updated_at DESC);
 CREATE TABLE IF NOT EXISTS ai_history (
   id          TEXT    PRIMARY KEY,
   user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,

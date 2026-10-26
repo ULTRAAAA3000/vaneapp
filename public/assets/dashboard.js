@@ -853,6 +853,7 @@
   Vane.composer = {
     text: function () { return textEl.value; },
     set: function (t) { textEl.value = String(t).slice(0, MAX_LEN); textEl.focus(); textEl.dispatchEvent(new Event('input', { bubbles: true })); },
+    insert: function (t) { insertAtCaret(t); },
     state: function () {
       var m = picker.getMedia();
       return { text: textEl.value, channelIds: Array.from(S.selected), media: m ? { url: m.url, kind: m.kind, name: m.name } : null };
