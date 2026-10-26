@@ -15,7 +15,7 @@
    * Vane.home(): where a signed-in user lands.  Vane.loginUrl(): where a signed-out visitor is sent.
    * On the main site that is Vane Post; in local dev (no subdomains) /app and /studio are plain paths, and ?next= carries the choice.
    */
-  var OWN_HOST = /^(post|studio)\.vaneapp\.dev$/i;
+  var OWN_HOST = /^(post|studio|analytics)\.vaneapp\.dev$/i;
   var DEV_PAGES = ['/app', '/studio'];
   Vane.home = function () {
     var h = location.hostname;
@@ -39,7 +39,7 @@
    */
   Vane.productUrl = function (product) {
     if (OWN_HOST.test(location.hostname) || /^(www\.)?vaneapp\.dev$/i.test(location.hostname)) return 'https://' + product + '.vaneapp.dev/';
-    return product === 'studio' ? '/studio' : '/app';
+    return product === 'studio' ? '/studio' : product === 'analytics' ? '/analytics' : '/app';
   };
 
   /**

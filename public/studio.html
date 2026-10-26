@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/assets/vane.css?v=e72b2b78fc" />
-  <link rel="stylesheet" href="/assets/app.css?v=d47b02ecc2" />
+  <link rel="stylesheet" href="/assets/app.css?v=e3578ba197" />
 </head>
 
 <body class="min-h-screen overflow-x-hidden bg-[#070708]">
@@ -52,7 +52,7 @@
     </section>
 
     <!-- hand-off to the other product -->
-    <section class="fade-up mt-6" style="animation-delay:.03s">
+    <section class="fade-up mt-6 grid gap-3 sm:grid-cols-2 sm:gap-4" style="animation-delay:.03s">
       <a href="/app" data-product-link="post" data-handoff class="handoff glass-d rounded-2xl p-5 sm:p-6" style="--ho-glow:rgba(56,189,248,.20)">
         <span class="handoff-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg></span>
         <span class="handoff-body">
@@ -61,6 +61,15 @@
           <span class="handoff-text">Schedule once and every post goes out on its own to Telegram, Bluesky, Mastodon and more, right on time.</span>
         </span>
         <span class="handoff-cta">Open Vane Post <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></span>
+      </a>
+      <a href="/analytics" data-product-link="analytics" class="handoff glass-d rounded-2xl p-5 sm:p-6" style="--ho-glow:rgba(52,211,153,.18)">
+        <span class="handoff-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg></span>
+        <span class="handoff-body">
+          <span class="text-xs font-medium uppercase tracking-widest text-white/40">Vane Analytics · Soon</span>
+          <span class="handoff-title">See what worked</span>
+          <span class="handoff-text">Results of every post and video across your networks, in one place.</span>
+        </span>
+        <span class="handoff-cta">Learn more <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></span>
       </a>
     </section>
 
@@ -377,7 +386,7 @@
     </div>
   </dialog>
 
-  <script src="/assets/vane.js?v=45d70bde3c"></script>
+  <script src="/assets/vane.js?v=74f9ffe509"></script>
   <script src="/assets/apikeys.js?v=019604ae04"></script>
   <script src="/assets/studio.js?v=d5be1b1fa3"></script>
   <script src="/assets/studio-ai.js?v=0659b8c805"></script>
