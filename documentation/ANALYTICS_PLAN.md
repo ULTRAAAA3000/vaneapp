@@ -75,3 +75,10 @@ Vane Analytics показывает результат постов и виде�
 1. Порядок сетей первой волны: подходит ли набор из раздела 2?
 2. Включать ли расширенный бесплатный уровень в Pro за $9.99?
 3. Нужны ли клики по ссылкам в первой версии или отдельным этапом после?
+
+## 10. Dashboard v2 (built)
+
+- **Filters:** network chips (one on by default, any combination, "All"), period (Free 7/30 days, Pro up to 12 months), sort, search (Pro). Only the networks the user switches on are counted: nothing is mixed unless asked.
+- **Tabs:** Overview (stats, reactions per day, best posts), Posts (sort, search, pages, CSV export), Followers (numbers for Free, growth charts for Pro), Compare and Best times (Pro), Free and Pro (comparison table, also shown to signed-out visitors).
+- **API:** `GET /api/analytics/overview` (filters: `days`, `channels`, `sort`, `page`, `q`), `/api/analytics/insights` (Pro: compare + best times in the user's time zone), `/api/analytics/export` (Pro: CSV).
+- **Free vs Pro:** Free = results, filters, daily chart, best posts, followers now and change, 30 days, 10 latest posts. Pro ($4.99, included in Suite) = 12 months, all posts with search and pages, growth charts, compare, best times, CSV, weekly email.
