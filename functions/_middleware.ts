@@ -3,6 +3,7 @@
  *
  *   post.vaneapp.dev     /  → the posting dashboard (public/app.html).  /app → /.  The video API is not served here.
  *   studio.vaneapp.dev   /  → the video dashboard (public/studio.html). /studio → /.  Only the video API, sign-in and keys are served here.
+ *   analytics.vaneapp.dev /  → the Analytics page (public/analytics.html). Only sign-in and the waitlist are served here for now.
  *   vaneapp.dev          the landing page; /app and /studio forward to the product hosts.  The API keeps working (existing integrations).
  *   localhost, *.pages.dev   untouched.
  *
@@ -25,6 +26,8 @@ const VIDEO_API = ['/api/video/', '/api/v1/video/'];
 /** What studio. may call: the video API, sign-in/out, and API keys (the video dashboard creates cvid_ keys). */
 const STUDIO_API = [...VIDEO_API, '/api/auth/', '/api/keys'];
 
+const ANALYTICS_API = ['/api/auth/', '/api/waitlist'];
+
 const startsWithAny = (path: string, prefixes: string[]): boolean => prefixes.some((p) => path === p.replace(/\/$/, '') || path.startsWith(p.endsWith('/') ? p : `${p}/`));
 
 const route: PagesFunction<Env> = async ({ request, env, next }) => {
@@ -42,6 +45,7 @@ const route: PagesFunction<Env> = async ({ request, env, next }) => {
   if (path.startsWith('/api/')) {
     if (site === 'post' && startsWithAny(path, VIDEO_API)) return fail(404, 'Not found');
     if (site === 'studio' && !startsWithAny(path, STUDIO_API)) return fail(404, 'Not found');
+    if (site === 'analytics' && !startsWithAny(path, ANALYTICS_API)) return fail(404, 'Not found');
     return next();
   }
 
@@ -51,11 +55,19 @@ const route: PagesFunction<Env> = async ({ request, env, next }) => {
     if (path === '/') return rewrite('/app');
     if (path === '/app') return Response.redirect(keepQuery(here('/')), 308);
     if (path === '/studio') return Response.redirect(keepQuery(productUrl('studio')), 308);
+    if (path === '/analytics') return Response.redirect(productUrl('analytics'), 308);
   } else if (site === 'studio') {
     if (path === '/') return rewrite('/studio');
     if (path === '/studio') return Response.redirect(keepQuery(here('/')), 308);
     if (path === '/app') return Response.redirect(keepQuery(productUrl('post')), 308);
+    if (path === '/analytics') return Response.redirect(productUrl('analytics'), 308);
+  } else if (site === 'analytics') {
+    if (path === '/') return rewrite('/analytics');
+    if (path === '/analytics') return Response.redirect(here('/'), 308);
+    if (path === '/app') return Response.redirect(keepQuery(productUrl('post')), 308);
+    if (path === '/studio') return Response.redirect(keepQuery(productUrl('studio')), 308);
   } else {
+    if (path === '/analytics') return Response.redirect(productUrl('analytics'), 308);
     if (path === '/app') return Response.redirect(keepQuery(productUrl('post')), 308);
     if (path === '/studio') return Response.redirect(keepQuery(productUrl('studio')), 308);
   }

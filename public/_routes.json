@@ -1,5 +1,5 @@
 {
   "version": 1,
-  "include": ["/", "/app", "/studio", "/admin", "/admin.html", "/admin-hash", "/admin-hash.html", "/api/*"],
+  "include": ["/", "/app", "/studio", "/analytics", "/admin", "/admin.html", "/admin-hash", "/admin-hash.html", "/api/*"],
   "exclude": []
 }

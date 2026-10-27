@@ -91,7 +91,7 @@ export async function adminHidden(env: Env, request: Request, path: string): Pro
     : fail(404, 'Not found'));
   const url = new URL(request.url);
   const site = siteOf(url.hostname);
-  if (site === 'post' || site === 'studio') return hide();
+  if (site === 'post' || site === 'studio' || site === 'analytics') return hide();
   if (!adminIpAllowed(env, request)) return hide();
   const client = clientOf(request);
   if (page && (!client.ua || SCANNER.test(client.ua))) return hide();
