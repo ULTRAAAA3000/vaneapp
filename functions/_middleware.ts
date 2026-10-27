@@ -26,7 +26,7 @@ const VIDEO_API = ['/api/video/', '/api/v1/video/'];
 /** What studio. may call: the video API, sign-in/out, and API keys (the video dashboard creates cvid_ keys). */
 const STUDIO_API = [...VIDEO_API, '/api/auth/', '/api/keys'];
 
-const ANALYTICS_API = ['/api/auth/', '/api/waitlist'];
+const ANALYTICS_API = ['/api/auth/', '/api/waitlist', '/api/analytics/'];
 
 const startsWithAny = (path: string, prefixes: string[]): boolean => prefixes.some((p) => path === p.replace(/\/$/, '') || path.startsWith(p.endsWith('/') ? p : `${p}/`));
 
