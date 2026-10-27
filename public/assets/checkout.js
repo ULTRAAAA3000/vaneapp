@@ -163,9 +163,9 @@
     stop();
     var id = S.order.planId;
     $('doneText').textContent = S.order.planName + ' is now active on your account.';
-    var studio = id === 'video';
-    $('doneLink').setAttribute('href', studio ? Vane.productUrl('studio') : Vane.productUrl('post'));
-    $('doneLink').textContent = studio ? 'Open Vane Studio' : 'Open Vane Post';
+    var studio = id === 'video', stats = id === 'analytics';
+    $('doneLink').setAttribute('href', Vane.productUrl(stats ? 'analytics' : studio ? 'studio' : 'post'));
+    $('doneLink').textContent = stats ? 'Open Vane Analytics' : studio ? 'Open Vane Studio' : 'Open Vane Post';
     show('stepDone');
     history.replaceState(null, '', '/checkout?order=' + S.order.id);
   }
