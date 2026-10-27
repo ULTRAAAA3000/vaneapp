@@ -304,6 +304,18 @@
           field('gDays', 'For (days)', '', { ph: 'empty = no end date', type: 'number', attrs: 'min="1" max="3650"' }) + field('gNote', 'Note (kept in Activity)', '', { ph: 'e.g. beta tester' }) +
           '<div id="gAddonRow" class="col-span-2 flex flex-wrap gap-x-5 gap-y-2">' + check('gAddon', 'Add the API add-on (Pro only)', false) + check('gOver', 'Bill posts over the quota instead of stopping', false) + '</div>' +
           '<div class="col-span-2 flex items-center justify-between gap-3"><p class="text-xs text-white/40">Same as <code>npm run plan:set</code>. A granted plan is free and never counted as revenue; it replaces the current plan.</p><button class="btn btn-white btn-sm" type="submit">Give plan</button></div></form>' +
+        '<h3 class="mt-7 text-sm font-semibold">Products next to the plan</h3>' +
+        '<div id="accessBox" class="glass-d mt-3 space-y-3 rounded-2xl p-4 text-sm" data-id="' + esc(u.id) + '">' +
+          [['studio', 'Vane Studio'], ['analytics', 'Vane Analytics Pro']].map(function (k) {
+            var a2 = d.access && d.access[k[0]] || {};
+            return '<div class="flex flex-wrap items-center justify-between gap-2"><div><span class="font-medium">' + k[1] + '</span> ' + (a2.active ? tag('active', 'ok') : tag('off')) +
+              '<div class="text-xs text-white/45">' + (a2.active ? (a2.endsAt ? 'until ' + esc(when(a2.endsAt)) : 'no end date') + (a2.provider === 'manual' ? ' · given by hand' : a2.provider ? ' · paid · ' + esc(a2.provider) : '') : 'Not active.') + '</div></div>' +
+              '<div class="flex gap-2">' + (a2.active ? '<button class="btn btn-danger btn-sm" type="button" data-product="' + k[0] + '" data-on="0">Switch off</button>' : '') + '<button class="btn btn-white btn-sm" type="button" data-product="' + k[0] + '" data-on="1">' + (a2.active ? 'Renew' : 'Switch on') + '</button></div></div>';
+          }).join('') +
+          '<div class="flex flex-wrap items-center justify-between gap-2"><div><span class="font-medium">API add-on</span> ' + (d.plan.apiAddon ? tag('active', 'ok') : tag('off')) + '<div class="text-xs text-white/45">Needs an active Pro plan.</div></div>' +
+            '<button class="btn ' + (d.plan.apiAddon ? 'btn-danger' : 'btn-white') + ' btn-sm" type="button" data-api="' + (d.plan.apiAddon ? '0' : '1') + '">' + (d.plan.apiAddon ? 'Switch off' : 'Switch on') + '</button></div>' +
+          '<div class="grid grid-cols-2 gap-3 border-t border-white/[0.08] pt-3">' + field('xDays', 'For (days)', '', { ph: 'empty = no end date', type: 'number', attrs: 'min="1" max="3650"' }) +
+          '<p class="self-end text-xs text-white/40">Studio and Analytics are given free and never counted as revenue. Combine them with any plan, the API add-on and the AI Pass below.</p></div></div>' +
         '<h3 class="mt-7 text-sm font-semibold">AI Pass</h3>' +
         '<form id="passForm" class="mt-3 grid grid-cols-2 gap-3" data-id="' + esc(u.id) + '"><p class="col-span-2 text-sm">' + (d.aiPass && d.aiPass.active ? tag('active', 'ok') + ' ' + num(d.usage.ai.pass.used) + ' of ' + num(d.usage.ai.pass.credits) + ' credits used this month · ' + (d.aiPass.endsAt ? 'until ' + esc(when(d.aiPass.endsAt)) : 'no end date') : '<span class="text-white/55">Not active.</span>') + '</p>' +
           field('pDays', 'For (days)', '', { ph: 'empty = no end date', type: 'number', attrs: 'min="1" max="3650"' }) +
@@ -323,6 +335,14 @@
           : '<button class="btn btn-danger" type="button" data-act="disable" data-id="' + esc(u.id) + '" data-email="' + esc(u.email) + '">Disable account…</button><p class="mt-2 text-xs text-white/40">Signs them out everywhere and refuses their sign-in. Their data is kept.</p>') + '</div>');
       var syncAddon = function () { $('gAddon').closest('label').style.display = $('gPlan').value === 'pro' ? '' : 'none'; };
       $('gPlan').addEventListener('change', syncAddon); syncAddon();
+      $('accessBox').addEventListener('click', function (e) {
+        var b = e.target.closest('button'); if (!b) return;
+        var req = b.dataset.product
+          ? { action: 'access', userId: id, product: b.dataset.product, enabled: b.dataset.on === '1', days: $('xDays').value.trim() ? Number($('xDays').value.trim()) : null }
+          : b.dataset.api ? { action: 'api_addon', userId: id, enabled: b.dataset.api === '1' } : null;
+        if (!req) return;
+        call('POST', '/api/admin/users', req).then(function (g) { if (g.ok) { Vane.toast('ok', 'Done.'); openUser(id); } else Vane.toast('err', g.error); });
+      });
       function pass(enabled) {
         var days = $('pDays').value.trim();
         call('POST', '/api/admin/users', { action: 'ai_pass', userId: id, enabled: enabled, days: days ? Number(days) : null }).then(function (g) {
