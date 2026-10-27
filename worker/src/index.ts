@@ -8,6 +8,7 @@ import { purgeOldApiUsage } from '../../functions/api/lib/integrations';
 import { runDueVideoPublications } from '../../functions/api/lib/videopublish';
 import { deliverDueWebhooks, purgeOldWebhookDeliveries } from '../../functions/api/lib/webhooks';
 import { sweepOrders } from '../../functions/api/lib/billingcheck';
+import { sendWeeklyReports } from '../../functions/api/lib/analyticsreport';
 import { collectFollowers, collectPostMetrics, purgeOldMetrics } from '../../functions/api/lib/metrics';
 import { runDuePosts } from './dispatch';
 import { isRenewalMinute, renewExpiringTokens } from './tokens';
@@ -41,6 +42,7 @@ export default {
           if (Math.floor(t / 60) % 5 === 0) {
             await collectPostMetrics(env, t);
             await collectFollowers(env, t);
+            await sendWeeklyReports(env, t);
           }
           if (isRenewalMinute(t)) await purgeOldMetrics(env, t);
         })

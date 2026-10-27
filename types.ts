@@ -316,6 +316,9 @@ export interface CronEnv {
   LINKEDIN_VERSION?: string;       // the same optional value as on Pages
   MONOBANK_TOKEN?: string;         // the same secret as on Pages: lets the cron ask Monobank about card orders whose webhook never came
   MONOBANK_CCY?: string;
+  RESEND_API_KEY?: string;         // the same secret as on Pages: lets the cron send the weekly Analytics report
+  EMAIL_FROM?: string;             // the same variable as on Pages
+  JWT_SECRET?: string;             // the same secret as on Pages: signs the unsubscribe link in that email
   CRYPTO_WALLET?: string;          // the same as on Pages: lets the cron find crypto payments even when the buyer closed the checkout page
   SOLANA_RPC_URL?: string;        // the same optional value as on Pages
   REDDIT_CLIENT_ID?: string;      // the same as on Pages: renews the Reddit access (an hour) before each post
