@@ -54,7 +54,10 @@
     box.textContent = '';
     if (!d.pro) {
       box.appendChild(el('p', 'text-sm font-medium', 'Followers growth is part of Analytics Pro'));
-      box.appendChild(el('p', 'mt-1 text-sm leading-relaxed text-white/55', 'See how every network grows day by day, with 12 months of history, best times to publish and a weekly report. $4.99 per month, included in Vane Suite. Coming soon.'));
+      box.appendChild(el('p', 'mt-1 text-sm leading-relaxed text-white/55', 'See how every network grows day by day, with 12 months of history, best times to publish and a weekly report. $4.99 per month, included in Vane Suite.'));
+      var up = el('a', 'btn btn-white btn-sm mt-3 inline-flex', 'Get Analytics Pro');
+      up.href = (/^analytics\.vaneapp\.dev$/i.test(location.hostname) ? 'https://vaneapp.dev' : '') + '/checkout?plan=analytics';
+      box.appendChild(up);
       return;
     }
     var byCh = {};

@@ -763,6 +763,10 @@ INSERT OR IGNORE INTO plans (id, kind, name, tagline, price_cents, features, lim
   ('analytics', 'addon', 'Vane Analytics Pro', 'Followers growth, full history, best times, network comparison and weekly reports.', 499,
    '["12 months of history","Followers growth by network","Best time and day to publish","Compare your networks","Weekly report by email"]',
    '{}', 'Get Analytics Pro', 0, 0, 65);
+CREATE TABLE IF NOT EXISTS analytics_reports (
+  user_id  TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  week     TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS ai_history (
   id          TEXT    PRIMARY KEY,
   user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
