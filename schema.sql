@@ -735,6 +735,34 @@ CREATE TABLE IF NOT EXISTS post_snippets (
   updated_at  INTEGER NOT NULL DEFAULT (unixepoch())
 );
 CREATE INDEX IF NOT EXISTS idx_post_snippets_user ON post_snippets(user_id, updated_at DESC);
+CREATE TABLE IF NOT EXISTS post_metrics (
+  post_id   TEXT    NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+  stage     INTEGER NOT NULL CHECK (stage BETWEEN 1 AND 4),
+  taken_at  INTEGER NOT NULL,
+  views     INTEGER,
+  likes     INTEGER,
+  replies   INTEGER,
+  reposts   INTEGER,
+  PRIMARY KEY (post_id, stage)
+);
+CREATE TABLE IF NOT EXISTS channel_followers (
+  channel_id  TEXT    NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+  day         TEXT    NOT NULL,
+  followers   INTEGER NOT NULL,
+  PRIMARY KEY (channel_id, day)
+);
+CREATE TABLE IF NOT EXISTS analytics_subscriptions (
+  user_id             TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  status              TEXT    NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'past_due', 'canceled')),
+  current_period_end  INTEGER,
+  provider            TEXT    NOT NULL DEFAULT 'manual',
+  created_at          INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at          INTEGER NOT NULL DEFAULT (unixepoch())
+);
+INSERT OR IGNORE INTO plans (id, kind, name, tagline, price_cents, features, limits, cta_label, is_public, is_active, sort) VALUES
+  ('analytics', 'addon', 'Vane Analytics Pro', 'Followers growth, full history, best times, network comparison and weekly reports.', 499,
+   '["12 months of history","Followers growth by network","Best time and day to publish","Compare your networks","Weekly report by email"]',
+   '{}', 'Get Analytics Pro', 0, 0, 65);
 CREATE TABLE IF NOT EXISTS ai_history (
   id          TEXT    PRIMARY KEY,
   user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
