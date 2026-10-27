@@ -122,5 +122,6 @@
   }
 
   $('range') && $('range').addEventListener('change', function () { load(Number(this.value)); });
-  load().catch(function () {});
+  function showGate() { $('gate').classList.remove('hidden'); $('gate').classList.add('flex'); }
+  load().then(function (shown) { if (!shown) showGate(); }).catch(showGate);
 })();
