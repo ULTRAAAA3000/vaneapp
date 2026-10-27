@@ -175,6 +175,30 @@
       gateError(r.error);
     });
   });
+  (function () {
+    var nav = $('nav'), box = $('navSlider'), thumb = $('navThumb');
+    function sync() {
+      var over = nav.scrollWidth - nav.clientWidth;
+      box.classList.toggle('on', over > 1);
+      if (over <= 1) return;
+      var w = Math.max(32, box.clientWidth * nav.clientWidth / nav.scrollWidth);
+      thumb.style.width = w + 'px';
+      thumb.style.left = (nav.scrollLeft / over) * (box.clientWidth - w) + 'px';
+    }
+    function moveTo(x) {
+      var r = box.getBoundingClientRect(), w = thumb.offsetWidth, over = nav.scrollWidth - nav.clientWidth;
+      nav.scrollLeft = Math.min(1, Math.max(0, (x - r.left - w / 2) / Math.max(r.width - w, 1))) * over;
+    }
+    nav.addEventListener('scroll', sync);
+    window.addEventListener('resize', sync);
+    new MutationObserver(sync).observe(nav, { childList: true });
+    box.addEventListener('pointerdown', function (e) { box.setPointerCapture(e.pointerId); thumb.classList.add('drag'); moveTo(e.clientX); });
+    box.addEventListener('pointermove', function (e) { if (thumb.classList.contains('drag')) moveTo(e.clientX); });
+    box.addEventListener('pointerup', function () { thumb.classList.remove('drag'); });
+    box.addEventListener('pointercancel', function () { thumb.classList.remove('drag'); });
+    nav.addEventListener('wheel', function (e) { if (nav.scrollWidth > nav.clientWidth && Math.abs(e.deltaY) > Math.abs(e.deltaX)) { nav.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
+    sync();
+  })();
   $('logout').addEventListener('click', function () { call('POST', '/api/admin/logout').then(function () { toGate('Signed out.'); }); });
 
   // ───────────────────────── navigation ─────────────────────────
