@@ -74,6 +74,9 @@ export interface Env {
   /** Vane Studio → Instagram Reels (Meta app with Instagram API / Instagram Login): the connect button is off until both are set */
   INSTAGRAM_APP_ID?: string;        // plain var
   INSTAGRAM_APP_SECRET?: string;    // secret
+  /** Vane Studio → TikTok (Login Kit + Content Posting API): the connect button is off until both are set */
+  TIKTOK_CLIENT_KEY?: string;       // plain var
+  TIKTOK_CLIENT_SECRET?: string;    // secret
   YOUTUBE_CLIENT_ID?: string;       // plain var
   YOUTUBE_CLIENT_SECRET?: string;   // secret
   /** Threads (Meta app with the Threads API): the connect button is off until both are set */
@@ -329,6 +332,8 @@ export interface CronEnv {
   REDDIT_CLIENT_SECRET?: string;  // the same secret as on Pages
   YOUTUBE_CLIENT_ID?: string;     // the same as on Pages: renews the YouTube access before each upload
   YOUTUBE_CLIENT_SECRET?: string; // the same secret as on Pages
+  TIKTOK_CLIENT_KEY?: string;     // the same as on Pages: renews the TikTok access (a day) before each post
+  TIKTOK_CLIENT_SECRET?: string;  // the same secret as on Pages
 }
 
 // ───────────────────────── Quick Connect (stage 2 of the upgrade) ─────────────────────────

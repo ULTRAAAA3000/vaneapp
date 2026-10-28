@@ -20,6 +20,7 @@ import { networkOff } from './networks';
 import { bump, retryAfter } from './throttle';
 import { publisherFor, type PublishEnv, type PublishJob } from './videopublishers';
 import { YT_CATEGORIES, type YoutubeOptions } from './youtube';
+import { isTiktokPrivacy, type TiktokOptions } from './tiktok';
 import { loadVideoSubscription, requireVideoAccess } from './videoplans';
 import { getVideoRow, parseVideoMeta, TITLE_MAX } from './videos';
 import type { VideoPlatform } from './videochannels';
@@ -232,6 +233,20 @@ export async function publishVideo(env: Env, userId: string, videoId: string, bo
     instagram = { shareToFeed: i?.shareToFeed !== false };
   }
 
+  // TikTok wants the person's own answers (who sees it, interaction switches, commercial content, the terms); none of them has a default.
+  let tiktok: TiktokOptions | null = null;
+  if (channels.some((c) => c.platform === 'tiktok')) {
+    const t = isRecord(body.tiktok) ? body.tiktok : null;
+    if (!t || !isTiktokPrivacy(t.privacyLevel)) return failCode(400, 'tiktok_privacy_required', 'Choose who can see the video on TikTok.');
+    if (t.consent !== true) return failCode(400, 'tiktok_consent_required', "Confirm TikTok's terms to publish.");
+    const commercial = t.commercial === true;
+    const brandOrganic = commercial && t.brandOrganic === true;
+    const brandContent = commercial && t.brandContent === true;
+    if (commercial && !brandOrganic && !brandContent) return failCode(400, 'tiktok_commercial_choice', 'Say whether the video promotes your own brand, a third party, or both.');
+    if (brandContent && t.privacyLevel === 'SELF_ONLY') return failCode(400, 'tiktok_branded_private', 'Branded content cannot be "Only me" on TikTok.');
+    tiktok = { privacy: t.privacyLevel, disableComment: t.allowComment !== true, disableDuet: t.allowDuet !== true, disableStitch: t.allowStitch !== true, brandOrganic, brandContent };
+  }
+
   // The same video twice to the same channel while the first is still going: almost always a double click.
   const { results: busy } = await env.DB
     .prepare(`SELECT channel_id FROM video_publications WHERE video_id = ?1 AND status IN ('queued', 'publishing') AND channel_id IN (${channelIds.map((_, i) => `?${i + 2}`).join(', ')})`)
@@ -251,14 +266,14 @@ export async function publishVideo(env: Env, userId: string, videoId: string, bo
      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'queued', ?10, ?10, ?10)`,
   );
   await env.DB.batch(channels.map((c, i) => insert.bind(ids[i], userId, videoId, c.id, c.platform, c.name, title, description, privacy, now)));
-  if (youtube || instagram) {
+  if (youtube || instagram || tiktok) {
     const opt = env.DB.prepare('INSERT INTO video_publication_options (publication_id, options) VALUES (?1, ?2)');
     try {
-      await env.DB.batch(channels.flatMap((c, i) => (c.platform === 'youtube' && youtube ? [opt.bind(ids[i], JSON.stringify({ youtube }))] : c.platform === 'instagram' && instagram ? [opt.bind(ids[i], JSON.stringify({ instagram }))] : [])));
+      await env.DB.batch(channels.flatMap((c, i) => (c.platform === 'youtube' && youtube ? [opt.bind(ids[i], JSON.stringify({ youtube }))] : c.platform === 'instagram' && instagram ? [opt.bind(ids[i], JSON.stringify({ instagram }))] : c.platform === 'tiktok' && tiktok ? [opt.bind(ids[i], JSON.stringify({ tiktok }))] : [])));
     } catch {
       // The table is missing (schema.sql was not run again): do not queue a YouTube upload without the "made for kids" answer.
       await env.DB.batch(ids.map((id) => env.DB.prepare('DELETE FROM video_publications WHERE id = ?1').bind(id)));
-      return failCode(503, 'schema_outdated', 'Publishing to YouTube needs a database update (run schema.sql once).');
+      return failCode(503, 'schema_outdated', 'Publishing to YouTube or TikTok needs a database update (run schema.sql once).');
     }
   }
   await bump(env, rl, 3600);
