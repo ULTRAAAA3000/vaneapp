@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/site.css?v=8ec7e16663" />
+  <link rel="stylesheet" href="/assets/site.css?v=af3eecd357" />
   <link rel="stylesheet" href="/assets/vane.css?v=e72b2b78fc" />
   <style>
     html { scroll-behavior: smooth; }
@@ -148,7 +148,7 @@
         <p>When you use an AI feature (hashtags, clean-up, re-formatting, post and idea generation, tone, hooks, video scripts and metadata), the text you submit and your instruction are sent to the AI model running on our infrastructure provider, Cloudflare Workers AI, to produce the answer. The model is chosen by the language of your text: Cloudflare Workers AI runs open models from providers such as Meta and Google on its own infrastructure. We keep a count of the credits you use, and the last 10 post and week-plan answers with the idea behind them so that you can find them again (see section 3); we do not keep your prompts for any other purpose. We do not use your content to train or fine-tune models, and we do not send it to AI providers other than the ones listed in section 8. AI output can be wrong or unsuitable: you review it before anything is published.</p>
 
         <h2 id="integrations">7. API, webhooks and connectors</h2>
-        <p>If you connect Make, Zapier, a custom GPT, Claude (MCP), the WordPress plugin or your own scripts with a Vane API key, those services send requests to Vane on your behalf and receive what the API returns (your channel list, post status, the posts they create). Their handling of data is governed by their own policies; revoke the key in Vane to cut the connection. If you add a webhook, Vane sends the events you chose (for example that a post was published or failed) to the address you gave, signed so you can verify them; you are responsible for that endpoint and for what it does with the data.</p>
+        <p>If you connect Make, Zapier, a custom GPT, Claude (MCP), the WordPress plugin or your own scripts with a Vane API key, those services send requests to Vane on your behalf and receive what the API returns (your channel list, post status, the posts they create). Their handling of data is governed by their own policies; revoke the key in Vane to cut the connection. The Claude connector signs you in at vaneapp.dev/connect: Claude receives an access token (stored by Vane only as a hash), can list your channels and schedule posts for you, and never sees your passwords, billing details or channel credentials; the API key behind it is kept encrypted and ends the moment you revoke it. If you add a webhook, Vane sends the events you chose (for example that a post was published or failed) to the address you gave, signed so you can verify them; you are responsible for that endpoint and for what it does with the data.</p>
 
         <h2 id="share">8. Who we share it with</h2>
         <p>We share personal data only with the providers below, who process it for us, with the networks you told us to publish to, and as described at the end of this section.</p>

@@ -5,6 +5,7 @@
 import type { CronEnv } from '../../types';
 import { purgeExpiredIdempotencyKeys } from '../../functions/api/lib/idempotency';
 import { purgeOldApiUsage } from '../../functions/api/lib/integrations';
+import { purgeOauth } from '../../functions/api/lib/oauth';
 import { runDueVideoPublications } from '../../functions/api/lib/videopublish';
 import { deliverDueWebhooks, purgeOldWebhookDeliveries } from '../../functions/api/lib/webhooks';
 import { sweepOrders } from '../../functions/api/lib/billingcheck';
@@ -33,6 +34,7 @@ export default {
         .then(() => purgeOldWebhookDeliveries(env, Math.floor(Date.now() / 1000)))
         // API usage counters (the admin's Integrations page) are kept for 120 days.
         .then(() => purgeOldApiUsage(env))
+        .then(() => purgeOauth(env))
         .catch((err) => console.error('vane-cron: webhooks failed:', err instanceof Error ? err.message : 'unknown'))
         // Payments: expire unpaid orders and find crypto payments whose buyer left the checkout page.
         .then(() => sweepOrders(env as never, Math.floor(Date.now() / 1000)))
