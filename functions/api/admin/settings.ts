@@ -14,7 +14,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   return json({
     ok: true,
     settings: await getSettings(env),
-    integrations: { turnstile: turnstileEnabled(env), searchConsole: Boolean(readServiceAccount(env)), vpnLookup: Boolean(env.PROXYCHECK_KEY), adminIpAllowList: Boolean(env.ADMIN_ALLOW_IPS) },
+    integrations: { turnstile: turnstileEnabled(env), searchConsole: Boolean(readServiceAccount(env)), vpnLookup: Boolean(env.PROXYCHECK_KEY), adminIpAllowList: Boolean(env.ADMIN_ALLOW_IPS), analyticsBot: Boolean(env.ANALYTICS_BOT_TOKEN && env.ANALYTICS_BOT_SECRET) },
   });
 };
 

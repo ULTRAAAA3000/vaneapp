@@ -34,6 +34,9 @@ export interface Env {
   CRYPTO_WALLET?: string;           // plain var: the Solana address that receives USDT / USDC (crypto checkout is off without it)
   SOLANA_RPC_URL?: string;          // optional: a Solana RPC address (Helius, QuickNode); the public one is used when empty
   SYSTEM_BOT_TOKEN?: string;        // token of the shared Vane bot used by Quick Connect
+  ANALYTICS_BOT_TOKEN?: string;     // token of the Vane Analytics bot (BotFather); without it the bot tab says "coming soon"
+  ANALYTICS_BOT_SECRET?: string;    // proves webhook calls for that bot really come from Telegram
+  ANALYTICS_BOT_USERNAME?: string;  // its username without @ (default: VaneAnalyticsBot)
   TELEGRAM_WEBHOOK_SECRET?: string; // proves webhook calls really come from Telegram
 
   ADMIN_PASSWORD_HASH?: string;     // /admin password, PBKDF2 hash from `npm run admin:hash` (admin is OFF without it)
@@ -310,6 +313,7 @@ export interface CronEnv {
   VIDEO_PUBLISH_MOCK?: string; // local dev only, see Env
   ENCRYPTION_KEY?: string;   // MUST be the same value as on the Pages project
   SYSTEM_BOT_TOKEN?: string; // MUST be the same as on Pages: needed to publish to Quick Connect channels
+  ANALYTICS_BOT_TOKEN?: string; // the same secret as on Pages: lets the cron send Analytics bot alerts
   APP_URL?: string;          // public origin, used to turn stored R2 keys into URLs
   LINKEDIN_CLIENT_ID?: string;     // only to renew a LinkedIn sign-in that came with a refresh token
   LINKEDIN_CLIENT_SECRET?: string;

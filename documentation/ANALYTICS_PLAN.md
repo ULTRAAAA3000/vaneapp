@@ -82,3 +82,11 @@ Vane Analytics показывает результат постов и виде�
 - **Tabs:** Overview (stats, reactions per day, best posts), Posts (sort, search, pages, CSV export), Followers (numbers for Free, growth charts for Pro), Compare and Best times (Pro), Free and Pro (comparison table, also shown to signed-out visitors).
 - **API:** `GET /api/analytics/overview` (filters: `days`, `channels`, `sort`, `page`, `q`), `/api/analytics/insights` (Pro: compare + best times in the user's time zone), `/api/analytics/export` (Pro: CSV).
 - **Free vs Pro:** Free = results, filters, daily chart, best posts, followers now and change, 30 days, 10 latest posts. Pro ($4.99, included in Suite) = 12 months, all posts with search and pages, growth charts, compare, best times, CSV, weekly email.
+
+## 11. Telegram bot (built)
+
+- **What:** the Vane Analytics bot (its own bot, separate from the Quick Connect bot). The user connects it from analytics.vaneapp.dev → Telegram bot (one-time link, 15 minutes) and chats with it in private.
+- **Commands:** `/stats [7|30]`, `/top` (best post per network), `/followers`, `/digest`, `/settings` (inline toggles), `/language` (English default, Русский, Українська, Deutsch), `/unlink`.
+- **Alerts:** Free: post results after 24 hours, follower milestones. Pro: daily follower changes, hot post (threshold chosen on the site), daily or weekly digest (about 9:00 in the user's time zone, weekly on Monday).
+- **Setup (once):** create the bot in @BotFather; on the Pages project add `ANALYTICS_BOT_TOKEN`, `ANALYTICS_BOT_SECRET` (any long random string) and `ANALYTICS_BOT_USERNAME`; add `ANALYTICS_BOT_TOKEN` to the cron worker; deploy; run the whole `schema.sql`; then in /admin → Settings press "Connect webhook" under "Analytics Telegram bot".
+- **Code:** `functions/api/lib/analyticsbot.ts` (commands, settings, alerts), `botlang.ts` (the four languages), `functions/api/telegram/analytics.ts` (webhook), `functions/api/analytics/bot.ts` (site settings API), `functions/api/admin/analytics-bot.ts` (webhook setup).

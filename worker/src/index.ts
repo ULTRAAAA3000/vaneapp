@@ -8,6 +8,7 @@ import { purgeOldApiUsage } from '../../functions/api/lib/integrations';
 import { runDueVideoPublications } from '../../functions/api/lib/videopublish';
 import { deliverDueWebhooks, purgeOldWebhookDeliveries } from '../../functions/api/lib/webhooks';
 import { sweepOrders } from '../../functions/api/lib/billingcheck';
+import { runBotAlerts } from '../../functions/api/lib/analyticsbot';
 import { sendWeeklyReports } from '../../functions/api/lib/analyticsreport';
 import { collectFollowers, collectPostMetrics, purgeOldMetrics } from '../../functions/api/lib/metrics';
 import { runDuePosts } from './dispatch';
@@ -43,6 +44,7 @@ export default {
             await collectPostMetrics(env, t);
             await collectFollowers(env, t);
             await sendWeeklyReports(env, t);
+            await runBotAlerts(env, t);
           }
           if (isRenewalMinute(t)) await purgeOldMetrics(env, t);
         })

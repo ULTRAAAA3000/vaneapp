@@ -767,6 +767,31 @@ CREATE TABLE IF NOT EXISTS analytics_reports (
   user_id  TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   week     TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS analytics_bot (
+  user_id        TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  chat_id        TEXT    NOT NULL UNIQUE,
+  lang           TEXT    NOT NULL DEFAULT 'en' CHECK (lang IN ('en', 'ru', 'uk', 'de')),
+  a_results      INTEGER NOT NULL DEFAULT 1 CHECK (a_results IN (0, 1)),
+  a_milestones   INTEGER NOT NULL DEFAULT 1 CHECK (a_milestones IN (0, 1)),
+  a_followers    INTEGER NOT NULL DEFAULT 1 CHECK (a_followers IN (0, 1)),
+  a_hot          INTEGER NOT NULL DEFAULT 1 CHECK (a_hot IN (0, 1)),
+  hot_threshold  INTEGER NOT NULL DEFAULT 20,
+  digest         TEXT    NOT NULL DEFAULT 'off' CHECK (digest IN ('off', 'daily', 'weekly')),
+  metrics_wm     INTEGER NOT NULL DEFAULT 0,
+  followers_day  TEXT,
+  digest_day     TEXT,
+  created_at     INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at     INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE TABLE IF NOT EXISTS analytics_bot_links (
+  code        TEXT    PRIMARY KEY,
+  user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_abl_user ON analytics_bot_links(user_id);
+CREATE TABLE IF NOT EXISTS analytics_bot_hot (
+  post_id  TEXT PRIMARY KEY REFERENCES posts(id) ON DELETE CASCADE
+);
 CREATE TABLE IF NOT EXISTS ai_history (
   id          TEXT    PRIMARY KEY,
   user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
