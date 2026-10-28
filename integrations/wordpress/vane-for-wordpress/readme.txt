@@ -1,35 +1,81 @@
 === Vane for WordPress ===
 Contributors: vane
-Tags: social media, cross-post, telegram, bluesky, mastodon
+Tags: social media, schedule, cross-post, telegram, bluesky
 Requires at least: 6.0
-Tested up to: 6.6
+Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 2.0.0
 License: GPLv2 or later
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Cross-post your articles to Telegram, Bluesky, Mastodon and more through Vane.
+A small Vane dashboard inside WordPress: write and schedule social posts, and cross-post every new article to Telegram, Bluesky, Mastodon and more.
 
 == Description ==
 
-Pick channels in the editor sidebar; when you publish, the title, an excerpt, the link and the featured image go out through your Vane account. You need a free Vane account and an API key (vaneapp.dev).
+Vane for WordPress puts the posting part of [Vane](https://vaneapp.dev) in your admin menu.
 
-* Sidebar block "Vane Cross-Post" in the block editor: toggle, channels, editable text with per-network character counters
-* Automatic text from the title, excerpt and link, kept inside the smallest limit of the chosen networks
-* Works with scheduled posts and the classic editor
-* An article is sent once; updating it later never posts again. "Send now" retries a failed one.
-* The API key stays on the server and is never shown to the browser
+**Write and post**
+
+* Type a post, tick channels, see each network's character limit as you type
+* Add an image from the Media Library, or insert a link to one of your latest articles
+* Post in about a minute, or schedule a time
+* See what is scheduled (and cancel it) and what was sent, with links and failure reasons
+* Your plan and the posts you have left are always visible
+
+**Cross-post articles**
+
+* A "Vane Cross-Post" panel in the editor sidebar: channels and editable text
+* Sent once, when the article first goes live; editing later never posts again
+* Works with scheduled articles and the classic editor
+
+You need a free Vane account with your channels connected, and an API key (a test key tries everything and posts nothing). The plugin only needs the key: library, analytics and the rest of Vane stay in the Vane app.
+
+Only Editors and Administrators can post; only Administrators can connect or change the key. The key is stored on your server and is never sent to the browser.
 
 == Installation ==
 
-1. Plugins → Add New → Upload Plugin → choose vane-for-wordpress.zip → Activate.
-2. Settings → Vane: paste your API key and save.
-3. Edit an article, open the Vane Cross-Post panel in the sidebar, choose channels, publish.
+1. Plugins → Add New → search "Vane for WordPress" (or Upload Plugin with the zip from vaneapp.dev/wordpress) → Install → Activate.
+2. In Vane (post.vaneapp.dev) connect your channels and create a key under API keys. Start with a cpost_test_ key.
+3. In WordPress open the new Vane menu item, paste the key and press Connect.
+4. Write a post on the Write tab, or edit an article and use the Vane Cross-Post panel in the sidebar.
 
-== External service ==
+== Frequently Asked Questions ==
 
-This plugin sends the title, excerpt, link and featured image URL of articles you publish, and your API key, to the Vane API (https://vaneapp.dev/api/v1) so Vane can post them to your connected networks. Nothing is sent until you add a key and publish an article.
+= Does it cost anything? =
+
+The plugin is free. Posting for real with a live key needs a Vane plan with API access; test keys are free.
+
+= How do I stop cross-posting articles? =
+
+Vane → Settings → untick "Cross-post new articles". You can also switch it off per article in the editor sidebar.
+
+= Who can use the dashboard? =
+
+Editors and Administrators. Developers can change this with the `vane_capability` filter (default `edit_others_posts`).
+
+= How do I remove it? =
+
+Press Disconnect under Vane → Settings, or deactivate and delete the plugin: its settings are removed. Revoke the key in Vane to cut the access completely.
+
+== External services ==
+
+This plugin connects to the Vane API (https://vaneapp.dev/api/v1) so Vane can publish to your connected networks. It is the whole purpose of the plugin.
+
+What is sent, and when: your Vane API key with every request; when you press Post or Schedule, the text, chosen channels, time and image address you entered; when an article is published with cross-posting on, its title, excerpt, link and featured image address; when you open the dashboard, requests for your channel list, plan and posts. Nothing is sent before you add a key.
+
+Service provider: Vane (https://vaneapp.dev). Terms: https://vaneapp.dev/terms. Privacy policy: https://vaneapp.dev/privacy.
 
 == Changelog ==
 
+= 2.0.0 =
+* New: Vane dashboard in the admin menu (write, schedule, queue, history, settings, connect with your key)
+* New: Editors can post, only Administrators can change the key
+* Settings moved into the dashboard; Settings → Vane still opens it
+
 = 1.0.0 =
-First release.
+First release: editor sidebar and automatic cross-post.
+
+== Upgrade Notice ==
+
+= 2.0.0 =
+Adds the Vane dashboard to the admin menu. Your key and settings are kept.
