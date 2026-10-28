@@ -6,7 +6,7 @@
   var NS = 'http://www.w3.org/2000/svg';
   var COLORS = ['#7dd3fc', '#86efac', '#fcd34d', '#f9a8d4', '#c4b5fd', '#fdba74'];
   var LABEL = { bluesky: 'Bluesky', mastodon: 'Mastodon', telegram: 'Telegram', devto: 'Dev.to', x: 'X', linkedin: 'LinkedIn', threads: 'Threads', discord: 'Discord', reddit: 'Reddit', facebook: 'Facebook', webhook: 'Webhook' };
-  var TABS = [['overview', 'Overview'], ['posts', 'Posts'], ['followers', 'Followers'], ['compare', 'Compare', true], ['times', 'Best times', true], ['plans', 'Free and Pro']];
+  var TABS = [['overview', 'Overview'], ['posts', 'Posts'], ['followers', 'Followers'], ['compare', 'Compare', true], ['times', 'Best times', true], ['bot', 'Telegram bot'], ['plans', 'Free and Pro']];
   var SORTS = [['new', 'Newest first'], ['old', 'Oldest first'], ['reactions', 'Most reactions'], ['likes', 'Most likes'], ['replies', 'Most replies'], ['reposts', 'Most reposts'], ['views', 'Most views']];
   var DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   var S = { tab: 'overview', days: 30, sel: null, sort: 'new', q: '', page: 1, d: null, ins: null, insKey: '' };
@@ -29,7 +29,9 @@
     ['Compare your networks', false, true],
     ['Best day and time to publish', false, true],
     ['CSV export', false, true],
-    ['Weekly report by email', false, true]
+    ['Weekly report by email', false, true],
+    ['Telegram bot: commands, post results, follower milestones', true, true],
+    ['Telegram bot: daily follower changes, hot post alerts, digests', false, true]
   ];
   function cellVal(v) { var c = el('td', 'px-3 py-2.5 text-center text-sm'); if (v === true) { c.textContent = '✓'; c.className += ' text-emerald-300'; } else if (v === false) { c.textContent = '–'; c.className += ' text-white/25'; } else c.textContent = v; return c; }
   function plansTable(pro) {
@@ -218,6 +220,80 @@
   }
   var pad = function (n) { return (n < 10 ? '0' : '') + n; };
 
+
+  // ── Telegram bot
+  var LANG_NAME = { en: 'English', ru: 'Русский', uk: 'Українська', de: 'Deutsch' };
+  var pollTimer = null;
+  function api(method, body) { return fetch('/api/analytics/bot', { method: method, credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined }).then(function (r) { return r.json().catch(function () { return { ok: false, error: 'Something went wrong.' }; }); }); }
+  function note(root, text, bad) { var n = root.querySelector('[data-note]'); if (n) { n.textContent = text; n.className = 'text-sm ' + (bad ? 'text-rose-300' : 'text-emerald-300'); } }
+  function botCommands() {
+    var c = el('div', 'glass-d rounded-2xl p-4 sm:p-5'); c.appendChild(el('p', 'text-sm font-medium', 'What the bot can do'));
+    var ul = el('ul', 'mt-2 space-y-1 text-sm text-white/65');
+    [['/stats', 'totals for 7 or 30 days (Pro: 90 days, 12 months)'], ['/top', 'the most popular post on each network'], ['/followers', 'followers now and change'], ['/digest', 'a summary right now'], ['/settings', 'switch alerts on and off'], ['/language', 'English, Русский, Українська, Deutsch (English by default)']].forEach(function (x) { var li = el('li'); li.appendChild(el('code', 'rounded bg-white/10 px-1.5 py-0.5 text-xs text-white', x[0])); li.appendChild(document.createTextNode(' ' + x[1])); ul.appendChild(li); });
+    c.appendChild(ul); return c;
+  }
+  function renderBot() {
+    var root = $('tab-bot'); root.textContent = ''; clearTimeout(pollTimer);
+    root.appendChild(el('p', 'text-sm text-white/45', 'Loading…'));
+    api('GET').then(function (j) {
+      if (S.tab !== 'bot') return;
+      root.textContent = '';
+      if (!j || !j.ok) { root.appendChild(empty('Could not load the bot settings. Try again in a moment.')); return; }
+      if (!j.configured) { var c0 = el('div', 'glass-d rounded-2xl p-6 text-center'); c0.appendChild(el('p', 'text-base font-semibold', 'Telegram bot is coming soon')); c0.appendChild(el('p', 'mx-auto mt-2 max-w-md text-sm leading-relaxed text-white/55', 'Results of your posts, follower news and digests will arrive in Telegram. It is being switched on.')); root.appendChild(c0); root.appendChild(botCommands()); return; }
+      if (!j.linked) return botConnect(root, j);
+      botSettings(root, j);
+    }).catch(function () { root.textContent = ''; root.appendChild(empty('Could not load the bot settings.')); });
+  }
+  function botConnect(root, j) {
+    var c = el('div', 'glass-d rounded-2xl p-5 sm:p-6');
+    c.appendChild(el('p', 'text-base font-semibold', 'Get your numbers in Telegram'));
+    var ul = el('ul', 'check mt-3 space-y-1.5 text-sm text-white/70');
+    ['Results of every post after 24 hours', 'Follower milestones (100, 1 000, 10 000…)', 'Most popular post on each network on request', 'Pro: daily follower changes, hot post alerts, daily or weekly digests', 'Languages: English (default), Русский, Українська, Deutsch'].forEach(function (x) { ul.appendChild(el('li', '', x)); });
+    c.appendChild(ul);
+    var row = el('div', 'mt-5 flex flex-wrap items-center gap-3'), b = el('button', 'btn btn-white', 'Connect Telegram'); b.type = 'button'; row.appendChild(b); var st = el('p', 'text-sm text-white/55'); st.setAttribute('data-note', ''); row.appendChild(st); c.appendChild(row);
+    b.addEventListener('click', function () {
+      b.disabled = true;
+      api('POST', { action: 'link' }).then(function (r) {
+        b.disabled = false;
+        if (!r.ok) { note(c, r.error || 'Something went wrong.', true); return; }
+        b.textContent = 'Open Telegram'; var a = el('a', 'btn btn-white', 'Open Telegram'); a.href = r.url; a.target = '_blank'; a.rel = 'noopener'; row.replaceChild(a, b);
+        note(c, 'Press Start in Telegram. This page updates by itself.', false); st.className = 'text-sm text-white/55';
+        var until = Date.now() + 15 * 60000;
+        (function poll() { pollTimer = setTimeout(function () { if (S.tab !== 'bot' || Date.now() > until) return; api('GET').then(function (g) { if (g && g.ok && g.linked) renderBot(); else poll(); }).catch(poll); }, 3000); })();
+      });
+    });
+    root.appendChild(c); root.appendChild(botCommands());
+  }
+  function botSettings(root, j) {
+    var s = j.settings, pro = j.pro, c = el('div', 'glass-d rounded-2xl p-4 sm:p-5');
+    var head = el('div', 'flex flex-wrap items-center justify-between gap-2'); head.appendChild(el('p', 'text-base font-semibold', 'Telegram is connected')); var tag = el('span', 'rounded-full bg-emerald-400/15 px-2.5 py-1 text-[11px] font-semibold uppercase text-emerald-300', 'Active'); head.appendChild(tag); c.appendChild(head);
+    var status = el('p', 'mt-2 text-sm'); status.setAttribute('data-note', ''); c.appendChild(status);
+    function save(patch) { var body = { action: 'save' }; Object.keys(patch).forEach(function (k) { body[k] = patch[k]; }); api('POST', body).then(function (r) { if (r && r.ok) { botSettings2(root, r); } else note(c, (r && r.error) || 'Could not save.', true); }); }
+    function toggle(label, hint, key, on, locked) {
+      var r = el('label', 'flex items-center justify-between gap-4 border-t border-white/[0.07] py-3 first:border-0' + (locked ? ' opacity-60' : ' cursor-pointer'));
+      var l = el('div', 'min-w-0'); var t1 = el('p', 'text-sm font-medium', label); if (locked) t1.appendChild(el('span', 'ml-2 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white/55', 'Pro')); l.appendChild(t1); l.appendChild(el('p', 'mt-0.5 text-xs text-white/45', hint)); r.appendChild(l);
+      var i = el('input', 'h-5 w-5 shrink-0 accent-white'); i.type = 'checkbox'; i.checked = !!on && !locked; i.disabled = !!locked; i.addEventListener('change', function () { var p = {}; p[key] = i.checked; save(p); }); r.appendChild(i); return r;
+    }
+    var list = el('div', 'mt-3');
+    list.appendChild(toggle('Post results', 'When a post has its numbers after 24 hours.', 'results', s.results, false));
+    list.appendChild(toggle('Follower milestones', 'When a network passes 100, 250, 500, 1 000 followers and so on.', 'milestones', s.milestones, false));
+    list.appendChild(toggle('Daily follower changes', 'One message a day with the change on each network.', 'followers', s.followers, !pro));
+    list.appendChild(toggle('Hot post alerts', 'When a post gets more reactions than the number below.', 'hot', s.hot, !pro));
+    var th = el('div', 'flex items-center justify-between gap-4 border-t border-white/[0.07] py-3' + (pro ? '' : ' opacity-60')); var tl = el('div'); tl.appendChild(el('p', 'text-sm font-medium', 'Hot post threshold')); tl.appendChild(el('p', 'mt-0.5 text-xs text-white/45', 'Reactions = likes + replies + reposts.')); th.appendChild(tl);
+    var ti = el('input', 'field !w-24 text-right'); ti.type = 'number'; ti.min = 1; ti.max = 100000; ti.value = s.hotThreshold; ti.disabled = !pro; ti.addEventListener('change', function () { var n = Number(ti.value); if (!n || n < 1) { ti.value = s.hotThreshold; return; } save({ hotThreshold: Math.floor(n) }); }); th.appendChild(ti); list.appendChild(th);
+    var dg = el('div', 'flex items-center justify-between gap-4 border-t border-white/[0.07] py-3' + (pro ? '' : ' opacity-60')); var dl = el('div'); var dt = el('p', 'text-sm font-medium', 'Digest'); if (!pro) dt.appendChild(el('span', 'ml-2 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white/55', 'Pro')); dl.appendChild(dt); dl.appendChild(el('p', 'mt-0.5 text-xs text-white/45', 'A summary around 9:00 in your time zone. Weekly arrives on Monday.')); dg.appendChild(dl);
+    var ds = el('select', 'field !w-auto !py-2 text-sm'); [['off', 'Off'], ['daily', 'Daily'], ['weekly', 'Weekly']].forEach(function (o) { var op = el('option', '', o[1]); op.value = o[0]; if (o[0] === s.digest) op.selected = true; ds.appendChild(op); }); ds.disabled = !pro; ds.addEventListener('change', function () { save({ digest: ds.value }); }); dg.appendChild(ds); list.appendChild(dg);
+    var lg = el('div', 'flex items-center justify-between gap-4 border-t border-white/[0.07] py-3'); var ll = el('div'); ll.appendChild(el('p', 'text-sm font-medium', 'Language: ' + (LANG_NAME[s.lang] || s.lang))); ll.appendChild(el('p', 'mt-0.5 text-xs text-white/45', 'Change it in the bot with /language (English, Русский, Українська, Deutsch).')); lg.appendChild(ll); list.appendChild(lg);
+    c.appendChild(list);
+    if (!pro) { var up = el('p', 'mt-3 text-sm text-white/55', 'Locked options are part of Analytics Pro. '); var ua = el('a', 'text-white underline underline-offset-4', 'Get Pro'); ua.href = checkoutUrl(); up.appendChild(ua); c.appendChild(up); }
+    var acts = el('div', 'mt-4 flex flex-wrap gap-2');
+    var test = el('button', 'btn btn-ghost btn-sm', 'Send a test message'); test.type = 'button'; test.addEventListener('click', function () { test.disabled = true; api('POST', { action: 'test' }).then(function (r) { test.disabled = false; note(c, r.ok ? 'Sent. Look in Telegram.' : (r.error || 'Could not send.'), !r.ok); }); });
+    var off = el('button', 'btn btn-ghost btn-sm', 'Disconnect'); off.type = 'button'; off.addEventListener('click', function () { if (!window.confirm('Disconnect Telegram? You will stop getting messages.')) return; api('POST', { action: 'unlink' }).then(function () { renderBot(); }); });
+    acts.appendChild(test); acts.appendChild(off); c.appendChild(acts);
+    root.textContent = ''; root.appendChild(c); root.appendChild(botCommands());
+  }
+  function botSettings2(root, j) { botSettings(root, j); }
+
   function renderPlans() { var root = $('tab-plans'); root.textContent = ''; root.appendChild(plansTable(S.d.pro)); }
 
   // ── filters and tabs
@@ -251,9 +327,9 @@
       box.appendChild(a);
     });
     TABS.forEach(function (t) { $('tab-' + t[0]).classList.toggle('hidden', S.tab !== t[0]); });
-    $('filters').classList.toggle('hidden', S.tab === 'plans');
+    $('filters').classList.toggle('hidden', S.tab === 'plans' || S.tab === 'bot');
   }
-  function renderTab() { ({ overview: renderOverview, posts: renderPosts, followers: renderFollowers, compare: renderCompare, times: renderTimes, plans: renderPlans })[S.tab](); }
+  function renderTab() { ({ overview: renderOverview, posts: renderPosts, followers: renderFollowers, compare: renderCompare, times: renderTimes, bot: renderBot, plans: renderPlans })[S.tab](); }
   function render() {
     var d = S.d;
     $('gate').classList.add('hidden'); $('gate').classList.remove('flex'); $('dash').classList.remove('hidden');

@@ -992,7 +992,9 @@
         '<div class="grid gap-4 lg:grid-cols-3"><div class="space-y-4 lg:col-span-2">' + SETTING_ROWS.map(function (g) { return card(esc(g[0]), g[1].map(row).join('')); }).join('') + '</div>' +
         '<div class="space-y-4">' + card('Integrations', integ('Cloudflare Turnstile', i.turnstile, 'Bot check on sign-in, sign-up and this login (TURNSTILE_SITE_KEY + TURNSTILE_SECRET_KEY)') +
           integ('Google Search Console', i.searchConsole, 'GSC_SERVICE_ACCOUNT + GSC_SITE_URL, see the Search tab') + integ('VPN lookup (proxycheck.io)', i.vpnLookup, 'PROXYCHECK_KEY') +
-          integ('Admin IP allow-list', i.adminIpAllowList, 'ADMIN_ALLOW_IPS: only these addresses can reach the admin')) +
+          integ('Admin IP allow-list', i.adminIpAllowList, 'ADMIN_ALLOW_IPS: only these addresses can reach the admin') +
+          integ('Analytics Telegram bot', i.analyticsBot, 'ANALYTICS_BOT_TOKEN + ANALYTICS_BOT_SECRET') +
+          (i.analyticsBot ? '<div class="flex gap-2 border-t border-white/[0.06] pt-3"><button type="button" class="btn btn-white btn-sm" data-act="abot-setup">Connect webhook</button><button type="button" class="btn btn-ghost btn-sm" data-act="abot-info">Check</button></div>' : '')) +
           card('Admin access', '<p class="text-sm leading-relaxed text-white/60">The login is the <code class="rounded bg-white/10 px-1 text-xs">ADMIN_EMAIL</code> secret and a password hash in <code class="rounded bg-white/10 px-1 text-xs">ADMIN_PASSWORD_HASH</code>. Neither is in the code or the database. Sessions last 8 hours, eight wrong passwords from one address ban it, and every change is written to the Activity log.</p>') + '</div></div>');
     });
   };
@@ -1111,6 +1113,12 @@
     else if (a === 'soc-delete') confirmBox('Remove <b>' + esc(el.dataset.name) + '</b> from the landing page? You can add it again later.', 'Remove link', function () {
       call('DELETE', '/api/admin/socials?id=' + encodeURIComponent(el.dataset.id)).then(function (r) { if (r.ok) { Vane.toast('ok', 'Link removed.'); route(); } else Vane.toast('err', r.error); });
     }, true);
+    else if (a === 'abot-setup' || a === 'abot-info') {
+      call('POST', '/api/admin/analytics-bot', { action: a === 'abot-setup' ? 'setup' : 'info' }).then(function (r) {
+        if (!r.ok) return Vane.toast('err', r.error);
+        Vane.toast('ok', a === 'abot-setup' ? 'Webhook connected: ' + r.data.url : (r.data.url ? 'Webhook: ' + r.data.url + ' · pending ' + r.data.pending + (r.data.lastError ? ' · last error: ' + r.data.lastError : '') : 'No webhook yet. Press Connect webhook.'));
+      });
+    }
     else if (a === 'revoke') confirmBox('End this plan now? The user falls back to the Free Trial limits.', 'End plan', function () {
       call('POST', '/api/admin/users', { action: 'revoke', userId: el.dataset.id }).then(function (r) { if (r.ok) { Vane.toast('ok', 'Plan ended.'); openUser(el.dataset.id); if (location.hash === '#users') loadUsers(S.seq); } else Vane.toast('err', r.error); });
     }, true);
