@@ -18,6 +18,8 @@ import { sha256Hex } from '../lib/session';
 import { onRequestGet as listChannels } from './channels/index';
 import { onRequestPost as createPost } from './posts/index';
 import { markMcpInternal, recordMcpCall } from '../lib/integrations';
+import { decryptToken } from '../lib/crypto';
+import { ACCESS_PREFIX, CORS, grantForAccessToken, preflight, resourceMetadataUrl } from '../lib/oauth';
 
 const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 const MAX_BODY = 65_536;
@@ -27,11 +29,15 @@ const DEFAULT_DELAY_SECONDS = 120;
 const TOOLS = [
   {
     name: 'vane_list_channels',
+    title: 'List my channels',
     description: 'List the social channels connected to the user\'s Vane account (id, platform, name). Call this first to know where a post can go.',
+    annotations: { title: 'List my channels', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
   {
     name: 'vane_create_post',
+    title: 'Schedule a post',
+    annotations: { title: 'Schedule a post', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     description: 'Schedule a post with Vane to one or more connected channels. It is published at scheduled_at (or in about two minutes when omitted). Always tell the user what was scheduled and where.',
     inputSchema: {
       type: 'object',
@@ -169,7 +175,34 @@ async function handle(env: Env, request: Request, msg: Rpc): Promise<unknown | n
   }
 }
 
-export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
+const unauthorized = (request: Request, invalid: boolean): Response =>
+  new Response(JSON.stringify(rpcError(null, -32001, invalid ? 'The access token is invalid or expired.' : 'Sign in to Vane to use this connector.')), {
+    status: 401,
+    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'WWW-Authenticate': `Bearer resource_metadata="${resourceMetadataUrl(request)}"${invalid ? ', error="invalid_token"' : ''}`, ...CORS },
+  });
+
+/**
+ * Who is calling. A Vane API key (Claude Desktop config, Claude Code, scripts) goes straight through. The connector's OAuth access token
+ * is swapped for the API key of its grant, so the tools below run exactly as for that key. No credentials at all → 401 pointing at the
+ * OAuth discovery document: that is what makes Claude show its "Connect" button.
+ */
+async function authenticate(env: Env, request: Request): Promise<Request | Response> {
+  const bearer = /^Bearer\s+(\S+)$/i.exec(request.headers.get('authorization') ?? '');
+  if (!bearer) return unauthorized(request, false);
+  if (!bearer[1].startsWith(ACCESS_PREFIX)) return request;
+  const g = env.ENCRYPTION_KEY ? await grantForAccessToken(env, bearer[1], Math.floor(Date.now() / 1000)) : null;
+  if (!g) return unauthorized(request, true);
+  let key: string;
+  try { key = await decryptToken(g.keyEnc, env.ENCRYPTION_KEY!); } catch { return unauthorized(request, true); }
+  const headers = new Headers(request.headers);
+  headers.set('authorization', `Bearer ${key}`);
+  return new Request(request, { headers });
+}
+
+export const onRequestPost: PagesFunction<Env> = async ({ request: incoming, env }) => {
+  const who = await authenticate(env, incoming);
+  if (who instanceof Response) return who;
+  const request = who;
   if (Number(request.headers.get('content-length') ?? 0) > MAX_BODY) return json(rpcError(null, -32600, 'Request too large'), 413);
   const raw = await request.text();
   if (raw.length > MAX_BODY) return json(rpcError(null, -32600, 'Request too large'), 413);
@@ -185,8 +218,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     if (a) out.push(a);
   }
   if (!out.length) return new Response(null, { status: 202 });
-  return json(batch ? out : out[0]);
+  return json(batch ? out : out[0], 200, CORS);
 };
 
 // The server never pushes anything, so there is no SSE stream to open.
+export const onRequestOptions: PagesFunction<Env> = async () => preflight();
 export const onRequest: PagesFunction<Env> = async () => methodNotAllowed('POST');

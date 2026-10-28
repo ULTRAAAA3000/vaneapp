@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Connect to Vane</title>
+  <meta name="robots" content="noindex" />
+  <meta name="theme-color" content="#070708" />
+  <link rel="icon" href="/favicon.ico" sizes="32x32" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/assets/site.css?v=af3eecd357" />
+  <link rel="stylesheet" href="/assets/vane.css?v=e72b2b78fc" />
+</head>
+
+<body class="min-h-screen overflow-x-hidden bg-[#070708]">
+  <div class="fixed inset-0 bg-gradient-to-b from-white/[0.04] via-transparent to-transparent" aria-hidden="true"></div>
+  <div class="relative z-10 flex min-h-screen flex-col">
+    <header class="flex items-center justify-between px-5 py-5 sm:px-8 sm:py-6">
+      <a href="/" class="flex items-center gap-2" aria-label="Vane home">
+        <img src="/assets/logo.svg" alt="" width="33" height="32" />
+        <span class="text-lg font-semibold">vane</span>
+      </a>
+    </header>
+
+    <main class="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 pb-16">
+      <div class="glass-d-strong rounded-[1.75rem] p-6 shadow-2xl sm:p-8">
+        <div id="viewLoading" class="py-6 text-center text-sm text-white/55">Checking the request…</div>
+
+        <div id="viewError" class="hidden">
+          <h1 class="text-xl font-semibold tracking-tight">This link does not work</h1>
+          <p id="errText" class="mt-3 text-sm leading-relaxed text-white/60"></p>
+        </div>
+
+        <div id="viewSignin" class="hidden">
+          <h1 class="text-xl font-semibold tracking-tight">Sign in to connect Vane</h1>
+          <p class="mt-3 text-sm leading-relaxed text-white/60"><span class="clientName font-medium text-white">Claude</span> wants to use your Vane account. Sign in first; you will come back to this page.</p>
+          <a id="signinLink" href="/login" class="btn btn-white mt-6 w-full !py-3">Sign in to Vane</a>
+        </div>
+
+        <div id="viewAllow" class="hidden">
+          <h1 class="text-xl font-semibold tracking-tight">Connect <span class="clientName">Claude</span> to Vane</h1>
+          <p class="mt-2 text-sm text-white/55">Signed in as <span id="who" class="text-white/80"></span></p>
+          <ul class="mt-5 space-y-2 text-sm text-white/70">
+            <li class="flex gap-2"><span class="text-emerald-400">✓</span> See which channels you have connected</li>
+            <li class="flex gap-2"><span class="text-emerald-400">✓</span> Schedule posts to them when you ask</li>
+            <li class="flex gap-2"><span class="text-white/35">✗</span> It cannot read your passwords, billing or channel credentials</li>
+          </ul>
+          <p id="testNote" class="mt-4 hidden rounded-xl border border-amber-300/25 bg-amber-400/10 px-3.5 py-2.5 text-xs leading-relaxed text-amber-200/90">Your plan has no API access, so this connection starts in <b>test mode</b>: Claude can try everything, but nothing is posted. Add the API Add-on and connect again to post for real.</p>
+          <p id="liveNote" class="mt-4 hidden text-xs leading-relaxed text-white/45">Posts made this way count against your plan like any other API post. You can disconnect any time by revoking the key “Claude connector” in the dashboard (API keys).</p>
+
+          <div id="err" role="alert" class="mt-4 hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
+
+          <div class="mt-6 grid grid-cols-2 gap-2.5">
+            <button id="deny" type="button" class="btn btn-ghost !py-3">Cancel</button>
+            <button id="allow" type="button" class="btn btn-white !py-3">Allow</button>
+          </div>
+
+          <details class="mt-5 text-sm">
+            <summary class="cursor-pointer text-xs text-white/45 hover:text-white/70">Use my own API key instead</summary>
+            <p class="mt-3 text-xs leading-relaxed text-white/50">Paste a Vane Post key from the dashboard (<code>cpost_live_…</code> or <code>cpost_test_…</code>). Use a test key to try it without posting anything.</p>
+            <label for="apiKey" class="mt-3 block text-xs text-white/55">API key</label>
+            <input id="apiKey" class="field mt-1" type="password" autocomplete="off" spellcheck="false" placeholder="cpost_live_…" />
+            <button id="useKey" type="button" class="btn btn-ghost mt-3 w-full">Connect with this key</button>
+          </details>
+        </div>
+
+        <div id="viewDone" class="hidden py-6 text-center">
+          <p class="text-lg font-semibold">Connected</p>
+          <p class="mt-2 text-sm text-white/55">Taking you back to <span class="clientName">Claude</span>…</p>
+        </div>
+      </div>
+      <p class="mt-5 text-center text-xs leading-relaxed text-white/35">By connecting you agree to the <a href="/terms" class="underline decoration-white/20 underline-offset-2 hover:text-white/60">Terms</a> and the <a href="/privacy" class="underline decoration-white/20 underline-offset-2 hover:text-white/60">Privacy Policy</a>.</p>
+    </main>
+  </div>
+
+  <script src="/assets/vane.js?v=875e8801e4"></script>
+  <script src="/assets/connect.js?v=814f8552fe"></script>
+</body>
+</html>

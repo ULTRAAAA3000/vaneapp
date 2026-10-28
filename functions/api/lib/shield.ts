@@ -49,12 +49,12 @@ const TABLE_CAP = 5000;
 
 const METHODS = new Set(['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']);
 const SCANNER_UA = /\b(sqlmap|nikto|nmap|masscan|zgrab|acunetix|nessus|openvas|dirbuster|gobuster|dirb|wpscan|nuclei|ffuf|feroxbuster|wfuzz|hydra|havij|w3af|arachni|metasploit|jaeles|netsparker|appscan|burpcollaborator)\b/i;
-const API_KEY_HEADER = /^Bearer\s+c(?:post|vid)_/i;
+const API_KEY_HEADER = /^Bearer\s+(?:c(?:post|vid)_|vane_at_)/i;
 
 /** Doors a person opens with a browser and nothing else: a request without a User-Agent there is a script. */
 const BROWSER_ONLY = new Set(['/api/auth/login', '/api/auth/register', '/api/auth/verify', '/api/auth/resend', '/api/waitlist', '/api/admin/login']);
 /** Called by other companies' servers: they authenticate with a secret / signature, so no blocklist, no User-Agent rule. */
-const SERVER_TO_SERVER = new Set(['/api/telegram/webhook', '/api/billing/monobank', '/api/channels/threads/deauthorize', '/api/channels/threads/delete']);
+const SERVER_TO_SERVER = new Set(['/api/telegram/webhook', '/api/billing/monobank', '/api/channels/threads/deauthorize', '/api/channels/threads/delete', '/api/oauth/token', '/api/oauth/register']);
 /** Big bodies (uploads) and fetches by other companies' servers (Telegram, Meta read our media): no burst limit, no size cap. */
 const UPLOADS = ['/api/media/upload', '/api/video/', '/api/v1/video/'];
 const PUBLIC_MEDIA = '/api/media/';
