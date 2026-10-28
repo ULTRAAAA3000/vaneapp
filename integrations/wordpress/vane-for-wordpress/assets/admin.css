@@ -1,0 +1,29 @@
+.vane-wrap { max-width: 900px; }
+.vane-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+.vane-head h1 { margin: 0; padding: 0; }
+.vane-chip { display: inline-block; padding: 2px 10px; border-radius: 999px; background: #f0f0f1; font-size: 12px; margin-left: 6px; }
+.vane-chip.test { background: #fcf9e8; color: #8a6d00; }
+.vane-chip.live { background: #edfaef; color: #00692a; }
+.vane-card { background: #fff; border: 1px solid #c3c4c7; border-radius: 6px; padding: 16px 18px; margin-top: 14px; }
+.vane-card h2 { margin: 0 0 8px; font-size: 15px; }
+.vane-channels { display: flex; flex-wrap: wrap; gap: 6px; }
+.vane-channels label { border: 1px solid #c3c4c7; border-radius: 999px; padding: 4px 12px; cursor: pointer; background: #fff; }
+.vane-channels label.on { border-color: #2271b1; background: #f0f6fc; }
+.vane-channels input { margin-right: 6px; }
+.vane-text { width: 100%; min-height: 150px; font-size: 14px; }
+.vane-counts { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; font-size: 12px; color: #50575e; }
+.vane-counts .over { color: #b32d2e; font-weight: 600; }
+.vane-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.vane-thumb { width: 72px; height: 72px; object-fit: cover; border-radius: 4px; border: 1px solid #c3c4c7; }
+.vane-note { margin-top: 12px; padding: 8px 12px; border-left: 4px solid #2271b1; background: #f0f6fc; }
+.vane-note.warn { border-color: #dba617; background: #fcf9e8; }
+.vane-note.err { border-color: #b32d2e; background: #fcf0f1; }
+.vane-note.ok { border-color: #00a32a; background: #edfaef; }
+.vane-item { border-top: 1px solid #dcdcde; padding: 12px 0; }
+.vane-item:first-child { border-top: 0; }
+.vane-item p { margin: 0 0 6px; white-space: pre-wrap; word-break: break-word; }
+.vane-meta { font-size: 12px; color: #50575e; }
+.vane-badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; background: #f0f0f1; margin-right: 6px; }
+.vane-badge.sent { background: #edfaef; color: #00692a; }
+.vane-badge.failed { background: #fcf0f1; color: #b32d2e; }
+.vane-steps li { margin-bottom: 6px; }

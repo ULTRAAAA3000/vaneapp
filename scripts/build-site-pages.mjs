@@ -34,7 +34,7 @@ const SITE = {
     ['Legal', [['Privacy', '/privacy'], ['Terms', '/terms'], ['Data deletion', '/data-deletion']]],
   ],
 };
-const PAGES_IN_SITEMAP = ['/', '/pricing', '/networks', ...NETWORK_PAGES.map((n) => `/networks/${n.id}`), '/developers', '/integrations', '/security', '/changelog', '/about', '/partners', '/partners/wysb', '/privacy', '/terms', '/data-deletion'];
+const PAGES_IN_SITEMAP = ['/', '/pricing', '/networks', ...NETWORK_PAGES.map((n) => `/networks/${n.id}`), '/developers', '/integrations', '/wordpress', '/security', '/changelog', '/about', '/partners', '/partners/wysb', '/privacy', '/terms', '/data-deletion'];
 
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
