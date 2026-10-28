@@ -19,10 +19,11 @@
 import type { CronEnv, VideoPrivacy } from '../../../types';
 import type { VideoPlatform } from './videochannels';
 import { instagramPublisher } from './instagram';
+import { tiktokPublisher, type TiktokOptions } from './tiktok';
 import { youtubePublisher, type YoutubeOptions } from './youtube';
 
 /** What a publisher needs; both the Pages env and the cron worker's env satisfy it. */
-export type PublishEnv = Pick<CronEnv, 'DB' | 'MEDIA' | 'ENCRYPTION_KEY' | 'VIDEO_PUBLISH_MOCK' | 'YOUTUBE_CLIENT_ID' | 'YOUTUBE_CLIENT_SECRET'>;
+export type PublishEnv = Pick<CronEnv, 'DB' | 'MEDIA' | 'ENCRYPTION_KEY' | 'VIDEO_PUBLISH_MOCK' | 'YOUTUBE_CLIENT_ID' | 'YOUTUBE_CLIENT_SECRET' | 'TIKTOK_CLIENT_KEY' | 'TIKTOK_CLIENT_SECRET'>;
 
 export interface PublishJob {
   publicationId: string;
@@ -33,7 +34,7 @@ export interface PublishJob {
   description: string;
   privacy: VideoPrivacy;
   /** network-specific choices made in the publish dialog (YouTube: made for kids, category) */
-  options?: { youtube?: YoutubeOptions; instagram?: { shareToFeed: boolean } };
+  options?: { youtube?: YoutubeOptions; instagram?: { shareToFeed: boolean }; tiktok?: TiktokOptions };
   /** `cover`: the picture the owner chose for the video (its R2 key and type), or null: then use the frame, or let the network pick one. A publisher sends it as the network's thumbnail / cover / poster. */
   video: { id: string; tags: string[]; r2Key: string; sizeBytes: number; contentType: string; cover: { r2Key: string; contentType: string } | null };
   /** `credentials` is exactly what is stored (encrypted for real networks): the publisher decrypts it itself */
@@ -51,7 +52,7 @@ export interface VideoPublisher {
 }
 
 /** The real networks. Empty until each one is approved: see the note at the top of this file. */
-const REAL: Partial<Record<VideoPlatform, VideoPublisher>> = { youtube: youtubePublisher, instagram: instagramPublisher };
+const REAL: Partial<Record<VideoPlatform, VideoPublisher>> = { youtube: youtubePublisher, instagram: instagramPublisher, tiktok: tiktokPublisher };
 
 // ───────────────────────── the fake network (dev and tests only) ─────────────────────────
 

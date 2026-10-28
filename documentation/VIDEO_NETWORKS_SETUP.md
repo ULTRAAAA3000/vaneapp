@@ -194,3 +194,15 @@ refresh-токен хранится зашифрованным. В окне Publ
 Как это работает: Instagram сам скачивает видео по публичной ссылке, поэтому Vane на время публикации делает временную ссылку `https://studio.vaneapp.dev/api/video/public/<токен>` (если у видео уже есть ссылка владельца, берёт её и не трогает), создаёт REELS-контейнер, ждёт обработки и публикует. Временная ссылка удаляется сразу.
 Настройка в Meta: приложение с продуктом **Instagram API with Instagram Login**, redirect `https://vaneapp.dev/api/video/channels/instagram/callback`, права `instagram_business_basic` и `instagram_business_content_publish`; аккаунт Instagram должен быть Business или Creator; в режиме Development работает для ролей приложения (добавь свой аккаунт как Instagram Tester), для всех нужен App Review.
 Ограничения Instagram: Reel всегда публичный (приватного нет, диалог Publish требует Public), файл до 300 МБ, MP4/MOV (H.264 + AAC), 3 с до 15 мин, лимит около 25 публикаций через API в сутки на аккаунт.
+
+## TikTok: что уже работает в коде и что нужно сделать
+
+Код: `functions/api/lib/tiktok.ts` (Login Kit + Content Posting API, Direct Post методом PULL_FROM_URL), маршруты `functions/api/video/channels/tiktok/{start,callback,creator}.ts`.
+
+1. developers.tiktok.com → Manage apps → создать приложение, добавить продукты **Login Kit** и **Content Posting API** (включить **Direct Post**).
+2. Login Kit → Redirect URI: `https://vaneapp.dev/api/video/channels/tiktok/callback`.
+3. Content Posting API → **URL properties**: подтвердить префикс `https://studio.vaneapp.dev/api/video/public/` (иначе TikTok отвечает `url_ownership_unverified`).
+4. Pages → Variables: `TIKTOK_CLIENT_KEY` (plain), `TIKTOK_CLIENT_SECRET` (secret). Эти же две переменные добавить cron-воркеру: он обновляет access-токен (живёт сутки).
+5. До аудита TikTok принимает только посты «Only me»: диалог Studio об этом предупреждает, ответ TikTok показывается в истории. Для аудита нужна демо-запись, где видны выбор приватности, переключатели комментариев/Duet/Stitch и согласие на условия: в диалоге всё это есть, значений по умолчанию нет.
+6. Если TikTok долго обрабатывает видео, публикация помечается как выполненная с пояснением и не запускается второй раз (иначе был бы дубль).
+7. Запустить `schema.sql` не нужно: используются уже существующие таблицы.

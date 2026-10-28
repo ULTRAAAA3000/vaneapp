@@ -19,6 +19,7 @@ import type { Env } from '../../../types';
 import { fail, failCode, isRecord, json, UUID_RE } from './http';
 import { networkFlags, isOn } from './networks';
 import { instagramConfigured } from './instagram';
+import { tiktokConfigured } from './tiktok';
 import { youtubeConfigured } from './youtube';
 import { netStartUrl } from './youtubeconnect';
 
@@ -61,6 +62,7 @@ export async function platformsFor(env: Env): Promise<VideoPlatformInfo[]> {
   const flags = await networkFlags(env);
   const open: Partial<Record<VideoPlatform, string>> = {
     ...(youtubeConfigured(env) ? { youtube: 'Until Google approves Vane, YouTube keeps uploads private.' } : {}),
+    ...(tiktokConfigured(env) ? { tiktok: 'Until TikTok approves Vane, posts can only be "Only me" (private).' } : {}),
     ...(instagramConfigured(env) ? { instagram: 'Business and Creator accounts only. Reels are always public.' } : {}),
   };
   return VIDEO_PLATFORMS.map((p) => {
@@ -87,7 +89,7 @@ export async function connectVideoChannel(env: Env, request: Request, body: unkn
   if (!info.available) return failCode(409, 'platform_unavailable', `${info.name} is not open yet. ${info.note}`);
 
   // YouTube connects through Google's own page: the dashboard goes to this address (a full page navigation, the callback comes back to it).
-  if (info.id === 'youtube' || info.id === 'instagram') return json({ ok: true, redirect: netStartUrl(request, info.id) });
+  if (info.id === 'youtube' || info.id === 'instagram' || info.id === 'tiktok') return json({ ok: true, redirect: netStartUrl(request, info.id) });
 
   // A network that is marked available must have its connect flow added here (see the note at the top of this file).
   return failCode(501, 'not_implemented', `${info.name} cannot be connected yet.`);
