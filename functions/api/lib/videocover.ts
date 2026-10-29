@@ -13,7 +13,7 @@ import type { Env } from '../../../types';
 import { fail, failCode, json, readBodyLimited } from './http';
 import { imageSize, sniffImage } from './image';
 import { imageProblem } from './mediacheck';
-import { mediaMessage, moderateImages } from './moderation';
+import { mediaCode, mediaMessage, mediaStatus, moderateImages } from './moderation';
 import { bump, retryAfter } from './throttle';
 import { getVideoRow, MEDIA_OFF, toPublicVideo, type VideoView } from './videos';
 
@@ -50,7 +50,7 @@ export async function putCover(env: Env, userId: string, id: string, request: Re
 
   if (simulate) return json({ ok: true, simulated: true, video: toPublicVideo(row, view) });
   const verdict = await moderateImages(env, [{ bytes, mime: kind.mime }]);
-  if (!verdict.ok) return failCode(422, 'media_blocked', mediaMessage(verdict.reason));
+  if (!verdict.ok) return failCode(mediaStatus(verdict.reason), verdict.reason === 'unchecked' ? mediaCode(verdict.reason) : 'media_blocked', mediaMessage(verdict.reason));
   await bump(env, key, 3600);
 
   const newKey = coverKey(userId, id, kind.ext);
