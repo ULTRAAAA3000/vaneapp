@@ -216,3 +216,17 @@ html.is-leaving #app { opacity: 0 !important; transform: translateY(-8px); trans
 /* post editor: one tidy toolbar (emoji · text tools | AI tools) */
 #toolbar #composerTools { padding-left: .6rem; margin-left: .15rem; border-left: 1px solid rgba(255,255,255,.1); }
 #toolbar #aiBar { margin-left: auto; }
+/* On a phone the toolbar is a three-column grid instead of a pile of wrapped buttons:
+     [emoji] [Tidy up] [Clear]
+     [Tidy on paste ........] [credits left]
+     [Make it clean ........] [# Hashtags]
+   The two groups dissolve (display: contents) so their buttons become cells of the grid; the AI group stays hidden until the server says AI is on. */
+@media (max-width: 639.98px) {
+  #toolbar { display: grid; grid-template-columns: 2rem 1fr 1fr; align-items: center; gap: .5rem; padding: .5rem; }
+  #toolbar #composerTools { display: contents; }
+  #toolbar #aiBar:not(.hidden) { display: contents; }
+  #toolbar .btn { min-height: 2.35rem; width: 100%; white-space: nowrap; }
+  #toolbar label[for="toolPaste"] { grid-column: span 2; margin: 0; min-height: 2rem; }
+  #toolbar #aiCredits { grid-column: 3; margin: 0; text-align: right; line-height: 1.2; }
+  #toolbar #aiClean { grid-column: span 2; }
+}
