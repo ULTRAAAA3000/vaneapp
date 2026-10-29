@@ -29,7 +29,7 @@ export function localParts(now: number, timeZone: string): { date: string; hour:
 }
 
 // ── Telegram
-type Markup = { inline_keyboard: { text: string; callback_data: string }[][] };
+type Markup = { inline_keyboard: ({ text: string; callback_data: string } | { text: string; url: string })[][] };
 
 async function tg(env: BotEnv, method: string, payload: Record<string, unknown>): Promise<'ok' | 'blocked' | 'fail'> {
   if (!env.ANALYTICS_BOT_TOKEN) return 'fail';
@@ -145,6 +145,37 @@ async function followersText(env: BotEnv, b: Bot, now: number): Promise<string> 
   return lines.length ? `${t(b.lang, 'followersTitle')}\n\n${lines.join('\n')}` : `${t(b.lang, 'followersTitle')}\n\n${t(b.lang, 'followersNone')}`;
 }
 
+const QUEUE_URL = 'https://post.vaneapp.dev/app';
+const QUEUE_SHOWN = 8;
+
+async function scheduledView(env: BotEnv, b: Bot, now: number): Promise<{ text: string; markup?: Markup }> {
+  const l = b.lang;
+  const { results } = await env.DB
+    .prepare(
+      `SELECT p.group_id, p.scheduled_at, c.type, substr(p.content, 1, 200) AS content
+         FROM posts p JOIN channels c ON c.id = p.channel_id
+        WHERE p.user_id = ?1 AND p.status IN ('scheduled', 'processing') ORDER BY p.scheduled_at ASC, p.group_id LIMIT 200`,
+    )
+    .bind(b.user_id)
+    .all<{ group_id: string; scheduled_at: number; type: string; content: string }>();
+  const groups = new Map<string, { at: number; nets: string[]; content: string }>();
+  for (const r of results) {
+    const g = groups.get(r.group_id);
+    if (g) { if (!g.nets.includes(r.type)) g.nets.push(r.type); } else groups.set(r.group_id, { at: r.scheduled_at, nets: [r.type], content: r.content });
+  }
+  const all = [...groups.values()];
+  const open: Markup = { inline_keyboard: [[{ text: t(l, 'scheduledOpen'), url: QUEUE_URL }]] };
+  if (!all.length) return { text: `${t(l, 'scheduledTitle', { n: 0 })}\n\n${t(l, 'scheduledNone')}`, markup: open };
+  const tz = (await env.DB.prepare('SELECT timezone FROM users WHERE id = ?1').bind(b.user_id).first<{ timezone: string }>())?.timezone ?? 'UTC';
+  const when = (ts: number): string => {
+    const o: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' };
+    try { return new Date(ts * 1000).toLocaleString(l, { ...o, timeZone: tz }); } catch { return new Date(ts * 1000).toLocaleString(l, { ...o, timeZone: 'UTC' }); }
+  };
+  const lines = all.slice(0, QUEUE_SHOWN).map((g) => `<b>${esc(when(g.at))}</b> · ${esc(g.nets.map((n) => NET[n] ?? n.charAt(0).toUpperCase() + n.slice(1)).join(', '))}\n“${esc(cut(g.content, 90))}”`);
+  const more = all.length > QUEUE_SHOWN ? `\n\n${t(l, 'scheduledMore', { n: all.length - QUEUE_SHOWN })}` : '';
+  return { text: `${t(l, 'scheduledTitle', { n: all.length })}\n\n${lines.join('\n\n')}${more}`, markup: open };
+}
+
 async function digestText(env: BotEnv, b: Bot, kind: 'daily' | 'weekly', now: number): Promise<string> {
   const parts = [t(b.lang, kind === 'daily' ? 'digestDaily' : 'digestWeekly'), '', await statsText(env, b, true, 7, now)];
   const f = await followersLines(env, b, dayOf(now - (kind === 'daily' ? 1 : 7) * 86400));
@@ -185,6 +216,7 @@ export async function handleUpdate(env: BotEnv, u: Update, now: number): Promise
   if (cmd === '/stats') { const days = Number(arg); return void (await sendText(env, chatId, await statsText(env, bot, pro, [7, 30, 90, 365].includes(days) ? days : 7, now))); }
   if (cmd === '/top') return void (await sendText(env, chatId, await topText(env, bot, now)));
   if (cmd === '/followers') return void (await sendText(env, chatId, await followersText(env, bot, now)));
+  if (cmd === '/scheduled' || cmd === '/upcoming' || cmd === '/queue') { const v = await scheduledView(env, bot, now); return void (await sendText(env, chatId, v.text, v.markup)); }
   if (cmd === '/digest') return void (await sendText(env, chatId, await digestText(env, bot, 'weekly', now)));
   if (cmd === '/settings') { const v = settingsView(bot, pro); return void (await sendText(env, chatId, v.text, v.markup)); }
   if (cmd === '/language') return void (await sendText(env, chatId, t(bot.lang, 'langPrompt'), { inline_keyboard: LANGS.reduce<Markup['inline_keyboard']>((rows, x, i) => { if (i % 2 === 0) rows.push([]); rows[rows.length - 1].push({ text: x.label, callback_data: `lang:${x.code}` }); return rows; }, []) }));
