@@ -112,6 +112,7 @@ Vane — это сверхбыстрый, легкий (Cloudflare Edge) авт�
   * Полный доступ к **Vane Post Pro** (`post.vaneapp.dev`).
   * Полный доступ к **Vane Studio** (`studio.vaneapp.dev`).
   * Единая кросс-продукт интеграция (отправка анонсов выходящих видео в текстовые соцсети в 1 клик).
+* **Как устроено в коде:** один заказ (`plan_id = suite`) → `fulfillOrder` создаёт запись и в `subscriptions` (план `suite`, лимиты Pro), и в `video_subscriptions` (Studio) с одной датой окончания; продление и годовая оплата ($179/год) продлевают обе части. Выдача `suite` из /admin → Users включает обе части, «End plan» отключает обе. Включается в /admin → Plans (Active вкл., Coming soon выкл.); до этого показывается как «Coming soon».
 
 ---
 

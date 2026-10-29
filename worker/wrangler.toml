@@ -21,6 +21,7 @@ bucket_name = "vane-media"
 APP_URL = "https://vaneapp.dev"   # turns stored R2 keys into public image links
 
 # YouTube (Vane Studio): the same YOUTUBE_CLIENT_ID (var) and YOUTUBE_CLIENT_SECRET (secret: `wrangler secret put YOUTUBE_CLIENT_SECRET`) as on the Pages project.
+# Weekly Analytics email (optional): the same EMAIL_FROM (var), RESEND_API_KEY and JWT_SECRET (secrets) as on the Pages project; without them the cron simply skips the report.
 # Payments (optional, same values as on the Pages project): CRYPTO_WALLET (a var), SOLANA_RPC_URL (a var) and MONOBANK_TOKEN (a secret: `wrangler secret put MONOBANK_TOKEN`).
 # With them the cron also finds crypto payments after the buyer closed the checkout page. Without them payments are still found while the checkout page is open.
 

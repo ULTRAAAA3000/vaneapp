@@ -18,7 +18,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="/assets/site.css?v=20261024a" />
+  <link rel="preload" as="image" href="/assets/hero-poster-v2.jpg" fetchpriority="high" />
+  <link rel="stylesheet" href="/assets/site.css?v=af3eecd357" />
 
   <style>
     body {
@@ -251,13 +252,17 @@
   <section class="relative h-screen w-full overflow-hidden bg-[#dfe3e8] lg:bg-[#0a0a0a]">
     <!-- The file is the pull-back followed by the same shot reversed (the push-in), so the plain loop never cuts.
          Made by scripts/make-hero-boomerang.sh. If it fails to load, the browser falls back to the original clip. -->
-    <video
-      class="absolute inset-0 h-full w-full object-cover"
-      autoplay loop muted playsinline
-    >
-      <source src="/assets/hero-boomerang-v1.mp4" type="video/mp4" />
-      <source src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260803_192301_9231ed6b-c55c-4a48-909c-4ebe11cf2e11.mp4" type="video/mp4" />
-    </video>
+    <video id="heroVideo" class="absolute inset-0 h-full w-full object-cover" poster="/assets/hero-poster-v2.jpg" autoplay loop muted playsinline preload="auto"></video>
+    <script>
+      (function () {
+        var v = document.getElementById('heroVideo');
+        var c = navigator.connection || {};
+        if (matchMedia('(prefers-reduced-motion: reduce)').matches || c.saveData) return;
+        v.src = matchMedia('(max-width: 767px)').matches ? '/assets/hero-boomerang-v2-m.mp4' : '/assets/hero-boomerang-v2.mp4';
+        v.addEventListener('error', function () { v.src = 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260803_192301_9231ed6b-c55c-4a48-909c-4ebe11cf2e11.mp4'; }, { once: true });
+        v.play().catch(function () {});
+      })();
+    </script>
 
     <div class="relative z-10 flex h-full flex-col">
       <!-- MAIN -->
@@ -1870,6 +1875,6 @@ curl -X POST https://vaneapp.dev/api/posts \
     })();
   })();
   </script>
-  <script src="/assets/track.js?v=20261017" defer></script>
+  <script src="/assets/track.js?v=a3d04e70d1" defer></script>
 </body>
 </html>

@@ -12,8 +12,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/assets/vane.css?v=20261020a" />
+  <link rel="stylesheet" href="/assets/vane.css?v=e72b2b78fc" />
+  <link rel="stylesheet" href="/assets/app.css?v=0fb52c064c" />
 </head>
 
 <body class="min-h-screen overflow-x-hidden bg-[#070708]">
@@ -52,7 +52,7 @@
     </section>
 
     <!-- hand-off to the other product -->
-    <section class="fade-up mt-6" style="animation-delay:.03s">
+    <section class="fade-up mt-6 grid gap-3 sm:grid-cols-2 sm:gap-4" style="animation-delay:.03s">
       <a href="/app" data-product-link="post" data-handoff class="handoff glass-d rounded-2xl p-5 sm:p-6" style="--ho-glow:rgba(56,189,248,.20)">
         <span class="handoff-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg></span>
         <span class="handoff-body">
@@ -61,6 +61,15 @@
           <span class="handoff-text">Schedule once and every post goes out on its own to Telegram, Bluesky, Mastodon and more, right on time.</span>
         </span>
         <span class="handoff-cta">Open Vane Post <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></span>
+      </a>
+      <a href="/analytics" data-product-link="analytics" class="handoff glass-d rounded-2xl p-5 sm:p-6" style="--ho-glow:rgba(52,211,153,.18)">
+        <span class="handoff-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg></span>
+        <span class="handoff-body">
+          <span class="text-xs font-medium uppercase tracking-widest text-white/40">Vane Analytics · Soon</span>
+          <span class="handoff-title">See what worked</span>
+          <span class="handoff-text">Results of every post and video across your networks, in one place.</span>
+        </span>
+        <span class="handoff-cta">Learn more <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></span>
       </a>
     </section>
 
@@ -330,6 +339,18 @@
           <input id="keyName" type="text" maxlength="60" placeholder="Make.com" class="field" />
         </div>
         <div>
+          <label for="keyIntegration" class="lbl">Used with <span class="normal-case tracking-normal text-white/30">(optional)</span></label>
+          <select id="keyIntegration" class="field">
+            <option value="">Not sure, or something else</option>
+            <option value="claude">Claude</option>
+            <option value="chatgpt">ChatGPT</option>
+            <option value="make">Make</option>
+            <option value="zapier">Zapier</option>
+            <option value="wordpress">WordPress plugin</option>
+            <option value="api">My own script or another tool</option>
+          </select>
+        </div>
+        <div>
           <span class="mb-2 block text-[0.7rem] font-medium uppercase tracking-widest text-white/40">Type</span>
           <div class="grid gap-2.5 sm:grid-cols-2" role="group" aria-label="Key type">
             <button type="button" id="modeLive" data-mode="live" aria-pressed="true" class="mode-btn">
@@ -365,9 +386,9 @@
     </div>
   </dialog>
 
-  <script src="/assets/vane.js?v=20261022a"></script>
-  <script src="/assets/apikeys.js?v=20261019a"></script>
-  <script src="/assets/studio.js?v=20261023b"></script>
-  <script src="/assets/studio-ai.js?v=20261021c"></script>
+  <script src="/assets/vane.js?v=875e8801e4"></script>
+  <script src="/assets/apikeys.js?v=019604ae04"></script>
+  <script src="/assets/studio.js?v=77190a07cf"></script>
+  <script src="/assets/studio-ai.js?v=0659b8c805"></script>
 </body>
 </html>

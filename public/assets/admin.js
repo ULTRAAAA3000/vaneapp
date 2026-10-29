@@ -175,14 +175,40 @@
       gateError(r.error);
     });
   });
+  (function () {
+    var nav = $('nav'), box = $('navSlider'), thumb = $('navThumb');
+    function sync() {
+      var over = nav.scrollWidth - nav.clientWidth;
+      box.classList.toggle('on', over > 1);
+      if (over <= 1) return;
+      var w = Math.max(32, box.clientWidth * nav.clientWidth / nav.scrollWidth);
+      thumb.style.width = w + 'px';
+      thumb.style.left = (nav.scrollLeft / over) * (box.clientWidth - w) + 'px';
+    }
+    function moveTo(x) {
+      var r = box.getBoundingClientRect(), w = thumb.offsetWidth, over = nav.scrollWidth - nav.clientWidth;
+      nav.scrollLeft = Math.min(1, Math.max(0, (x - r.left - w / 2) / Math.max(r.width - w, 1))) * over;
+    }
+    nav.addEventListener('scroll', sync);
+    window.addEventListener('resize', sync);
+    new MutationObserver(sync).observe(nav, { childList: true });
+    box.addEventListener('pointerdown', function (e) { box.setPointerCapture(e.pointerId); thumb.classList.add('drag'); moveTo(e.clientX); });
+    box.addEventListener('pointermove', function (e) { if (thumb.classList.contains('drag')) moveTo(e.clientX); });
+    box.addEventListener('pointerup', function () { thumb.classList.remove('drag'); });
+    box.addEventListener('pointercancel', function () { thumb.classList.remove('drag'); });
+    nav.addEventListener('wheel', function (e) { if (nav.scrollWidth > nav.clientWidth && Math.abs(e.deltaY) > Math.abs(e.deltaX)) { nav.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
+    sync();
+  })();
   $('logout').addEventListener('click', function () { call('POST', '/api/admin/logout').then(function () { toGate('Signed out.'); }); });
 
   // ───────────────────────── navigation ─────────────────────────
-  var TABS = [['overview', 'Overview'], ['users', 'Users'], ['plans', 'Plans'], ['orders', 'Orders'], ['networks', 'Networks'], ['ai', 'AI'], ['social', 'Social'], ['traffic', 'Traffic'], ['search', 'Search'], ['security', 'Security'], ['settings', 'Settings'], ['activity', 'Activity']];
+  var TABS = [['overview', 'Overview'], ['users', 'Users'], ['plans', 'Plans'], ['orders', 'Orders'], ['networks', 'Networks'], ['integrations', 'Integrations'], ['ai', 'AI'], ['social', 'Social'], ['traffic', 'Traffic'], ['search', 'Search'], ['security', 'Security'], ['settings', 'Settings'], ['activity', 'Activity']];
   function route() {
     var tab = (location.hash || '#overview').slice(1);
     if (!TABS.some(function (t) { return t[0] === tab; })) tab = 'overview';
     $('nav').innerHTML = TABS.map(function (t) { return '<a class="nav-tab" href="#' + t[0] + '"' + (t[0] === tab ? ' aria-current="page"' : '') + '>' + t[1] + '</a>'; }).join('');
+    var on = $('nav').querySelector('[aria-current]');
+    if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'center' });
     var seq = ++S.seq;
     $('view').innerHTML = skeleton();
     VIEWS[tab](seq);
@@ -302,6 +328,18 @@
           field('gDays', 'For (days)', '', { ph: 'empty = no end date', type: 'number', attrs: 'min="1" max="3650"' }) + field('gNote', 'Note (kept in Activity)', '', { ph: 'e.g. beta tester' }) +
           '<div id="gAddonRow" class="col-span-2 flex flex-wrap gap-x-5 gap-y-2">' + check('gAddon', 'Add the API add-on (Pro only)', false) + check('gOver', 'Bill posts over the quota instead of stopping', false) + '</div>' +
           '<div class="col-span-2 flex items-center justify-between gap-3"><p class="text-xs text-white/40">Same as <code>npm run plan:set</code>. A granted plan is free and never counted as revenue; it replaces the current plan.</p><button class="btn btn-white btn-sm" type="submit">Give plan</button></div></form>' +
+        '<h3 class="mt-7 text-sm font-semibold">Products next to the plan</h3>' +
+        '<div id="accessBox" class="glass-d mt-3 space-y-3 rounded-2xl p-4 text-sm" data-id="' + esc(u.id) + '">' +
+          [['studio', 'Vane Studio'], ['analytics', 'Vane Analytics Pro']].map(function (k) {
+            var a2 = d.access && d.access[k[0]] || {};
+            return '<div class="flex flex-wrap items-center justify-between gap-2"><div><span class="font-medium">' + k[1] + '</span> ' + (a2.active ? tag('active', 'ok') : tag('off')) +
+              '<div class="text-xs text-white/45">' + (a2.active ? (a2.endsAt ? 'until ' + esc(when(a2.endsAt)) : 'no end date') + (a2.provider === 'manual' ? ' · given by hand' : a2.provider ? ' · paid · ' + esc(a2.provider) : '') : 'Not active.') + '</div></div>' +
+              '<div class="flex gap-2">' + (a2.active ? '<button class="btn btn-danger btn-sm" type="button" data-product="' + k[0] + '" data-on="0">Switch off</button>' : '') + '<button class="btn btn-white btn-sm" type="button" data-product="' + k[0] + '" data-on="1">' + (a2.active ? 'Renew' : 'Switch on') + '</button></div></div>';
+          }).join('') +
+          '<div class="flex flex-wrap items-center justify-between gap-2"><div><span class="font-medium">API add-on</span> ' + (d.plan.apiAddon ? tag('active', 'ok') : tag('off')) + '<div class="text-xs text-white/45">Needs an active Pro plan.</div></div>' +
+            '<button class="btn ' + (d.plan.apiAddon ? 'btn-danger' : 'btn-white') + ' btn-sm" type="button" data-api="' + (d.plan.apiAddon ? '0' : '1') + '">' + (d.plan.apiAddon ? 'Switch off' : 'Switch on') + '</button></div>' +
+          '<div class="grid grid-cols-2 gap-3 border-t border-white/[0.08] pt-3">' + field('xDays', 'For (days)', '', { ph: 'empty = no end date', type: 'number', attrs: 'min="1" max="3650"' }) +
+          '<p class="self-end text-xs text-white/40">Studio and Analytics are given free and never counted as revenue. Combine them with any plan, the API add-on and the AI Pass below.</p></div></div>' +
         '<h3 class="mt-7 text-sm font-semibold">AI Pass</h3>' +
         '<form id="passForm" class="mt-3 grid grid-cols-2 gap-3" data-id="' + esc(u.id) + '"><p class="col-span-2 text-sm">' + (d.aiPass && d.aiPass.active ? tag('active', 'ok') + ' ' + num(d.usage.ai.pass.used) + ' of ' + num(d.usage.ai.pass.credits) + ' credits used this month · ' + (d.aiPass.endsAt ? 'until ' + esc(when(d.aiPass.endsAt)) : 'no end date') : '<span class="text-white/55">Not active.</span>') + '</p>' +
           field('pDays', 'For (days)', '', { ph: 'empty = no end date', type: 'number', attrs: 'min="1" max="3650"' }) +
@@ -321,6 +359,14 @@
           : '<button class="btn btn-danger" type="button" data-act="disable" data-id="' + esc(u.id) + '" data-email="' + esc(u.email) + '">Disable account…</button><p class="mt-2 text-xs text-white/40">Signs them out everywhere and refuses their sign-in. Their data is kept.</p>') + '</div>');
       var syncAddon = function () { $('gAddon').closest('label').style.display = $('gPlan').value === 'pro' ? '' : 'none'; };
       $('gPlan').addEventListener('change', syncAddon); syncAddon();
+      $('accessBox').addEventListener('click', function (e) {
+        var b = e.target.closest('button'); if (!b) return;
+        var req = b.dataset.product
+          ? { action: 'access', userId: id, product: b.dataset.product, enabled: b.dataset.on === '1', days: $('xDays').value.trim() ? Number($('xDays').value.trim()) : null }
+          : b.dataset.api ? { action: 'api_addon', userId: id, enabled: b.dataset.api === '1' } : null;
+        if (!req) return;
+        call('POST', '/api/admin/users', req).then(function (g) { if (g.ok) { Vane.toast('ok', 'Done.'); openUser(id); } else Vane.toast('err', g.error); });
+      });
       function pass(enabled) {
         var days = $('pDays').value.trim();
         call('POST', '/api/admin/users', { action: 'ai_pass', userId: id, enabled: enabled, days: days ? Number(days) : null }).then(function (g) {
@@ -746,6 +792,90 @@
     });
   };
 
+  // ── Integrations (Claude, ChatGPT, Make, Zapier, …): how each is set up, whether it is on, and how much it is used
+  function trend(cur, prev) {
+    if (!prev) return cur ? '<span class="text-sky-300">new</span>' : '<span class="text-white/35">—</span>';
+    var ch = Math.round(((cur - prev) / prev) * 100);
+    if (ch === 0) return '<span class="text-white/45">±0%</span>';
+    return '<span class="' + (ch > 0 ? 'text-emerald-300' : 'text-red-300') + '">' + (ch > 0 ? '▲ ' : '▼ ') + Math.abs(ch) + '%</span>';
+  }
+  var INT_STATE = { live: ['Live', 'ok'], partial: ['Works through the API', 'info'], planned: ['Planned', ''], paused: ['Paused', 'bad'] };
+  var INT_ACTIVITY = { active: ['Active', 'ok'], idle: ['Idle: no use in 7 days', 'warn'], none: ['No traffic yet', ''] };
+
+  function intCard(i, days, listingOptions) {
+    var u = i.usage, st = INT_STATE[i.state] || INT_STATE.live, ac = INT_ACTIVITY[i.activity] || INT_ACTIVITY.none;
+    var metric = function (label, value, sub) {
+      return '<div class="rounded-xl bg-white/[0.04] px-3 py-2.5 ring-1 ring-white/5"><div class="text-[10px] font-medium uppercase tracking-wider text-white/40">' + esc(label) + '</div>' +
+        '<div class="mt-0.5 text-lg font-semibold tracking-tight">' + value + '</div>' + (sub ? '<div class="text-[11px] text-white/45">' + sub + '</div>' : '') + '</div>';
+    };
+    var ops = u.topOps.length
+      ? u.topOps.map(function (o) { return '<div class="flex items-center justify-between gap-3 text-xs"><code class="truncate text-white/70">' + esc(o.op) + '</code><span class="shrink-0 text-white/45">' + num(o.requests) + '</span></div>'; }).join('')
+      : '<p class="text-xs text-white/35">Nothing yet.</p>';
+    var endpoints = i.endpoints.map(function (e) {
+      return '<div class="flex items-center gap-2"><span class="w-24 shrink-0 text-[11px] font-medium uppercase tracking-wider text-white/40 sm:w-40">' + esc(e.label) + '</span>' +
+        '<code class="field min-w-0 flex-1 truncate !py-1.5 font-mono !text-xs">' + esc(e.value) + '</code>' +
+        '<button type="button" class="btn btn-ghost btn-sm shrink-0" data-act="int-copy" data-text="' + esc(e.value) + '">Copy</button></div>';
+    }).join('');
+    var options = listingOptions.map(function (o) { return '<option value="' + esc(o.value) + '"' + (o.value === i.listing ? ' selected' : '') + '>' + esc(o.label) + '</option>'; }).join('');
+
+    return '<section class="glass-d rounded-3xl p-5 sm:p-6' + (i.enabled ? '' : ' opacity-80') + '" data-int="' + esc(i.id) + '">' +
+      '<div class="flex items-start gap-3">' +
+        '<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-base font-semibold" style="background:' + esc(i.color) + '22;color:' + esc(i.color) + '">' + esc(i.name.charAt(0)) + '</span>' +
+        '<div class="min-w-0 flex-1"><div class="flex flex-wrap items-center gap-2"><h2 class="text-base font-semibold tracking-tight">' + esc(i.name) + '</h2><span class="text-xs text-white/40">' + esc(i.kind) + '</span></div>' +
+          '<div class="mt-1.5 flex flex-wrap gap-1.5">' + tag(st[0], st[1]) + tag(ac[0], ac[1]) + (i.listing ? tag(i.listingLabel, 'info') : '') + '</div></div>' +
+        '<button type="button" class="switch" role="switch" data-act="int-toggle" data-id="' + esc(i.id) + '" data-name="' + esc(i.name) + '" aria-checked="' + i.enabled + '" aria-label="' + esc(i.name) + ' on or off"></button>' +
+      '</div>' +
+      '<p class="mt-3 text-sm leading-relaxed text-white/60">' + esc(i.summary) + '</p>' +
+      '<div class="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">' +
+        metric('Today', num(u.today)) +
+        metric('7 days', num(u.d7), trend(u.d7, u.prev7) + ' <span class="text-white/35">vs previous 7</span>') +
+        metric('30 days', num(u.d30)) +
+        metric('Keys (7 d)', num(u.keys7), num(u.keys30) + ' in 30 d · ' + num(u.users30) + ' user' + (u.users30 === 1 ? '' : 's')) +
+      '</div>' +
+      '<div class="mt-4">' + bars(days, [{ name: 'requests', color: i.color, values: u.series }], 40) + '</div>' +
+      '<p class="mt-1 text-xs text-white/40">Last request: ' + (u.lastAt ? ago(u.lastAt) : 'never') + (u.labelledKeys ? ' · ' + num(u.labelledKeys) + ' key' + (u.labelledKeys === 1 ? '' : 's') + ' labelled for it' : '') + '</p>' +
+      '<div class="mt-4"><div class="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-white/40">What it is used for (30 d)</div><div class="space-y-1">' + ops + '</div></div>' +
+      '<details class="mt-4 rounded-2xl bg-white/[0.03] ring-1 ring-white/5"><summary class="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm font-medium">Setup and notes<span class="text-white/40" aria-hidden="true">▾</span></summary>' +
+        '<div class="space-y-4 px-4 pb-4">' +
+          '<div class="space-y-2">' + endpoints + '</div>' +
+          '<div><div class="mb-1 text-[11px] font-medium uppercase tracking-wider text-white/40">Authentication</div><p class="text-sm text-white/65">' + esc(i.auth) + '</p></div>' +
+          '<div><div class="mb-1 text-[11px] font-medium uppercase tracking-wider text-white/40">How a user connects it</div><ol class="list-decimal space-y-1 pl-5 text-sm text-white/65">' + i.steps.map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('') + '</ol></div>' +
+          '<div><div class="mb-1 text-[11px] font-medium uppercase tracking-wider text-white/40">Store / marketplace review</div><p class="text-sm text-white/65">' + esc(i.verification) + '</p></div>' +
+          '<div class="grid gap-3 sm:grid-cols-2"><div><label class="lbl" for="il-' + esc(i.id) + '">Where the review stands</label><select id="il-' + esc(i.id) + '" class="field !py-1.5 !text-sm" data-act="int-listing" data-id="' + esc(i.id) + '">' + options + '</select></div>' +
+            '<div><label class="lbl" for="in-' + esc(i.id) + '">Your note</label><input id="in-' + esc(i.id) + '" class="field !py-1.5 !text-sm" data-act="int-note" data-id="' + esc(i.id) + '" maxlength="500" placeholder="e.g. invite link sent, waiting" value="' + esc(i.note) + '" /></div></div>' +
+        '</div></details>' +
+    '</section>';
+  }
+
+  VIEWS.integrations = function (seq) {
+    call('GET', '/api/admin/integrations').then(function (r) {
+      if (!alive(seq)) return;
+      if (!r.ok) return show(seq, errorBox(r.error));
+      var d = r.data, list = d.integrations, t = d.totals;
+      var days = d.days.map(function (x) { return x.slice(5); });
+      var ranked = list.slice().sort(function (a, b) { return b.usage.d30 - a.usage.d30; });
+      var top = ranked.length ? ranked[0].usage.d30 : 0;
+      var withTraffic = list.filter(function (i) { return i.usage.d30 > 0; });
+      var demand = t.d30
+        ? '<div class="grid gap-6 lg:grid-cols-2"><div>' + ranked.map(function (i) {
+            return hbar('<span class="inline-block h-2 w-2 rounded-full align-middle" style="background:' + esc(i.color) + '"></span> ' + esc(i.name), i.usage.d30, top,
+              num(i.usage.d30) + ' · ' + Math.round((i.usage.d30 / t.d30) * 100) + '%', i.color);
+          }).join('') + '</div><div>' + bars(days, withTraffic.map(function (i) { return { name: i.name, color: i.color, values: i.usage.series }; })) + '</div></div>'
+        : empty('No API traffic yet. Counting starts with the first authenticated request after this release.');
+      show(seq, title('Integrations', 'The tools people connect to Vane: how each one is set up, whether it is on, and how much it is used. Use the demand to decide what to build next.') +
+        (d.needsDb ? '<div class="mb-4 rounded-2xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">The database does not have the integrations tables yet. Run <code>npm run db:remote</code> once, then reload this page.</div>' : '') +
+        '<div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">' +
+          stat('API requests, 7 days', num(t.d7), trend(t.d7, t.prev7) + ' <span class="text-white/40">vs the 7 before</span>') +
+          stat('Today', num(t.today), num(t.d30) + ' in 30 days') +
+          stat('Active keys, 7 days', num(t.keys7), 'across all integrations') +
+          stat('Source not known', pct(t.directShare * 100), 'of 30-day traffic is “Direct API”. Lower is better: ask users to pick “Used with” when they create a key.') +
+        '</div>' +
+        '<div class="mt-4">' + card('Demand, last 30 days', demand) + '</div>' +
+        '<div class="mt-4 grid gap-4 lg:grid-cols-2">' + list.map(function (i) { return intCard(i, days, d.listingOptions); }).join('') + '</div>' +
+        '<p class="mt-6 text-xs leading-relaxed text-white/35">How a request is told apart: it came through the MCP endpoint (Claude), the key was labelled when it was created, the client’s User-Agent, then the key’s name; anything else counts as Direct API. Only the first two are certain. Requests with an invalid key, and requests refused because an integration is switched off, are not counted. Counters are kept for 120 days and hold no request contents.</p>');
+    });
+  };
+
   // ── AI token ledger
   function tokens(n) { n = n || 0; return n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1e4 ? (n / 1e3).toFixed(1) + 'k' : num(n); }
   function usd(x, d) { x = x || 0; return '$' + (x < 0.01 && x > 0 ? x.toFixed(4) : x.toFixed(d == null ? 2 : d)); }
@@ -862,7 +992,9 @@
         '<div class="grid gap-4 lg:grid-cols-3"><div class="space-y-4 lg:col-span-2">' + SETTING_ROWS.map(function (g) { return card(esc(g[0]), g[1].map(row).join('')); }).join('') + '</div>' +
         '<div class="space-y-4">' + card('Integrations', integ('Cloudflare Turnstile', i.turnstile, 'Bot check on sign-in, sign-up and this login (TURNSTILE_SITE_KEY + TURNSTILE_SECRET_KEY)') +
           integ('Google Search Console', i.searchConsole, 'GSC_SERVICE_ACCOUNT + GSC_SITE_URL, see the Search tab') + integ('VPN lookup (proxycheck.io)', i.vpnLookup, 'PROXYCHECK_KEY') +
-          integ('Admin IP allow-list', i.adminIpAllowList, 'ADMIN_ALLOW_IPS: only these addresses can reach the admin')) +
+          integ('Admin IP allow-list', i.adminIpAllowList, 'ADMIN_ALLOW_IPS: only these addresses can reach the admin') +
+          integ('Analytics Telegram bot', i.analyticsBot, 'ANALYTICS_BOT_TOKEN + ANALYTICS_BOT_SECRET') +
+          (i.analyticsBot ? '<div class="flex gap-2 border-t border-white/[0.06] pt-3"><button type="button" class="btn btn-white btn-sm" data-act="abot-setup">Connect webhook</button><button type="button" class="btn btn-ghost btn-sm" data-act="abot-info">Check</button></div>' : '')) +
           card('Admin access', '<p class="text-sm leading-relaxed text-white/60">The login is the <code class="rounded bg-white/10 px-1 text-xs">ADMIN_EMAIL</code> secret and a password hash in <code class="rounded bg-white/10 px-1 text-xs">ADMIN_PASSWORD_HASH</code>. Neither is in the code or the database. Sessions last 8 hours, eight wrong passwords from one address ban it, and every change is written to the Activity log.</p>') + '</div></div>');
     });
   };
@@ -918,6 +1050,12 @@
   document.addEventListener('change', function (e) {
     var note = e.target.closest('[data-act="net-note"]');
     if (note) { call('PUT', '/api/admin/networks', { network: note.dataset.id, note: note.value.trim() }).then(function (r) { Vane.toast(r.ok ? 'ok' : 'err', r.ok ? 'Note saved.' : r.error); }); return; }
+    var intField = e.target.closest('[data-act="int-note"], [data-act="int-listing"]');
+    if (intField) {
+      var intBody = intField.dataset.act === 'int-note' ? { note: intField.value.trim() } : { listing: intField.value };
+      call('PUT', '/api/admin/integrations?id=' + encodeURIComponent(intField.dataset.id), intBody).then(function (r) { Vane.toast(r.ok ? 'ok' : 'err', r.ok ? 'Saved.' : r.error); });
+      return;
+    }
     var el = e.target.closest('[data-act="num"]');
     if (el) putSetting(el.dataset.key, Number(el.value));
   });
@@ -942,6 +1080,21 @@
       };
       if (wantOn) go(); else confirmBox('Switch <b>' + esc(el.dataset.name) + '</b> off? Nobody can connect it or schedule to it, and posts already scheduled for it will wait until you switch it on again.', 'Switch off', go, true);
     }
+    else if (a === 'int-toggle') {
+      var intOn = el.getAttribute('aria-checked') !== 'true';
+      var intGo = function () {
+        call('PUT', '/api/admin/integrations?id=' + encodeURIComponent(el.dataset.id), { enabled: intOn }).then(function (r) {
+          if (r.ok) Vane.toast('ok', el.dataset.name + (intOn ? ' is on.' : ' is switched off.')); else Vane.toast('err', r.error);
+          route();
+        });
+      };
+      if (intOn) intGo(); else confirmBox('Switch <b>' + esc(el.dataset.name) + '</b> off? Every request from it is refused (403) until you switch it back on. Nothing is deleted.', 'Switch off', intGo, true);
+    }
+    else if (a === 'int-copy') {
+      var copied = function () { Vane.toast('ok', 'Copied.'); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(el.dataset.text).then(copied, function () { Vane.toast('err', 'Could not copy. Select it and press Ctrl+C.'); });
+      else { var ta = document.createElement('textarea'); ta.value = el.dataset.text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); copied(); } catch (x) { Vane.toast('err', 'Could not copy.'); } document.body.removeChild(ta); }
+    }
     else if (a === 'plan-new') planForm(null);
     else if (a === 'plan-edit') planForm(S.plans.filter(function (p) { return p.id === el.dataset.id; })[0]);
     else if (a === 'plan-delete') confirmBox('Delete the plan <b>' + esc(el.dataset.id) + '</b>? This only works if nobody ever had it.', 'Delete plan', function () {
@@ -960,6 +1113,12 @@
     else if (a === 'soc-delete') confirmBox('Remove <b>' + esc(el.dataset.name) + '</b> from the landing page? You can add it again later.', 'Remove link', function () {
       call('DELETE', '/api/admin/socials?id=' + encodeURIComponent(el.dataset.id)).then(function (r) { if (r.ok) { Vane.toast('ok', 'Link removed.'); route(); } else Vane.toast('err', r.error); });
     }, true);
+    else if (a === 'abot-setup' || a === 'abot-info') {
+      call('POST', '/api/admin/analytics-bot', { action: a === 'abot-setup' ? 'setup' : 'info' }).then(function (r) {
+        if (!r.ok) return Vane.toast('err', r.error);
+        Vane.toast('ok', a === 'abot-setup' ? 'Webhook connected: ' + r.data.url : (r.data.url ? 'Webhook: ' + r.data.url + ' · pending ' + r.data.pending + (r.data.lastError ? ' · last error: ' + r.data.lastError : '') : 'No webhook yet. Press Connect webhook.'));
+      });
+    }
     else if (a === 'revoke') confirmBox('End this plan now? The user falls back to the Free Trial limits.', 'End plan', function () {
       call('POST', '/api/admin/users', { action: 'revoke', userId: el.dataset.id }).then(function (r) { if (r.ok) { Vane.toast('ok', 'Plan ended.'); openUser(el.dataset.id); if (location.hash === '#users') loadUsers(S.seq); } else Vane.toast('err', r.error); });
     }, true);

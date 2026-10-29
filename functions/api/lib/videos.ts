@@ -5,7 +5,8 @@
  */
 import type { Env, VideoPublic, VideoRow, VideoRowJoined } from '../../../types';
 import { studioOrigin } from './hosts';
-import { fail, isRecord, json, UUID_RE } from './http';
+import { fail, failCode, isRecord, json, UUID_RE } from './http';
+import { PROFANITY_MESSAGE, profanityIn } from './moderation';
 import { isMissingSchema } from './integrations';
 
 export const MEDIA_OFF = 'Video storage is not enabled on this server yet.';
@@ -140,6 +141,7 @@ export function parseVideoMeta(body: Record<string, unknown>): MetaResult {
     }
     meta.tags = tags;
   }
+  if ([meta.title, meta.description, ...(meta.tags ?? [])].some((t) => t && profanityIn(t))) return { ok: false, response: failCode(422, 'profanity', PROFANITY_MESSAGE) };
   return { ok: true, meta };
 }
 

@@ -712,6 +712,96 @@ CREATE TABLE IF NOT EXISTS ai_pass_usage (
   used     INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (user_id, period)
 );
+CREATE TABLE IF NOT EXISTS email_optouts (
+  email       TEXT    PRIMARY KEY,
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE TABLE IF NOT EXISTS post_drafts (
+  id          TEXT    PRIMARY KEY,
+  user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  content     TEXT    NOT NULL DEFAULT '',
+  channel_ids TEXT    NOT NULL DEFAULT '[]',
+  media       TEXT,
+  updated_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_post_drafts_user ON post_drafts(user_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS post_snippets (
+  id          TEXT    PRIMARY KEY,
+  user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title       TEXT    NOT NULL,
+  body        TEXT    NOT NULL,
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_post_snippets_user ON post_snippets(user_id, updated_at DESC);
+CREATE TABLE IF NOT EXISTS post_metrics (
+  post_id   TEXT    NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+  stage     INTEGER NOT NULL CHECK (stage BETWEEN 1 AND 4),
+  taken_at  INTEGER NOT NULL,
+  views     INTEGER,
+  likes     INTEGER,
+  replies   INTEGER,
+  reposts   INTEGER,
+  PRIMARY KEY (post_id, stage)
+);
+CREATE TABLE IF NOT EXISTS channel_followers (
+  channel_id  TEXT    NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+  day         TEXT    NOT NULL,
+  followers   INTEGER NOT NULL,
+  PRIMARY KEY (channel_id, day)
+);
+CREATE TABLE IF NOT EXISTS analytics_subscriptions (
+  user_id             TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  status              TEXT    NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'past_due', 'canceled')),
+  current_period_end  INTEGER,
+  provider            TEXT    NOT NULL DEFAULT 'manual',
+  created_at          INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at          INTEGER NOT NULL DEFAULT (unixepoch())
+);
+INSERT OR IGNORE INTO plans (id, kind, name, tagline, price_cents, features, limits, cta_label, is_public, is_active, sort) VALUES
+  ('analytics', 'addon', 'Vane Analytics Pro', 'Followers growth, full history, best times, network comparison and weekly reports.', 499,
+   '["12 months of history","Followers growth by network","Best time and day to publish","Compare your networks","Weekly report by email"]',
+   '{}', 'Get Analytics Pro', 0, 0, 65);
+CREATE TABLE IF NOT EXISTS analytics_reports (
+  user_id  TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  week     TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS analytics_bot (
+  user_id        TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  chat_id        TEXT    NOT NULL UNIQUE,
+  lang           TEXT    NOT NULL DEFAULT 'en' CHECK (lang IN ('en', 'ru', 'uk', 'de')),
+  a_results      INTEGER NOT NULL DEFAULT 1 CHECK (a_results IN (0, 1)),
+  a_milestones   INTEGER NOT NULL DEFAULT 1 CHECK (a_milestones IN (0, 1)),
+  a_followers    INTEGER NOT NULL DEFAULT 1 CHECK (a_followers IN (0, 1)),
+  a_hot          INTEGER NOT NULL DEFAULT 1 CHECK (a_hot IN (0, 1)),
+  hot_threshold  INTEGER NOT NULL DEFAULT 20,
+  digest         TEXT    NOT NULL DEFAULT 'off' CHECK (digest IN ('off', 'daily', 'weekly')),
+  metrics_wm     INTEGER NOT NULL DEFAULT 0,
+  followers_day  TEXT,
+  digest_day     TEXT,
+  created_at     INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at     INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE TABLE IF NOT EXISTS analytics_bot_links (
+  code        TEXT    PRIMARY KEY,
+  user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_abl_user ON analytics_bot_links(user_id);
+CREATE TABLE IF NOT EXISTS analytics_bot_hot (
+  post_id  TEXT PRIMARY KEY REFERENCES posts(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS ai_history (
+  id          TEXT    PRIMARY KEY,
+  user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  tool        TEXT    NOT NULL,
+  prompt      TEXT    NOT NULL,
+  result      TEXT    NOT NULL,
+  pinned      INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1)),
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_ai_history_user ON ai_history(user_id, created_at DESC);
 INSERT OR IGNORE INTO plans (id, kind, name, tagline, price_cents, features, limits, cta_label, is_public, is_active, sort) VALUES
   ('ai-pass', 'addon', 'Vane AI Pass', '150 AI credits a month for tone, hooks, per-network versions and posts from an idea.', 299,
    '["150 AI credits a month","Tone fixer, hooks, CTAs, per-network versions, post generator","Extra credits are billed per use, only if you switch it on"]',
@@ -750,11 +840,16 @@ CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_pending ON orders(status, provider, expires_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_invoice ON orders(provider_ref) WHERE provider = 'monobank' AND provider_ref IS NOT NULL;
 
--- The Suite bundle (Post Pro + Studio, ECONOMY_AND_FINANCE.md §2.6). Off until you switch it on in /admin → Plans (fulfilment: Pro + Studio).
-INSERT OR IGNORE INTO plans (id, name, tagline, price_cents, features, limits, cta_label, is_public, is_active, sort) VALUES
-  ('suite', 'Vane Suite', 'Vane Post Pro and Vane Studio together.', 1800,
-   '["Everything in Vane Post Pro","Everything in Vane Studio","Announce a new video to your social networks in one click"]',
-   '{"postsPerMonth":1000,"aiCredits":250,"apiAccess":0,"overagePostUsd":0.015,"overageAiPostUsd":0.045}', 'Get Suite', 0, 0, 45);
+-- The Suite bundle (Post Pro + Studio in ONE plan and ONE payment, ECONOMY_AND_FINANCE.md §2.6). It shows on /pricing as "Coming soon"
+-- until you switch it on in /admin → Plans (tick Active, untick Coming soon). Buying it switches on Pro posting AND Vane Studio together.
+INSERT OR IGNORE INTO plans (id, name, tagline, badge, price_cents, yearly_price_cents, features, limits, cta_label, highlight, coming_soon, is_public, is_active, sort) VALUES
+  ('suite', 'Vane Suite', 'Posting and video in one plan.', 'Best value', 1800, 17900,
+   '["Everything in Vane Post Pro: 1,000 posts a month, unlimited channels","Everything in Vane Studio: video library, API and AI","Post a new video to all your networks in one click","One payment, one renewal date, one invoice","Vane AI Pass included"]',
+   '{"postsPerMonth":1000,"aiCredits":250,"apiAccess":0,"overagePostUsd":0.015,"overageAiPostUsd":0.045}', 'Get Suite', 0, 1, 1, 0, 45);
+-- A Suite row from an earlier run of this file (hidden, never edited) becomes the public "coming soon" card. An edited row is left alone.
+UPDATE plans SET is_public = 1, coming_soon = 1, badge = 'Best value', yearly_price_cents = 17900, tagline = 'Posting and video in one plan.',
+  features = '["Everything in Vane Post Pro: 1,000 posts a month, unlimited channels","Everything in Vane Studio: video library, API and AI","Post a new video to all your networks in one click","One payment, one renewal date, one invoice","Vane AI Pass included"]'
+  WHERE id = 'suite' AND is_public = 0 AND is_active = 0 AND coming_soon = 0 AND updated_at = created_at;
 
 -- ═════════════════════ Admin: networks on/off and the AI token ledger ═════════════════════
 
@@ -854,6 +949,44 @@ CREATE TABLE IF NOT EXISTS api_usage_daily (
   PRIMARY KEY (day, integration, key_id, op)
 );
 CREATE INDEX IF NOT EXISTS idx_api_usage_daily_day ON api_usage_daily(day);
+
+-- ───────────────────────── Claude connector (OAuth 2.1 for the remote MCP server) ─────────────────────────
+-- Claude (and any MCP client) signs a person in through /connect and then calls /api/v1/mcp with an access token.
+-- Behind a grant there is always one ordinary Vane API key (made for the connector, or one the person pasted), kept encrypted:
+-- revoking that key in the dashboard cuts the connector off, and every quota/plan rule stays the one of the API.
+CREATE TABLE IF NOT EXISTS oauth_clients (
+  client_id      TEXT    PRIMARY KEY,
+  client_name    TEXT    NOT NULL,
+  redirect_uris  TEXT    NOT NULL,                              -- JSON array, exact match at /authorize
+  created_at     INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE TABLE IF NOT EXISTS oauth_grants (
+  id          TEXT    PRIMARY KEY,
+  client_id   TEXT    NOT NULL REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
+  user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  key_id      TEXT    NOT NULL REFERENCES api_keys(id) ON DELETE CASCADE,
+  key_enc     TEXT    NOT NULL,                                 -- the API key, encrypted with ENCRYPTION_KEY
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+  revoked_at  INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_grants_user ON oauth_grants(user_id, client_id);
+CREATE TABLE IF NOT EXISTS oauth_codes (
+  code_hash       TEXT    PRIMARY KEY,                          -- sha256 of the one-time code
+  client_id       TEXT    NOT NULL REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
+  grant_id        TEXT    NOT NULL REFERENCES oauth_grants(id) ON DELETE CASCADE,
+  redirect_uri    TEXT    NOT NULL,
+  code_challenge  TEXT    NOT NULL,                             -- PKCE, S256 only
+  expires_at      INTEGER NOT NULL,
+  used_at         INTEGER
+);
+CREATE TABLE IF NOT EXISTS oauth_tokens (
+  token_hash  TEXT    PRIMARY KEY,                              -- sha256 of the token
+  kind        TEXT    NOT NULL CHECK (kind IN ('access', 'refresh')),
+  grant_id    TEXT    NOT NULL REFERENCES oauth_grants(id) ON DELETE CASCADE,
+  expires_at  INTEGER NOT NULL,
+  used_at     INTEGER                                           -- a refresh token is single-use (rotated)
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_tokens_grant ON oauth_tokens(grant_id);
 
 -- ───────────────────────── Contact form (/about#contact) ─────────────────────────
 -- Every message is kept, so nothing is lost when the email could not be sent. Read them in the D1 Console:

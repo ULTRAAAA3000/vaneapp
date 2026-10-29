@@ -11,8 +11,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/assets/vane.css?v=20261015" />
+  <link rel="stylesheet" href="/assets/vane.css?v=e72b2b78fc" />
+  <link rel="stylesheet" href="/assets/app.css?v=0fb52c064c" />
   <style>
     .atable { width: 100%; border-collapse: collapse; font-size: .8125rem; }
     .atable th { text-align: left; font-weight: 500; font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; color: rgba(255,255,255,.4); padding: .55rem .75rem; border-bottom: 1px solid rgba(255,255,255,.08); white-space: nowrap; }
@@ -34,7 +34,7 @@
     select.field { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right .9rem center; padding-right: 2.2rem; }
     select.field option { background: #111; color: #fff; }
     .scroll-x { overflow-x: auto; }
-    @media (max-width: 1023px) { .nav-row { overflow-x: auto; scrollbar-width: none; } .nav-row::-webkit-scrollbar { display: none; } }
+    .nav-row { min-width: 0; overflow-x: auto; scrollbar-width: none; } .nav-row::-webkit-scrollbar { display: none; } .nav-wrap { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 5px; } .nav-slider { position: relative; display: none; height: 6px; margin: 0 .5rem; border-radius: 999px; background: rgba(255,255,255,.1); cursor: pointer; touch-action: none; } .nav-slider.on { display: block; } .nav-thumb { position: absolute; top: 0; bottom: 0; left: 0; min-width: 32px; border-radius: 999px; background: rgba(255,255,255,.4); } .nav-slider:hover .nav-thumb, .nav-thumb.drag { background: rgba(255,255,255,.65); } .nav-tab { flex-shrink: 0; } @media (max-width: 1535px) { #panel header > div { flex-wrap: wrap; row-gap: .5rem; } #navWrap { order: 10; flex-basis: 100%; margin-left: 0; } #who { margin-left: auto; }}
   </style>
 </head>
 
@@ -77,7 +77,7 @@
           <span class="text-base font-semibold">vane</span>
         </a>
         <span class="tag">admin</span>
-        <nav id="nav" class="nav-row ml-2 flex flex-1 items-center gap-1 sm:ml-4" aria-label="Sections"></nav>
+        <div id="navWrap" class="nav-wrap ml-2 sm:ml-4"><nav id="nav" class="nav-row flex items-center gap-1" aria-label="Sections"></nav><div id="navSlider" class="nav-slider" aria-hidden="true"><div id="navThumb" class="nav-thumb"></div></div></div>
         <span id="who" class="hidden text-xs text-white/40 xl:block"></span>
         <a href="/" class="btn btn-ghost btn-sm hidden sm:inline-flex">Site</a>
         <button id="logout" class="btn btn-ghost btn-sm" type="button">Sign out</button>
@@ -96,7 +96,7 @@
     <div id="modal" class="glass-d-strong pop relative my-auto w-full max-w-2xl rounded-3xl p-6 sm:p-8" role="dialog" aria-modal="true"></div>
   </div>
 
-  <script src="/assets/vane.js?v=20261015"></script>
-  <script src="/assets/admin.js?v=20261024a"></script>
+  <script src="/assets/vane.js?v=875e8801e4"></script>
+  <script src="/assets/admin.js?v=75c7be0e2e"></script>
 </body>
 </html>

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vane Analytics</title>
+  <meta name="robots" content="noindex" />
+  <meta name="description" content="Vane Analytics shows what the posts you publish through Vane achieve on each network: results, followers growth and best times." />
+    <meta name="theme-color" content="#070708" />
+  <link rel="icon" href="/favicon.ico" sizes="32x32" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/assets/vane.css?v=e72b2b78fc" />
+  <link rel="stylesheet" href="/assets/app.css?v=0fb52c064c" />
+  <noscript><style>#gate{display:flex!important}</style></noscript>
+</head>
+
+<body class="min-h-screen overflow-x-hidden bg-[#070708]">
+  <div class="fixed inset-0 bg-gradient-to-b from-white/[0.04] via-transparent to-transparent" aria-hidden="true"></div>
+  <div class="relative z-10 flex min-h-screen flex-col">
+    <header class="flex items-center justify-between px-5 py-5 sm:px-8 sm:py-6 lg:px-12">
+      <a href="/" data-site-home class="text-lg font-semibold" aria-label="Vane home">vane</a>
+      <nav class="flex gap-2">
+        <a href="/app" data-product-link="post" class="btn btn-ghost btn-sm">Vane Post</a>
+        <a href="/studio" data-product-link="studio" class="btn btn-ghost btn-sm">Vane Studio</a>
+      </nav>
+    </header>
+    <main id="gate" class="mx-auto hidden w-full max-w-2xl flex-1 items-center px-5 pb-16 sm:px-8">
+      <div class="glass-d-strong w-full rounded-[1.75rem] p-6 sm:p-10">
+        <span class="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white/60">Free and Pro</span>
+        <h1 class="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">Vane Analytics</h1>
+        <p class="mt-3 text-base leading-relaxed text-white/60">See what every post and video actually achieved, on every network, in one place. No more opening five apps to find out what worked.</p>
+        <ul class="check mt-6 space-y-2 text-sm text-white/75">
+          <li>Followers and their growth by network</li>
+          <li>The result of each post you published through Vane: views, likes, replies, reposts</li>
+          <li>Your best posts, formats and times to publish</li>
+          <li>One weekly report by email</li>
+        </ul>
+        <p class="mt-5 text-xs leading-relaxed text-white/40">Vane reads the numbers of the posts it published for you. It does not read your feed, messages or follower lists.</p>
+        <div class="mt-7 flex flex-col gap-3 sm:flex-row">
+          <a href="/login" class="btn btn-white !py-3">Sign in to see your numbers</a>
+          <a href="/login" class="btn btn-ghost !py-3">Create a free account</a>
+        </div>
+        <div id="gatePlans" class="mt-8"></div>
+      </div>
+    </main>
+    <main id="dash" class="mx-auto hidden w-full max-w-5xl flex-1 px-5 pb-16 sm:px-8">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">Analytics</h1>
+          <span id="planBadge" class="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white/60"></span>
+        </div>
+        <a id="upgradeTop" href="#plans" class="btn btn-white btn-sm hidden">Get Analytics Pro</a>
+      </div>
+      <div id="filters" class="glass-d mt-5 rounded-2xl p-3 sm:p-4">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="min-w-0 flex-1">
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-white/45">Networks</p>
+            <div id="chips" class="mt-2 flex flex-wrap gap-2"></div>
+          </div>
+          <div>
+            <label class="text-[11px] font-semibold uppercase tracking-wide text-white/45" for="range">Period</label>
+            <select id="range" class="field mt-2 !w-auto !py-2 text-sm"></select>
+          </div>
+        </div>
+      </div>
+      <div class="mt-4 flex gap-1 overflow-x-auto pb-1" id="tabs" role="tablist" aria-label="Analytics sections"></div>
+      <div id="busy" class="mt-4 transition-opacity">
+        <section id="tab-overview" class="space-y-5"></section>
+        <section id="tab-posts" class="hidden space-y-3"></section>
+        <section id="tab-followers" class="hidden space-y-3"></section>
+        <section id="tab-compare" class="hidden space-y-3"></section>
+        <section id="tab-times" class="hidden space-y-3"></section>
+        <section id="tab-bot" class="hidden space-y-4"></section>
+        <section id="tab-plans" class="hidden"></section>
+      </div>
+      <p class="mt-8 text-xs leading-relaxed text-white/40">Vane reads the numbers of the posts it published for you. It does not read your feed, messages or follower lists. Results: Bluesky, Mastodon, Dev.to. Followers: Bluesky, Mastodon, Telegram. More networks are coming.</p>
+    </main>
+  </div>
+  <script src="/assets/vane.js?v=875e8801e4"></script>
+  <script src="/assets/analytics.js?v=7aa0f826b3"></script>
+</body>
+</html>

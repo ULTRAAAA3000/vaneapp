@@ -20,6 +20,10 @@ export interface Env {
   /** optional: the Workers AI model id to use instead of the built-in one */
   AI_MODEL?: string;
   AI?: { run(model: string, input: unknown): Promise<unknown> };
+  /** optional: with it, pictures are checked for adult and violent content by OpenAI's free moderation endpoint (without it Workers AI is used). See documentation/MODERATION.md */
+  OPENAI_API_KEY?: string;
+  /** '1' switches every content check off (local development and tests only) */
+  MODERATION_OFF?: string;
 
   /** Secrets (wrangler secret put / Pages → Settings → Variables) */
   ENCRYPTION_KEY?: string;      // for encrypting channels.credentials (>= 32 random chars)
@@ -30,6 +34,9 @@ export interface Env {
   CRYPTO_WALLET?: string;           // plain var: the Solana address that receives USDT / USDC (crypto checkout is off without it)
   SOLANA_RPC_URL?: string;          // optional: a Solana RPC address (Helius, QuickNode); the public one is used when empty
   SYSTEM_BOT_TOKEN?: string;        // token of the shared Vane bot used by Quick Connect
+  ANALYTICS_BOT_TOKEN?: string;     // token of the Vane Analytics bot (BotFather); without it the bot tab says "coming soon"
+  ANALYTICS_BOT_SECRET?: string;    // proves webhook calls for that bot really come from Telegram
+  ANALYTICS_BOT_USERNAME?: string;  // its username without @ (default: VaneAnalyticsBot)
   TELEGRAM_WEBHOOK_SECRET?: string; // proves webhook calls really come from Telegram
 
   ADMIN_PASSWORD_HASH?: string;     // /admin password, PBKDF2 hash from `npm run admin:hash` (admin is OFF without it)
@@ -67,6 +74,9 @@ export interface Env {
   /** Vane Studio → Instagram Reels (Meta app with Instagram API / Instagram Login): the connect button is off until both are set */
   INSTAGRAM_APP_ID?: string;        // plain var
   INSTAGRAM_APP_SECRET?: string;    // secret
+  /** Vane Studio → TikTok (Login Kit + Content Posting API): the connect button is off until both are set */
+  TIKTOK_CLIENT_KEY?: string;       // plain var
+  TIKTOK_CLIENT_SECRET?: string;    // secret
   YOUTUBE_CLIENT_ID?: string;       // plain var
   YOUTUBE_CLIENT_SECRET?: string;   // secret
   /** Threads (Meta app with the Threads API): the connect button is off until both are set */
@@ -306,18 +316,24 @@ export interface CronEnv {
   VIDEO_PUBLISH_MOCK?: string; // local dev only, see Env
   ENCRYPTION_KEY?: string;   // MUST be the same value as on the Pages project
   SYSTEM_BOT_TOKEN?: string; // MUST be the same as on Pages: needed to publish to Quick Connect channels
+  ANALYTICS_BOT_TOKEN?: string; // the same secret as on Pages: lets the cron send Analytics bot alerts
   APP_URL?: string;          // public origin, used to turn stored R2 keys into URLs
   LINKEDIN_CLIENT_ID?: string;     // only to renew a LinkedIn sign-in that came with a refresh token
   LINKEDIN_CLIENT_SECRET?: string;
   LINKEDIN_VERSION?: string;       // the same optional value as on Pages
   MONOBANK_TOKEN?: string;         // the same secret as on Pages: lets the cron ask Monobank about card orders whose webhook never came
   MONOBANK_CCY?: string;
+  RESEND_API_KEY?: string;         // the same secret as on Pages: lets the cron send the weekly Analytics report
+  EMAIL_FROM?: string;             // the same variable as on Pages
+  JWT_SECRET?: string;             // the same secret as on Pages: signs the unsubscribe link in that email
   CRYPTO_WALLET?: string;          // the same as on Pages: lets the cron find crypto payments even when the buyer closed the checkout page
   SOLANA_RPC_URL?: string;        // the same optional value as on Pages
   REDDIT_CLIENT_ID?: string;      // the same as on Pages: renews the Reddit access (an hour) before each post
   REDDIT_CLIENT_SECRET?: string;  // the same secret as on Pages
   YOUTUBE_CLIENT_ID?: string;     // the same as on Pages: renews the YouTube access before each upload
   YOUTUBE_CLIENT_SECRET?: string; // the same secret as on Pages
+  TIKTOK_CLIENT_KEY?: string;     // the same as on Pages: renews the TikTok access (a day) before each post
+  TIKTOK_CLIENT_SECRET?: string;  // the same secret as on Pages
 }
 
 // ───────────────────────── Quick Connect (stage 2 of the upgrade) ─────────────────────────

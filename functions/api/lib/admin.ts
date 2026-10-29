@@ -8,8 +8,9 @@
  */
 import type { Env } from '../../../types';
 import { toB64Url } from './encoding';
-import { clientOf } from './guard';
+import { clientOf, evaluate } from './guard';
 import { crossOriginViolation, fail } from './http';
+import { siteOf } from './hosts';
 import { inCidr, parseCidr, parseIp, sameIp } from './ipaddr';
 import { verifyPassword } from './password';
 import { sha256Hex } from './session';
@@ -72,6 +73,32 @@ export function adminIpAllowed(env: Env, request: Request): boolean {
   });
 }
 
+/** The admin panel's own doors: its page, the hash helper page and every /api/admin/* route. */
+export const isAdminPath = (path: string): boolean => /^\/(admin(-hash)?(\.html)?|api\/admin(\/.*)?)$/.test(path);
+
+const SCANNER = /\b(sqlmap|nikto|nmap|masscan|zgrab|acunetix|nessus|dirbuster|gobuster|wpscan|nuclei|ffuf|feroxbuster|wfuzz|hydra|curl|wget|python-requests|python-urllib|go-http-client|java|libwww|scrapy|httpclient|okhttp|axios|node-fetch)\b|headless/i;
+
+/**
+ * Makes the admin invisible to whoever has no business there: answers a plain 404 (as if nothing lived at this address) when
+ * the request comes through post. / studio. (the panel exists on the main site only), from outside ADMIN_ALLOW_IPS, from a blocked
+ * address, or from something that is clearly not a person's browser (no User-Agent, or a scripting library or scanner). The sign-in
+ * itself (password, Turnstile, throttling, ban) is checked after this and stays as it was. Null = carry on.
+ */
+export async function adminHidden(env: Env, request: Request, path: string): Promise<Response | null> {
+  const page = !path.startsWith('/api/');
+  const hide = (): Response => (page
+    ? new Response('Not found', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' } })
+    : fail(404, 'Not found'));
+  const url = new URL(request.url);
+  const site = siteOf(url.hostname);
+  if (site === 'post' || site === 'studio' || site === 'analytics') return hide();
+  if (!adminIpAllowed(env, request)) return hide();
+  const client = clientOf(request);
+  if (page && (!client.ua || SCANNER.test(client.ua))) return hide();
+  if (page && (await evaluate(env, client, 'api')).blocked) return hide();
+  return null;
+}
+
 /** Why a sign-in failed, for the attempts feed only (the person always sees one generic message). */
 export type AdminCheck = 'ok' | 'bad_login' | 'bad_password';
 
@@ -112,7 +139,7 @@ export type AdminAuth = { ok: true } | { ok: false; response: Response };
 /** Every /api/admin/* route except login starts with this. */
 export async function requireAdmin(request: Request, env: Env): Promise<AdminAuth> {
   if (!adminConfigured(env)) return { ok: false, response: fail(503, 'The admin panel is not configured on this server.') };
-  if (!adminIpAllowed(env, request)) return { ok: false, response: fail(403, 'Not allowed from this network.') };
+  if (!adminIpAllowed(env, request)) return { ok: false, response: fail(404, 'Not found') };
 
   const token = readAdminToken(request);
   if (!token) return { ok: false, response: fail(401, 'Sign in required.') };

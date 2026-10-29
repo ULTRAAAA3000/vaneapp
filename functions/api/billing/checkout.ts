@@ -1,6 +1,6 @@
 /**
  * POST /api/billing/checkout  { planId, interval?: 'month'|'year', method: 'monobank'|'crypto', asset?: 'usdt'|'usdc',
- *                               billing: { name, email, country, company?, vatId? } }
+ *                               billing: { name, email, country, company?, vatId? }, accept: true, waiver?: true }   (waiver: required for EU / EEA / UK / CH buyers)
  *   → { ok, order: { id, status, planName, amountCents, … , payUrl? | crypto: { address, asset, mint, amount, solanaPayUrl } } }
  *
  * Creates (or, for the same choices while the old one is still open, reuses) the order. Card: the buyer goes to `payUrl`
@@ -16,6 +16,7 @@ import { SOLANA_ASSETS, type CryptoAsset } from '../lib/solana';
 import { bump, retryAfter } from '../lib/throttle';
 import { cryptoDetails } from './order';
 
+const WITHDRAWAL_COUNTRIES = new Set('AT BE BG HR CY CZ DK EE FI FR DE GR HU IE IT LV LT LU MT NL PL PT RO SK SI ES SE IS LI NO GB CH'.split(' '));
 const text = (v: unknown, max: number): string => (typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, max) : '');
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
@@ -39,6 +40,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!EMAIL_RE.test(billing.email)) return fail(400, 'Enter a valid email for the receipt.');
   if (!/^[A-Z]{2}$/.test(billing.country)) return fail(400, 'Choose your country.');
 
+  // Agreement to the Terms and the purchase terms shown at checkout; in the EU / EEA / UK / Switzerland also the request for an immediate start (loss of the 14-day withdrawal right)
+  if (b.accept !== true) return fail(400, 'Please agree to the Terms and the purchase terms to continue.');
+  const waiver = WITHDRAWAL_COUNTRIES.has(billing.country);
+  if (waiver && b.waiver !== true) return fail(400, 'Please confirm that you want the plan to start immediately.');
+
   const plan = typeof b.planId === 'string' ? await getPlan(env, b.planId) : null;
   if (!plan) return fail(404, 'Plan not found.');
   const q = quote(plan, interval);
@@ -51,13 +57,14 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (wait) return fail(429, 'Too many checkouts. Try again later.', { 'Retry-After': String(wait) });
   await bump(env, key, 3600);
 
+  const record = { ...billing, consent: { terms: true, noAutoRenewal: true, immediateStart: waiver ? true : null, at: now } };
   const mint = method === 'crypto' ? SOLANA_ASSETS[asset].mint : null;
   const open = await env.DB
     .prepare(`SELECT ${ORDER_COLUMNS} FROM orders WHERE user_id = ?1 AND plan_id = ?2 AND interval = ?3 AND provider = ?4 AND status = 'pending' AND expires_at > ?5 AND amount_cents = ?6 AND COALESCE(provider_ref, '') ${method === 'crypto' ? '= ?7' : "<> '' AND ?7 IS NULL"} ORDER BY created_at DESC LIMIT 1`)
     .bind(auth.userId, plan.id, q.interval, method, now, q.amountCents, mint)
     .first<OrderRow>();
   if (open) {
-    await env.DB.prepare('UPDATE orders SET billing = ?2 WHERE id = ?1').bind(open.id, JSON.stringify(billing)).run();
+    await env.DB.prepare('UPDATE orders SET billing = ?2 WHERE id = ?1').bind(open.id, JSON.stringify(record)).run();
     return json({ ok: true, order: await view(env, open) });
   }
 
@@ -76,7 +83,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       `INSERT INTO orders (id, user_id, plan_id, plan_name, interval, amount_cents, currency, provider, provider_ref, pay_micro, status, billing, created_at, expires_at)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'USD', ?7, ?8, ?9, 'pending', ?10, ?11, ?12)`,
     )
-    .bind(id, auth.userId, plan.id, plan.name, q.interval, q.amountCents, method, mint, payMicro, JSON.stringify(billing), now, now + PAY_WINDOW_SECONDS)
+    .bind(id, auth.userId, plan.id, plan.name, q.interval, q.amountCents, method, mint, payMicro, JSON.stringify(record), now, now + PAY_WINDOW_SECONDS)
     .run();
 
   if (method === 'monobank') {

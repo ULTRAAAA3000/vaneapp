@@ -267,7 +267,7 @@
       icon: { d: 'M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17zM10 15l5-3-5-3z' }
     },
     tiktok: {
-      name: 'TikTok', ready: false, blurb: 'Short videos', setup: 'Choose which account Vane should publish to.',
+      name: 'TikTok', ready: true, blurb: 'Short videos', setup: 'Choose which account Vane should publish to.',
       tile: 'bg-pink-500/15 text-pink-300',
       icon: { d: 'M9 18V5l12-2v13M3 18a3 3 0 1 0 6 0 3 3 0 1 0-6 0M15 16a3 3 0 1 0 6 0 3 3 0 1 0-6 0' }
     },
@@ -507,12 +507,30 @@
       '<div class="mt-4 space-y-3">' +
         '<div><label for="pubName" class="mb-1 block text-xs text-white/55">Title</label><input id="pubName" class="field" maxlength="100" value="' + esc(v.title) + '" /></div>' +
         '<div><label for="pubDesc" class="mb-1 block text-xs text-white/55">Description</label><textarea id="pubDesc" class="field" rows="4" maxlength="5000">' + esc(v.description) + '</textarea></div>' +
-        '<div><label for="pubPrivacy" class="mb-1 block text-xs text-white/55">Who can see it</label><select id="pubPrivacy" class="field"><option value="private">Private</option><option value="unlisted">Unlisted</option><option value="public">Public</option></select>' +
+        '<div id="pubPrivacyBox"><label for="pubPrivacy" class="mb-1 block text-xs text-white/55">Who can see it</label><select id="pubPrivacy" class="field"><option value="private">Private</option><option value="unlisted">Unlisted</option><option value="public">Public</option></select>' +
           '<p id="pubPrivacyHint" class="mt-1.5 text-xs text-white/45"></p></div>' +
         '<div id="pubIg" class="hidden space-y-2 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/5">' +
           '<p class="text-xs font-medium text-white/70">Instagram Reels</p>' +
           '<label class="flex items-center gap-2 text-xs text-white/65"><input type="checkbox" id="pubFeed" checked /> Also show the Reel in my profile feed</label>' +
           '<p class="text-xs leading-relaxed text-amber-200/80">Instagram has no private or unlisted videos: a Reel is always public, so choose <b>Public</b> above. Business and Creator accounts only; the video can be up to 300 MB.</p>' +
+        '</div>' +
+        '<div id="pubTt" class="hidden space-y-3 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/5">' +
+          '<p class="text-xs font-medium text-white/70">TikTok <span id="pubTtName" class="font-normal text-white/50"></span></p>' +
+          '<p id="pubTtState" class="text-xs text-white/45">Loading what TikTok allows for this account…</p>' +
+          '<div id="pubTtForm" class="hidden space-y-3">' +
+            '<div><label for="pubTtPrivacy" class="mb-1 block text-xs text-white/55">Who can see this video</label><select id="pubTtPrivacy" class="field"></select></div>' +
+            '<div class="space-y-1.5"><p class="text-xs text-white/55">Allow others to</p>' +
+              '<label class="flex items-center gap-2 text-xs text-white/65"><input type="checkbox" id="pubTtComment" /> Comment</label>' +
+              '<label class="flex items-center gap-2 text-xs text-white/65"><input type="checkbox" id="pubTtDuet" /> Duet</label>' +
+              '<label class="flex items-center gap-2 text-xs text-white/65"><input type="checkbox" id="pubTtStitch" /> Stitch</label></div>' +
+            '<div><label class="flex items-center gap-2 text-xs text-white/65"><input type="checkbox" id="pubTtCom" /> This video promotes a brand, product or service</label>' +
+              '<div id="pubTtComBox" class="mt-2 hidden space-y-1.5 pl-5">' +
+                '<label class="flex items-center gap-2 text-xs text-white/65"><input type="checkbox" id="pubTtOwn" /> Your own brand</label>' +
+                '<label class="flex items-center gap-2 text-xs text-white/65"><input type="checkbox" id="pubTtThird" /> A third party (branded content)</label>' +
+                '<p id="pubTtComHint" class="text-xs text-white/45"></p></div></div>' +
+            '<label class="flex items-start gap-2 text-xs leading-relaxed text-white/65"><input type="checkbox" id="pubTtConsent" class="mt-0.5" /> <span id="pubTtConsentText"></span></label>' +
+            '<p class="text-xs leading-relaxed text-amber-200/80">Until TikTok approves Vane, it accepts only "Only me" posts. Vane shows you what TikTok answered.</p>' +
+          '</div>' +
         '</div>' +
         '<div id="pubYt" class="hidden space-y-3 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/5">' +
           '<p class="text-xs font-medium text-white/70">YouTube</p>' +
@@ -525,6 +543,50 @@
       '</div>' +
       '<div class="mt-5 flex justify-end gap-2"><button class="btn btn-ghost btn-sm" id="mClose">Cancel</button><button class="btn btn-white btn-sm" id="pubSend" disabled>Publish</button></div>');
 
+    var TT_LEVELS = { PUBLIC_TO_EVERYONE: 'Everyone', MUTUAL_FOLLOW_FRIENDS: 'Friends', FOLLOWER_OF_CREATOR: 'Followers', SELF_ONLY: 'Only me' };
+    var ttCreators = {}, ttLoading = '';
+    function ttChannel() {
+      var i = picked().filter(function (x) { var c = channels.filter(function (y) { return y.id === x.value; })[0]; return c && c.platform === 'tiktok'; })[0];
+      return i ? i.value : '';
+    }
+    async function ttLoad(id) {
+      if (ttCreators[id] || ttLoading === id) return;
+      ttLoading = id;
+      var r = await Vane.api('GET', '/api/video/channels/tiktok/creator?channel=' + encodeURIComponent(id));
+      ttLoading = '';
+      ttCreators[id] = r.ok && r.data && r.data.creator ? r.data.creator : { error: r.error || 'TikTok did not answer.' };
+      sync();
+    }
+    function ttShow(id) {
+      var c = ttCreators[id], st = $('pubTtState'), form = $('pubTtForm');
+      if (!c) { st.textContent = 'Loading what TikTok allows for this account…'; st.classList.remove('hidden'); form.classList.add('hidden'); return; }
+      if (c.error) { st.textContent = c.error; st.classList.remove('hidden'); form.classList.add('hidden'); return; }
+      st.classList.add('hidden'); form.classList.remove('hidden');
+      $('pubTtName').textContent = c.username ? '@' + c.username : c.nickname;
+      var sel = $('pubTtPrivacy');
+      if (sel.dataset.for !== id) {
+        sel.dataset.for = id;
+        sel.innerHTML = '<option value="">Choose…</option>' + c.privacyOptions.map(function (k) { return '<option value="' + k + '">' + TT_LEVELS[k] + '</option>'; }).join('');
+        [['pubTtComment', c.commentDisabled], ['pubTtDuet', c.duetDisabled], ['pubTtStitch', c.stitchDisabled]].forEach(function (a) { $(a[0]).checked = false; $(a[0]).disabled = a[1]; });
+      }
+      var com = $('pubTtCom').checked;
+      $('pubTtComBox').classList.toggle('hidden', !com);
+      var third = com && $('pubTtThird').checked;
+      var priv = $('pubTtPrivacy').value;
+      $('pubTtComHint').textContent = com && !$('pubTtOwn').checked && !$('pubTtThird').checked ? 'Choose at least one.' : (third && priv === 'SELF_ONLY' ? 'Branded content cannot be "Only me".' : '');
+      $('pubTtConsentText').textContent = third
+        ? "By posting, you agree to TikTok's Branded Content Policy and Music Usage Confirmation."
+        : "By posting, you agree to TikTok's Music Usage Confirmation.";
+    }
+    function ttReady() {
+      var id = ttChannel(), c = ttCreators[id];
+      if (!c || c.error || !$('pubTtPrivacy').value || !$('pubTtConsent').checked) return false;
+      if ($('pubTtCom').checked) {
+        if (!$('pubTtOwn').checked && !$('pubTtThird').checked) return false;
+        if ($('pubTtThird').checked && $('pubTtPrivacy').value === 'SELF_ONLY') return false;
+      }
+      return true;
+    }
     function picked() { return Array.prototype.slice.call(document.querySelectorAll('#pubChannels input:checked')); }
     function sync() {
       $('pubPrivacyHint').textContent = PRIVACY_TEXT[$('pubPrivacy').value];
@@ -532,9 +594,15 @@
       $('pubYt').classList.toggle('hidden', !yt);
       var ig = picked().some(function (i) { var c = channels.filter(function (x) { return x.id === i.value; })[0]; return c && c.platform === 'instagram'; });
       $('pubIg').classList.toggle('hidden', !ig);
-      $('pubSend').disabled = !picked().length || !$('pubName').value.trim() || (yt && !$('pubKids').value) || (ig && $('pubPrivacy').value !== 'public');
+      var tid = ttChannel(), tt = !!tid;
+      $('pubTt').classList.toggle('hidden', !tt);
+      if (tt) { ttShow(tid); ttLoad(tid); }
+      var onlyTt = tt && picked().every(function (i) { var c = channels.filter(function (x) { return x.id === i.value; })[0]; return c && c.platform === 'tiktok'; });
+      $('pubPrivacyBox').classList.toggle('hidden', onlyTt);
+      $('pubSend').disabled = !picked().length || !$('pubName').value.trim() || (yt && !$('pubKids').value) || (ig && $('pubPrivacy').value !== 'public') || (tt && !ttReady());
     }
     $('pubKids').addEventListener('change', function () { sync(); });
+    $('pubTt').addEventListener('change', sync);
     $('pubChannels').addEventListener('change', sync);
     $('pubName').addEventListener('input', sync);
     $('pubPrivacy').addEventListener('change', sync);
@@ -548,6 +616,11 @@
         channelIds: picked().map(function (i) { return i.value; }),
         title: $('pubName').value.trim(), description: $('pubDesc').value, privacy: $('pubPrivacy').value
       };
+      if (!$('pubTt').classList.contains('hidden')) {
+        var lvl = $('pubTtPrivacy').value, com = $('pubTtCom').checked;
+        payload.tiktok = { privacyLevel: lvl, allowComment: $('pubTtComment').checked, allowDuet: $('pubTtDuet').checked, allowStitch: $('pubTtStitch').checked, commercial: com, brandOrganic: com && $('pubTtOwn').checked, brandContent: com && $('pubTtThird').checked, consent: $('pubTtConsent').checked };
+        if ($('pubPrivacyBox').classList.contains('hidden')) payload.privacy = lvl === 'PUBLIC_TO_EVERYONE' ? 'public' : lvl === 'SELF_ONLY' ? 'private' : 'unlisted';
+      }
       if (!$('pubIg').classList.contains('hidden')) payload.instagram = { shareToFeed: $('pubFeed').checked };
       if (!$('pubYt').classList.contains('hidden')) payload.youtube = { madeForKids: $('pubKids').value === 'yes', category: $('pubCat').value };
       var res = await Vane.api('POST', '/api/video/videos/' + v.id + '/publish', payload);
@@ -991,6 +1064,17 @@
       if (!S.active || (S.endsAt && S.endsAt - Date.now() / 1000 < 7 * 86400)) box.appendChild(a);
     };
     buy();
+    // Vane Suite = Studio + Vane Post Pro in one payment.
+    (async function () {
+      var r = await Vane.api('GET', '/api/billing/plan?id=suite');
+      if (!r.ok || !r.data.plan || !r.data.plan.buyable || !box.isConnected || box.querySelector('[data-suite]')) return;
+      var a = document.createElement('a');
+      a.setAttribute('data-suite', '1');
+      a.className = 'btn mt-3 inline-flex';
+      a.href = (/^studio\.vaneapp\.dev$/i.test(location.hostname) ? 'https://vaneapp.dev' : '') + '/checkout?plan=suite';
+      a.textContent = 'Or get Vane Suite: video + posting';
+      box.appendChild(a);
+    })();
   }
 
   /** Quick start: base URL, your videos' ids and a ready-made request (never contains a real key). Returns the request text. */

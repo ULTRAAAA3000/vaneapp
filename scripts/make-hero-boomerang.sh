@@ -8,7 +8,7 @@
 # N frames in, 2N-2 frames out. Output is H.264, no audio, faststart, a keyframe every 48 frames.
 # Size: roughly 1.3x the source at crf 20. Cloudflare Pages takes a file up to 25 MiB; if the result is bigger, raise the crf (23, 26)
 # or add a scale to the filter, e.g. [0:v]scale=1280:-2,split[f][r].
-# The file in use is public/assets/hero-boomerang-v1.mp4; give a new version a new name (-v2) so browsers do not keep the old one.
+# The file in use is public/assets/hero-boomerang-v2.mp4 (re-encoded: -crf 27 -maxrate 3M, 1080p, plus a 960 px phone copy -v2-m.mp4 and hero-poster-v2.jpg); give a new version a new name (-v2) so browsers do not keep the old one.
 set -euo pipefail
 
 in="${1:?usage: $0 input.mp4 [output.mp4] [crf]}"

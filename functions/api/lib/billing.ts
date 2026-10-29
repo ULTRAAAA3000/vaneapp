@@ -104,16 +104,32 @@ async function grantAiPass(env: Env, o: OrderRow, now: number): Promise<void> {
     .run();
 }
 
+async function grantAnalytics(env: Env, o: OrderRow, now: number): Promise<void> {
+  const row = await env.DB.prepare('SELECT status, current_period_end FROM analytics_subscriptions WHERE user_id = ?1').bind(o.user_id).first<Row>();
+  const end = addInterval(startOf(row, now, true), o.interval);
+  await env.DB
+    .prepare(
+      `INSERT INTO analytics_subscriptions (user_id, status, current_period_end, provider, created_at, updated_at) VALUES (?1, 'active', ?2, ?3, ?4, ?4)
+       ON CONFLICT(user_id) DO UPDATE SET status = 'active', current_period_end = excluded.current_period_end, provider = excluded.provider, updated_at = excluded.updated_at`,
+    )
+    .bind(o.user_id, end, o.provider, now)
+    .run();
+}
+
 /** What a paid order switches on. 'video' = Vane Studio, 'ai-pass' = AI Pass, 'api-addon' = Pro's API add-on, 'suite' = Pro + Studio, anything else = that plan. */
 export async function activate(env: Env, o: OrderRow, now: number): Promise<void> {
   if (o.plan_id === 'video') return grantVideo(env, o, now);
   if (o.plan_id === 'ai-pass') return grantAiPass(env, o, now);
+  if (o.plan_id === 'analytics') return grantAnalytics(env, o, now);
   if (o.plan_id === 'api-addon') {
     await env.DB.prepare(`UPDATE subscriptions SET api_addon = 1, updated_at = ?2 WHERE user_id = ?1`).bind(o.user_id, now).run();
     return;
   }
   await grantPost(env, o, o.plan_id === 'suite' ? 'suite' : o.plan_id, now);
-  if (o.plan_id === 'suite') await grantVideo(env, o, now);
+  if (o.plan_id === 'suite') {
+    await grantVideo(env, o, now);
+    await grantAnalytics(env, o, now);
+  }
 }
 
 /** The API add-on only makes sense on top of an active Pro plan. */
@@ -161,6 +177,7 @@ export async function sendReceipt(env: Env, o: OrderRow, now: number): Promise<v
   const lines = [`Plan: ${o.plan_name} (${o.interval === 'year' ? '1 year' : '1 month'})`, `Amount: ${amount} USD`, `Paid with: ${how}`, `Active until about: ${until}`, `Order: ${o.id}`];
   await sendMail(env, {
     to,
+    optional: true,
     subject: `Your Vane receipt: ${o.plan_name}`,
     text: `${name ? `Hi ${name},\n\n` : ''}Thank you, your payment was received and ${o.plan_name} is active.\n\n${lines.join('\n')}\n\nThe plan is not renewed automatically: pay again from vaneapp.dev/pricing when the period ends.\n`,
     html: `<div style="font-family:-apple-system,Segoe UI,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#111"><h2 style="margin:0 0 12px">Payment received</h2><p style="margin:0 0 16px">${name ? `Hi ${escHtml(name)}, t` : 'T'}hank you. <b>${escHtml(o.plan_name)}</b> is active on your account.</p><table style="width:100%;border-collapse:collapse;font-size:14px">${lines.map((l) => { const i = l.indexOf(':'); return `<tr><td style="padding:6px 0;color:#666">${escHtml(l.slice(0, i))}</td><td style="padding:6px 0;text-align:right">${escHtml(l.slice(i + 1).trim())}</td></tr>`; }).join('')}</table><p style="margin:20px 0 0;font-size:12px;color:#777">The plan is not renewed automatically. Pay again from vaneapp.dev/pricing when the period ends.</p></div>`,

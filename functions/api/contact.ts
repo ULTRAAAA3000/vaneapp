@@ -76,6 +76,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     sent = await sendMail(env, {
       to,
       replyTo: email,
+      unsubscribe: false,
       subject: `Vane contact: ${label}`,
       text: `${label}\nFrom: ${name} <${email}>\n\n${message}\n`,
       html: `<p><b>${esc(label)}</b></p><p>From: ${esc(name)} &lt;${esc(email)}&gt;</p><p style="white-space:pre-wrap">${esc(message)}</p>`,

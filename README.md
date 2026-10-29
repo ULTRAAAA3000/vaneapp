@@ -300,7 +300,11 @@ It needs one new table: run the whole `schema.sql` in the D1 Console again (it i
 
 ## Integrations in the admin (Claude, ChatGPT, Make, Zapier, WordPress, direct API)
 
-**Status: the backend is done and tested; the admin screen and the "Used with" picker are still to build** (see "Still to do").
+**Status: done** (backend, the admin screen and the "Used with" picker).
+
+**In the admin** (`/admin` → **Integrations**, `public/assets/admin.js`): a summary row (API requests in 7 days with the trend, today, active keys, and the share of traffic whose source is unknown), a **Demand** card (a ranking of the integrations by 30-day requests and a stacked 30-day chart), and a card per integration with its state (Live / Works through the API / Planned / Paused), activity (Active / Idle / No traffic yet), an on/off switch (switching off asks for confirmation and explains the consequence; switching on is immediate), today / 7 d / 30 d requests with the trend, active keys and users, a 30-day chart, the last request, what it is used for (top operations), and a collapsible **Setup and notes** (copy-ready URLs, authentication, the steps a user follows, store-review notes, plus where the review stands and a free note, both saved as you change them). If the tables are missing the page says to run `npm run db:remote`.
+
+**For users**: the create-key dialog (Post dashboard and Studio) has an optional **Used with** choice (Claude, ChatGPT, Make, Zapier, WordPress plugin, own script / other). It fills in the key's name when that is still empty, and it is what makes the admin's numbers certain instead of guessed. The label is shown on the key rows.
 
 What it measures and controls (`functions/api/lib/integrations.ts`, `functions/api/admin/integrations.ts`):
 
@@ -317,11 +321,6 @@ How a request is attributed, in this order: (1) it came through MCP → Claude; 
 3. Redeploy the cron worker (`npm run cron:deploy`) so the 120-day purge runs.
 
 **Testing**: `npm run test:integrations` (48 checks: attribution, counting, MCP, the switch, the admin API, and a database without the new column plus the migration). It needs `ADMIN_EMAIL` + `ADMIN_PASSWORD_HASH` in `.dev.vars` (defaults to the login `admin@example.com` / password `Admin-Test-Pass-77`; make the hash with `echo 'Admin-Test-Pass-77' | node scripts/admin-hash.mjs`).
-
-**Still to do**
-- `public/assets/admin.js`: an **Integrations** tab (add `['integrations', 'Integrations']` to `TABS` and a `VIEWS.integrations` that calls `GET /api/admin/integrations`): a card per integration with state chip (`state`: live / partial / planned / paused), activity chip (`activity`: active / idle / none), the on/off switch (`PUT … { enabled }`), the usage numbers and `series` (the existing `bars` helper), `topOps`, the setup (`endpoints` with copy buttons, `auth`, `steps`, `verification`), and the `listing` select + `note`. Show a "run `npm run db:remote`" hint when `needsDb` is true, and a ranking (30-day requests per integration) plus the `totals` row at the top.
-- The **"Used with"** select in the dashboards' create-key dialog (`public/app.html` + `dashboard.js`, and Studio's `apikeys.js`), sending `integration` to `POST /api/keys`; show `integration` on the key rows (`GET /api/keys` already returns it).
-- Put the same integration list into the user-facing docs if wanted.
 
 ## Landing video demo
 
@@ -455,5 +454,11 @@ The text lives in `site/*.html` (the first line of each is a `<!--page {"slug","
 
 ## Landing hero video
 
-The hero plays `public/assets/hero-boomerang-v1.mp4`: the original clip followed by the same shot reversed (the zoom-out, then the zoom-in), so the plain `loop` never cuts. Browsers cannot play video backwards and reversing live by seeking looked choppy, so the reverse is baked into the file. If it fails to load, the second `<source>` falls back to the original clip on CloudFront.
+The hero plays `public/assets/hero-boomerang-v2.mp4` (1080p, about 5 MB) or `hero-boomerang-v2-m.mp4` (960 px, about 1 MB, chosen on phones by a small script), with `hero-poster-v2.jpg` shown instantly; nothing is downloaded when the visitor asked for reduced motion or data saving. It is the original clip followed by the same shot reversed (the zoom-out, then the zoom-in), so the plain `loop` never cuts. Browsers cannot play video backwards and reversing live by seeking looked choppy, so the reverse is baked into the file. If it fails to load, the script falls back to the original clip on CloudFront.
 To change it: `scripts/make-hero-boomerang.sh new.mp4 hero-boomerang-v2.mp4` (needs ffmpeg), commit the file (Cloudflare Pages takes up to 25 MiB per file; raise the crf if it is bigger), and point the `<source>` and the cache rule in `public/_headers` at the new name. A new name matters: the file is cached for a year.
+
+## Speed: static CSS and cached assets
+
+- The dashboard, Studio, admin, checkout and helper pages use the prebuilt `public/assets/app.css` (Tailwind, about 36 KB) instead of the Tailwind script from a CDN; the public site uses `site.css`. After adding new Tailwind classes to any page or script, run `npm run build:css`.
+- Every `/assets/*.js` and `*.css` file is cached for a year (`immutable`); the `?v=` in the HTML is the hash of the file's content. After editing any file in `public/assets` run `npm run build:assets` (or `npm run build:pages`, which does it too). `npm run test:unit` fails when a version is stale.
+- The landing hero video is 5 MB (1 MB on phones) with an instant poster.

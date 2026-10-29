@@ -297,10 +297,10 @@
       return;
     }
     box.innerHTML = groupChannels(S.channels).map(function (g, i) {
-      return '<div' + (i ? ' class="pt-2"' : '') + '>' + groupHead(g) + '<div class="space-y-2.5">' + g.items.map(function (c) {
+      return '<div>' + groupHead(g) + '<div class="flex flex-wrap gap-2.5">' + g.items.map(function (c) {
         var armed = !!S.armed['del:' + c.id];
         var exp = expiryNote(c);
-        return '<div class="flex items-center gap-3 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/5">' +
+        return '<div class="flex w-full items-center gap-3 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/5 sm:w-auto sm:min-w-[17rem]">' +
           '<div class="net-tile ' + netTile(c.platform) + '">' + netIcon(c.platform, 'h-5 w-5') + '</div>' +
           '<div class="min-w-0 flex-1">' +
             '<div class="truncate text-sm font-medium">' + esc(c.name) + '</div>' +
@@ -853,6 +853,18 @@
   Vane.composer = {
     text: function () { return textEl.value; },
     set: function (t) { textEl.value = String(t).slice(0, MAX_LEN); textEl.focus(); textEl.dispatchEvent(new Event('input', { bubbles: true })); },
+    insert: function (t) { insertAtCaret(t); },
+    state: function () {
+      var m = picker.getMedia();
+      return { text: textEl.value, channelIds: Array.from(S.selected), media: m ? { url: m.url, kind: m.kind, name: m.name } : null };
+    },
+    load: function (d) {
+      textEl.value = String(d.content || '').slice(0, MAX_LEN);
+      var ids = (d.channelIds || []).filter(function (id) { return S.channels.some(function (c) { return c.id === id; }); });
+      if (ids.length) { S.selected = new Set(ids); S.selectionTouched = true; }
+      picker.set(d.media || null);
+      renderChips(); renderPreview(); validate(); saveDraft();
+    },
     networks: function () {
       var seen = {};
       return S.channels.filter(function (c) { return S.selected.has(c.id); }).map(function (c) { return c.platform; }).filter(function (p) { return !seen[p] && (seen[p] = 1); });
@@ -1161,6 +1173,7 @@
     var n = r.data.posts.length;
     Vane.toast('ok', 'Scheduled for ' + fmtWhen.format(new Date(r.data.scheduledAt * 1000)) + (n > 1 ? ' on ' + n + ' channels.' : '.'));
     textEl.value = ''; picker.clear(); saveDraft();
+    document.dispatchEvent(new CustomEvent('vane:scheduled'));
     initQuick();
     refreshApiQuietly();   // dashboard posts count toward the quota
     await Promise.all([loadPosts('upcoming')]);
@@ -1364,6 +1377,18 @@
       html += '<p class="mt-4 border-t border-white/10 pt-4 text-xs leading-relaxed text-white/45">' + esc(line) + '</p>';
     }
     box.innerHTML = html;
+    // Vane Suite = posting + video in one plan. Offered to everyone who is not on it yet, once it is switched on.
+    if (u.plan.id !== 'suite') {
+      Vane.api('GET', '/api/billing/plan?id=suite').then(function (r) {
+        if (!r.ok || !r.data.plan || !r.data.plan.buyable || !box.isConnected || box.querySelector('[data-suite]')) return;
+        var a = document.createElement('a');
+        a.setAttribute('data-suite', '1');
+        a.className = 'btn btn-white mt-4 inline-flex';
+        a.href = '/checkout?plan=suite';
+        a.textContent = 'Get Vane Suite: posting + video';
+        box.appendChild(a);
+      }).catch(function () { /* the offer is optional */ });
+    }
   }
 
   var KEY_ICON = '<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2M17 6l3 3M14 9l2 2"/></svg>';
@@ -1392,7 +1417,8 @@
         '<div class="net-tile bg-white/[0.07] text-white/80">' + KEY_ICON + '</div>' +
         '<div class="min-w-0 flex-1">' +
           '<div class="flex items-center gap-2"><span class="truncate text-sm font-medium">' + esc(k.name) + '</span>' +
-            '<span class="badge ' + (k.mode === 'live' ? 'badge-sent' : 'badge-scheduled') + '">' + (k.mode === 'live' ? 'Live' : 'Test') + '</span></div>' +
+            '<span class="badge ' + (k.mode === 'live' ? 'badge-sent' : 'badge-scheduled') + '">' + (k.mode === 'live' ? 'Live' : 'Test') + '</span>' +
+          (k.integration ? '<span class="truncate text-[11px] text-white/45">' + esc(INT_NAMES[k.integration] || k.integration) + '</span>' : '') + '</div>' +
           '<div class="mt-0.5 truncate font-mono text-xs text-white/50">' + esc(k.display) + '</div>' +
           '<div class="mt-0.5 text-xs text-white/35">Created ' + esc(fmtDay(k.createdAt)) + ' · ' + esc(used) + '</div>' +
         '</div>' +
@@ -1501,6 +1527,13 @@
     if (typeof kdlg.close === 'function') kdlg.close(); else kdlg.removeAttribute('open');
   }
 
+  var INT_NAMES = { claude: 'Claude', chatgpt: 'ChatGPT', make: 'Make', zapier: 'Zapier', wordpress: 'WordPress plugin', api: 'Own script / other' };
+  // Picking where the key will be used fills in the name if it is still empty (it stays editable).
+  $('keyIntegration').addEventListener('change', function () {
+    var n = $('keyName');
+    if (!n.value.trim() && this.value && this.value !== 'api') n.value = INT_NAMES[this.value];
+  });
+
   $('keyForm').addEventListener('submit', async function (e) {
     e.preventDefault();
     if (K.busy) return;
@@ -1509,7 +1542,7 @@
     if (!name) return showErr($('keyErr'), $('keyForm'), 'Give the key a name, for example Make.com.');
 
     K.busy = true; $('keySubmit').disabled = true; $('keySpin').classList.remove('hidden'); $('keyLabel').textContent = 'Creating…';
-    var r = await Vane.api('POST', '/api/keys', { name: name, mode: K.mode });
+    var r = await Vane.api('POST', '/api/keys', { name: name, mode: K.mode, integration: $('keyIntegration').value || undefined });
     K.busy = false; $('keySubmit').disabled = false; $('keySpin').classList.add('hidden'); $('keyLabel').textContent = 'Create key';
     if (!r.ok) return showErr($('keyErr'), $('keyForm'), r.error);
 

@@ -7,7 +7,8 @@ import { toB64Url } from './encoding';
 import { fail, failCode, json, readBodyLimited } from './http';
 import { requireVideoAccess } from './videoplans';
 import { serveOwnerPicture } from './videocover';
-import { getVideoRow, MEDIA_OFF, toPublicVideo, type VideoView } from './videos';
+import { mediaMessage, moderateImages } from './moderation';
+import { deleteVideoForUser, getVideoRow, MEDIA_OFF, toPublicVideo, type VideoView } from './videos';
 
 export const THUMB_MAX_BYTES = 300 * 1024;
 const MAX_DURATION_MS = 24 * 3600 * 1000;
@@ -42,6 +43,13 @@ export async function putThumbnail(env: Env, userId: string, id: string, request
   if (!bytes) return failCode(413, 'thumbnail_too_large', `The preview can be up to ${THUMB_MAX_BYTES / 1024} KB.`);
   // The type is judged from the bytes (a JPEG starts FF D8 FF), never from the header the client sent.
   if (bytes.length < 128 || bytes[0] !== 0xff || bytes[1] !== 0xd8 || bytes[2] !== 0xff) return failCode(415, 'unsupported_type', 'The preview must be a JPEG image.');
+
+  // The preview frame is the one picture we get from a Studio video: adult or graphic-violent content takes the whole video down.
+  const verdict = await moderateImages(env, [{ bytes, mime: 'image/jpeg' }]);
+  if (!verdict.ok) {
+    await deleteVideoForUser(env, userId, id);
+    return failCode(422, 'video_blocked', `${mediaMessage(verdict.reason, true)} It was removed from your library.`);
+  }
 
   const key = `videos/${userId}/${id}.jpg`;
   await env.MEDIA.put(key, bytes, { httpMetadata: { contentType: 'image/jpeg' }, customMetadata: { userId, videoId: id } });

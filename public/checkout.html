@@ -12,8 +12,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="/assets/vane.css?v=20261016b" />
+  <link rel="stylesheet" href="/assets/vane.css?v=e72b2b78fc" />
+  <link rel="stylesheet" href="/assets/app.css?v=0fb52c064c" />
   <style>
     .panel { background: #111114; border: 1px solid rgba(255,255,255,.1); border-radius: 1.5rem; }
     .method { display: flex; width: 100%; align-items: center; gap: .9rem; text-align: left; border-radius: 1rem; border: 1px solid rgba(255,255,255,.12); background: #16161a; padding: .95rem 1rem; cursor: pointer; transition: border-color .15s, background-color .15s; }
@@ -63,6 +63,10 @@
             <div class="flex items-end justify-between"><span class="text-sm text-white/60">Total today</span><span id="total" class="pixel text-4xl leading-none"></span></div>
             <p id="totalNote" class="mt-2 text-xs leading-relaxed text-white/40"></p>
           </div>
+          <div class="mt-5 rounded-2xl bg-white/[0.04] p-4 ring-1 ring-white/5" aria-labelledby="ptTitle">
+            <p id="ptTitle" class="text-xs font-medium uppercase tracking-widest text-white/40">Purchase terms</p>
+            <ul id="purchaseTerms" class="mt-3 space-y-2 text-xs leading-relaxed text-white/65"></ul>
+          </div>
         </section>
 
         <!-- billing + payment -->
@@ -94,6 +98,11 @@
                 </button>
               </div>
               <div id="assetBox" class="hidden"><span class="lbl">Token</span><div class="seg" role="group" aria-label="Token"><button type="button" data-asset="usdt" aria-pressed="true">USDT</button><button type="button" data-asset="usdc" aria-pressed="false">USDC</button></div></div>
+
+              <div class="space-y-3 rounded-2xl bg-white/[0.04] p-4 text-xs leading-relaxed text-white/65 ring-1 ring-white/5">
+                <label class="flex cursor-pointer items-start gap-3"><input id="fAccept" type="checkbox" class="mt-0.5 h-4 w-4 shrink-0 accent-white" /><span>I have read and agree to the <a href="/terms" target="_blank" rel="noopener" class="underline underline-offset-2 hover:text-white">Terms</a> and the <a href="/privacy" target="_blank" rel="noopener" class="underline underline-offset-2 hover:text-white">Privacy Policy</a>, and to the purchase terms shown next to the plan: one payment for one period, no automatic renewal.</span></label>
+                <label id="waiverRow" class="hidden cursor-pointer items-start gap-3"><input id="fWaiver" type="checkbox" class="mt-0.5 h-4 w-4 shrink-0 accent-white" /><span>I ask for my plan to start immediately. I understand that in the EU, EEA and UK I lose my 14-day right of withdrawal once the service has been fully provided, and in part for the portion already used.</span></label>
+              </div>
 
               <div id="err" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
               <button type="submit" id="pay" class="btn btn-white w-full justify-center !py-3.5"><span id="paySpin" class="spinner spinner-dark hidden"></span><span id="payLabel">Pay</span></button>
@@ -145,8 +154,8 @@
     </main>
   </div>
 
-  <script src="/assets/vane.js?v=20261022a"></script>
+  <script src="/assets/vane.js?v=875e8801e4"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <script src="/assets/checkout.js?v=20261022c"></script>
+  <script src="/assets/checkout.js?v=0527c5bf75"></script>
 </body>
 </html>

@@ -6,6 +6,8 @@
  *                                                   days empty = no end date, addon = Pro + API add-on; never counted as revenue
  *        ai_credits { userId, credits, note? }        add (or, negative, take away) AI credits for one account; they are spent after the plan's own credits
  *        ai_pass { userId, enabled, days?, note? }   switch the AI Pass (monthly AI credits, any plan) on or off for one account
+ *        access  { userId, product: 'studio'|'analytics', enabled, days?, note? }   switch Vane Studio or Vane Analytics Pro on or off alone, next to any plan
+ *        api_addon { userId, enabled }               the API add-on on top of an active Pro plan
  *        revoke  { userId }                         end their plan now (they fall back to the Free Trial)
  *        disable { userId, reason? }                switch the account off and sign it out everywhere
  *        enable  { userId }
@@ -21,6 +23,32 @@ import { loadAiPass } from '../lib/aipass';
 import { likeEscape } from '../lib/range';
 
 const PAGE = 25;
+
+const ACCESS_TABLE = { studio: 'video_subscriptions', analytics: 'analytics_subscriptions' } as const;
+type Product = keyof typeof ACCESS_TABLE;
+
+async function loadAccess(env: Env, userId: string, now: number): Promise<Record<Product, { active: boolean; endsAt: number | null; provider: string | null }>> {
+  const out = { studio: { active: false, endsAt: null as number | null, provider: null as string | null }, analytics: { active: false, endsAt: null as number | null, provider: null as string | null } };
+  for (const k of Object.keys(ACCESS_TABLE) as Product[]) {
+    try {
+      const row = await env.DB.prepare(`SELECT status, current_period_end, provider FROM ${ACCESS_TABLE[k]} WHERE user_id = ?1`).bind(userId).first<{ status: string; current_period_end: number | null; provider: string }>();
+      if (row) out[k] = { active: row.status === 'active' && (row.current_period_end === null || row.current_period_end > now), endsAt: row.current_period_end, provider: row.provider };
+    } catch {
+      /* table not created yet: shown as off */
+    }
+  }
+  return out;
+}
+
+async function grantAccess(env: Env, table: string, userId: string, until: number | null, now: number): Promise<void> {
+  await env.DB
+    .prepare(
+      `INSERT INTO ${table} (user_id, status, current_period_end, provider, created_at, updated_at) VALUES (?1, 'active', ?2, 'manual', ?3, ?3)
+       ON CONFLICT(user_id) DO UPDATE SET status = 'active', current_period_end = excluded.current_period_end, provider = 'manual', updated_at = excluded.updated_at`,
+    )
+    .bind(userId, until, now)
+    .run();
+}
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const auth = await requireAdmin(request, env);
@@ -56,6 +84,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       user,
       plan: { id: sub.plan, name: spec.label, apiAddon: sub.apiAddon, overageEnabled: sub.overageEnabled, status: sub.status, lapsed: sub.lapsed, endsAt: sub.currentPeriodEnd, provider: (d[0].results[0] as { provider?: string } | undefined)?.provider ?? null },
       aiPass: await loadAiPass(env, id, now),
+      access: await loadAccess(env, id, now),
       subscription: d[0].results[0] ?? null, usage: await usageSummary(env, id, sub), channels: d[1].results,
       posts: Object.fromEntries((d[2].results as { status: string; n: number }[]).map((x) => [x.status, x.n])),
       sessions: d[3].results, attribution: d[4].results[0] ?? null, timeOnSite: d[5].results[0], pages: d[6].results, attempts: d[7].results,
@@ -137,6 +166,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       }
       throw err;
     }
+    // The Suite bundle is Post + Studio + Analytics Pro: the gift switches all of them on for the same time.
+    if (plan.id === 'suite') {
+      const until = days === null ? null : now + days * 86400;
+      await grantAccess(env, 'video_subscriptions', user.id, until, now);
+      await grantAccess(env, 'analytics_subscriptions', user.id, until, now);
+    }
     await audit(env, request, 'user.grant_plan', user.email, { plan: plan.id, addon, overage, days, note });
     return json({ ok: true }, 201);
   }
@@ -192,15 +227,52 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ ok: true });
   }
 
+  if (b.action === 'access') {
+    if (typeof b.userId !== 'string' || !UUID_RE.test(b.userId)) return fail(400, 'userId is invalid.');
+    if (b.product !== 'studio' && b.product !== 'analytics') return fail(400, 'product must be studio or analytics.');
+    if (typeof b.enabled !== 'boolean') return fail(400, 'enabled must be true or false.');
+    const days = b.days === undefined || b.days === null || b.days === '' ? null : Number(b.days);
+    if (days !== null && (!Number.isInteger(days) || days < 1 || days > 3650)) return fail(400, 'days must be 1-3650, or empty for no end date.');
+    const user = await env.DB.prepare('SELECT email FROM users WHERE id = ?1').bind(b.userId).first<{ email: string }>();
+    if (!user) return fail(404, 'User not found.');
+    const table = ACCESS_TABLE[b.product];
+    try {
+      if (b.enabled) await grantAccess(env, table, b.userId, days === null ? null : now + days * 86400, now);
+      else await env.DB.prepare(`UPDATE ${table} SET status = 'canceled', updated_at = ?2 WHERE user_id = ?1`).bind(b.userId, now).run();
+    } catch (err) {
+      if (/no such table/i.test(err instanceof Error ? err.message : '')) return fail(409, 'The database does not have this table yet. Run the whole schema.sql in the D1 Console (it is safe to run again), then try once more.');
+      throw err;
+    }
+    await audit(env, request, b.enabled ? `user.${b.product}_on` : `user.${b.product}_off`, user.email, { days, note: typeof b.note === 'string' ? b.note.trim().slice(0, 200) : null });
+    return json({ ok: true });
+  }
+
+  if (b.action === 'api_addon') {
+    if (typeof b.userId !== 'string' || !UUID_RE.test(b.userId)) return fail(400, 'userId is invalid.');
+    if (typeof b.enabled !== 'boolean') return fail(400, 'enabled must be true or false.');
+    const user = await env.DB.prepare('SELECT email FROM users WHERE id = ?1').bind(b.userId).first<{ email: string }>();
+    if (!user) return fail(404, 'User not found.');
+    const res = await env.DB.prepare(`UPDATE subscriptions SET api_addon = ?2, updated_at = ?3 WHERE user_id = ?1 AND plan = 'pro' AND status = 'active'`).bind(b.userId, b.enabled ? 1 : 0, now).run();
+    if (!res.meta.changes) return fail(409, 'The API add-on goes on top of an active Pro plan. Give Pro first.');
+    await audit(env, request, b.enabled ? 'user.api_addon_on' : 'user.api_addon_off', user.email);
+    return json({ ok: true });
+  }
+
   if (b.action === 'revoke') {
     if (typeof b.userId !== 'string' || !UUID_RE.test(b.userId)) return fail(400, 'userId is invalid.');
     const user = await env.DB.prepare('SELECT email FROM users WHERE id = ?1').bind(b.userId).first<{ email: string }>();
     if (!user) return fail(404, 'User not found.');
+    const was = await env.DB.prepare(`SELECT plan FROM subscriptions WHERE user_id = ?1 AND status = 'active'`).bind(b.userId).first<{ plan: string }>();
     const res = await env.DB
       .prepare(`UPDATE subscriptions SET status = 'canceled', current_period_end = ?2, updated_at = ?2 WHERE user_id = ?1 AND plan <> 'free' AND status = 'active'`)
       .bind(b.userId, now)
       .run();
     if (!res.meta.changes) return fail(404, 'This user has no active paid plan.');
+    // Ending Suite ends the Studio and Analytics halves too (it was one purchase).
+    if (was?.plan === 'suite') {
+      await env.DB.prepare(`UPDATE video_subscriptions SET status = 'canceled', current_period_end = ?2, updated_at = ?2 WHERE user_id = ?1 AND status = 'active'`).bind(b.userId, now).run();
+      await env.DB.prepare(`UPDATE analytics_subscriptions SET status = 'canceled', current_period_end = ?2, updated_at = ?2 WHERE user_id = ?1 AND status = 'active'`).bind(b.userId, now).run();
+    }
     await audit(env, request, 'user.revoke_plan', user.email);
     return json({ ok: true });
   }

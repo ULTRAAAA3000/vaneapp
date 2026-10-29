@@ -234,6 +234,7 @@
     return {
       handleFile: handleFile,
       clear: clear,
+      set: function (m) { if (current) { discardPrevious = true; current.abort(); } revoke(); media = m || null; state = m ? 'ready' : 'idle'; setError(''); render(); if (opts.onChange) opts.onChange(media); },
       getMedia: function () { return media; },
       getUrl: function () { return media ? media.url : ''; },
       isBusy: function () { return state === 'uploading'; },
