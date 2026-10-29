@@ -7,7 +7,8 @@ import { toB64Url } from './encoding';
 import { fail, failCode, json, readBodyLimited } from './http';
 import { requireVideoAccess } from './videoplans';
 import { serveOwnerPicture } from './videocover';
-import { mediaMessage, moderateImages } from './moderation';
+import { mediaCode, mediaMessage, mediaStatus, moderateImages } from './moderation';
+import { notCheckedProblem } from './videocheck';
 import { deleteVideoForUser, getVideoRow, MEDIA_OFF, toPublicVideo, type VideoView } from './videos';
 
 export const THUMB_MAX_BYTES = 300 * 1024;
@@ -46,6 +47,7 @@ export async function putThumbnail(env: Env, userId: string, id: string, request
 
   // The preview frame is the one picture we get from a Studio video: adult or graphic-violent content takes the whole video down.
   const verdict = await moderateImages(env, [{ bytes, mime: 'image/jpeg' }]);
+  if (!verdict.ok && verdict.reason === 'unchecked') return failCode(mediaStatus(verdict.reason), mediaCode(verdict.reason), mediaMessage(verdict.reason, true));
   if (!verdict.ok) {
     await deleteVideoForUser(env, userId, id);
     return failCode(422, 'video_blocked', `${mediaMessage(verdict.reason, true)} It was removed from your library.`);
@@ -84,6 +86,8 @@ export async function createLink(env: Env, userId: string, id: string, view: Vid
   const row = await getVideoRow(env, userId, id);
   if (!row) return fail(404, 'Video not found');
   if (row.status !== 'ready') return failCode(409, 'not_ready', 'A link can be made once the video has finished uploading.');
+  const unchecked = await notCheckedProblem(env, id);   // a video nobody has looked at is never shared
+  if (unchecked) return unchecked;
   if (simulate) return json({ ok: true, simulated: true, url: `${view.linkBase}/${'x'.repeat(32)}`, video: toPublicVideo(row, view) });
 
   const denied = await requireVideoAccess(env, userId);

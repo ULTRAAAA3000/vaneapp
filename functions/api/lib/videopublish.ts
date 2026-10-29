@@ -21,6 +21,7 @@ import { bump, retryAfter } from './throttle';
 import { publisherFor, type PublishEnv, type PublishJob } from './videopublishers';
 import { YT_CATEGORIES, type YoutubeOptions } from './youtube';
 import { isTiktokPrivacy, type TiktokOptions } from './tiktok';
+import { isVideoChecked, NOT_CHECKED_MESSAGE, notCheckedProblem } from './videocheck';
 import { loadVideoSubscription, requireVideoAccess } from './videoplans';
 import { getVideoRow, parseVideoMeta, TITLE_MAX } from './videos';
 import type { VideoPlatform } from './videochannels';
@@ -112,6 +113,7 @@ async function runOne(env: PublishEnv, row: Claimed, active: Map<string, boolean
     .first<{ tags: string; r2_key: string; size_bytes: number; content_type: string; video_status: string; channel_name: string | null; credentials: string | null; is_active: number | null }>();
 
   if (!ctx || ctx.video_status !== 'ready') return done({ ok: false, retryable: false, error: 'The video is not available any more.' });
+  if (!(await isVideoChecked(env, row.video_id))) return done({ ok: false, retryable: false, error: NOT_CHECKED_MESSAGE });
   if (!row.channel_id || !ctx.channel_name || ctx.credentials === null) return done({ ok: false, retryable: false, error: 'The channel was disconnected. Connect it again and retry.' });
   if (ctx.is_active !== 1) return done({ ok: false, retryable: false, error: 'The channel is switched off.' });
 
@@ -196,6 +198,8 @@ export async function publishVideo(env: Env, userId: string, videoId: string, bo
   const video = await getVideoRow(env, userId, videoId);
   if (!video) return fail(404, 'Video not found');
   if (video.status !== 'ready') return failCode(409, 'not_ready', 'A video can be published once it has finished uploading.');
+  const unchecked = await notCheckedProblem(env, videoId);   // a video nobody has looked at is never published
+  if (unchecked) return unchecked;
   const denied = await requireVideoAccess(env, userId);
   if (denied) return denied;
 

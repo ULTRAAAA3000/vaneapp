@@ -7,6 +7,7 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env } from '../../../../types';
 import { fail, methodNotAllowed } from '../../lib/http';
+import { isVideoChecked } from '../../lib/videocheck';
 import { streamVideo } from '../../lib/videofile';
 
 const TOKEN_RE = /^[A-Za-z0-9_-]{32}$/;
@@ -17,13 +18,13 @@ async function serve(request: Request, env: Env, rawToken: string | string[] | u
 
   const video = await env.DB
     .prepare(
-      `SELECT v.r2_key, v.size_bytes, v.content_type, v.title
+      `SELECT v.id, v.r2_key, v.size_bytes, v.content_type, v.title
          FROM video_links l JOIN videos v ON v.id = l.video_id
         WHERE l.token = ?1 AND v.status = 'ready'`,
     )
     .bind(token)
-    .first<{ r2_key: string; size_bytes: number; content_type: string; title: string }>();
-  if (!video) return fail(404, 'Not found');
+    .first<{ id: string; r2_key: string; size_bytes: number; content_type: string; title: string }>();
+  if (!video || !(await isVideoChecked(env, video.id))) return fail(404, 'Not found');   // a video nobody has looked at is never shown
 
   // A file name for "Save as": the title without anything that could break a header.
   const base = video.title.replace(/[^\p{L}\p{N} ._-]/gu, '').trim().slice(0, 80) || 'video';
