@@ -16,7 +16,7 @@ import type { Env } from '../../../types';
 import { json, isRecord, methodNotAllowed } from '../lib/http';
 import { sha256Hex } from '../lib/session';
 import { onRequestGet as listChannels } from './channels/index';
-import { onRequestPost as createPost } from './posts/index';
+import { onRequestGet as listPosts, onRequestPost as createPost } from './posts/index';
 import { markMcpInternal, recordMcpCall } from '../lib/integrations';
 import { decryptToken } from '../lib/crypto';
 import { ACCESS_PREFIX, CORS, grantForAccessToken, preflight, resourceMetadataUrl } from '../lib/oauth';
@@ -33,6 +33,17 @@ const TOOLS = [
     description: 'List the social channels connected to the user\'s Vane account (id, platform, name). Call this first to know where a post can go.',
     annotations: { title: 'List my channels', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'vane_list_posts',
+    title: 'List my posts',
+    description: 'List the user\'s Vane posts: view "upcoming" (scheduled, soonest first) or "history" (sent, failed or cancelled, newest first). Use it to answer "what is scheduled?" or "did it go out?".',
+    annotations: { title: 'List my posts', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    inputSchema: {
+      type: 'object',
+      properties: { view: { type: 'string', enum: ['upcoming', 'history'], description: 'upcoming (default) or history.' } },
+      additionalProperties: false,
+    },
   },
   {
     name: 'vane_create_post',
@@ -57,6 +68,58 @@ const TOOLS = [
     },
   },
 ];
+
+/** Slash commands: Claude lists MCP prompts as /commands, so a person types "/vane:post …" and Claude knows what to do. */
+const PROMPTS = [
+  {
+    name: 'post', title: 'Post', description: 'Schedule a post you wrote, as it is.',
+    arguments: [
+      { name: 'text', description: 'The text to post.', required: true },
+      { name: 'channels', description: 'Where, e.g. "telegram, bluesky". Empty: Claude asks.' },
+      { name: 'when', description: 'When, e.g. "tomorrow 9:00". Empty: in a couple of minutes.' },
+    ],
+  },
+  {
+    name: 'draft', title: 'Write and post', description: 'Claude writes the post for you, shows it, and schedules it once you approve.',
+    arguments: [
+      { name: 'topic', description: 'What the post is about.', required: true },
+      { name: 'channels', description: 'Where, e.g. "bluesky, mastodon".' },
+      { name: 'tone', description: 'Tone or style, e.g. "friendly", "short and punchy".' },
+    ],
+  },
+  { name: 'channels', title: 'My channels', description: 'Show the channels connected to Vane.', arguments: [] },
+  { name: 'upcoming', title: 'Scheduled posts', description: 'Show what is scheduled.', arguments: [] },
+  { name: 'recent', title: 'Recent posts', description: 'Show what went out lately and what failed.', arguments: [] },
+];
+
+const argText = (args: Record<string, unknown>, key: string, max: number): string => (typeof args[key] === 'string' ? (args[key] as string).replace(/\u0000/g, '').trim().slice(0, max) : '');
+
+/** What Claude receives when a command is used. The person's own words are quoted as content, never as instructions about tools. */
+function promptText(name: string, args: Record<string, unknown>): string | null {
+  const channels = argText(args, 'channels', 300);
+  if (name === 'post') {
+    const text = argText(args, 'text', 10000);
+    if (!text) return null;
+    const when = argText(args, 'when', 100);
+    return `Use Vane to schedule this post exactly as written, without changing a word:\n\n"""\n${text}\n"""\n\n`
+      + (channels ? `Channels: ${channels}.` : 'Channels: not specified. Call vane_list_channels and ask which ones to use before posting.')
+      + (when ? `\nWhen: ${when} (convert it to an ISO-8601 time with a timezone; ask if the timezone is unclear).` : '\nWhen: not specified, so use the default (in a couple of minutes).')
+      + '\nThen confirm in one line what was scheduled and where.';
+  }
+  if (name === 'draft') {
+    const topic = argText(args, 'topic', 1000);
+    if (!topic) return null;
+    const tone = argText(args, 'tone', 100);
+    return `Write a social post with Vane in mind.\n\nTopic: ${topic}\n`
+      + (tone ? `Tone: ${tone}\n` : '')
+      + (channels ? `Channels: ${channels}\n` : 'Channels: call vane_list_channels and suggest the best fit.\n')
+      + '\nWrite the post yourself (no other tool is needed for the writing), keep it inside the character limit of the smallest chosen network (Bluesky 300, Mastodon 500, Threads 500, X 280, Telegram 4096), and show it to me. Do NOT schedule it yet: wait until I approve or ask for changes, then use vane_create_post.';
+  }
+  if (name === 'channels') return 'Call vane_list_channels and show my Vane channels as a short list.';
+  if (name === 'upcoming') return 'Call vane_list_posts with view "upcoming" and summarise what is scheduled: when, where, and the start of each text.';
+  if (name === 'recent') return 'Call vane_list_posts with view "history" and tell me what went out lately and what failed (with the reason).';
+  return null;
+}
 
 type Rpc = { jsonrpc?: string; id?: string | number | null; method?: string; params?: unknown };
 type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean };
@@ -115,6 +178,24 @@ function resolveChannels(wanted: string[], chans: Channel[]): { ids: string[]; m
   return { ids: [...ids], missing };
 }
 
+const SHORT = (t: string, n: number): string => (t.length > n ? t.slice(0, n - 1) + '…' : t);
+
+async function toolListPosts(env: Env, request: Request, args: Record<string, unknown>): Promise<ToolResult> {
+  const view = args.view === 'history' ? 'history' : 'upcoming';
+  const r = await callApi(env, request, listPosts, 'GET', `/api/v1/posts?view=${view}`);
+  if (r.status !== 200) return apiProblem(r.status, r.data);
+  type Item = { groupId: string; channelName: string; platform: string; content: string; scheduledAt: number; status: string; error: string | null; url: string | null };
+  const posts: Item[] = r.data.posts ?? [];
+  if (!posts.length) return text(view === 'upcoming' ? 'Nothing is scheduled.' : 'No posts have been sent yet.');
+  const groups = new Map<string, Item[]>();
+  for (const p of posts) groups.set(p.groupId, [...(groups.get(p.groupId) ?? []), p]);
+  const lines = [...groups.values()].slice(0, 20).map((g) => {
+    const where = g.map((p) => `${p.channelName} (${p.platform}${view === 'history' ? ', ' + p.status + (p.error ? ': ' + SHORT(p.error, 120) : '') + (p.url ? ', ' + p.url : '') : ''})`).join('; ');
+    return `- ${new Date(g[0].scheduledAt * 1000).toISOString()} · ${where} · "${SHORT(g[0].content.replace(/\s+/g, ' '), 140)}"`;
+  });
+  return text(lines.join('\n') + (groups.size > 20 ? `\n… and ${groups.size - 20} more.` : ''));
+}
+
 async function toolCreatePost(env: Env, request: Request, args: Record<string, unknown>): Promise<ToolResult> {
   const content = typeof args.text === 'string' ? args.text : '';
   const wanted = Array.isArray(args.channels) ? args.channels.filter((c): c is string => typeof c === 'string') : [];
@@ -157,17 +238,28 @@ async function handle(env: Env, request: Request, msg: Rpc): Promise<unknown | n
       const asked = isRecord(msg.params) && typeof msg.params.protocolVersion === 'string' ? msg.params.protocolVersion : '';
       return rpcResult(id, {
         protocolVersion: PROTOCOL_VERSIONS.includes(asked) ? asked : PROTOCOL_VERSIONS[0],
-        capabilities: { tools: {} },
+        capabilities: { tools: {}, prompts: {} },
         serverInfo: { name: 'vane', version: '1.0.0' },
-        instructions: 'Vane schedules social posts. Use vane_list_channels to see connected channels, then vane_create_post.',
+        instructions: 'Vane schedules social posts. Use vane_list_channels to see connected channels, then vane_create_post. vane_list_posts shows what is scheduled or was sent. Never post unless the user asked for it.',
       });
     }
     case 'ping': return rpcResult(id, {});
     case 'tools/list': return rpcResult(id, { tools: TOOLS });
+    case 'prompts/list': return rpcResult(id, { prompts: PROMPTS });
+    case 'prompts/get': {
+      const p = isRecord(msg.params) ? msg.params : {};
+      const name = typeof p.name === 'string' ? p.name : '';
+      const known = PROMPTS.find((x) => x.name === name);
+      if (!known) return rpcError(id, -32602, `Unknown prompt: ${name.slice(0, 40)}`);
+      const body = promptText(name, isRecord(p.arguments) ? p.arguments : {});
+      if (!body) return rpcError(id, -32602, `Missing a required argument for "${name}".`);
+      return rpcResult(id, { description: known.description, messages: [{ role: 'user', content: { type: 'text', text: body } }] });
+    }
     case 'tools/call': {
       const p = isRecord(msg.params) ? msg.params : {};
       const args = isRecord(p.arguments) ? p.arguments : {};
       if (p.name === 'vane_list_channels') { const r = await toolListChannels(env, request); await recordMcpCall(env, request, 'vane_list_channels'); return rpcResult(id, r); }
+      if (p.name === 'vane_list_posts') { const r = await toolListPosts(env, request, args); await recordMcpCall(env, request, 'vane_list_posts'); return rpcResult(id, r); }
       if (p.name === 'vane_create_post') { const r = await toolCreatePost(env, request, args); await recordMcpCall(env, request, 'vane_create_post'); return rpcResult(id, r); }
       return rpcError(id, -32602, `Unknown tool: ${String(p.name)}`);
     }
