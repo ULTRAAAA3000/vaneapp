@@ -10,10 +10,10 @@ import { fail, isRecord, json, methodNotAllowed, readJson } from '../lib/http';
 import { callJson } from '../lib/httpcall';
 
 const MENU: Record<string, [string, string][]> = {
-  en: [['stats', 'Totals for the period'], ['top', 'Most popular post per network'], ['followers', 'Followers now'], ['digest', 'Summary now'], ['settings', 'What I send you'], ['language', 'Language'], ['help', 'All commands'], ['unlink', 'Disconnect']],
-  ru: [['stats', 'Итоги за период'], ['top', 'Лучший пост по каждой сети'], ['followers', 'Подписчики сейчас'], ['digest', 'Сводка сейчас'], ['settings', 'Что присылать'], ['language', 'Язык'], ['help', 'Все команды'], ['unlink', 'Отключить']],
-  uk: [['stats', 'Підсумки за період'], ['top', 'Найкращий пост у кожній мережі'], ['followers', 'Підписники зараз'], ['digest', 'Зведення зараз'], ['settings', 'Що надсилати'], ['language', 'Мова'], ['help', 'Усі команди'], ['unlink', 'Відключити']],
-  de: [['stats', 'Summen für den Zeitraum'], ['top', 'Bester Beitrag je Netzwerk'], ['followers', 'Follower jetzt'], ['digest', 'Zusammenfassung jetzt'], ['settings', 'Was ich sende'], ['language', 'Sprache'], ['help', 'Alle Befehle'], ['unlink', 'Trennen']],
+  en: [['stats', 'Totals for the period'], ['top', 'Most popular post per network'], ['followers', 'Followers now'], ['digest', 'Summary now'], ['scheduled', 'Scheduled posts'], ['settings', 'What I send you'], ['language', 'Language'], ['help', 'All commands'], ['unlink', 'Disconnect']],
+  ru: [['stats', 'Итоги за период'], ['top', 'Лучший пост по каждой сети'], ['followers', 'Подписчики сейчас'], ['digest', 'Сводка сейчас'], ['scheduled', 'Запланированные посты'], ['settings', 'Что присылать'], ['language', 'Язык'], ['help', 'Все команды'], ['unlink', 'Отключить']],
+  uk: [['stats', 'Підсумки за період'], ['top', 'Найкращий пост у кожній мережі'], ['followers', 'Підписники зараз'], ['digest', 'Зведення зараз'], ['scheduled', 'Заплановані пости'], ['settings', 'Що надсилати'], ['language', 'Мова'], ['help', 'Усі команди'], ['unlink', 'Відключити']],
+  de: [['stats', 'Summen für den Zeitraum'], ['top', 'Bester Beitrag je Netzwerk'], ['followers', 'Follower jetzt'], ['digest', 'Zusammenfassung jetzt'], ['scheduled', 'Geplante Beiträge'], ['settings', 'Was ich sende'], ['language', 'Sprache'], ['help', 'Alle Befehle'], ['unlink', 'Trennen']],
 };
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {

@@ -950,6 +950,44 @@ CREATE TABLE IF NOT EXISTS api_usage_daily (
 );
 CREATE INDEX IF NOT EXISTS idx_api_usage_daily_day ON api_usage_daily(day);
 
+-- ───────────────────────── Claude connector (OAuth 2.1 for the remote MCP server) ─────────────────────────
+-- Claude (and any MCP client) signs a person in through /connect and then calls /api/v1/mcp with an access token.
+-- Behind a grant there is always one ordinary Vane API key (made for the connector, or one the person pasted), kept encrypted:
+-- revoking that key in the dashboard cuts the connector off, and every quota/plan rule stays the one of the API.
+CREATE TABLE IF NOT EXISTS oauth_clients (
+  client_id      TEXT    PRIMARY KEY,
+  client_name    TEXT    NOT NULL,
+  redirect_uris  TEXT    NOT NULL,                              -- JSON array, exact match at /authorize
+  created_at     INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE TABLE IF NOT EXISTS oauth_grants (
+  id          TEXT    PRIMARY KEY,
+  client_id   TEXT    NOT NULL REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
+  user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  key_id      TEXT    NOT NULL REFERENCES api_keys(id) ON DELETE CASCADE,
+  key_enc     TEXT    NOT NULL,                                 -- the API key, encrypted with ENCRYPTION_KEY
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+  revoked_at  INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_grants_user ON oauth_grants(user_id, client_id);
+CREATE TABLE IF NOT EXISTS oauth_codes (
+  code_hash       TEXT    PRIMARY KEY,                          -- sha256 of the one-time code
+  client_id       TEXT    NOT NULL REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
+  grant_id        TEXT    NOT NULL REFERENCES oauth_grants(id) ON DELETE CASCADE,
+  redirect_uri    TEXT    NOT NULL,
+  code_challenge  TEXT    NOT NULL,                             -- PKCE, S256 only
+  expires_at      INTEGER NOT NULL,
+  used_at         INTEGER
+);
+CREATE TABLE IF NOT EXISTS oauth_tokens (
+  token_hash  TEXT    PRIMARY KEY,                              -- sha256 of the token
+  kind        TEXT    NOT NULL CHECK (kind IN ('access', 'refresh')),
+  grant_id    TEXT    NOT NULL REFERENCES oauth_grants(id) ON DELETE CASCADE,
+  expires_at  INTEGER NOT NULL,
+  used_at     INTEGER                                           -- a refresh token is single-use (rotated)
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_tokens_grant ON oauth_tokens(grant_id);
+
 -- ───────────────────────── Contact form (/about#contact) ─────────────────────────
 -- Every message is kept, so nothing is lost when the email could not be sent. Read them in the D1 Console:
 --   SELECT datetime(created_at,'unixepoch') AS at, topic, name, email, message, mailed FROM contact_messages ORDER BY id DESC LIMIT 50;
@@ -971,4 +1009,12 @@ CREATE TABLE IF NOT EXISTS age_confirmations (
   user_id       TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   min_age       INTEGER NOT NULL,
   confirmed_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+CREATE TABLE IF NOT EXISTS ai_voice (
+  user_id     TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  description TEXT    NOT NULL DEFAULT '',
+  samples     TEXT    NOT NULL DEFAULT '[]',
+  enabled     INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
+  updated_at  INTEGER NOT NULL DEFAULT (unixepoch())
 );

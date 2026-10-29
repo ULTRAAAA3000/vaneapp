@@ -1,0 +1,8 @@
+{
+  "name": "vane",
+  "version": "1.0.0",
+  "description": "Schedule and review social posts with Vane from Claude: /vane:post, /vane:draft, /vane:channels, /vane:upcoming, /vane:recent.",
+  "author": { "name": "Vane", "url": "https://vaneapp.dev" },
+  "homepage": "https://vaneapp.dev/integrations",
+  "keywords": ["social media", "scheduling", "posting"]
+}

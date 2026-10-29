@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/site.css?v=8ec7e16663" />
+  <link rel="stylesheet" href="/assets/site.css?v=af3eecd357" />
   <link rel="stylesheet" href="/assets/vane.css?v=e72b2b78fc" />
   <style>
     html { scroll-behavior: smooth; }
@@ -98,7 +98,8 @@
         <ul>
           <li><b>Account:</b> email address, an optional name, your time zone and a salted hash of your password. We also email you one-time codes to confirm sign-up and new sign-ins. If you sign in with GitHub or Google, we receive your name, your verified email address and the provider’s id for your account, and nothing else (no repositories, contacts, files or mail).</li>
           <li><b>Content:</b> the text, pictures, videos, thumbnails and drafts you write or upload, the time you chose to publish, and the results (sent, failed, the link to the published post). We also keep what you save on purpose: up to 5 unfinished <b>drafts</b> and your <b>snippets</b> (reusable texts; 5 on the Free Trial, up to 100 on paid plans).</li>
-          <li><b>AI history:</b> the last 10 answers of the post and week-plan generators, each with the idea you typed to get it. You can pin up to 4 of them and delete any of them.</li>
+          <li><b>AI history:</b> the last 10 answers of the post, week-plan, series and “like my best posts” generators, each with the idea you typed to get it. You can pin up to 4 of them and delete any of them.</li>
+          <li><b>AI voice:</b> the one-line description of your style and up to 5 example posts that you add yourself. If you add none, the AI uses your latest sent posts as a style reference. “Like my best posts” also reads your best-performing sent posts. These texts are sent to the AI model only to answer your request. You can edit, switch off or delete them any time.</li>
           <li><b>Email preferences:</b> if you use the unsubscribe link in one of our emails, we keep your email address on a list so that we do not write to you again.</li>
           <li><b>Connected accounts:</b> a sign-in token or app password for each network you connect, kept encrypted, plus the public name, handle or id of the account so you can tell them apart.</li>
           <li><b>API keys and webhooks:</b> the name you give a key, its last four characters and a hash of it (never the key itself); the address of each webhook and its signing secret, kept encrypted.</li>
@@ -148,7 +149,7 @@
         <p>When you use an AI feature (hashtags, clean-up, re-formatting, post and idea generation, tone, hooks, video scripts and metadata), the text you submit and your instruction are sent to the AI model running on our infrastructure provider, Cloudflare Workers AI, to produce the answer. The model is chosen by the language of your text: Cloudflare Workers AI runs open models from providers such as Meta and Google on its own infrastructure. We keep a count of the credits you use, and the last 10 post and week-plan answers with the idea behind them so that you can find them again (see section 3); we do not keep your prompts for any other purpose. We do not use your content to train or fine-tune models, and we do not send it to AI providers other than the ones listed in section 8. AI output can be wrong or unsuitable: you review it before anything is published.</p>
 
         <h2 id="integrations">7. API, webhooks and connectors</h2>
-        <p>If you connect Make, Zapier, a custom GPT, Claude (MCP), the WordPress plugin or your own scripts with a Vane API key, those services send requests to Vane on your behalf and receive what the API returns (your channel list, post status, the posts they create). Their handling of data is governed by their own policies; revoke the key in Vane to cut the connection. If you add a webhook, Vane sends the events you chose (for example that a post was published or failed) to the address you gave, signed so you can verify them; you are responsible for that endpoint and for what it does with the data.</p>
+        <p>If you connect Make, Zapier, a custom GPT, Claude (MCP), the WordPress plugin or your own scripts with a Vane API key, those services send requests to Vane on your behalf and receive what the API returns (your channel list, post status, the posts they create). Their handling of data is governed by their own policies; revoke the key in Vane to cut the connection. The Claude connector signs you in at vaneapp.dev/connect: Claude receives an access token (stored by Vane only as a hash), can list your channels and schedule posts for you, and never sees your passwords, billing details or channel credentials; the API key behind it is kept encrypted and ends the moment you revoke it. If you add a webhook, Vane sends the events you chose (for example that a post was published or failed) to the address you gave, signed so you can verify them; you are responsible for that endpoint and for what it does with the data.</p>
 
         <h2 id="share">8. Who we share it with</h2>
         <p>We share personal data only with the providers below, who process it for us, with the networks you told us to publish to, and as described at the end of this section.</p>
@@ -178,6 +179,7 @@
             <tr><td>Connected-account sign-ins</td><td>Until you disconnect, revoke, or remove Vane in the network (then they are wiped)</td></tr>
             <tr><td>API keys, webhooks</td><td>Until you revoke or delete them</td></tr>
             <tr><td>Drafts and snippets</td><td>Drafts: the last 5, the oldest is removed when a sixth is saved. Snippets: until you delete them. Both go when you delete the account.</td></tr>
+            <tr><td>AI voice</td><td>Until you change or delete it, or delete your account.</td></tr>
             <tr><td>AI history</td><td>The last 10 answers; the oldest unpinned one is removed when a new one arrives. Pinned answers (up to 4) until you unpin or delete them.</td></tr>
             <tr><td>Email unsubscribe list</td><td>Your email address, until you subscribe again or ask us to remove it. It stays after the account is deleted so that we respect your choice.</td></tr>
             <tr><td>Sign-in sessions</td><td>Up to 30 days, or until you sign out</td></tr>

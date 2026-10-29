@@ -75,7 +75,7 @@
     if (view === 'library') load(false);                 // always fresh: a file may have been uploaded from the editor meanwhile
   }
   function route() {
-    setView({ '#library': 'library', '#history': 'history', '#drafts': 'drafts', '#snippets': 'snippets' }[location.hash] || 'create');
+    setView({ '#library': 'library', '#ai': 'ai', '#history': 'ai', '#drafts': 'drafts', '#snippets': 'snippets', '#claude': 'claude' }[location.hash] || 'create');
     if (S.view === 'create' && location.hash.length > 1) {   // the header's API link is #api: show the create view first, then scroll to it
       var target = document.getElementById(location.hash.slice(1));
       if (target) requestAnimationFrame(function () { target.scrollIntoView(); });   // after the swap has been laid out
@@ -254,6 +254,12 @@
     zone.addEventListener('dragleave', function (e) { if (!hasFiles(e)) return; depth = Math.max(0, depth - 1); if (!depth) zone.classList.remove('is-over'); });
     zone.addEventListener('drop', function (e) { if (!hasFiles(e)) return; e.preventDefault(); depth = 0; zone.classList.remove('is-over'); uploadAll(e.dataTransfer.files); });
 
+    document.addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('[data-copy]') : null;
+      var src = b && document.getElementById(b.getAttribute('data-copy'));
+      if (!src) return;
+      copyText(src.textContent.trim()).then(function () { Vane.toast('ok', 'Copied.'); }, function () { Vane.toast('err', 'Could not copy. Select the address and copy it by hand.'); });
+    });
     window.addEventListener('hashchange', route);
     route();
   }

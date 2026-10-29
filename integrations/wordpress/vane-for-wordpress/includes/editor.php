@@ -50,6 +50,6 @@ add_action('enqueue_block_editor_assets', function () {
         'auto'        => (bool) get_option('vane_auto', true),
         'defaults'    => array_values((array) get_option('vane_default_channels', array())),
         'limits'      => vane_wp_limits(),
-        'settingsUrl' => admin_url('options-general.php?page=vane-for-wordpress'),
+        'settingsUrl' => admin_url('admin.php?page=vane-for-wordpress&tab=settings'),
     ));
 });
