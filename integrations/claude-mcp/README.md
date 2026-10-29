@@ -12,7 +12,7 @@ Posts go through the normal Vane API, so your plan quota applies.
 1. Claude → Settings → Connectors → **Add custom connector**.
 2. Name: `Vane`. URL: `https://vaneapp.dev/api/v1/mcp`. Add.
 3. Click **Connect**. A Vane page opens: sign in, press **Allow**.
-   Prefer your own key? Open "Use my own API key instead" on that page and paste a `cpost_live_…` (real posts) or `cpost_test_…` (nothing is posted) key from the dashboard.
+   Prefer a key you already have? Open "Use one of my own API keys instead" on that page and click it in the list (Claude ones first). A live key posts for real, a test key posts nothing. You can still paste a key if you like.
 4. Ask Claude: "Show my Vane channels", then "Post 'Hello' to telegram tomorrow at 9:00".
 
 What happens behind the button: Vane creates one API key called "Claude connector" for you (live if your plan has the API, otherwise a test key that posts nothing). To disconnect, revoke that key in the dashboard → API keys.

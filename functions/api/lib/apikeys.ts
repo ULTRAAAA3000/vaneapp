@@ -106,25 +106,30 @@ const WWW = { 'WWW-Authenticate': 'Bearer' };
 // The key lookup. Both statements are constants. The first also reads `integration` (a column added later by
 // `npm run db:migrate:integrations`); on a database that does not have it yet the lookup quietly uses the second,
 // so a deploy before the migration cannot take the whole API down.
-const KEY_SQL = (withIntegration: boolean): string =>
+const KEY_SQL = (withIntegration: boolean, byId = false): string =>
   `SELECT k.id, k.user_id, k.name, k.scope, k.mode, k.last_used_at${withIntegration ? ', k.integration' : ''},
           s.plan, s.api_addon, s.status, s.current_period_end, s.overage_enabled
      FROM api_keys k LEFT JOIN subscriptions s ON s.user_id = k.user_id
-    WHERE k.key_hash = ?1 AND k.revoked_at IS NULL`;
+    WHERE k.${byId ? 'id' : 'key_hash'} = ?1 AND k.revoked_at IS NULL`;
 let integrationColumnMissingUntil = 0;
 
-async function findKey(env: Env, keyHash: string): Promise<KeyRow | null> {
+async function findKey(env: Env, keyHash: string, byId = false): Promise<KeyRow | null> {
   const now = Math.floor(Date.now() / 1000);
   if (now >= integrationColumnMissingUntil) {
     try {
-      return await env.DB.prepare(KEY_SQL(true)).bind(keyHash).first<KeyRow>();
+      return await env.DB.prepare(KEY_SQL(true, byId)).bind(keyHash).first<KeyRow>();
     } catch (err) {
       if (!isMissingSchema(err)) throw err;
       integrationColumnMissingUntil = now + 20;   // look again in 20 s: the migration may have been run
     }
   }
-  return env.DB.prepare(KEY_SQL(false)).bind(keyHash).first<KeyRow>();
+  return env.DB.prepare(KEY_SQL(false, byId)).bind(keyHash).first<KeyRow>();
 }
+
+/** In-process only: the MCP endpoint says "this request is made with the key of this connection", so the secret itself is not needed. */
+const forcedKeys = new WeakMap<Request, string>();
+export const forceKeyId = (request: Request, keyId: string): void => { forcedKeys.set(request, keyId); };
+export const forcedKeyOf = (request: Request): string | undefined => forcedKeys.get(request);
 
 /** Wrong API keys one address may send in a window before it is asked to wait (shield.ts covers the rest of the API). */
 export const BAD_KEYS_PER_WINDOW = 30;
@@ -148,40 +153,47 @@ const LAST_USED_GRANULARITY = 60;
  *   403 video_engine_required  a LIVE video key on an account without an active Video Engine. Test keys always pass.
  */
 export async function requireApiKey(request: Request, env: Env, need: KeyScope): Promise<ApiKeyAuth> {
-  const bearer = /^Bearer\s+(\S+)$/i.exec(request.headers.get('authorization') ?? '');
-  if (!bearer) {
-    return { ok: false, response: failCode(401, 'invalid_api_key', 'Missing API key. Send it as "Authorization: Bearer <your key>".', {}, WWW) };
-  }
-
-  const parsed = parseApiKey(bearer[1]);
-  if (!parsed) return { ok: false, response: failCode(401, 'invalid_api_key', 'Invalid API key.', {}, WWW) };
-
-  if (parsed.scope !== need) {
-    return {
-      ok: false,
-      response: failCode(403, 'wrong_key_scope', need === 'post'
-        ? 'This is a Video Engine key. Use a cpost_ key on this endpoint.'
-        : 'This is a text-post key. Use a cvid_ key on this endpoint.'),
-    };
-  }
-
-  // Guessing keys: every wrong (well-formed) key costs a database read, so an address that sends too many wrong ones is told to wait.
-  // A key that worked a moment ago on this server is not held up by it (customers share addresses, e.g. Zapier's).
-  const keyHash = await hashApiKey(bearer[1]);
-  const ip = clientIp(request);
-  if (ip !== 'unknown' && !recentlyValid(keyHash)) {
-    const wait = await retryAfter(env, `apikey-bad:${ip}`, BAD_KEYS_PER_WINDOW);
-    if (wait) {
-      return { ok: false, response: failCode(429, 'rate_limited', 'Too many invalid API keys from this address. Try again later.', { retryAfter: wait }, { 'Retry-After': String(wait) }) };
+  const forced = forcedKeyOf(request);
+  let row: KeyRow | null;
+  if (forced) {
+    row = await findKey(env, forced, true);
+    if (!row || row.scope !== need) return { ok: false, response: failCode(401, 'invalid_api_key', 'Invalid API key.', {}, WWW) };
+  } else {
+    const bearer = /^Bearer\s+(\S+)$/i.exec(request.headers.get('authorization') ?? '');
+    if (!bearer) {
+      return { ok: false, response: failCode(401, 'invalid_api_key', 'Missing API key. Send it as "Authorization: Bearer <your key>".', {}, WWW) };
     }
-  }
 
-  const row = await findKey(env, keyHash);
-  if (!row) {
-    if (ip !== 'unknown') await bump(env, `apikey-bad:${ip}`, BAD_KEY_WINDOW_SECONDS);
-    return { ok: false, response: failCode(401, 'invalid_api_key', 'Invalid API key.', {}, WWW) };
+    const parsed = parseApiKey(bearer[1]);
+    if (!parsed) return { ok: false, response: failCode(401, 'invalid_api_key', 'Invalid API key.', {}, WWW) };
+
+    if (parsed.scope !== need) {
+      return {
+        ok: false,
+        response: failCode(403, 'wrong_key_scope', need === 'post'
+          ? 'This is a Video Engine key. Use a cpost_ key on this endpoint.'
+          : 'This is a text-post key. Use a cvid_ key on this endpoint.'),
+      };
+    }
+
+    // Guessing keys: every wrong (well-formed) key costs a database read, so an address that sends too many wrong ones is told to wait.
+    // A key that worked a moment ago on this server is not held up by it (customers share addresses, e.g. Zapier's).
+    const keyHash = await hashApiKey(bearer[1]);
+    const ip = clientIp(request);
+    if (ip !== 'unknown' && !recentlyValid(keyHash)) {
+      const wait = await retryAfter(env, `apikey-bad:${ip}`, BAD_KEYS_PER_WINDOW);
+      if (wait) {
+        return { ok: false, response: failCode(429, 'rate_limited', 'Too many invalid API keys from this address. Try again later.', { retryAfter: wait }, { 'Retry-After': String(wait) }) };
+      }
+    }
+
+    row = await findKey(env, keyHash);
+    if (!row) {
+      if (ip !== 'unknown') await bump(env, `apikey-bad:${ip}`, BAD_KEY_WINDOW_SECONDS);
+      return { ok: false, response: failCode(401, 'invalid_api_key', 'Invalid API key.', {}, WWW) };
+    }
+    rememberValid(keyHash);
   }
-  rememberValid(keyHash);
 
   // Rate limit per key (fixed one-minute window).
   const rlKey = `apikey:${row.id}`;
