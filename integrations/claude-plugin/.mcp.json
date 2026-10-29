@@ -1,0 +1,5 @@
+{
+  "mcpServers": {
+    "vane": { "type": "http", "url": "https://vaneapp.dev/api/v1/mcp" }
+  }
+}

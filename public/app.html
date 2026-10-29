@@ -284,7 +284,7 @@
       </ol>
 
       <h3 class="mt-7 text-sm font-semibold">Commands</h3>
-      <p class="mt-1 text-xs text-white/45">Vane gives Claude ready-made commands, so you do not have to explain what to do. In Claude (web or desktop) press <b>+</b> in the chat and choose <b>Vane</b>; in Claude Code type <code>/</code> and look for <code>vane</code>. The exact look depends on your Claude app version.</p>
+      <p class="mt-1 text-xs text-white/45">Vane gives Claude ready-made commands, so you do not have to explain what to do. In Claude (web or desktop) press <b>+</b> in the chat and choose <b>Vane</b>. To have them pop up as soon as you type <code>/</code>, add the Vane plugin below.</p>
       <div class="mt-3 overflow-x-auto rounded-2xl border border-white/10">
         <table class="w-full min-w-[30rem] text-left text-sm">
           <thead><tr class="text-[11px] uppercase tracking-wider text-white/40"><th class="px-4 py-2.5 font-medium">Command</th><th class="px-4 py-2.5 font-medium">What it does</th></tr></thead>
@@ -296,6 +296,15 @@
             <tr><td class="px-4 py-2.5 font-medium text-white">recent</td><td class="px-4 py-2.5">Shows what went out lately and why anything failed.</td></tr>
           </tbody>
         </table>
+      </div>
+      <div class="mt-5 rounded-2xl border border-white/10 p-4">
+        <h4 class="text-sm font-semibold">Commands in the <code>/</code> menu: the Vane plugin</h4>
+        <p class="mt-1 text-xs leading-relaxed text-white/50">The plugin brings the connector and the same five commands as <code>/vane:post</code>, <code>/vane:draft</code>, <code>/vane:channels</code>, <code>/vane:upcoming</code> and <code>/vane:recent</code>. Type <code>/</code> and they appear in the list.</p>
+        <p class="mt-3 text-xs font-medium text-white/70">Claude Code</p>
+        <div class="mt-1.5 flex items-center gap-2"><code id="claudePlug" class="min-w-0 flex-1 break-all rounded-xl bg-black/30 px-3 py-2 text-xs">/plugin marketplace add ULTRAAAA3000/vaneapp</code><button type="button" class="btn btn-white btn-sm" data-copy="claudePlug">Copy</button></div>
+        <div class="mt-1.5 flex items-center gap-2"><code id="claudePlug2" class="min-w-0 flex-1 break-all rounded-xl bg-black/30 px-3 py-2 text-xs">/plugin install vane@vane</code><button type="button" class="btn btn-white btn-sm" data-copy="claudePlug2">Copy</button></div>
+        <p class="mt-3 text-xs font-medium text-white/70">Claude desktop app</p>
+        <p class="mt-1 text-xs leading-relaxed text-white/50">Download the plugin and add it under Plugins, then connect Vane when asked: <a href="/downloads/vane-for-claude.zip" class="underline underline-offset-2 hover:text-white" download>vane-for-claude.zip</a>.</p>
       </div>
       <p class="mt-3 text-xs text-white/45">The writing in <b>draft</b> is done by Claude itself, so it does not use your Vane AI credits. Vane’s own AI tools stay in the editor on the Create tab.</p>
 
