@@ -11,6 +11,7 @@
  * (/api/v1/channels and /api/v1/posts), so the key check, the rate limit, the plan quota, the 402 and
  * the cpost_test_ "simulated" mode behave exactly as for any other API client.
  */
+import { forcedKeyOf, forceKeyId } from '../lib/apikeys';
 import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env } from '../../../types';
 import { json, isRecord, methodNotAllowed } from '../lib/http';
@@ -18,7 +19,6 @@ import { sha256Hex } from '../lib/session';
 import { onRequestGet as listChannels } from './channels/index';
 import { onRequestGet as listPosts, onRequestPost as createPost } from './posts/index';
 import { markMcpInternal, recordMcpCall } from '../lib/integrations';
-import { decryptToken } from '../lib/crypto';
 import { ACCESS_PREFIX, CORS, grantForAccessToken, preflight, resourceMetadataUrl } from '../lib/oauth';
 
 const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
@@ -135,10 +135,12 @@ async function callApi(env: Env, request: Request, handler: PagesFunction<Env>, 
   const headers = new Headers(extra);
   const auth = request.headers.get('authorization');
   if (auth) headers.set('authorization', auth);
+  const forced = forcedKeyOf(request);
   if (body !== undefined) headers.set('content-type', 'application/json');
   const inner = new Request(new URL(path, request.url).toString(), { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined });
   // Tells the key check this is Claude's MCP call (attributed to it, and counted once as the tool call, not once per inner request).
   markMcpInternal(inner, request);
+  if (forced) forceKeyId(inner, forced);
   const res = await handler({ request: inner, env, params: {}, data: {}, waitUntil: () => {}, next: async () => new Response(null, { status: 404 }), functionPath: path } as unknown as Ctx);
   let data: any = null;
   try { data = await res.json(); } catch { /* not JSON */ }
@@ -282,13 +284,13 @@ async function authenticate(env: Env, request: Request): Promise<Request | Respo
   const bearer = /^Bearer\s+(\S+)$/i.exec(request.headers.get('authorization') ?? '');
   if (!bearer) return unauthorized(request, false);
   if (!bearer[1].startsWith(ACCESS_PREFIX)) return request;
-  const g = env.ENCRYPTION_KEY ? await grantForAccessToken(env, bearer[1], Math.floor(Date.now() / 1000)) : null;
+  const g = await grantForAccessToken(env, bearer[1], Math.floor(Date.now() / 1000));
   if (!g) return unauthorized(request, true);
-  let key: string;
-  try { key = await decryptToken(g.keyEnc, env.ENCRYPTION_KEY!); } catch { return unauthorized(request, true); }
   const headers = new Headers(request.headers);
-  headers.set('authorization', `Bearer ${key}`);
-  return new Request(request, { headers });
+  headers.delete('authorization');
+  const forced = new Request(request, { headers });
+  forceKeyId(forced, g.keyId);
+  return forced;
 }
 
 export const onRequestPost: PagesFunction<Env> = async ({ request: incoming, env }) => {

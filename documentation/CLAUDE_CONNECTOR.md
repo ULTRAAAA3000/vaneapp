@@ -5,10 +5,10 @@
 
 1. Claude вызывает MCP без токена → 401 с `WWW-Authenticate: Bearer resource_metadata=…`.
 2. Читает `/.well-known/oauth-protected-resource` и `/.well-known/oauth-authorization-server`, сам регистрируется (`POST /api/oauth/register`, без секрета, PKCE S256).
-3. Открывает `/connect` — страница Vane: вход → кнопка **Allow** (или поле «Use my own API key»).
-4. `POST /api/oauth/authorize` создаёт ключ «Claude connector» (live, если в плане есть API, иначе test) либо принимает вставленный ключ пользователя, и возвращает код.
+3. Открывает `/connect` — страница Vane: вход → кнопка **Allow** (или список «Use one of my own API keys»: свои ключи выбираются кликом, ключи Claude сверху, можно и вставить).
+4. `POST /api/oauth/authorize` создаёт ключ «Claude connector» (live, если в плане есть API, иначе test) либо принимает выбранный кликом (`keyId`) или вставленный (`apiKey`) ключ пользователя, и возвращает код. Grant хранит только `key_id`, секрет ключа не хранится.
 5. `POST /api/oauth/token` обменивает код на access-токен (1 час) и refresh-токен (90 дней, одноразовый, ротация). Повторное использование кода или refresh-токена отзывает весь grant.
-6. На каждый вызов MCP токен подменяется ключом grant'а, поэтому квоты, тест-режим и лимиты те же, что у API.
+6. На каждый вызов MCP запрос внутри обрабатывается как запрос с ключом grant'а (по его id, в памяти процесса), поэтому квоты, тест-режим и лимиты те же, что у API.
 
 Отключение: удалить ключ «Claude connector» в дашборде (API keys) — токены сразу перестают работать.
 Старый способ (ключ в заголовке/конфиге Claude Desktop) работает как раньше.

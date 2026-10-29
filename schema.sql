@@ -965,7 +965,7 @@ CREATE TABLE IF NOT EXISTS oauth_grants (
   client_id   TEXT    NOT NULL REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
   user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   key_id      TEXT    NOT NULL REFERENCES api_keys(id) ON DELETE CASCADE,
-  key_enc     TEXT    NOT NULL,                                 -- the API key, encrypted with ENCRYPTION_KEY
+  key_enc     TEXT    NOT NULL DEFAULT '',                      -- legacy: the key secret, encrypted. New grants leave it empty and authenticate by key_id
   created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
   revoked_at  INTEGER
 );
