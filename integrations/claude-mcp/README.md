@@ -4,7 +4,7 @@ Lets Claude see your Vane channels and schedule posts for you: "post this to Tel
 
 Tools: `vane_list_channels` (read only), `vane_list_posts` (read only, `view`: upcoming or history), `vane_create_post` (`text`, `channels`, `scheduled_at`, optional `media_url`).
 
-Ready-made commands (MCP prompts): `post`, `draft`, `channels`, `upcoming`, `recent`. In Claude press + and choose Vane; in Claude Code type `/` and look for vane. `draft` has Claude write the text and schedules only after you approve; it does not use Vane AI credits.
+Ready-made commands (MCP prompts): `post`, `draft`, `channels`, `upcoming`, `recent`. In Claude press + and choose Vane. For commands that pop up when you type `/`, install the plugin in `integrations/claude-plugin` (commands `/vane:post`, `/vane:draft`, `/vane:channels`, `/vane:upcoming`, `/vane:recent`). `draft` has Claude write the text and schedules only after you approve; it does not use Vane AI credits.
 Posts go through the normal Vane API, so your plan quota applies.
 
 ## Easiest: add it as a connector in Claude (no key, no files)
