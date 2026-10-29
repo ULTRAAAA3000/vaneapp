@@ -1,6 +1,6 @@
 import type { Env } from '../../../types';
 
-export const HISTORY_TOOLS = ['generate', 'plan'];
+export const HISTORY_TOOLS = ['generate', 'plan', 'winners', 'repurpose'];
 export const HISTORY_MAX = 10;
 export const HISTORY_MAX_PINNED = 4;
 

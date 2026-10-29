@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/assets/vane.css?v=e72b2b78fc" />
-  <link rel="stylesheet" href="/assets/app.css?v=19f99d0807" />
+  <link rel="stylesheet" href="/assets/app.css?v=937d655a35" />
 </head>
 
 <body class="min-h-screen overflow-x-hidden bg-[#070708]">
@@ -122,12 +122,12 @@
 
     <!-- ═══════════ WORKSPACE: Create / Library (more tabs later), full width ═══════════ -->
     <!-- tabs: Create (the editor) and Library (uploaded files); switched by library.js, the address keeps #create / #library -->
-    <nav id="dashTabs" class="fade-up mt-6 flex gap-1.5" style="animation-delay:.08s" aria-label="Dashboard sections">
+    <nav id="dashTabs" class="fade-up mt-6 flex gap-1.5 overflow-x-auto pb-1 [&>a]:shrink-0 [&>a]:whitespace-nowrap" style="animation-delay:.08s" aria-label="Dashboard sections">
       <a href="#create" data-tab="create" class="dtab" aria-current="page">Create</a>
       <a href="#library" data-tab="library" class="dtab">Library</a>
       <a href="#snippets" data-tab="snippets" class="dtab">Snippets</a>
       <a href="#drafts" data-tab="drafts" class="dtab">Drafts</a>
-      <a href="#history" data-tab="history" class="dtab">AI history</a>
+      <a href="#ai" data-tab="ai" class="dtab">AI</a>
       <a href="#claude" data-tab="claude" class="dtab">Claude</a>
     </nav>
 
@@ -153,7 +153,6 @@
         <!-- AI tools (assets/ai.js): hidden until the server says AI is on -->
         <div id="aiBar" class="ml-auto hidden flex-wrap items-center justify-end gap-1.5"></div>
       </div>
-      <div id="aiBanner" class="mt-3 hidden"></div>
       <div id="aiPanel" class="mt-3 hidden" aria-live="polite"></div>
 
       <!-- hashtag memory: suggestions from your past posts (assets/insights.js) -->
@@ -307,11 +306,7 @@
       </ul>
     </section>
 
-    <section id="viewHistory" data-view="history" hidden class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" aria-labelledby="historyTitle">
-      <h2 id="historyTitle" class="text-lg font-semibold tracking-tight">AI history</h2>
-      <p class="mt-1 text-xs text-white/45">Your latest AI posts and weekly plans. We keep the last 10; pin up to 4 to keep them.</p>
-      <div id="histList" class="mt-5 space-y-3" aria-live="polite"></div>
-    </section>
+    <section id="aiStudio" data-view="ai" hidden class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" aria-labelledby="aiTitle"></section>
 
     <!-- ═══════════ LIBRARY ═══════════ -->
     <section id="viewLibrary" data-view="library" hidden class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" aria-labelledby="libraryTitle">
@@ -797,11 +792,12 @@
   <script src="/assets/media-picker.js?v=77ebb5a885"></script>
   <script src="/assets/insights.js?v=be1faaaac6"></script>
   <script src="/assets/dashboard.js?v=80098a42d5"></script>
-  <script src="/assets/ai.js?v=aaab853db4"></script>
-  <script src="/assets/library.js?v=7293ea736c"></script>
+  <script src="/assets/ai.js?v=befdf35984"></script>
+  <script src="/assets/library.js?v=183cb23569"></script>
   <script src="/assets/snippets.js?v=2833a28950"></script>
   <script src="/assets/drafts.js?v=9ce82a983a"></script>
-  <script src="/assets/aihistory.js?v=46de172c9e"></script>
+  <script src="/assets/aistudio.js?v=7de8bcf433"></script>
+  <script src="/assets/aihistory.js?v=819e5b45de"></script>
   <script src="/assets/composer-tools.js?v=0c636c4c2b"></script>
   <script src="/assets/track.js?v=a3d04e70d1" data-path="/app" defer></script>
 </body>
