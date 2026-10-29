@@ -965,7 +965,7 @@ CREATE TABLE IF NOT EXISTS oauth_grants (
   client_id   TEXT    NOT NULL REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
   user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   key_id      TEXT    NOT NULL REFERENCES api_keys(id) ON DELETE CASCADE,
-  key_enc     TEXT    NOT NULL,                                 -- the API key, encrypted with ENCRYPTION_KEY
+  key_enc     TEXT    NOT NULL DEFAULT '',                      -- legacy: the key secret, encrypted. New grants leave it empty and authenticate by key_id
   created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
   revoked_at  INTEGER
 );
@@ -1009,4 +1009,12 @@ CREATE TABLE IF NOT EXISTS age_confirmations (
   user_id       TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   min_age       INTEGER NOT NULL,
   confirmed_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+CREATE TABLE IF NOT EXISTS ai_voice (
+  user_id     TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  description TEXT    NOT NULL DEFAULT '',
+  samples     TEXT    NOT NULL DEFAULT '[]',
+  enabled     INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
+  updated_at  INTEGER NOT NULL DEFAULT (unixepoch())
 );

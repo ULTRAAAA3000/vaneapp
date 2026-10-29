@@ -86,7 +86,7 @@ Vane Analytics показывает результат постов и виде�
 ## 11. Telegram bot (built)
 
 - **What:** the Vane Analytics bot (its own bot, separate from the Quick Connect bot). The user connects it from analytics.vaneapp.dev → Telegram bot (one-time link, 15 minutes) and chats with it in private.
-- **Commands:** `/stats [7|30]`, `/top` (best post per network), `/followers`, `/digest`, `/settings` (inline toggles), `/language` (English default, Русский, Українська, Deutsch), `/unlink`.
+- **Commands:** `/stats [7|30]`, `/top` (best post per network), `/followers`, `/scheduled` (also `/queue`, `/upcoming`: posts waiting to go out, with a button to the queue), `/digest`, `/settings` (inline toggles), `/language` (English default, Русский, Українська, Deutsch), `/unlink`.
 - **Alerts:** Free: post results after 24 hours, follower milestones. Pro: daily follower changes, hot post (threshold chosen on the site), daily or weekly digest (about 9:00 in the user's time zone, weekly on Monday).
 - **Setup (once):** create the bot in @BotFather; on the Pages project add `ANALYTICS_BOT_TOKEN`, `ANALYTICS_BOT_SECRET` (any long random string) and `ANALYTICS_BOT_USERNAME`; add `ANALYTICS_BOT_TOKEN` to the cron worker; deploy; run the whole `schema.sql`; then in /admin → Settings press "Connect webhook" under "Analytics Telegram bot".
 - **Code:** `functions/api/lib/analyticsbot.ts` (commands, settings, alerts), `botlang.ts` (the four languages), `functions/api/telegram/analytics.ts` (webhook), `functions/api/analytics/bot.ts` (site settings API), `functions/api/admin/analytics-bot.ts` (webhook setup).

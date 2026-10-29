@@ -206,10 +206,6 @@ html.is-leaving #app { opacity: 0 !important; transform: translateY(-8px); trans
 .dtab:hover { background: rgba(255,255,255,.07); color: #fff; }
 .dtab[aria-current="page"] { background: #fff; color: #000; }
 .dtab:focus-visible { outline: 2px solid rgba(255,255,255,.6); outline-offset: 2px; }
-/* five tabs do not fit on a phone: the row scrolls sideways (no visible scrollbar) instead of stretching the whole page */
-#dashTabs { overflow-x: auto; max-width: 100%; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
-#dashTabs::-webkit-scrollbar { display: none; }
-.dtab { flex: none; white-space: nowrap; }
 .chip { display: inline-flex; align-items: center; border-radius: 9999px; padding: .4rem .85rem; font-size: .8rem; font-weight: 500; color: rgba(255,255,255,.6);
   background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); transition: background-color .2s, color .2s, border-color .2s; }
 .chip:hover { color: #fff; background: rgba(255,255,255,.09); }

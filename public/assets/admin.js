@@ -762,6 +762,7 @@
   // ── Networks
   function netStatus(n) {
     if (!n.implemented) return tag('code not written', 'warn');
+    if (n.enabled && n.setup) return tag('on, but keys missing: users cannot connect', 'warn');
     return n.enabled ? tag('on', 'ok') : tag('switched off', 'bad');
   }
   VIEWS.networks = function (seq) {

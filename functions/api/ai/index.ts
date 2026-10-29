@@ -12,6 +12,11 @@
  *   tool "reformat"  one version per network in `networks`            → { variants: [{platform,text,length,limit}] }   1 AI credit
  *   tool "generate"  a finished post from a short idea (`text`)       → { text }                 1 AI credit
  *   tool "plan"      7 post drafts for a topic (`text`)               → { items: [{day,text}] }  1 AI credit
+ *   tool "winners"   3 new posts in the pattern of the user's best    → { options: [] }          1 AI credit
+ *   tool "repurpose" 4 posts from one long text                       → { items: [{day,text}] }  1 AI credit
+ *
+ * The user's voice (ai_voice, /api/ai/voice) is added to every writing tool; `voice: false` in the body turns it off for one call.
+ * tone "mine" rewrites in that voice and needs one.
  *
  * `networks` (platform names of the selected channels) makes the answer fit the tightest of them.
  * A credit is taken before the model runs and given back if the model fails.
@@ -25,6 +30,7 @@ import {
 } from '../lib/ai';
 import { requireUser } from '../lib/auth';
 import { saveHistory } from '../lib/aihistory';
+import { toolRepurpose, toolWinners, voiceBlock } from '../lib/aiplus';
 import { fail, failCode, isRecord, json, methodNotAllowed, readJson } from '../lib/http';
 import { CONTENT_LIMIT } from '../posts/create';
 import { bump, retryAfter } from '../lib/throttle';
@@ -51,7 +57,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!isAiTool(body.tool)) return failCode(400, 'invalid_tool', 'Unknown AI tool.');
   const tool = body.tool;
   const text = typeof body.text === 'string' ? body.text.trim() : '';
-  if (!text) return failCode(400, 'empty_text', tool === 'generate' || tool === 'plan' ? 'Write a short idea first.' : 'Write some text first.');
+  if (!text) return failCode(400, 'empty_text', tool === 'generate' || tool === 'plan' || tool === 'winners' ? 'Write a short idea first.' : 'Write some text first.');
   if (text.length > inputLimit(tool)) return failCode(400, 'text_too_long', `The text can be at most ${inputLimit(tool)} characters for this tool.`);
 
   let networks: ChannelType[] = [];
@@ -69,6 +75,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (tool === 'tone' && !tone) return failCode(400, 'invalid_tone', `tone is required: ${TONES.join(', ')}`);
   if (tool === 'reformat' && !networks.length) return failCode(400, 'invalid_networks', 'Choose at least one channel to reformat for.');
   if (!env.AI) return failCode(503, 'ai_unavailable', 'AI is not enabled on this server yet.');
+  const voice = body.voice === false || tool === 'clean' || tool === 'hashtags' ? { text: '', source: null } : await voiceBlock(env, auth.userId);
+  if (tool === 'tone' && tone === 'mine' && !voice.text) return failCode(400, 'no_voice', 'Add a few of your own posts or a short description under My voice first, then “My voice” knows how you write.');
 
   // A person can't run the model in a loop: an hour window per kind of tool.
   const premium = isPremiumTool(tool);
@@ -105,19 +113,21 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     switch (tool) {
       case 'clean': result = { text: await toolClean(metered, text, networks) }; break;
       case 'hashtags': result = { hashtags: await toolHashtags(metered, text) }; break;
-      case 'tone': result = { text: await toolTone(metered, text, tone as Tone, networks) }; break;
-      case 'hook': result = { options: await toolHook(metered, text) }; break;
-      case 'cta': result = { options: await toolCta(metered, text) }; break;
-      case 'reformat': result = { variants: await toolReformat(metered, text, networks) }; break;
-      case 'generate': result = { text: await toolGenerate(metered, text, tone, networks) }; break;
-      default: result = { items: await toolPlan(metered, text, networks) };
+      case 'tone': result = { text: await toolTone(metered, text, tone as Tone, networks, voice.text) }; break;
+      case 'hook': result = { options: await toolHook(metered, text, voice.text) }; break;
+      case 'cta': result = { options: await toolCta(metered, text, voice.text) }; break;
+      case 'reformat': result = { variants: await toolReformat(metered, text, networks, voice.text) }; break;
+      case 'generate': result = { text: await toolGenerate(metered, text, tone, networks, voice.text) }; break;
+      case 'winners': result = await toolWinners(metered, auth.userId, text, networks, voice.text); break;
+      case 'repurpose': result = await toolRepurpose(metered, text, networks, voice.text); break;
+      default: result = { items: await toolPlan(metered, text, networks, voice.text) };
     }
     if (reservation && reservation.ok) {
       await aiLogStatement(env, { userId: auth.userId, overage: reservation.overage, costMicro: reservation.costMicro, ref: tool, now }).run().catch(() => undefined);
     }
     const usage = await usageSummary(env, auth.userId, sub, now);
     const historyId = await saveHistory(env, auth.userId, tool, text, result);
-    return json({ ok: true, tool, ...result, historyId, ai: usage.ai });
+    return json({ ok: true, tool, ...result, voice: voice.source, historyId, ai: usage.ai });
   } catch (err) {
     if (reservation && reservation.ok) await releaseAiGeneration(env, auth.userId, reservation);
     if (err instanceof AiError) return failCode(err.status, err.code, err.message);
