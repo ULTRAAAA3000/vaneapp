@@ -1010,3 +1010,11 @@ CREATE TABLE IF NOT EXISTS age_confirmations (
   min_age       INTEGER NOT NULL,
   confirmed_at  INTEGER NOT NULL DEFAULT (unixepoch())
 );
+
+CREATE TABLE IF NOT EXISTS ai_voice (
+  user_id     TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  description TEXT    NOT NULL DEFAULT '',
+  samples     TEXT    NOT NULL DEFAULT '[]',
+  enabled     INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
+  updated_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);
