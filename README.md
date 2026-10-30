@@ -322,6 +322,10 @@ How a request is attributed, in this order: (1) it came through MCP → Claude; 
 
 **Testing**: `npm run test:integrations` (48 checks: attribution, counting, MCP, the switch, the admin API, and a database without the new column plus the migration). It needs `ADMIN_EMAIL` + `ADMIN_PASSWORD_HASH` in `.dev.vars` (defaults to the login `admin@example.com` / password `Admin-Test-Pass-77`; make the hash with `echo 'Admin-Test-Pass-77' | node scripts/admin-hash.mjs`).
 
+## Landing: "What's inside" (every module)
+
+`public/index.html`, section `#modules`: one card with a small inline-SVG picture for every module (Vane Post, assistants, Vane Studio, API and connectors). When you add or change a module, edit its card here so the landing stays true to the product; mark anything not live yet with the `Soon` tag. Naming: the video product is **Vane Studio** everywhere users can see it ("Video Engine" is only the internal name in code and `documentation/VIDEO_ENGINE.md`). The headline balances publishing and scheduling on purpose: do not describe the product as a scheduler only.
+
 ## Landing video demo
 
 The "Publish videos like you publish posts" section (`#videos` in `public/index.html`) is an iPad showing a YouTube-style channel feed plus a mini dashboard under it. Typing a title and pressing "Publish video" adds a non-clickable card to the feed (up to 3 uploads, then "Reset demo"). It is a pure front-end simulation: the filler videos are in `YT_OLD` and the upload limit is `YT_MAX` in the page script.
