@@ -30,8 +30,8 @@ export interface NetworkInfo {
 }
 
 /** Vane Studio networks are detected from the code itself: implemented as soon as a real publisher is registered (videopublishers.ts). */
-const studio = (id: VideoPlatform | 'pinterest', name: string, what: string): NetworkInfo => {
-  const done = id !== 'pinterest' && hasRealPublisher(id);
+const studio = (id: VideoPlatform, name: string, what: string): NetworkInfo => {
+  const done = hasRealPublisher(id);
   return { id, name, product: 'studio', implemented: done, code: done ? what : 'Connect and upload flow not written yet' };
 };
 
@@ -45,12 +45,12 @@ export const NETWORKS: readonly NetworkInfo[] = [
   { id: 'devto', name: 'Dev.to', product: 'post', implemented: true, code: 'Connect (API key) and publish' },
   { id: 'reddit', name: 'Reddit', product: 'post', implemented: true, code: 'Connect (OAuth, one subreddit per channel) and publish text posts, token renewal' },
   { id: 'facebook', name: 'Facebook Pages', product: 'post', implemented: true, code: 'Connect (Facebook Login, every Page you manage) and publish text, photo and video posts' },
+  { id: 'pinterest', name: 'Pinterest', product: 'post', implemented: false, code: 'Not written yet (connect, choose a board, publish Pins)' },
   { id: 'x', name: 'X', product: 'post', implemented: false, code: 'Not written yet (only reserved in the database)' },
   { id: 'webhook', name: 'Webhook channel', product: 'post', implemented: false, code: 'Not written yet (post webhooks for your own endpoint are a separate feature)' },
   studio('youtube', 'YouTube', 'Connect (Google OAuth, upload scope only) and upload (resumable, cover, made-for-kids, category)'),
   studio('tiktok', 'TikTok', ''),
   studio('instagram', 'Instagram Reels', 'Connect (Instagram Login, Business/Creator) and publish Reels from a temporary public link'),
-  studio('pinterest', 'Pinterest', ''),
 ];
 
 export const networkInfo = (id: string): NetworkInfo | undefined => NETWORKS.find((n) => n.id === id);
