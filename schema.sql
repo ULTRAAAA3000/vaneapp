@@ -227,7 +227,7 @@ CREATE INDEX IF NOT EXISTS idx_usage_logs_user ON usage_logs(user_id, created_at
 
 -- ───────────────────────── Vane Studio / Video Engine (a separate product with its own dashboard) ─────────────────────────
 -- Vane Studio, ECONOMY_AND_FINANCE.md §2.5: $12.00 / month, sold and metered apart from Vane Post (Free / API / Pro).
--- The $18.00 Suite bundle (§2.6) is Post + Studio: it will just create a row in BOTH subscription tables.
+-- The $40.00 Suite bundle (§2.6) is Post + Studio + Analytics Pro + AI Pass: it creates a row in EACH of their subscription tables.
 -- That is why it gets its own tables: `subscriptions` and `users` are never touched, so this file stays re-runnable.
 
 -- Who has the Video Engine. No row = no access. A row that is not 'active' or whose period has ended counts as no access.
@@ -848,15 +848,18 @@ CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_pending ON orders(status, provider, expires_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_invoice ON orders(provider_ref) WHERE provider = 'monobank' AND provider_ref IS NOT NULL;
 
--- The Suite bundle (Post Pro + Studio in ONE plan and ONE payment, ECONOMY_AND_FINANCE.md §2.6). It shows on /pricing as "Coming soon"
--- until you switch it on in /admin → Plans (tick Active, untick Coming soon). Buying it switches on Pro posting AND Vane Studio together.
+-- The Suite bundle (ONE plan, ONE payment, ECONOMY_AND_FINANCE.md §2.6): Post Pro + Vane Studio + Analytics Pro + the AI Pass, and
+-- 75 API posts a month (apiPostsPerMonth / apiAccess below). It shows on /pricing as "Coming soon" until you switch it on in
+-- /admin → Plans (tick Active, untick Coming soon). Buying it switches all four on together (lib/billing.ts → activate).
 INSERT OR IGNORE INTO plans (id, name, tagline, badge, price_cents, yearly_price_cents, features, limits, cta_label, highlight, coming_soon, is_public, is_active, sort) VALUES
-  ('suite', 'Vane Suite', 'Posting and video in one plan.', 'Best value', 1800, 17900,
-   '["Everything in Vane Post Pro: 1,000 posts a month, unlimited channels","Everything in Vane Studio: video library, API and AI","Post a new video to all your networks in one click","One payment, one renewal date, one invoice","Vane AI Pass included"]',
-   '{"postsPerMonth":1000,"aiCredits":250,"apiAccess":0,"overagePostUsd":0.015,"overageAiPostUsd":0.045}', 'Get Suite', 0, 1, 1, 0, 45);
--- A Suite row from an earlier run of this file (hidden, never edited) becomes the public "coming soon" card. An edited row is left alone.
-UPDATE plans SET is_public = 1, coming_soon = 1, badge = 'Best value', yearly_price_cents = 17900, tagline = 'Posting and video in one plan.',
-  features = '["Everything in Vane Post Pro: 1,000 posts a month, unlimited channels","Everything in Vane Studio: video library, API and AI","Post a new video to all your networks in one click","One payment, one renewal date, one invoice","Vane AI Pass included"]'
+  ('suite', 'Vane Suite', 'Posting, video, analytics and AI in one plan.', 'Best value', 4000, 39900,
+   '["Everything in Vane Post Pro: 1,000 posts a month, unlimited channels","Everything in Vane Studio: video library and publishing","Analytics Pro: reports across all your networks","Vane AI Pass included, on top of the plan''s own AI credits","API access: 75 API posts a month","Post a new video to all your networks in one click","One payment, one renewal date, one invoice"]',
+   '{"postsPerMonth":1000,"apiPostsPerMonth":75,"aiCredits":250,"apiAccess":1,"overagePostUsd":0.015,"overageAiPostUsd":0.045}', 'Get Suite', 0, 1, 1, 0, 45);
+-- A Suite row from an earlier run of this file (hidden, never edited) becomes the public "coming soon" card. An edited row is left alone
+-- (an existing database gets the new limits and text from scripts/migrations/004-suite-bundle.sql).
+UPDATE plans SET is_public = 1, coming_soon = 1, badge = 'Best value', price_cents = 4000, yearly_price_cents = 39900, tagline = 'Posting, video, analytics and AI in one plan.',
+  features = '["Everything in Vane Post Pro: 1,000 posts a month, unlimited channels","Everything in Vane Studio: video library and publishing","Analytics Pro: reports across all your networks","Vane AI Pass included, on top of the plan''s own AI credits","API access: 75 API posts a month","Post a new video to all your networks in one click","One payment, one renewal date, one invoice"]',
+  limits = '{"postsPerMonth":1000,"apiPostsPerMonth":75,"aiCredits":250,"apiAccess":1,"overagePostUsd":0.015,"overageAiPostUsd":0.045}'
   WHERE id = 'suite' AND is_public = 0 AND is_active = 0 AND coming_soon = 0 AND updated_at = created_at;
 
 -- ═════════════════════ Admin: networks on/off and the AI token ledger ═════════════════════

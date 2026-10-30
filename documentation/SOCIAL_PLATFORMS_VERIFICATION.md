@@ -114,10 +114,10 @@ Vane — Social Platforms & Verification Specification
 
     Статус: В процессе настройки в Dev Mode.
 
-4. Pinterest API v5 (Vane Studio)
+4. Pinterest API v5 (Vane Post)
 4.1. Pinterest Video Pins & Idea Pins
 
-    Назначение: Vane Studio (studio.vaneapp.dev) — выгрузка видеороликов (Video Pins) со ссылкой на сайт для SEO-трафика.
+    Назначение: Vane Post (post.vaneapp.dev) — публикация Пинов (изображения и видео) со ссылкой на сайт для SEO-трафика.
 
     Тип авторизации: OAuth 2.0.
 
@@ -127,7 +127,7 @@ Vane — Social Platforms & Verification Specification
 
     Эндпоинты: POST [https://api.pinterest.com/v5/media](https://api.pinterest.com/v5/media), POST [https://api.pinterest.com/v5/pins](https://api.pinterest.com/v5/pins)
 
-    Статус: Запланирован для Vane Studio.
+    Статус: Запланирован для Vane Post.
 
 5. Классические Социальные Сети и Мессенджеры
 5.1. Telegram (Bot API)
@@ -183,7 +183,7 @@ Vane — Social Platforms & Verification Specification
 
     LinkedIn (Vane Post): Доступен сразу для личных постов (0 дней).
 
-    Pinterest API (Vane Studio): Sandbox — сразу (200 req/day); Live — Review (2–4 дня).
+    Pinterest API (Vane Post): Sandbox — сразу (200 req/day); Live — Review (2–4 дня).
 
     Facebook Pages (Vane Post): Dev Mode — сразу; Live — Meta App Review (1–5 дней).
 

@@ -215,7 +215,7 @@ Every metered response carries `X-Vane-Quota-Limit`, `X-Vane-Quota-Remaining` an
 `invalid_api_key` (401) · `wrong_key_scope` (403) · `api_not_in_plan` (403) · `quota_exceeded` (402) · `rate_limited` (429) · `too_many_keys` (409) · `invalid_idempotency_key` (400) · `idempotency_key_reuse` (422) · `idempotency_in_progress` (409).
 
 **OpenAPI spec:** `https://vaneapp.dev/vane-openapi.json` (OpenAPI 3.0, served from `public/`) describes all of the above, so a tool can import it instead of being set up by hand.
-- *ChatGPT Custom GPT*: Configure → Actions → *Import from URL* with the address above → Authentication *API Key* → *Bearer*, paste a `cpost_…` key. Use a `cpost_test_` key while trying it out.
+- *ChatGPT Custom GPT* (**soon**, not offered to users yet): Configure → Actions → *Import from URL* with the address above → Authentication *API Key* → *Bearer*, paste a `cpost_…` key. Use a `cpost_test_` key while trying it out.
 - *Claude* and other tools that read OpenAPI: point them at the same file.
 - When an endpoint changes, update `public/vane-openapi.json` in the same commit.
 
@@ -238,7 +238,7 @@ Only a **successful** answer is remembered: a request that failed (400, 402, 5xx
 
 ### OpenAPI / Custom GPT
 
-`GET /api/v1/openapi.json` serves an OpenAPI 3.1 description of this API (public, CORS-enabled, nothing private in it). The dashboard's Quick start shows the URL with a Copy button. In ChatGPT: *Create a GPT → Configure → Actions → Import from URL*, then set Authentication to *API Key / Bearer* and paste a `cpost_live_…` key. Postman and Make read it too. The spec lives in `functions/api/lib/openapi.ts` (the only hand-written description); `npm run test:api` validates its structure and **fails if a route under `functions/api/v1` is not documented or a documented route does not exist** (the Video Engine has its own document, `documentation/VIDEO_ENGINE.md`).
+`GET /api/v1/openapi.json` serves an OpenAPI 3.1 description of this API (public, CORS-enabled, nothing private in it). The dashboard's Quick start shows the URL with a Copy button. A ChatGPT Custom GPT is **soon** (not offered to users yet); Postman and Make read it too. The spec lives in `functions/api/lib/openapi.ts` (the only hand-written description); `npm run test:api` validates its structure and **fails if a route under `functions/api/v1` is not documented or a documented route does not exist** (the Video Engine has its own document, `documentation/VIDEO_ENGINE.md`).
 
 ### How the quota works
 
@@ -304,7 +304,7 @@ It needs one new table: run the whole `schema.sql` in the D1 Console again (it i
 
 **In the admin** (`/admin` → **Integrations**, `public/assets/admin.js`): a summary row (API requests in 7 days with the trend, today, active keys, and the share of traffic whose source is unknown), a **Demand** card (a ranking of the integrations by 30-day requests and a stacked 30-day chart), and a card per integration with its state (Live / Works through the API / Planned / Paused), activity (Active / Idle / No traffic yet), an on/off switch (switching off asks for confirmation and explains the consequence; switching on is immediate), today / 7 d / 30 d requests with the trend, active keys and users, a 30-day chart, the last request, what it is used for (top operations), and a collapsible **Setup and notes** (copy-ready URLs, authentication, the steps a user follows, store-review notes, plus where the review stands and a free note, both saved as you change them). If the tables are missing the page says to run `npm run db:remote`.
 
-**For users**: the create-key dialog (Post dashboard and Studio) has an optional **Used with** choice (Claude, ChatGPT, Make, Zapier, WordPress plugin, own script / other). It fills in the key's name when that is still empty, and it is what makes the admin's numbers certain instead of guessed. The label is shown on the key rows.
+**For users**: the create-key dialog (Post dashboard and Studio) has an optional **Used with** choice (Claude, ChatGPT (soon, greyed out), Make, Zapier, WordPress plugin, own script / other). It fills in the key's name when that is still empty, and it is what makes the admin's numbers certain instead of guessed. The label is shown on the key rows.
 
 What it measures and controls (`functions/api/lib/integrations.ts`, `functions/api/admin/integrations.ts`):
 
@@ -322,6 +322,10 @@ How a request is attributed, in this order: (1) it came through MCP → Claude; 
 
 **Testing**: `npm run test:integrations` (48 checks: attribution, counting, MCP, the switch, the admin API, and a database without the new column plus the migration). It needs `ADMIN_EMAIL` + `ADMIN_PASSWORD_HASH` in `.dev.vars` (defaults to the login `admin@example.com` / password `Admin-Test-Pass-77`; make the hash with `echo 'Admin-Test-Pass-77' | node scripts/admin-hash.mjs`).
 
+## Landing: "What's inside" (every module)
+
+`public/index.html`, section `#modules`: one card with a small inline-SVG picture for every module (Vane Post, assistants, Vane Studio, API and connectors). When you add or change a module, edit its card here so the landing stays true to the product; mark anything not live yet with the `Soon` tag. Naming: the video product is **Vane Studio** everywhere users can see it ("Video Engine" is only the internal name in code and `documentation/VIDEO_ENGINE.md`). The headline balances publishing and scheduling on purpose: do not describe the product as a scheduler only.
+
 ## Landing video demo
 
 The "Publish videos like you publish posts" section (`#videos` in `public/index.html`) is an iPad showing a YouTube-style channel feed plus a mini dashboard under it. Typing a title and pressing "Publish video" adds a non-clickable card to the feed (up to 3 uploads, then "Reset demo"). It is a pure front-end simulation: the filler videos are in `YT_OLD` and the upload limit is `YT_MAX` in the page script.
@@ -335,7 +339,7 @@ Two ways to pay (each switches itself on when its settings exist):
 - **Card, Apple Pay, Google Pay: Monobank Acquiring.** `functions/api/lib/monobank.ts`. Checkout makes an invoice (USD by default) and sends the buyer to Monobank's own payment page; Monobank calls `POST /api/billing/monobank` (signed with `X-Sign`, ECDSA SHA-256; the call is also double-checked with the invoice status) and the plan switches on. Needs the secret `MONOBANK_TOKEN` (Pages → Settings → Variables and Secrets). `MONOBANK_CCY` (optional) picks the currency: 840 USD (default), 978 EUR, 980 UAH. Monobank's merchant cabinet decides which wallets the page offers; Google Pay and international Visa/Mastercard are part of the acquiring product (2% for foreign cards at the time of writing).
 - **Crypto: USDT or USDC on Solana.** `functions/api/lib/solana.ts`. Checkout reserves an exact amount (the price plus a few millionths, unique per open order), shows the address, a QR and a Solana Pay link. The payment is found by asking a Solana RPC node what reached the wallet (`getTokenAccountsByOwner`, `getSignaturesForAddress`, `getTransaction`), matched on the exact amount, token and time, and one transaction pays one order. Needs the plain variable `CRYPTO_WALLET` (your Solana address; it receives USDT/USDC) and optionally `SOLANA_RPC_URL` (a Helius / QuickNode address; the public node is rate-limited). The checkout page checks every 5 s; the cron (`worker/`, every minute) also checks, so a payment is activated even if the buyer closed the page. For the cron add the same `CRYPTO_WALLET` (and `MONOBANK_TOKEN`) to the Worker (see worker/wrangler.toml).
 
-What a paid order switches on (`lib/billing.ts → activate`): `video` = Vane Studio (`video_subscriptions`), `ai-pass` = AI Pass (`ai_pass`), `api-addon` = the API add-on on an active Pro plan, `suite` = Post (as plan `suite`) and Studio together, any other plan id = that plan in `subscriptions`. A renewal while the plan is still running adds a period to its end; nothing renews automatically. Every order is a row in `orders` (status pending / paid / expired / failed / canceled); `/admin → Orders` lists them and has **Check**, **Confirm** (you saw the money yourself) and **Cancel**.
+What a paid order switches on (`lib/billing.ts → activate`): `video` = Vane Studio (`video_subscriptions`), `ai-pass` = AI Pass (`ai_pass`), `api-addon` = the API add-on on an active Pro plan, `suite` = Post (as plan `suite`), Studio, Analytics Pro and the AI Pass together (its 75 API posts a month are the plan's own `apiPostsPerMonth` limit), any other plan id = that plan in `subscriptions`. A renewal while the plan is still running adds a period to its end; nothing renews automatically. Every order is a row in `orders` (status pending / paid / expired / failed / canceled); `/admin → Orders` lists them and has **Check**, **Confirm** (you saw the money yourself) and **Cancel**.
 
 **See the checkout before payment is connected:** `/admin → Settings → Checkout preview (only you)`. While it is on, a browser that is signed into `/admin` sees `/pricing` → `/checkout?plan=<any plan id>` fully (even for a plan that is switched off) with a yellow Preview bar; visitors still see nothing. Pressing Pay answers "Preview only: payment is not connected yet" and creates no order. As soon as `MONOBANK_TOKEN` or `CRYPTO_WALLET` is set, preview steps aside and the real checkout takes over.
 
