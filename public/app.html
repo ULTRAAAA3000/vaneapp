@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/assets/vane.css?v=f14c2a0095" />
-  <link rel="stylesheet" href="/assets/app.css?v=c2dacf54d9" />
+  <link rel="stylesheet" href="/assets/app.css?v=46bd2bc6ac" />
 </head>
 
 <body class="min-h-screen overflow-x-hidden bg-[#070708]">
@@ -53,6 +53,9 @@
       <h1 id="greeting" class="mt-2 text-3xl font-semibold leading-[1.1] tracking-tight sm:text-4xl">Welcome</h1>
       <p class="mt-2 text-sm text-white/55">Publish everywhere. Schedule anything.</p>
     </section>
+
+    <!-- onboarding checklist (assets/onboarding.js): hidden until the server says there is something to show -->
+    <section id="onboarding" hidden class="fade-up glass-d mt-6 rounded-3xl p-5 sm:p-6" style="animation-delay:.02s" aria-labelledby="onboardingTitle"></section>
 
     <!-- hand-off to the other product -->
     <section class="fade-up mt-6 grid gap-3 sm:grid-cols-2 sm:gap-4" style="animation-delay:.03s">
@@ -902,6 +905,7 @@
   <script src="/assets/drafts.js?v=9ce82a983a"></script>
   <script src="/assets/aistudio.js?v=66b8ad3d92"></script>
   <script src="/assets/aihistory.js?v=72fff6ab0e"></script>
+  <script src="/assets/onboarding.js?v=76d0855c09"></script>
   <script src="/assets/composer-tools.js?v=0c636c4c2b"></script>
   <script src="/assets/track.js?v=a3d04e70d1" data-path="/app" defer></script>
 </body>
