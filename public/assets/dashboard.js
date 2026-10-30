@@ -865,6 +865,16 @@
       picker.set(d.media || null);
       renderChips(); renderPreview(); validate(); saveDraft();
     },
+    channels: function () {
+      return S.channels.filter(function (c) { return c.isActive !== false; }).map(function (c) { return { id: c.id, platform: c.platform, name: c.name, selected: S.selected.has(c.id) }; });
+    },
+    select: function (ids) {
+      var own = {};
+      S.channels.forEach(function (c) { own[c.id] = 1; });
+      S.selected = new Set((ids || []).filter(function (id) { return own[id]; }));
+      S.selectionTouched = true;
+      renderChips(); renderPreview(); validate();
+    },
     networks: function () {
       var seen = {};
       return S.channels.filter(function (c) { return S.selected.has(c.id); }).map(function (c) { return c.platform; }).filter(function (p) { return !seen[p] && (seen[p] = 1); });

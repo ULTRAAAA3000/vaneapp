@@ -14,6 +14,9 @@
  *   tool "plan"      7 post drafts for a topic (`text`)               → { items: [{day,text}] }  1 AI credit
  *   tool "winners"   3 new posts in the pattern of the user's best    → { options: [] }          1 AI credit
  *   tool "repurpose" 4 posts from one long text                       → { items: [{day,text}] }  1 AI credit
+ *   tool "review"    check a post before it goes out (`networks`)     → { score, tips, better, checks }   1 AI credit
+ *   tool "translate" the post in another language (`lang`)            → { text }                 1 AI credit
+ *   tool "ideas"     5 ideas for the next posts (`text` = the focus)  → { options: [] }          1 AI credit
  *
  * The user's voice (ai_voice, /api/ai/voice) is added to every writing tool; `voice: false` in the body turns it off for one call.
  * tone "mine" rewrites in that voice and needs one.
@@ -30,7 +33,7 @@ import {
 } from '../lib/ai';
 import { requireUser } from '../lib/auth';
 import { saveHistory } from '../lib/aihistory';
-import { toolRepurpose, toolWinners, voiceBlock } from '../lib/aiplus';
+import { LANGUAGES, toolIdeas, toolRepurpose, toolReview, toolTranslate, toolWinners, voiceBlock } from '../lib/aiplus';
 import { fail, failCode, isRecord, json, methodNotAllowed, readJson } from '../lib/http';
 import { CONTENT_LIMIT } from '../posts/create';
 import { bump, retryAfter } from '../lib/throttle';
@@ -43,7 +46,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const auth = await requireUser(request, env);
   if (!auth.ok) return auth.response;
   const usage = await usageSummary(env, auth.userId, await loadSubscription(env, auth.userId));
-  return json({ ok: true, available: !!env.AI, tools: { free: FREE_TOOLS, premium: PREMIUM_TOOLS, tones: TONES }, ai: usage.ai });
+  return json({ ok: true, available: !!env.AI, tools: { free: FREE_TOOLS, premium: PREMIUM_TOOLS, tones: TONES, languages: LANGUAGES }, ai: usage.ai });
 };
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
@@ -57,7 +60,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!isAiTool(body.tool)) return failCode(400, 'invalid_tool', 'Unknown AI tool.');
   const tool = body.tool;
   const text = typeof body.text === 'string' ? body.text.trim() : '';
-  if (!text) return failCode(400, 'empty_text', tool === 'generate' || tool === 'plan' || tool === 'winners' ? 'Write a short idea first.' : 'Write some text first.');
+  if (!text) return failCode(400, 'empty_text', tool === 'generate' || tool === 'plan' || tool === 'winners' || tool === 'ideas' ? 'Write a short idea first.' : 'Write some text first.');
   if (text.length > inputLimit(tool)) return failCode(400, 'text_too_long', `The text can be at most ${inputLimit(tool)} characters for this tool.`);
 
   let networks: ChannelType[] = [];
@@ -74,8 +77,13 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
   if (tool === 'tone' && !tone) return failCode(400, 'invalid_tone', `tone is required: ${TONES.join(', ')}`);
   if (tool === 'reformat' && !networks.length) return failCode(400, 'invalid_networks', 'Choose at least one channel to reformat for.');
+  let lang = '';
+  if (tool === 'translate') {
+    if (typeof body.lang !== 'string' || !(body.lang in LANGUAGES)) return failCode(400, 'invalid_lang', `lang must be one of: ${Object.keys(LANGUAGES).join(', ')}`);
+    lang = body.lang;
+  }
   if (!env.AI) return failCode(503, 'ai_unavailable', 'AI is not enabled on this server yet.');
-  const voice = body.voice === false || tool === 'clean' || tool === 'hashtags' ? { text: '', source: null } : await voiceBlock(env, auth.userId);
+  const voice = body.voice === false || ['clean', 'hashtags', 'review', 'translate', 'ideas'].includes(tool) ? { text: '', source: null } : await voiceBlock(env, auth.userId);
   if (tool === 'tone' && tone === 'mine' && !voice.text) return failCode(400, 'no_voice', 'Add a few of your own posts or a short description under My voice first, then “My voice” knows how you write.');
 
   // A person can't run the model in a loop: an hour window per kind of tool.
@@ -118,6 +126,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       case 'cta': result = { options: await toolCta(metered, text, voice.text) }; break;
       case 'reformat': result = { variants: await toolReformat(metered, text, networks, voice.text) }; break;
       case 'generate': result = { text: await toolGenerate(metered, text, tone, networks, voice.text) }; break;
+      case 'review': result = await toolReview(metered, text, networks); break;
+      case 'translate': result = { text: await toolTranslate(metered, text, lang, networks), lang }; break;
+      case 'ideas': result = await toolIdeas(metered, auth.userId, text, networks); break;
       case 'winners': result = await toolWinners(metered, auth.userId, text, networks, voice.text); break;
       case 'repurpose': result = await toolRepurpose(metered, text, networks, voice.text); break;
       default: result = { items: await toolPlan(metered, text, networks, voice.text) };
