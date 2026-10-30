@@ -4,7 +4,7 @@
  * Change a number there, change it here, nowhere else.
  *
  * Vane Studio is sold apart from Vane Post (Free / API / Pro), so it has its own table, `video_subscriptions`. The Suite bundle
- * (§2.6, $18.00: Post + Studio) will simply grant both subscriptions; no code here depends on how a subscription was paid for.
+ * (§2.6, $40.00: Post + Studio + Analytics Pro + AI Pass) will simply grant each subscription; no code here depends on how a subscription was paid for.
  * No row means no access: unlike the posting side there is no free trial for video (the docs define none).
  */
 import type { Env } from '../../../types';

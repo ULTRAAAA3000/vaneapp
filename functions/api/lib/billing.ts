@@ -116,7 +116,7 @@ async function grantAnalytics(env: Env, o: OrderRow, now: number): Promise<void>
     .run();
 }
 
-/** What a paid order switches on. 'video' = Vane Studio, 'ai-pass' = AI Pass, 'api-addon' = Pro's API add-on, 'suite' = Pro + Studio, anything else = that plan. */
+/** What a paid order switches on. 'video' = Vane Studio, 'ai-pass' = AI Pass, 'api-addon' = Pro's API add-on, 'suite' = Pro + Studio + Analytics Pro + AI Pass (its API posts come from the plan's own limits), anything else = that plan. */
 export async function activate(env: Env, o: OrderRow, now: number): Promise<void> {
   if (o.plan_id === 'video') return grantVideo(env, o, now);
   if (o.plan_id === 'ai-pass') return grantAiPass(env, o, now);
@@ -129,6 +129,7 @@ export async function activate(env: Env, o: OrderRow, now: number): Promise<void
   if (o.plan_id === 'suite') {
     await grantVideo(env, o, now);
     await grantAnalytics(env, o, now);
+    await grantAiPass(env, o, now);
   }
 }
 
