@@ -102,6 +102,20 @@ WordPress удерживает около 40% рынка веб-сайтов. П
 
 ---
 
+## 6. Notion (Custom Agents + тот же MCP-сервер, что у Claude)
+* **Идея:** контент-календарь живёт в Notion, агент Notion читает строки со статусом `Ready` и планирует посты через Vane. Это **второй флагман наравне с Claude**: у него своя вкладка в дашборде (`#notion`), своя карточка на `/integrations`, свой ключ «Notion connector» и своя строка в статистике интеграций.
+* **Как подключается:** тот же удалённый MCP-сервер `https://vaneapp.dev/api/v1/mcp` с OAuth 2.1 (PKCE + динамическая регистрация клиента). Админ рабочего пространства включает Settings → Connections → *Enable custom MCP servers*, затем в Custom Agent: *Add connection → Custom MCP server*, вставляет адрес, жмёт Connect, на странице Vane жмёт Allow. Ключ копировать не нужно. Custom Agents есть в планах Business/Enterprise Notion; Notion показывает предупреждение «not reviewed» для любого кастомного сервера.
+* **Что изменено в коде:** клиент определяется по OAuth-клиенту, а не по заголовкам (их можно подделать): `connectorFor(clientName, redirectUris)` в `lib/oauth.ts` узнаёт Notion по имени клиента или по хосту `*.notion.so|com|site` в redirect URI (проверяется точное окончание хоста, `notion.so.evil.com` не проходит). Для Notion создаётся ключ `Notion connector` с меткой `notion`, вызовы MCP считаются как `notion` (`markMcpClient` / `mcpClientOf` в `lib/integrations.ts`), всё остальное как раньше считается Claude. Страница `/connect` показывает имя ключа клиента.
+* **Инструкции агенту** (копируются со вкладки Notion): всегда сначала `vane_list_channels`; постить только указанный текст; показать текст, каналы и время и **ждать «да»** перед `vane_create_post`; время с часовым поясом; при ошибке остановиться.
+* **Не проверено на живом Notion:** сервер стандартный, но реальное подключение из Notion нужно прогнать вручную один раз (какое имя клиента присылает Notion, видно в таблице `oauth_clients`; если имя не содержит «Notion», а redirect URI не на домене Notion, ключ получит метку Claude: тогда поправьте `connectorFor`).
+
+## 7. Obsidian (плагин `Vane for Obsidian`)
+* **Идея:** отправить открытую заметку или выделенный текст в каналы, сразу или по времени, не выходя из Obsidian. Десктоп и мобильный (`isDesktopOnly: false`).
+* **Исходники:** `integrations/obsidian/` (TypeScript: `src/convert.ts` Markdown → текст поста, `src/api.ts` вызовы `GET /api/v1/channels` и `POST /api/v1/posts`, `src/main.ts` команды, окно и настройки). Сборка и архив: `npm run build:obsidian` → `integrations/obsidian/main.js` и `public/downloads/vane-for-obsidian.zip` (папка `vane/`, архив воспроизводимый). `npm run test:unit` проверяет, что собранные файлы актуальны.
+* **Авторизация:** ключ Vane в настройках плагина (метка «Obsidian plugin» в «Used with»). Тестовый ключ `cpost_test_…` проверяет всё и ничего не публикует.
+* **Особенности:** API принимает только время в будущем, поэтому «как можно скорее» = через 90 секунд. Запросы идут через `requestUrl` Obsidian (без CORS). В регулярных выражениях нет look-behind (старые iOS не умеют). Картинки и видео плагин пока не прикладывает.
+* **Публикация:** ручная установка из архива. Попадание в каталог плагинов Obsidian идёт через ревью команды Obsidian (PR в `obsidianmd/obsidian-releases` с GitHub-релизом из `manifest.json`, `main.js`, `styles.css`): пока не подано.
+
 ## 🚀 Сводная дорожная карта интеграций (Roadmap)
 
 1. **MVP (Phase 1):**

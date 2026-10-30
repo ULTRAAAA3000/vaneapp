@@ -6,6 +6,7 @@
   var views = ['viewLoading', 'viewError', 'viewSignin', 'viewAllow', 'viewDone'];
 
   function show(id) { views.forEach(function (v) { $(v).classList.toggle('hidden', v !== id); }); }
+  function keyNames(name) { Array.prototype.forEach.call(document.querySelectorAll('.keyName'), function (el) { el.textContent = name; }); }
   function names(name) { Array.prototype.forEach.call(document.querySelectorAll('.clientName'), function (el) { el.textContent = name; }); }
   function problem(text) { $('errText').textContent = text; show('viewError'); }
   function fields() {
@@ -57,7 +58,7 @@
   $('apiKey').addEventListener('input', syncUse);
 
   function init() {
-    if (!params.get('client_id') || !params.get('redirect_uri')) { problem('Start the connection from Claude: Settings → Connectors → Vane → Connect.'); return; }
+    if (!params.get('client_id') || !params.get('redirect_uri')) { problem('Start the connection from the app you are connecting (for Claude: Settings → Connectors → Vane → Connect; for Notion: the agent’s Settings → Connections).'); return; }
     Vane.api('GET', '/api/oauth/authorize?' + query, undefined, { noRedirect: true }).then(function (r) {
       if (r.status === 401) {
         names('Claude');
@@ -65,8 +66,9 @@
         show('viewSignin');
         return;
       }
-      if (!r.ok) { problem(r.error || 'This connection request is not valid. Start again from Claude.'); return; }
+      if (!r.ok) { problem(r.error || 'This connection request is not valid. Start again from the app you are connecting.'); return; }
       names(r.data.client.name);
+      if (r.data.keyName) keyNames(r.data.keyName);
       $('who').textContent = r.data.user.email;
       $('testNote').classList.toggle('hidden', r.data.live);
       $('liveNote').classList.toggle('hidden', !r.data.live);

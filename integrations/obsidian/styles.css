@@ -1,0 +1,12 @@
+/* Vane for Obsidian */
+.vane-modal textarea { width: 100%; min-height: 9rem; resize: vertical; }
+.vane-modal .vane-count { margin-top: 0.25rem; font-size: var(--font-ui-smaller); color: var(--text-muted); text-align: right; }
+.vane-modal .vane-label { margin: 0.9rem 0 0.35rem; font-size: var(--font-ui-small); font-weight: var(--font-semibold); }
+.vane-modal .vane-channels { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.vane-modal .vane-chip { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.65rem; border: 1px solid var(--background-modifier-border); border-radius: 999px; cursor: pointer; font-size: var(--font-ui-small); user-select: none; }
+.vane-modal .vane-chip.is-on { background: var(--interactive-accent); border-color: var(--interactive-accent); color: var(--text-on-accent); }
+.vane-modal .vane-chip input { display: none; }
+.vane-modal .vane-when { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+.vane-modal .vane-hint { margin-top: 0.4rem; font-size: var(--font-ui-smaller); color: var(--text-muted); }
+.vane-modal .vane-error { margin-top: 0.7rem; color: var(--text-error); font-size: var(--font-ui-small); }
+.vane-modal .vane-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.1rem; }

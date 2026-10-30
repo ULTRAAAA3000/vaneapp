@@ -15,7 +15,7 @@
 import type { Env, KeyMode, KeyScope } from '../../../types';
 import { failCode } from './http';
 import {
-  INTEGRATION_NAMES, inferIntegration, integrationDisabled, isIntegrationId, isMissingSchema, mcpOuterOf, opOf,
+  INTEGRATION_NAMES, inferIntegration, integrationDisabled, isIntegrationId, isMissingSchema, mcpClientOf, mcpOuterOf, opOf,
   recordApiUse, rememberMcpKey, type IntegrationId,
 } from './integrations';
 import { apiAllowed, refreshPlanSpecs, resolveSubscription, type Subscription, type SubscriptionRow } from './plans';
@@ -225,7 +225,7 @@ export async function requireApiKey(request: Request, env: Env, need: KeyScope):
   // Which integration is this (Claude, ChatGPT, Make, …), is it switched on, and count it. See lib/integrations.ts.
   const outer = mcpOuterOf(request);
   const integration: IntegrationId = outer
-    ? 'claude'
+    ? mcpClientOf(outer)
     : isIntegrationId(row.integration) ? row.integration : inferIntegration(request.headers.get('user-agent'), row.name) ?? 'api';
   if (await integrationDisabled(env, integration, now)) {
     return {
