@@ -1487,7 +1487,7 @@
       '<div><span class="mb-2 block text-[0.7rem] font-medium uppercase tracking-widest text-white/40">OpenAPI spec</span>' +
         '<div class="flex items-center gap-2.5"><code class="field min-w-0 flex-1 truncate font-mono !text-[13px]">' + esc(base + '/openapi.json') + '</code>' +
         '<button type="button" data-copy="' + esc(base + '/openapi.json') + '" data-label="Spec URL" class="btn btn-ghost btn-sm shrink-0">Copy</button></div>' +
-        '<p class="mt-2 text-xs leading-relaxed text-white/45">Paste it into a Custom GPT (Actions → Import from URL), Postman or any tool that reads OpenAPI.</p></div>' +
+        '<p class="mt-2 text-xs leading-relaxed text-white/45">Paste it into Postman or any tool that reads OpenAPI. Custom GPT: soon.</p></div>' +
       '<div><span class="mb-2 block text-[0.7rem] font-medium uppercase tracking-widest text-white/40">Channel IDs <span class="normal-case tracking-normal text-white/30">(use them as channelIds)</span></span><div class="space-y-2">' + chans + '</div></div>' +
       '<div><div class="flex items-center justify-between"><span class="block text-[0.7rem] font-medium uppercase tracking-widest text-white/40">Example request</span>' +
         '<button type="button" data-copy-snippet class="text-xs text-white/45 transition-colors hover:text-white">Copy</button></div>' +

@@ -1,4 +1,4 @@
-/* /app — AI in the editor (backend: functions/api/ai): the free Make it clean and Hashtags buttons, the credits card, and the way into the AI tab (assets/aistudio.js). */
+/* /app — AI in the editor (backend: functions/api/ai): the free Make it clean and Hashtags buttons, the credits card. The AI tab itself (assets/aistudio.js) is opened from the dashboard's tab row. */
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
@@ -12,8 +12,7 @@
   bar.innerHTML =
     '<span id="aiCredits" class="mr-1 text-[11px] text-white/40"></span>' +
     '<button id="aiClean" type="button" class="btn btn-ghost btn-sm" title="Fix typos and grammar, add fitting emoji (free)">' + SPARK + ' Make it clean</button>' +
-    '<button id="aiTags" type="button" class="btn btn-ghost btn-sm" title="Suggest hashtags (free)"># Hashtags</button>' +
-    '<a id="aiOpen" href="#ai" class="btn btn-ghost btn-sm" title="Write, plan, rewrite and schedule with AI">' + SPARK + ' AI tab</a>';
+    '<button id="aiTags" type="button" class="btn btn-ghost btn-sm" title="Suggest hashtags (free)"># Hashtags</button>';
   var style = document.createElement('style');
   style.textContent = '.ai-solid{background:#131316;border:1px solid rgba(255,255,255,.14);box-shadow:0 18px 50px -12px rgba(0,0,0,.85)}' +
     '.ai-ico{display:flex;height:2rem;width:2rem;flex:none;align-items:center;justify-content:center;border-radius:.6rem;background:#23232a;color:#c4b5fd}' +

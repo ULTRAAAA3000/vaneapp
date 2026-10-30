@@ -8,6 +8,9 @@
  *
  * Limits:  images JPEG/PNG/WebP up to 5 MB · videos MP4/MOV up to 20 MB
  *          (Telegram's limits for media fetched by link).
+ * A video also needs frames taken from it (form fields named "frame": 3 to 8 JPEGs, the longer the video the more, see lib/videoframes.ts);
+ * it is judged by them. Every frame is judged on its own and ONE flagged frame refuses the video. If our checker cannot answer, the
+ * file is refused with 503 media_unchecked (try again), it is never let through unchecked.
  * Checks, in order: signed-in user → R2 bound → per-user rate limit → body size (read with a hard
  * cap, never fully buffered beyond it) → real file type from the BYTES → whole-file structure (nothing hidden after the end, no script/archive/executable inside) → image dimensions → the plan's library storage.
  * Every stored file also gets a row in `media_assets`, which is what the Library tab lists.
@@ -15,18 +18,18 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env } from '../../../types';
 import { requireUser } from '../lib/auth';
-import { fail, json, methodNotAllowed, readBodyLimited } from '../lib/http';
+import { fail, failCode, json, methodNotAllowed, readBodyLimited } from '../lib/http';
 import { imageSize, sniffImage, telegramPhotoProblem } from '../lib/image';
 import { checkStorageQuota, cleanFileName, recordUpload } from '../lib/library';
 import { imageProblem, videoProblem } from '../lib/mediacheck';
 import { sniffVideo } from '../lib/video';
-import { mediaMessage, moderateImages, modOff, type Picture } from '../lib/moderation';
+import { mediaCode, mediaMessage, mediaStatus, moderateImages, modOff, type Picture } from '../lib/moderation';
+import { framesNeeded, MAX_FRAMES, videoSeconds } from '../lib/videoframes';
 import { bump, retryAfter } from '../lib/throttle';
 
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 export const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
-const MULTIPART_OVERHEAD = 1280 * 1024; // boundaries and part headers around the file, and up to 3 frames of a video
-const MAX_FRAMES = 3;
+const MULTIPART_OVERHEAD = 3 * 1024 * 1024; // boundaries and part headers around the file, and up to 8 frames of a video
 const MAX_FRAME_BYTES = 300 * 1024;
 const UPLOADS_PER_HOUR = 40;
 
@@ -98,10 +101,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!modOff(env)) {
     let pics: Picture[] = [];
     if (image) pics = [{ bytes, mime: image.mime }];
-    else if (frames.length) pics = frames;
-    else return fail(422, 'A video needs a few frames from it so we can check it for 18+ or violent content. The Vane app adds them by itself; for the API, send up to 3 JPEG frames in form fields named "frame" (multipart).');
+    else {
+      const need = framesNeeded(videoSeconds(bytes));
+      if (frames.length < need) {
+        return failCode(422, 'frames_required', `A video needs ${need} frames from it so we can check it for 18+ or violent content (it sent ${frames.length}). The Vane app adds them by itself; for the API, send ${need} to ${MAX_FRAMES} JPEG frames spread over the whole video in form fields named "frame" (multipart).`);
+      }
+      pics = frames;
+    }
     const verdict = await moderateImages(env, pics);
-    if (!verdict.ok) return fail(422, mediaMessage(verdict.reason, !image));
+    if (!verdict.ok) return failCode(mediaStatus(verdict.reason), mediaCode(verdict.reason), mediaMessage(verdict.reason, !image));
   }
 
   const kind = image ?? video!;
