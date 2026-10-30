@@ -458,14 +458,20 @@
 
   /** Reloads the history. While something is queued or publishing it keeps itself fresh (the server also nudges due retries on each call). */
   async function loadPublications() {
+    clearTimeout(S.pubTimer);
+    S.pubTimer = null;
     var r = await Vane.api('GET', '/api/video/publications');
-    if (!r.ok) return;
+    if (!r.ok) {
+      S.pubFails = (S.pubFails || 0) + 1;
+      if (S.pubFails < 4 && r.status !== 401 && r.status !== 429) S.pubTimer = setTimeout(loadPublications, 4000 * Math.pow(2, S.pubFails));
+      return;
+    }
+    S.pubFails = 0;
     S.publications = r.data.publications;
     renderPublications();
     var busy = S.publications.some(function (p) { return p.status === 'queued' || p.status === 'publishing'; });
     $('pubLive').classList.toggle('hidden', !busy);
-    clearTimeout(S.pubTimer);
-    S.pubTimer = busy ? setTimeout(loadPublications, 4000) : null;
+    if (busy) S.pubTimer = setTimeout(function () { if (document.hidden) { S.pubTimer = null; } else loadPublications(); }, 4000);
   }
 
   $('publications').addEventListener('click', async function (e) {
@@ -1082,27 +1088,37 @@
         '<p class="mt-4 border-t border-white/10 pt-4 text-xs leading-relaxed text-white/45">Each key can make up to 10 requests a minute. A full library answers with a 409 until you delete a video.</p>';
     }
     box.innerHTML = html;
-    var buy = async function () {
-      var r = await Vane.api('GET', '/api/billing/plan?id=video');
-      if (!r.ok || !r.data.plan || !r.data.plan.buyable || !box.isConnected) return;
-      var a = document.createElement('a');
-      a.className = 'btn btn-white mt-4 inline-flex';
-      a.href = (/^studio\.vaneapp\.dev$/i.test(location.hostname) ? 'https://vaneapp.dev' : '') + '/checkout?plan=video';
-      a.textContent = S.active || S.lapsed ? 'Renew Vane Studio' : 'Get Vane Studio';
-      if (!S.active || (S.endsAt && S.endsAt - Date.now() / 1000 < 7 * 86400)) box.appendChild(a);
+    planOffers().then(function (offers) {
+      if (!box.isConnected) return;
+      var studioHost = /^studio\.vaneapp\.dev$/i.test(location.hostname) ? 'https://vaneapp.dev' : '';
+      if (offers.video && !box.querySelector('[data-video-offer]') && (!S.active || (S.endsAt && S.endsAt - Date.now() / 1000 < 7 * 86400))) {
+        var a = document.createElement('a');
+        a.setAttribute('data-video-offer', '1');
+        a.className = 'btn btn-white mt-4 inline-flex';
+        a.href = studioHost + '/checkout?plan=video';
+        a.textContent = S.active || S.lapsed ? 'Renew Vane Studio' : 'Get Vane Studio';
+        box.appendChild(a);
+      }
+      if (offers.suite && !box.querySelector('[data-suite]')) {
+        var b = document.createElement('a');
+        b.setAttribute('data-suite', '1');
+        b.className = 'btn mt-3 inline-flex';
+        b.href = studioHost + '/checkout?plan=suite';
+        b.textContent = 'Or get Vane Suite: video + posting';
+        box.appendChild(b);
+      }
+    });
+  }
+
+  var plansAsked = null;
+  function planOffers() {
+    if (plansAsked) return plansAsked;
+    var ask = async function (id) {
+      var r = await Vane.api('GET', '/api/billing/plan?id=' + id, undefined, { noRedirect: true });
+      return !!(r.ok && r.data.plan && r.data.plan.buyable);
     };
-    buy();
-    // Vane Suite = Studio + Vane Post Pro in one payment.
-    (async function () {
-      var r = await Vane.api('GET', '/api/billing/plan?id=suite');
-      if (!r.ok || !r.data.plan || !r.data.plan.buyable || !box.isConnected || box.querySelector('[data-suite]')) return;
-      var a = document.createElement('a');
-      a.setAttribute('data-suite', '1');
-      a.className = 'btn mt-3 inline-flex';
-      a.href = (/^studio\.vaneapp\.dev$/i.test(location.hostname) ? 'https://vaneapp.dev' : '') + '/checkout?plan=suite';
-      a.textContent = 'Or get Vane Suite: video + posting';
-      box.appendChild(a);
-    })();
+    plansAsked = Promise.all([ask('video'), ask('suite')]).then(function (v) { return { video: v[0], suite: v[1] }; });
+    return plansAsked;
   }
 
   /** Quick start: base URL, your videos' ids and a ready-made request (never contains a real key). Returns the request text. */
@@ -1148,6 +1164,8 @@
     renderQuota: renderApiQuota,
     renderQuick: renderApiQuick
   });
+
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && !S.pubTimer && S.publications && S.publications.some(function (p) { return p.status === 'queued' || p.status === 'publishing'; })) loadPublications(); });
 
   // ───────────────────────── sign out ─────────────────────────
   $('logoutBtn').addEventListener('click', async function () {
