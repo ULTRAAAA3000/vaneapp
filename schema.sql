@@ -593,6 +593,14 @@ CREATE TABLE IF NOT EXISTS video_covers (
   updated_at   INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
+-- A video that passed the content check (frames taken from it were judged, see functions/api/lib/videocheck.ts). Only such a video
+-- can be published or get a public link. A separate table for the same reason as above: no ALTER, this file stays re-runnable.
+CREATE TABLE IF NOT EXISTS video_checks (
+  video_id   TEXT    PRIMARY KEY REFERENCES videos(id) ON DELETE CASCADE,
+  frames     INTEGER NOT NULL,                                                  -- how many frames were judged
+  checked_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
 -- A public link: anyone who has the address can watch/download the video. One link per video; removing it kills the address.
 -- Platforms that pull a file by URL (TikTok, Instagram Reels) and the "announce in Vane Post" hand-off use it.
 CREATE TABLE IF NOT EXISTS video_links (
@@ -965,7 +973,7 @@ CREATE TABLE IF NOT EXISTS oauth_grants (
   client_id   TEXT    NOT NULL REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
   user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   key_id      TEXT    NOT NULL REFERENCES api_keys(id) ON DELETE CASCADE,
-  key_enc     TEXT    NOT NULL,                                 -- the API key, encrypted with ENCRYPTION_KEY
+  key_enc     TEXT    NOT NULL DEFAULT '',                      -- legacy: the key secret, encrypted. New grants leave it empty and authenticate by key_id
   created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
   revoked_at  INTEGER
 );

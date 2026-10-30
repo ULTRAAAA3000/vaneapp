@@ -30,6 +30,32 @@
     });
   }
 
+  var chosen = '';
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function ago(ts) {
+    if (!ts) return 'never used';
+    var d = Math.max(0, Math.floor(Date.now() / 1000) - ts);
+    return d < 3600 ? 'used just now' : d < 86400 ? 'used today' : 'used ' + Math.floor(d / 86400) + ' d ago';
+  }
+  function syncUse() { $('useKey').disabled = !chosen && !$('apiKey').value.trim(); }
+  function renderKeys(keys) {
+    $('keyList').innerHTML = keys.length ? keys.map(function (k) {
+      return '<button type="button" role="radio" aria-checked="false" data-key="' + esc(k.id) + '" class="keyopt flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3.5 py-2.5 text-left hover:border-white/25 aria-checked:border-violet-400/70 aria-checked:bg-violet-400/10">' +
+        '<span class="min-w-0"><span class="block truncate text-sm font-medium text-white">' + esc(k.name) + (k.claude ? ' <span class="ml-1 rounded-full bg-violet-400/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-200">Claude</span>' : '') + '</span>' +
+        '<span class="block text-xs text-white/45">••••' + esc(k.hint) + ' · ' + esc(ago(k.lastUsedAt)) + '</span></span>' +
+        '<span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ' + (k.mode === 'live' ? 'bg-emerald-400/15 text-emerald-300' : 'bg-amber-400/15 text-amber-200') + '">' + esc(k.mode) + '</span></button>';
+    }).join('') : '<p class="text-xs text-white/45">You have no keys yet. Press Allow and Vane makes one for you.</p>';
+    syncUse();
+  }
+  $('keyList').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-key]');
+    if (!b) return;
+    chosen = chosen === b.getAttribute('data-key') ? '' : b.getAttribute('data-key');
+    Array.prototype.forEach.call($('keyList').querySelectorAll('[data-key]'), function (x) { x.setAttribute('aria-checked', String(x.getAttribute('data-key') === chosen)); });
+    syncUse();
+  });
+  $('apiKey').addEventListener('input', syncUse);
+
   function init() {
     if (!params.get('client_id') || !params.get('redirect_uri')) { problem('Start the connection from Claude: Settings → Connectors → Vane → Connect.'); return; }
     Vane.api('GET', '/api/oauth/authorize?' + query, undefined, { noRedirect: true }).then(function (r) {
@@ -44,6 +70,7 @@
       $('who').textContent = r.data.user.email;
       $('testNote').classList.toggle('hidden', r.data.live);
       $('liveNote').classList.toggle('hidden', !r.data.live);
+      renderKeys(r.data.keys || []);
       show('viewAllow');
     });
   }
@@ -51,8 +78,8 @@
   $('allow').addEventListener('click', function () { submit(this, {}); });
   $('useKey').addEventListener('click', function () {
     var key = $('apiKey').value.trim();
-    if (!key) { $('err').textContent = 'Paste your API key first.'; $('err').classList.remove('hidden'); return; }
-    submit(this, { apiKey: key });
+    if (!chosen && !key) { $('err').textContent = 'Pick a key from the list first.'; $('err').classList.remove('hidden'); return; }
+    submit(this, chosen ? { keyId: chosen } : { apiKey: key });
   });
   $('deny').addEventListener('click', function () {
     try {

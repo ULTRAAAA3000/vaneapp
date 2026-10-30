@@ -107,11 +107,15 @@
    *   { ok:true, kind, url, key, size, contentType, width?, height? }  or  { ok:false, error, aborted? }
    * (XMLHttpRequest is used because fetch() cannot report upload progress.)
    */
-  /** Up to 3 small JPEG frames of a video (10%, 50%, 90%), taken in the browser: the server checks a video by them. Resolves to [] when the browser cannot decode it. */
-  Vane.videoFrames = function (file) {
+  /**
+   * Small JPEG frames of a video, spread evenly over its whole length and taken in the browser: the server checks a video by them
+   * (one frame every ~6 seconds, at least 3 and at most 8: the same rule as functions/api/lib/videoframes.ts). Resolves to [] when
+   * the browser cannot decode the video. `budgetMs` is how long to try (15 s by default).
+   */
+  Vane.videoFrames = function (file, budgetMs) {
     return new Promise(function (resolve) {
-      var url = URL.createObjectURL(file), v = document.createElement('video'), out = [], at = [0.1, 0.5, 0.9], i = 0, done = false;
-      var timer = setTimeout(function () { finish(); }, 10000);
+      var url = URL.createObjectURL(file), v = document.createElement('video'), out = [], at = [], i = 0, done = false;
+      var timer = setTimeout(function () { finish(); }, budgetMs || 15000);
       function finish() {
         if (done) return;
         done = true; clearTimeout(timer);
@@ -124,7 +128,11 @@
       }
       v.muted = true; v.playsInline = true; v.preload = 'auto';
       v.onerror = function () { finish(); };
-      v.onloadedmetadata = next;
+      v.onloadedmetadata = function () {
+        var n = Math.min(8, Math.max(3, Math.ceil((isFinite(v.duration) && v.duration > 0 ? v.duration : 1) / 6)));
+        for (var k = 0; k < n; k++) at.push((k + 0.5) / n);
+        next();
+      };
       v.onseeked = function () {
         if (!v.videoWidth) return finish();
         var w = Math.min(480, v.videoWidth), h = Math.max(1, Math.round(v.videoHeight * w / v.videoWidth));
