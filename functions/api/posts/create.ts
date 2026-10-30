@@ -13,6 +13,9 @@
  * Rows are inserted in a single D1 batch, so it's all-or-nothing.
  * The cron worker (next stage) picks them up via idx_posts_due (status, scheduled_at).
  *
+ * The dashboard's "Post now" sends `sendNow: true` instead of `scheduledAt`: the rows are due this second and are sent
+ * straight away (worker/src/dispatch.ts, this group only); the answer then carries each post's status and error.
+ *
  * `media_keys` holds either R2 object keys or external https URLs; the sender tells them
  * apart by the "https://" prefix.
  */
@@ -29,6 +32,7 @@ import { BLUESKY_TEXT_LIMIT, BLUESKY_TEXT_MAX_BYTES } from '../channels/bluesky'
 import { MASTODON_TEXT_LIMIT } from '../channels/mastodon';
 import { isValidMediaUrl, TELEGRAM_CAPTION_LIMIT } from '../channels/telegram';
 import { mediaUrlProblem } from '../lib/mediaurl';
+import { runDuePosts } from '../../../worker/src/dispatch';
 import { textProblem } from '../lib/moderation';
 
 const MAX_CHANNELS = 20;
@@ -82,7 +86,7 @@ export type ValidationResult = { ok: true; v: ValidatedPost } | { ok: false; res
  * Everything that can be wrong with a "create post" body, shared by the dashboard route and the public API
  * (`POST /api/v1/posts`), so both always accept and reject exactly the same things.
  */
-export async function validateCreatePost(env: Env, userId: string, body: unknown): Promise<ValidationResult> {
+export async function validateCreatePost(env: Env, userId: string, body: unknown, opts: { immediate?: boolean } = {}): Promise<ValidationResult> {
   const bad = (response: Response): ValidationResult => ({ ok: false, response });
   if (!isRecord(body)) return bad(fail(400, 'Body must be a JSON object'));
 
@@ -117,13 +121,18 @@ export async function validateCreatePost(env: Env, userId: string, body: unknown
   }
 
   // ── scheduledAt: must be in the future
-  const scheduledAt = parseScheduledAt(body.scheduledAt);
-  if (scheduledAt === null) {
-    return bad(fail(400, 'scheduledAt must be an ISO-8601 time with a timezone (e.g. 2026-10-20T09:00:00Z) or unix seconds'));
-  }
+  // (a "Post now" has no time of its own: it is due this second)
   const now = Math.floor(Date.now() / 1000);
-  if (scheduledAt <= now) return bad(fail(400, 'scheduledAt must be in the future'));
-  if (scheduledAt > now + MAX_HORIZON_SECONDS) return bad(fail(400, 'scheduledAt can be at most one year ahead'));
+  let scheduledAt = now;
+  if (!opts.immediate) {
+    const parsedAt = parseScheduledAt(body.scheduledAt);
+    if (parsedAt === null) {
+      return bad(fail(400, 'scheduledAt must be an ISO-8601 time with a timezone (e.g. 2026-10-20T09:00:00Z) or unix seconds'));
+    }
+    scheduledAt = parsedAt;
+    if (scheduledAt <= now) return bad(fail(400, 'scheduledAt must be in the future'));
+    if (scheduledAt > now + MAX_HORIZON_SECONDS) return bad(fail(400, 'scheduledAt can be at most one year ahead'));
+  }
 
   // ── ownership: every channel must be MINE and active (one query, no per-id round trips)
   const placeholders = channelIds.map((_, i) => `?${i + 2}`).join(',');
@@ -207,6 +216,9 @@ export async function insertPostGroup(
   return { ok: true, groupId, posts };
 }
 
+/** What a "Post now" answers for each channel once the send was attempted. */
+interface SentPost { id: string; channelId: string; status: string; error: string | null }
+
 export const handleCreatePost: PagesFunction<Env> = async ({ request, env }) => {
   const auth = await requireUser(request, env);
   if (!auth.ok) return auth.response;
@@ -214,15 +226,32 @@ export const handleCreatePost: PagesFunction<Env> = async ({ request, env }) => 
   const parsed = await readJson(request);
   if (!parsed.ok) return parsed.response;
 
-  const checked = await validateCreatePost(env, auth.userId, parsed.data);
+  // "Post now" (the dashboard button): `sendNow: true` instead of a time. Only this route reads it; the public API still needs scheduledAt.
+  const immediate = isRecord(parsed.data) && parsed.data.sendNow === true;
+
+  const checked = await validateCreatePost(env, auth.userId, parsed.data, { immediate });
   if (!checked.ok) return checked.response;
   const v = checked.v;
 
   const saved = await insertPostGroup(env, auth.userId, v);
-  if (!saved.ok) return fail(500, 'Could not schedule the post. Please try again.');
+  if (!saved.ok) return fail(500, immediate ? 'Could not post. Please try again.' : 'Could not schedule the post. Please try again.');
 
   // Dashboard posts are counted (the Free Trial total is shared with the API); blocking them is a later part.
   await countUiPosts(env, auth.userId, postUnits(v.channels.length));
 
-  return json({ ok: true, groupId: saved.groupId, scheduledAt: v.scheduledAt, posts: saved.posts }, 201);
+  if (!immediate) return json({ ok: true, groupId: saved.groupId, scheduledAt: v.scheduledAt, posts: saved.posts }, 201);
+
+  // Send it this second with the same dispatcher the cron runs (claim, send, retry rules, log, webhooks), for this group only.
+  // If anything throws, the posts are already saved as due now, so the cron sends them within a minute.
+  try {
+    await runDuePosts(env, undefined, { groupId: saved.groupId });
+  } catch (err) {
+    console.error('post now dispatch failed', err instanceof Error ? err.message : 'unknown');
+  }
+  const { results } = await env.DB
+    .prepare('SELECT id, channel_id, status, error FROM posts WHERE group_id = ?1 AND user_id = ?2')
+    .bind(saved.groupId, auth.userId)
+    .all<{ id: string; channel_id: string; status: string; error: string | null }>();
+  const posts: SentPost[] = results.map((r) => ({ id: r.id, channelId: r.channel_id, status: r.status, error: r.error }));
+  return json({ ok: true, immediate: true, groupId: saved.groupId, scheduledAt: v.scheduledAt, posts }, 201);
 };

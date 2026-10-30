@@ -60,7 +60,12 @@ export interface RunSummary { skipped?: string; expired: number; reaped: number;
 
 const clip = (s: string, n = 300) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 
-export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date.now() / 1000)): Promise<RunSummary> {
+/**
+ * `only` sends just the posts of one group (the dashboard's "Post now"): the global housekeeping steps (too late, paused-too-long,
+ * stuck) are left to the cron, and nobody else's posts are claimed. A post that fails for a temporary reason is requeued as usual
+ * and the cron retries it.
+ */
+export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date.now() / 1000), only?: { groupId: string }): Promise<RunSummary> {
   const summary: RunSummary = { expired: 0, reaped: 0, claimed: 0, sent: 0, retried: 0, failed: 0 };
 
   if (!env.ENCRYPTION_KEY || env.ENCRYPTION_KEY.length < 32) {
@@ -79,7 +84,7 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
   const notPaused = (from: number) => (paused.length ? ` AND channel_id NOT IN (${inPaused(from)})` : '');
 
   // ── 1) Too late: don't publish content hours after the moment the user chose.
-  const late = await env.DB
+  const late = only ? { results: [] as { id: string; user_id: string; channel_id: string }[] } : await env.DB
     .prepare(
       `UPDATE posts SET status = 'failed', updated_at = ?1,
               error = 'Missed its scheduled time by more than 2 hours (the scheduler was not running), so it was not published.'
@@ -93,7 +98,7 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
   for (const p of late.results) await enqueueWebhookEvent(env, p.user_id, p.id, 'post.failed', nowSec);
 
   // ── 1b) A paused network that stayed off for more than 2 hours past the scheduled time: say so, honestly.
-  if (paused.length) {
+  if (paused.length && !only) {
     const held = await env.DB
       .prepare(
         `UPDATE posts SET status = 'failed', updated_at = ?1,
@@ -109,7 +114,7 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
   }
 
   // ── 2) Orphans: 'processing' for too long means a previous run died mid-flight.
-  const stuck = await env.DB
+  const stuck = only ? { results: [] as { id: string; user_id: string; channel_id: string }[] } : await env.DB
     .prepare(
       `UPDATE posts SET status = 'failed', updated_at = ?1,
               error = 'Delivery was interrupted and could not be confirmed. Check the channel; reschedule if the post is missing.'
@@ -129,11 +134,11 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
         WHERE id IN (
           SELECT id FROM posts
            WHERE status = 'scheduled' AND scheduled_at <= ?1
-             AND (attempts = 0 OR updated_at + MIN(60 * (1 << attempts), 900) <= ?1)${notPaused(3)}
+             AND (attempts = 0 OR updated_at + MIN(60 * (1 << attempts), 900) <= ?1)${notPaused(3)}${only ? ` AND group_id = ?${3 + paused.length}` : ''}
            ORDER BY scheduled_at ASC LIMIT ?2)
         RETURNING id, user_id, channel_id, content, media_keys, scheduled_at, attempts`,
     )
-    .bind(nowSec, BATCH_SIZE, ...paused)
+    .bind(nowSec, BATCH_SIZE, ...paused, ...(only ? [only.groupId] : []))
     .all<Claimed>();
   // RETURNING does not promise any row order, so restore it: oldest scheduled time first.
   const posts = [...claimed.results].sort((a, b) => a.scheduled_at - b.scheduled_at || a.id.localeCompare(b.id));

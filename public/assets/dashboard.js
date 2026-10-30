@@ -988,8 +988,11 @@
     else if (!S.selected.size) msg = 'Pick at least one channel.';
     else if (!text && !media) msg = 'Write something or add an image or video.';
     else if (len > limit) msg = media && t.net === 'telegram' ? 'With an image or video the text can be at most ' + CAPTION_LIMIT + ' characters.' : 'Text is too long for ' + netName(t.net) + '.';
-    else if (!whenEl.value || isNaN(new Date(whenEl.value).getTime())) msg = 'Pick a date and time.';
-    else if (new Date(whenEl.value).getTime() <= Date.now() + 30000) msg = 'Pick a time at least a minute from now.';
+    $('postNowBtn').disabled = !!msg || S.submitting;   // Post now has no time to check, so it only needs the checks above
+    if (!msg) {
+      if (!whenEl.value || isNaN(new Date(whenEl.value).getTime())) msg = 'Pick a date and time.';
+      else if (new Date(whenEl.value).getTime() <= Date.now() + 30000) msg = 'Pick a time at least a minute from now.';
+    }
 
     $('hint').textContent = msg;
     $('schedBtn').disabled = !!msg || S.submitting;
@@ -1207,6 +1210,42 @@
     $('posts').scrollIntoView({ behavior: 'smooth', block: 'center' });
   });
 
+
+  // Post now: sends this second to the picked channels (the server runs the same sender as the scheduler) and shows what happened per channel.
+  $('postNowBtn').addEventListener('click', async function () {
+    if (S.submitting) return;
+    validate();
+    if ($('postNowBtn').disabled) return;
+
+    S.submitting = true; $('postNowBtn').disabled = true; $('schedBtn').disabled = true;
+    $('postNowSpin').classList.remove('hidden'); $('postNowLabel').textContent = 'Posting';
+
+    var body = { content: textEl.value.trim(), channelIds: Array.from(S.selected), sendNow: true };
+    if (currentMedia()) body.mediaUrl = currentMedia();
+
+    var r = await Vane.api('POST', '/api/posts', body);
+    S.submitting = false;
+    $('postNowSpin').classList.add('hidden'); $('postNowLabel').textContent = 'Post now';
+
+    if (!r.ok) { Vane.toast('err', r.error); validate(); return; }
+
+    var posts = r.data.posts || [], n = posts.length;
+    var sent = posts.filter(function (p) { return p.status === 'sent'; }).length;
+    var failed = posts.filter(function (p) { return p.status === 'failed'; });
+    var waiting = n - sent - failed.length;   // a temporary error: the scheduler tries again in a few minutes
+    if (sent === n) Vane.toast('ok', n > 1 ? 'Posted to ' + n + ' channels.' : 'Posted.');
+    else if (sent) Vane.toast('err', 'Posted to ' + sent + ' of ' + n + ' channels.' + (failed.length ? ' ' + failed[0].error : ' The rest will be retried shortly.'));
+    else if (failed.length) Vane.toast('err', failed[0].error || 'Could not post.');
+    else Vane.toast('ok', 'Queued: the network did not answer yet, Vane will try again in a few minutes.');
+    if (!failed.length || sent || waiting) { textEl.value = ''; picker.clear(); saveDraft(); }   // keep the text only when nothing went out, so it is easy to fix and send again
+    document.dispatchEvent(new CustomEvent('vane:scheduled'));
+    refreshApiQuietly();   // dashboard posts count toward the quota
+    var tab = sent === n || failed.length ? 'history' : 'upcoming';
+    await loadPosts(tab);
+    S.tab = tab; setTab(tab);
+    renderAll();
+    $('posts').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
   // ───────────────────────── posts list ─────────────────────────
   function setTab(tab) {
     S.tab = tab;
