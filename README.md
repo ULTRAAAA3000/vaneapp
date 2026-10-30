@@ -215,7 +215,7 @@ Every metered response carries `X-Vane-Quota-Limit`, `X-Vane-Quota-Remaining` an
 `invalid_api_key` (401) · `wrong_key_scope` (403) · `api_not_in_plan` (403) · `quota_exceeded` (402) · `rate_limited` (429) · `too_many_keys` (409) · `invalid_idempotency_key` (400) · `idempotency_key_reuse` (422) · `idempotency_in_progress` (409).
 
 **OpenAPI spec:** `https://vaneapp.dev/vane-openapi.json` (OpenAPI 3.0, served from `public/`) describes all of the above, so a tool can import it instead of being set up by hand.
-- *ChatGPT Custom GPT*: Configure → Actions → *Import from URL* with the address above → Authentication *API Key* → *Bearer*, paste a `cpost_…` key. Use a `cpost_test_` key while trying it out.
+- *ChatGPT Custom GPT* (**soon**, not offered to users yet): Configure → Actions → *Import from URL* with the address above → Authentication *API Key* → *Bearer*, paste a `cpost_…` key. Use a `cpost_test_` key while trying it out.
 - *Claude* and other tools that read OpenAPI: point them at the same file.
 - When an endpoint changes, update `public/vane-openapi.json` in the same commit.
 
@@ -238,7 +238,7 @@ Only a **successful** answer is remembered: a request that failed (400, 402, 5xx
 
 ### OpenAPI / Custom GPT
 
-`GET /api/v1/openapi.json` serves an OpenAPI 3.1 description of this API (public, CORS-enabled, nothing private in it). The dashboard's Quick start shows the URL with a Copy button. In ChatGPT: *Create a GPT → Configure → Actions → Import from URL*, then set Authentication to *API Key / Bearer* and paste a `cpost_live_…` key. Postman and Make read it too. The spec lives in `functions/api/lib/openapi.ts` (the only hand-written description); `npm run test:api` validates its structure and **fails if a route under `functions/api/v1` is not documented or a documented route does not exist** (the Video Engine has its own document, `documentation/VIDEO_ENGINE.md`).
+`GET /api/v1/openapi.json` serves an OpenAPI 3.1 description of this API (public, CORS-enabled, nothing private in it). The dashboard's Quick start shows the URL with a Copy button. A ChatGPT Custom GPT is **soon** (not offered to users yet); Postman and Make read it too. The spec lives in `functions/api/lib/openapi.ts` (the only hand-written description); `npm run test:api` validates its structure and **fails if a route under `functions/api/v1` is not documented or a documented route does not exist** (the Video Engine has its own document, `documentation/VIDEO_ENGINE.md`).
 
 ### How the quota works
 
@@ -304,7 +304,7 @@ It needs one new table: run the whole `schema.sql` in the D1 Console again (it i
 
 **In the admin** (`/admin` → **Integrations**, `public/assets/admin.js`): a summary row (API requests in 7 days with the trend, today, active keys, and the share of traffic whose source is unknown), a **Demand** card (a ranking of the integrations by 30-day requests and a stacked 30-day chart), and a card per integration with its state (Live / Works through the API / Planned / Paused), activity (Active / Idle / No traffic yet), an on/off switch (switching off asks for confirmation and explains the consequence; switching on is immediate), today / 7 d / 30 d requests with the trend, active keys and users, a 30-day chart, the last request, what it is used for (top operations), and a collapsible **Setup and notes** (copy-ready URLs, authentication, the steps a user follows, store-review notes, plus where the review stands and a free note, both saved as you change them). If the tables are missing the page says to run `npm run db:remote`.
 
-**For users**: the create-key dialog (Post dashboard and Studio) has an optional **Used with** choice (Claude, ChatGPT, Make, Zapier, WordPress plugin, own script / other). It fills in the key's name when that is still empty, and it is what makes the admin's numbers certain instead of guessed. The label is shown on the key rows.
+**For users**: the create-key dialog (Post dashboard and Studio) has an optional **Used with** choice (Claude, ChatGPT (soon, greyed out), Make, Zapier, WordPress plugin, own script / other). It fills in the key's name when that is still empty, and it is what makes the admin's numbers certain instead of guessed. The label is shown on the key rows.
 
 What it measures and controls (`functions/api/lib/integrations.ts`, `functions/api/admin/integrations.ts`):
 
