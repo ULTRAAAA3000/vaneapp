@@ -4,7 +4,7 @@
  */
 import type { Env } from '../../../types';
 import { mediaKindFromUrl } from './media';
-import { mediaMessage, moderateImages, modOff } from './moderation';
+import { mediaCode, mediaMessage, moderateImages, modOff } from './moderation';
 import { isOwnHost } from './netsafe';
 import { downloadImage } from './remoteimage';
 
@@ -17,5 +17,5 @@ export async function mediaUrlProblem(env: Env, url: string): Promise<{ code: st
   const img = await downloadImage(url, { maxBytes: 5 * 1024 * 1024, label: 'Vane', maxLabel: '5 MB' });
   if (!img.ok) return { code: 'media_unchecked', message: 'The image link could not be downloaded to check it. Upload the file to Vane and attach it from there.' };
   const v = await moderateImages(env, [{ bytes: new Uint8Array(img.bytes), mime: img.contentType }]);
-  return v.ok ? null : { code: v.reason === 'sexual' ? 'media_adult' : 'media_violence', message: mediaMessage(v.reason) };
+  return v.ok ? null : { code: mediaCode(v.reason), message: mediaMessage(v.reason) };
 }

@@ -824,6 +824,34 @@
     });
   }
 
+  /**
+   * Takes frames from the uploaded file and sends them to be checked for 18+ or violent content (the server cannot decode video).
+   * One flagged frame removes the video; without a passed check it can be neither published nor shared. Tries twice: a checker
+   * that was busy a moment ago usually is not now. Resolves to true when the video passed.
+   */
+  async function sendFrames(videoId, file) {
+    var frames = await Vane.videoFrames(file, 20000);
+    if (frames.length < 3) {
+      Vane.toast('err', 'This browser could not read frames from the video to check it, so it cannot be published yet. Try another browser, or export the video as H.264 MP4.');
+      return false;
+    }
+    for (var attempt = 0; attempt < 2; attempt++) {
+      var fd = new FormData();
+      frames.forEach(function (b, n) { fd.append('frame', b, 'frame' + n + '.jpg'); });
+      try {
+        var res = await fetch('/api/video/videos/' + videoId + '/frames', { method: 'POST', credentials: 'same-origin', body: fd });
+        var data = await res.json().catch(function () { return null; });
+        if (res.ok) return true;
+        if (res.status === 503 && attempt === 0) { await new Promise(function (r) { setTimeout(r, 2500); }); continue; }
+        Vane.toast('err', (data && data.error) || 'The video could not be checked. Upload it again.');
+        return false;
+      } catch (e) {
+        if (attempt === 1) Vane.toast('err', 'The video could not be checked (network error). Upload it again.');
+      }
+    }
+    return false;
+  }
+
   /** Sends the preview frame of a finished upload. Best effort: the video is already safe, so a failure is not shown. */
   async function sendPreview(videoId, previewPromise) {
     try {
@@ -986,7 +1014,7 @@
     setBusy(false);
     resetForm();
     Vane.toast('ok', 'Video uploaded');
-    await sendPreview(U.videoId, previewPromise);
+    if (await sendFrames(U.videoId, U.file)) await sendPreview(U.videoId, previewPromise);   // a removed video has no preview to send
     if (coverFile) await sendCover(U.videoId, coverFile);
     await Promise.all([loadLibrary(), refreshOverview()]);
     offerAnnounce(U.videoId);
