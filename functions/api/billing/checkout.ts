@@ -11,7 +11,7 @@ import type { Env } from '../../../types';
 import { requireUser } from '../lib/auth';
 import { fail, isRecord, json, methodNotAllowed, readJson, EMAIL_RE } from '../lib/http';
 import { addonAllowed, billingEnabled, billingMethods, getPlan, previewActive, ORDER_COLUMNS, orderView, PAY_WINDOW_SECONDS, quote, type Interval, type Method, type OrderRow } from '../lib/billing';
-import { createInvoice } from '../lib/monobank';
+import { createInvoice, monobankCcy } from '../lib/monobank';
 import { SOLANA_ASSETS, type CryptoAsset } from '../lib/solana';
 import { bump, retryAfter } from '../lib/throttle';
 import { cryptoDetails } from './order';
@@ -49,6 +49,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!plan) return fail(404, 'Plan not found.');
   const q = quote(plan, interval);
   if (!q.ok) return fail(409, q.error);
+  const ccy = monobankCcy(plan.currency);
+  if (method === 'monobank' && ccy === null) return fail(409, 'Card payment is not available for this price currency.');
+  if (method === 'crypto' && plan.currency !== 'USD') return fail(409, 'Crypto payment is available for plans priced in USD only. Pay by card.');
   const now = Math.floor(Date.now() / 1000);
   if (plan.id === 'api-addon' && !(await addonAllowed(env, auth.userId, now))) return fail(409, 'The API add-on goes on top of an active Pro plan. Get Pro first.');
 
@@ -60,8 +63,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const record = { ...billing, consent: { terms: true, noAutoRenewal: true, immediateStart: waiver ? true : null, at: now } };
   const mint = method === 'crypto' ? SOLANA_ASSETS[asset].mint : null;
   const open = await env.DB
-    .prepare(`SELECT ${ORDER_COLUMNS} FROM orders WHERE user_id = ?1 AND plan_id = ?2 AND interval = ?3 AND provider = ?4 AND status = 'pending' AND expires_at > ?5 AND amount_cents = ?6 AND COALESCE(provider_ref, '') ${method === 'crypto' ? '= ?7' : "<> '' AND ?7 IS NULL"} ORDER BY created_at DESC LIMIT 1`)
-    .bind(auth.userId, plan.id, q.interval, method, now, q.amountCents, mint)
+    .prepare(`SELECT ${ORDER_COLUMNS} FROM orders WHERE user_id = ?1 AND plan_id = ?2 AND interval = ?3 AND provider = ?4 AND status = 'pending' AND expires_at > ?5 AND amount_cents = ?6 AND currency = ?8 AND COALESCE(provider_ref, '') ${method === 'crypto' ? '= ?7' : "<> '' AND ?7 IS NULL"} ORDER BY created_at DESC LIMIT 1`)
+    .bind(auth.userId, plan.id, q.interval, method, now, q.amountCents, mint, plan.currency)
     .first<OrderRow>();
   if (open) {
     await env.DB.prepare('UPDATE orders SET billing = ?2 WHERE id = ?1').bind(open.id, JSON.stringify(record)).run();
@@ -81,15 +84,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   await env.DB
     .prepare(
       `INSERT INTO orders (id, user_id, plan_id, plan_name, interval, amount_cents, currency, provider, provider_ref, pay_micro, status, billing, created_at, expires_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'USD', ?7, ?8, ?9, 'pending', ?10, ?11, ?12)`,
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?13, ?7, ?8, ?9, 'pending', ?10, ?11, ?12)`,
     )
-    .bind(id, auth.userId, plan.id, plan.name, q.interval, q.amountCents, method, mint, payMicro, JSON.stringify(record), now, now + PAY_WINDOW_SECONDS)
+    .bind(id, auth.userId, plan.id, plan.name, q.interval, q.amountCents, method, mint, payMicro, JSON.stringify(record), now, now + PAY_WINDOW_SECONDS, plan.currency)
     .run();
 
   if (method === 'monobank') {
     const origin = ((env.APP_URL ?? '').replace(/\/+$/, '') || new URL(request.url).origin);
     const made = await createInvoice(env, {
-      orderId: id, amountCents: q.amountCents, title: `Vane ${plan.name}${q.interval === 'year' ? ' (1 year)' : ' (1 month)'}`, email: billing.email, planId: plan.id,
+      orderId: id, amountCents: q.amountCents, ccy: ccy as number, title: `Vane ${plan.name}${q.interval === 'year' ? ' (1 year)' : ' (1 month)'}`, email: billing.email, planId: plan.id,
       redirectUrl: `${origin}/checkout?order=${id}`, webHookUrl: `${origin}/api/billing/monobank`, validitySeconds: PAY_WINDOW_SECONDS,
     });
     if (!made.ok) {
