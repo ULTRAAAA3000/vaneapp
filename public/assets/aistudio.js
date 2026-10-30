@@ -6,7 +6,7 @@
   var esc = Vane.esc;
   var S = { tool: 'generate', tone: 'professional', busy: false, voice: null, ready: false, result: null, queue: null };
   var DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  var NAMES = { telegram: 'Telegram', linkedin: 'LinkedIn', bluesky: 'Bluesky', mastodon: 'Mastodon', discord: 'Discord', devto: 'Dev.to', threads: 'Threads', reddit: 'Reddit', facebook: 'Facebook', x: 'X', webhook: 'Webhook' };
+  var NAMES = { telegram: 'Telegram', linkedin: 'LinkedIn', bluesky: 'Bluesky', mastodon: 'Mastodon', discord: 'Discord', devto: 'Dev.to', threads: 'Threads', reddit: 'Reddit', pinterest: 'Pinterest', facebook: 'Facebook', x: 'X', webhook: 'Webhook' };
   var TONES = [['mine', 'My voice'], ['professional', 'Professional'], ['viral', 'Viral'], ['friendly', 'Friendly'], ['tech', 'Tech / indie']];
   var TOOLS = [
     { id: 'generate', group: 'Create', title: 'Write from an idea', desc: 'A full post from one line', hint: 'Your idea, in a line or two: “we shipped dark mode today”' },

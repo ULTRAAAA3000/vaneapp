@@ -45,6 +45,7 @@ export const NETWORKS: readonly NetworkInfo[] = [
   { id: 'devto', name: 'Dev.to', product: 'post', implemented: true, code: 'Connect (API key) and publish' },
   { id: 'reddit', name: 'Reddit', product: 'post', implemented: true, code: 'Connect (OAuth, one subreddit per channel) and publish text posts, token renewal' },
   { id: 'facebook', name: 'Facebook Pages', product: 'post', implemented: true, code: 'Connect (Facebook Login, every Page you manage) and publish text, photo and video posts' },
+  { id: 'pinterest', name: 'Pinterest', product: 'post', implemented: true, code: 'Connect (OAuth, one board per channel) and publish image pins, token renewal' },
   { id: 'x', name: 'X', product: 'post', implemented: false, code: 'Not written yet (only reserved in the database)' },
   { id: 'webhook', name: 'Webhook channel', product: 'post', implemented: false, code: 'Not written yet (post webhooks for your own endpoint are a separate feature)' },
   studio('youtube', 'YouTube', 'Connect (Google OAuth, upload scope only) and upload (resumable, cover, made-for-kids, category)'),

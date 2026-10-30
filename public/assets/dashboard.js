@@ -87,7 +87,12 @@
     tile: 'bg-blue-500/15 text-blue-300', limit: 5000, bg: '#18191a', hint: 'Posts go to your Facebook Pages (not personal profiles). A picture or video is posted with your text as its caption.',
     icon: { fill: true, d: 'M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.413c0-3.026 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.971H15.83c-1.491 0-1.956.93-1.956 1.886v2.264h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z' }
   };
-  var NET_ORDER = ['telegram', 'linkedin', 'threads', 'facebook', 'reddit', 'bluesky', 'mastodon', 'discord', 'devto'];
+  NET.pinterest = {
+    name: 'Pinterest', ready: false, blurb: 'Pins to one of your boards', setup: 'Name the board, then sign in with Pinterest and allow Vane to pin.',
+    tile: 'bg-red-500/15 text-red-300', limit: 900, bg: '#111111', hint: 'A pin needs a picture. The first line is the pin title (up to 100 characters), the rest is the description. The first https link becomes the pin\'s destination.',
+    icon: { fill: true, d: 'M12.017 0C5.396 0 .029 5.367.029 11.987c0 5.079 3.158 9.417 7.618 11.162-.105-.949-.199-2.403.041-3.439.219-.937 1.406-5.957 1.406-5.957s-.359-.72-.359-1.781c0-1.663.967-2.911 2.168-2.911 1.024 0 1.518.769 1.518 1.688 0 1.029-.653 2.567-.992 3.992-.285 1.193.6 2.165 1.775 2.165 2.128 0 3.768-2.245 3.768-5.487 0-2.861-2.063-4.869-5.008-4.869-3.41 0-5.409 2.562-5.409 5.199 0 1.033.394 2.143.889 2.741.099.12.112.225.085.345-.09.375-.293 1.199-.334 1.363-.053.225-.172.271-.401.165-1.495-.69-2.433-2.878-2.433-4.646 0-3.776 2.748-7.252 7.92-7.252 4.158 0 7.392 2.967 7.392 6.923 0 4.135-2.607 7.462-6.233 7.462-1.214 0-2.354-.629-2.758-1.379l-.749 2.848c-.271 1.043-1.002 2.35-1.492 3.146C9.57 23.812 10.763 24 12.017 24c6.624 0 11.99-5.367 11.99-11.988C24.007 5.367 18.641 0 12.017 0z' }
+  };
+  var NET_ORDER = ['telegram', 'linkedin', 'threads', 'facebook', 'reddit', 'pinterest', 'bluesky', 'mastodon', 'discord', 'devto'];
   // channels of a network this dashboard has no entry for (for example "x" or "webhook") get the generic link icon
   var NET_OTHER = { tile: 'bg-white/[0.08] text-white/70', icon: { d: 'M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7' } };
 
@@ -148,6 +153,7 @@
       expired: ['err', 'That sign-in took too long or was already used. ' + again],
       duplicate: ['err', 'This ' + name + ' account is already connected.'],
       migrate: ['err', name + ' is not enabled on this server yet. The database needs one update.'],
+      noboard: ['err', 'That board was not found on your Pinterest account. Check the name (it is not case sensitive) and connect again.'],
       nopages: ['err', 'No Facebook Pages were found. Vane can only post to Pages you manage: create or get access to one, then connect again.'],
       limit: ['err', 'Your plan has no room for another channel. Upgrade to connect more.'],
       off: ['err', name + ' is switched off right now. Try again later.'],
@@ -157,7 +163,7 @@
   }
   function reportConnectReturn() {
     var q = new URLSearchParams(location.search), net = q.get('connect');
-    if (['mastodon', 'linkedin', 'threads', 'reddit', 'facebook'].indexOf(net) < 0) return;
+    if (['mastodon', 'linkedin', 'threads', 'reddit', 'facebook', 'pinterest'].indexOf(net) < 0) return;
     var res = connectMessage(net, q.get('status'));
     Vane.toast(res[0], res[1]);
     try { history.replaceState(null, '', location.pathname); } catch (e) { /* address bar left as it is */ }
@@ -176,6 +182,7 @@
     NET.threads.ready = !!feats.threads;
     NET.reddit.ready = !!feats.reddit;
     NET.facebook.ready = !!feats.facebook;
+    NET.pinterest.ready = !!feats.pinterest;
     // networks the admin switched off (/admin → Networks): shown as paused and cannot be connected
     (feats.pausedNetworks || []).forEach(function (k) { if (NET[k]) { NET[k].ready = false; NET[k].paused = true; } });
 
@@ -623,6 +630,7 @@
       btn.disabled = true; $(p + 'Spin').classList.remove('hidden'); $(p + 'Label').textContent = 'Opening ' + NET[net].name + '…';
       var payload = { name: $(p + 'Name').value.trim() };
       if (net === 'reddit') payload.subreddit = $('rdSub').value.trim();
+      if (net === 'pinterest') payload.board = $('pnBoard').value.trim();
       var r = await Vane.api('POST', '/api/channels/' + net + '/start', payload);
       if (!r.ok) {
         btn.disabled = false; $(p + 'Spin').classList.add('hidden'); $(p + 'Label').textContent = 'Continue with ' + NET[net].name;
@@ -636,6 +644,7 @@
   bindSignIn('threads', 'th');
   bindSignIn('reddit', 'rd');
   bindSignIn('facebook', 'fb');
+  bindSignIn('pinterest', 'pn');
 
   // ---- steps: pick a network, then set it up (each network's setup is the block with its data-step)
   function renderNetGrid() {
@@ -663,7 +672,7 @@
   function openStep(step) {
     showStep(step);
     setTimeout(function () {
-      var first = step === 'telegram' ? ($('panelQuick').classList.contains('hidden') ? $('cName') : $('qChat')) : step === 'bluesky' ? $('bHandle') : step === 'mastodon' ? $('mInstance') : step === 'discord' ? $('dcUrl') : step === 'devto' ? $('dvKey') : step === 'linkedin' ? $('liName') : step === 'threads' ? $('thName') : step === 'reddit' ? $('rdSub') : step === 'facebook' ? $('fbName') : dlg.querySelector('.net-card:not(:disabled)');
+      var first = step === 'telegram' ? ($('panelQuick').classList.contains('hidden') ? $('cName') : $('qChat')) : step === 'bluesky' ? $('bHandle') : step === 'mastodon' ? $('mInstance') : step === 'discord' ? $('dcUrl') : step === 'devto' ? $('dvKey') : step === 'linkedin' ? $('liName') : step === 'threads' ? $('thName') : step === 'reddit' ? $('rdSub') : step === 'pinterest' ? $('pnBoard') : step === 'facebook' ? $('fbName') : dlg.querySelector('.net-card:not(:disabled)');
       if (first) first.focus();
     }, 60);
   }
@@ -681,7 +690,7 @@
     $('dcForm').reset(); hideErr($('dcErr')); $('dcSubmit').disabled = false; $('dcSpin').classList.add('hidden'); $('dcLabel').textContent = 'Verify & connect';
     $('dvForm').reset(); hideErr($('dvErr')); $('dvKey').type = 'password'; $('dvKeyToggle').textContent = 'Show'; $('dvSubmit').disabled = false; $('dvSpin').classList.add('hidden'); $('dvLabel').textContent = 'Verify & connect';
     $('bForm').reset(); hideErr($('bErr')); $('bPass').type = 'password'; $('bPassToggle').textContent = 'Show';
-    [['li', 'LinkedIn'], ['th', 'Threads'], ['rd', 'Reddit'], ['fb', 'Facebook']].forEach(function (n) {
+    [['li', 'LinkedIn'], ['th', 'Threads'], ['rd', 'Reddit'], ['fb', 'Facebook'], ['pn', 'Pinterest']].forEach(function (n) {
       $(n[0] + 'Form').reset(); hideErr($(n[0] + 'Err')); $(n[0] + 'Submit').disabled = false; $(n[0] + 'Spin').classList.add('hidden'); $(n[0] + 'Label').textContent = 'Continue with ' + n[1];
     });
     qReset(); $('qChat').value = '';
@@ -1099,7 +1108,16 @@
       pvMedia(c.m, 'mt-2.5 max-h-56 w-full') +
       '<div class="mt-3 flex justify-around border-t border-white/10 px-3 py-2 text-[12px] text-white/55"><span>Like</span><span>Comment</span><span>Share</span></div></div></div>';
   }
-  var PV_VIEW = { reddit: viewReddit, facebook: viewFacebook, telegram: viewTelegram, linkedin: viewLinkedin, threads: viewThreads, bluesky: viewBluesky, mastodon: viewMastodon, discord: viewDiscord, devto: viewDevto };
+  function viewPinterest(c) {
+    var lines = c.text.split('\n'), title = (lines[0] || '').replace(/^#+\s*/, '').trim();
+    var body = lines.slice(1).join('\n').trim();
+    return '<div class="p-3.5"><div class="mx-auto max-w-[240px] overflow-hidden rounded-2xl bg-[#1c1c1c] ring-1 ring-white/10">' +
+      (c.m ? pvMedia(c.m, 'max-h-72 w-full object-cover') : '<div class="flex h-40 items-center justify-center bg-white/[0.04] px-3 text-center text-[12px] text-amber-200">A pin needs a picture</div>') +
+      '<div class="p-3"><div class="break-words text-[14px] font-semibold leading-snug">' + (title ? esc(title) : EMPTY) + '</div>' +
+      (body ? '<div class="mt-1 line-clamp-3 break-words text-[12px] leading-snug text-white/60">' + Vane.rich(body) + '</div>' : '') +
+      '<div class="mt-2 text-[11px] text-white/40">' + pvAvatar(16, c.name) + ' ' + esc(c.name) + '</div></div></div></div>';
+  }
+  var PV_VIEW = { pinterest: viewPinterest, reddit: viewReddit, facebook: viewFacebook, telegram: viewTelegram, linkedin: viewLinkedin, threads: viewThreads, bluesky: viewBluesky, mastodon: viewMastodon, discord: viewDiscord, devto: viewDevto };
 
   // tabs are built once, then only their pressed state changes (keeps keyboard focus)
   function syncPvTabs() {
