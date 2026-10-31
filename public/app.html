@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/assets/vane.css?v=f14c2a0095" />
-  <link rel="stylesheet" href="/assets/app.css?v=c2dacf54d9" />
+  <link rel="stylesheet" href="/assets/app.css?v=a8485df594" />
 </head>
 
 <body class="min-h-screen overflow-x-hidden bg-[#070708]">
@@ -449,6 +449,8 @@
       <p id="libEmpty" class="mt-8 hidden text-center text-sm leading-relaxed text-white/45"></p>
       <div class="mt-6 text-center"><button id="libMore" type="button" class="btn btn-ghost btn-sm hidden">Load more</button></div>
     </section>
+    <!-- system status: real edge latency and health (assets/status.js, GET /api/health) -->
+    <div class="mt-10 flex justify-center"><div data-status-badge data-status-poll="60"></div></div>
   </main>
 
   <!-- ═══════════ CONNECT A CHANNEL ═══════════ -->
@@ -892,6 +894,7 @@
     </div>
   </dialog>
 
+  <script src="/assets/status.js?v=5951604964" defer></script>
   <script src="/assets/vane.js?v=a2c867edc4"></script>
   <script src="/assets/media-picker.js?v=77ebb5a885"></script>
   <script src="/assets/insights.js?v=be1faaaac6"></script>

@@ -173,9 +173,11 @@ ${body}
           <p>© <span id="year"></span> Vane · vaneapp.dev · Powered by <a href="https://wysb.eu" target="_blank" rel="noopener" class="font-medium text-white/50 transition-colors hover:text-white">WYSB</a></p>
           <p><a href="/privacy" class="hover:text-white">Privacy</a> · <a href="/terms" class="hover:text-white">Terms</a></p>
         </div>
+        <div class="mt-6 flex justify-center"><div data-status-badge></div></div>
       </div>
     </footer>
   </div>
+  <script src="/assets/status.js?v=0" defer></script>
   <script>
     document.getElementById('year').textContent = new Date().getFullYear();
     (function () {
