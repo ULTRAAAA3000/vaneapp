@@ -26,6 +26,8 @@ const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 const MAX_BODY = 65_536;
 /** When the model gives no time: a couple of minutes ahead (the API only accepts the future). */
 const DEFAULT_DELAY_SECONDS = 120;
+/** "Post now": queued a few seconds ahead; the sender runs every minute, so it goes out within about a minute. */
+const NOW_DELAY_SECONDS = 10;
 
 const TOOLS = [
   {
@@ -62,6 +64,7 @@ const TOOLS = [
           description: 'Where to post: channel ids, channel names or platform names from vane_list_channels (e.g. "telegram", "bluesky", "mastodon").',
         },
         scheduled_at: { type: 'string', description: 'When to publish: ISO-8601 time WITH timezone, e.g. 2026-10-20T09:00:00Z. Optional.' },
+        post_now: { type: 'boolean', description: 'true = send right away (it goes out within about a minute) instead of waiting for a time. Use it only when the user said to post now. Ignores scheduled_at.' },
         media_url: { type: 'string', description: 'Optional https URL of one image to attach.' },
       },
       required: ['text', 'channels'],
@@ -104,7 +107,7 @@ function promptText(name: string, args: Record<string, unknown>): string | null 
     const when = argText(args, 'when', 100);
     return `Use Vane to schedule this post exactly as written, without changing a word:\n\n"""\n${text}\n"""\n\n`
       + (channels ? `Channels: ${channels}.` : 'Channels: not specified. Call vane_list_channels and ask which ones to use before posting.')
-      + (when ? `\nWhen: ${when} (convert it to an ISO-8601 time with a timezone; ask if the timezone is unclear).` : '\nWhen: not specified, so use the default (in a couple of minutes).')
+      + (when ? `\nWhen: ${when} (if that means right now, call the tool with post_now true; otherwise convert it to an ISO-8601 time with a timezone and ask if the timezone is unclear).` : '\nWhen: not specified, so use the default (in a couple of minutes).')
       + '\nThen confirm in one line what was scheduled and where.';
   }
   if (name === 'draft') {
@@ -228,24 +231,28 @@ async function toolCreatePost(env: Env, request: Request, args: Record<string, u
     return text(`No such channel: ${missing.join(', ')}. Connected: ${chans.map((c) => `${c.name} (${c.platform})`).join(', ') || 'none'}.`, true);
   }
 
-  const scheduledAt = typeof args.scheduled_at === 'string' && args.scheduled_at.trim()
-    ? args.scheduled_at.trim()
-    : new Date(Date.now() + DEFAULT_DELAY_SECONDS * 1000).toISOString();
+  const postNow = args.post_now === true;
+  const named = !postNow && typeof args.scheduled_at === 'string' && args.scheduled_at.trim() !== '';
+  const scheduledAt = postNow
+    ? new Date(Date.now() + NOW_DELAY_SECONDS * 1000).toISOString()
+    : named
+      ? (args.scheduled_at as string).trim()
+      : new Date(Date.now() + DEFAULT_DELAY_SECONDS * 1000).toISOString();
   const body: Record<string, unknown> = { content, channelIds: ids, scheduledAt };
   if (typeof args.media_url === 'string' && args.media_url.trim()) body.mediaUrl = args.media_url.trim();
 
   // A model that retries the same call must not post twice: the key comes from what was asked
   // (only when it named the time itself, otherwise "now + 2 min" would make every retry different).
-  const extra: HeadersInit = typeof args.scheduled_at === 'string' && args.scheduled_at.trim()
-    ? { 'idempotency-key': 'mcp-' + (await sha256Hex(JSON.stringify([content, [...ids].sort(), scheduledAt, body.mediaUrl ?? null]))).slice(0, 40) }
+  const extra: HeadersInit = named || postNow
+    ? { 'idempotency-key': 'mcp-' + (await sha256Hex(JSON.stringify([content, [...ids].sort(), postNow ? 'now:' + Math.floor(Date.now() / 60000) : scheduledAt, body.mediaUrl ?? null]))).slice(0, 40) }
     : {};
   const r = await callApi(env, request, createPost, 'POST', '/api/v1/posts', body, extra);
   if (r.status !== 201) { note(request, plural(ids.length, 'channel'), false, refusal(r.status, r.data)); return apiProblem(r.status, r.data); }
-  note(request, plural(ids.length, 'channel'), true, r.data.test ? 'TEST MODE, nothing posted' : `scheduled for ${utc(r.data.scheduledAt)}`);
+  note(request, plural(ids.length, 'channel'), true, r.data.test ? 'TEST MODE, nothing posted' : postNow ? 'sent now (goes out within about a minute)' : `scheduled for ${utc(r.data.scheduledAt)}`);
 
   const names = chans.filter((c) => ids.includes(c.id)).map((c) => `${c.name} (${c.platform})`).join(', ');
   const when = new Date(r.data.scheduledAt * 1000).toISOString();
-  return text(`${r.data.test ? 'TEST MODE (nothing was saved or posted): ' : ''}Scheduled for ${when} on ${names}. Group id: ${r.data.groupId}.`);
+  return text(`${r.data.test ? 'TEST MODE (nothing was saved or posted): ' : ''}${postNow ? 'Sending now (it goes out within about a minute)' : `Scheduled for ${when}`} on ${names}. Group id: ${r.data.groupId}.`);
 }
 
 async function handle(env: Env, request: Request, msg: Rpc): Promise<unknown | null> {
@@ -259,7 +266,7 @@ async function handle(env: Env, request: Request, msg: Rpc): Promise<unknown | n
         protocolVersion: PROTOCOL_VERSIONS.includes(asked) ? asked : PROTOCOL_VERSIONS[0],
         capabilities: { tools: {}, prompts: {} },
         serverInfo: { name: 'vane', version: '1.0.0' },
-        instructions: 'Vane schedules social posts. Use vane_list_channels to see connected channels, then vane_create_post. vane_list_posts shows what is scheduled or was sent. Never post unless the user asked for it.',
+        instructions: 'Vane schedules social posts. Use vane_list_channels to see connected channels, then vane_create_post (post_now: true sends it right away, within about a minute). vane_list_posts shows what is scheduled or was sent. Never post unless the user asked for it.',
       });
     }
     case 'ping': return rpcResult(id, {});
