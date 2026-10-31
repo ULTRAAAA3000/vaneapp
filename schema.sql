@@ -1029,3 +1029,13 @@ CREATE TABLE IF NOT EXISTS ai_voice (
   enabled     INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
   updated_at  INTEGER NOT NULL DEFAULT (unixepoch())
 );
+
+-- ───────────────────────── Onboarding checklist (the card at the top of the dashboard) ─────────────────────────
+-- The steps themselves are never stored: they are read from the account (a channel, an API key, a sent post, an integration), see
+-- functions/api/lib/onboarding.ts. This table only remembers what the person did with the card.
+CREATE TABLE IF NOT EXISTS onboarding_progress (
+  user_id       TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  created_at    INTEGER NOT NULL DEFAULT (unixepoch()),
+  dismissed_at  INTEGER,                                                        -- the person closed the card with the cross
+  celebrated_at INTEGER                                                         -- the confetti has been shown (or the account was already complete: no confetti for old news)
+);
