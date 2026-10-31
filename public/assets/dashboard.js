@@ -88,8 +88,8 @@
     icon: { fill: true, d: 'M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.413c0-3.026 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.971H15.83c-1.491 0-1.956.93-1.956 1.886v2.264h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z' }
   };
   NET.pinterest = {
-    name: 'Pinterest', ready: false, blurb: 'Pins to your boards', setup: 'Sign in with Pinterest and choose the board Vane should publish to.',
-    tile: 'bg-rose-500/15 text-rose-300', limit: 800, bg: '#111111', hint: 'The first line is the Pin title (up to 100 characters), the rest is the description. A Pin needs an image or a video.',
+    name: 'Pinterest', ready: false, blurb: 'Pins to one of your boards', setup: 'Name the board, then sign in with Pinterest and allow Vane to pin.',
+    tile: 'bg-rose-500/15 text-rose-300', limit: 900, bg: '#111111', hint: 'A pin needs a picture. The first line is the pin title (up to 100 characters), the rest is the description. The first https link becomes the pin\'s destination.',
     icon: { d: 'M12 3a9 9 0 0 0-3.3 17.4c-.1-.8-.2-2 0-2.9l1.1-4.6s-.3-.6-.3-1.4c0-1.3.8-2.3 1.7-2.3.8 0 1.2.6 1.2 1.3 0 .8-.5 2-.8 3.1-.2.9.5 1.7 1.4 1.7 1.7 0 3-1.8 3-4.4 0-2.3-1.6-3.9-4-3.9a4.1 4.1 0 0 0-4.3 4.1c0 .8.3 1.7.7 2.2M10 14l-1.300 5.300' }
   };
   var NET_ORDER = ['telegram', 'linkedin', 'threads', 'facebook', 'reddit', 'pinterest', 'bluesky', 'mastodon', 'discord', 'devto'];
@@ -153,6 +153,7 @@
       expired: ['err', 'That sign-in took too long or was already used. ' + again],
       duplicate: ['err', 'This ' + name + ' account is already connected.'],
       migrate: ['err', name + ' is not enabled on this server yet. The database needs one update.'],
+      noboard: ['err', 'That board was not found on your Pinterest account. Check the name (it is not case sensitive) and connect again.'],
       nopages: ['err', 'No Facebook Pages were found. Vane can only post to Pages you manage: create or get access to one, then connect again.'],
       limit: ['err', 'Your plan has no room for another channel. Upgrade to connect more.'],
       off: ['err', name + ' is switched off right now. Try again later.'],
@@ -162,7 +163,7 @@
   }
   function reportConnectReturn() {
     var q = new URLSearchParams(location.search), net = q.get('connect');
-    if (['mastodon', 'linkedin', 'threads', 'reddit', 'facebook'].indexOf(net) < 0) return;
+    if (['mastodon', 'linkedin', 'threads', 'reddit', 'facebook', 'pinterest'].indexOf(net) < 0) return;
     var res = connectMessage(net, q.get('status'));
     Vane.toast(res[0], res[1]);
     try { history.replaceState(null, '', location.pathname); } catch (e) { /* address bar left as it is */ }
@@ -181,6 +182,7 @@
     NET.threads.ready = !!feats.threads;
     NET.reddit.ready = !!feats.reddit;
     NET.facebook.ready = !!feats.facebook;
+    NET.pinterest.ready = !!feats.pinterest;
     // networks the admin switched off (/admin → Networks): shown as paused and cannot be connected
     (feats.pausedNetworks || []).forEach(function (k) { if (NET[k]) { NET[k].ready = false; NET[k].paused = true; } });
 
@@ -629,6 +631,7 @@
       btn.disabled = true; $(p + 'Spin').classList.remove('hidden'); $(p + 'Label').textContent = 'Opening ' + NET[net].name + '…';
       var payload = { name: $(p + 'Name').value.trim() };
       if (net === 'reddit') payload.subreddit = $('rdSub').value.trim();
+      if (net === 'pinterest') payload.board = $('pnBoard').value.trim();
       var r = await Vane.api('POST', '/api/channels/' + net + '/start', payload);
       if (!r.ok) {
         btn.disabled = false; $(p + 'Spin').classList.add('hidden'); $(p + 'Label').textContent = 'Continue with ' + NET[net].name;
@@ -642,6 +645,7 @@
   bindSignIn('threads', 'th');
   bindSignIn('reddit', 'rd');
   bindSignIn('facebook', 'fb');
+  bindSignIn('pinterest', 'pn');
 
   // ---- steps: pick a network, then set it up (each network's setup is the block with its data-step)
   function renderNetGrid() {
@@ -669,7 +673,7 @@
   function openStep(step) {
     showStep(step);
     setTimeout(function () {
-      var first = step === 'telegram' ? ($('panelQuick').classList.contains('hidden') ? $('cName') : $('qChat')) : step === 'bluesky' ? $('bHandle') : step === 'mastodon' ? $('mInstance') : step === 'discord' ? $('dcUrl') : step === 'devto' ? $('dvKey') : step === 'linkedin' ? $('liName') : step === 'threads' ? $('thName') : step === 'reddit' ? $('rdSub') : step === 'facebook' ? $('fbName') : dlg.querySelector('.net-card:not(:disabled)');
+      var first = step === 'telegram' ? ($('panelQuick').classList.contains('hidden') ? $('cName') : $('qChat')) : step === 'bluesky' ? $('bHandle') : step === 'mastodon' ? $('mInstance') : step === 'discord' ? $('dcUrl') : step === 'devto' ? $('dvKey') : step === 'linkedin' ? $('liName') : step === 'threads' ? $('thName') : step === 'reddit' ? $('rdSub') : step === 'pinterest' ? $('pnBoard') : step === 'facebook' ? $('fbName') : dlg.querySelector('.net-card:not(:disabled)');
       if (first) first.focus();
     }, 60);
   }
@@ -687,7 +691,7 @@
     $('dcForm').reset(); hideErr($('dcErr')); $('dcSubmit').disabled = false; $('dcSpin').classList.add('hidden'); $('dcLabel').textContent = 'Verify & connect';
     $('dvForm').reset(); hideErr($('dvErr')); $('dvKey').type = 'password'; $('dvKeyToggle').textContent = 'Show'; $('dvSubmit').disabled = false; $('dvSpin').classList.add('hidden'); $('dvLabel').textContent = 'Verify & connect';
     $('bForm').reset(); hideErr($('bErr')); $('bPass').type = 'password'; $('bPassToggle').textContent = 'Show';
-    [['li', 'LinkedIn'], ['th', 'Threads'], ['rd', 'Reddit'], ['fb', 'Facebook']].forEach(function (n) {
+    [['li', 'LinkedIn'], ['th', 'Threads'], ['rd', 'Reddit'], ['fb', 'Facebook'], ['pn', 'Pinterest']].forEach(function (n) {
       $(n[0] + 'Form').reset(); hideErr($(n[0] + 'Err')); $(n[0] + 'Submit').disabled = false; $(n[0] + 'Spin').classList.add('hidden'); $(n[0] + 'Label').textContent = 'Continue with ' + n[1];
     });
     qReset(); $('qChat').value = '';
