@@ -7,17 +7,20 @@ import { fulfillOrder, LATE_PAYMENT_SECONDS, ORDER_COLUMNS, type OrderRow } from
 import { getInvoiceStatus, monobankCcy, monobankEnabled } from './monobank';
 import { findCryptoPayments } from './solana';
 
-type CheckEnv = Pick<Env, 'DB' | 'MONOBANK_TOKEN' | 'MONOBANK_CCY' | 'CRYPTO_WALLET' | 'SOLANA_RPC_URL'>;
+type CheckEnv = Pick<Env, 'DB' | 'MONOBANK_TOKEN' | 'CRYPTO_WALLET' | 'SOLANA_RPC_URL'>;
 
 /** Settles an order from a Monobank invoice status (the webhook and the poll share this). */
 export async function settleMonobank(env: Env, order: OrderRow, status: { status: string; amount?: number; ccy?: number }): Promise<void> {
   if (status.status === 'success') {
-    if (status.amount !== order.amount_cents || (status.ccy !== undefined && status.ccy !== monobankCcy(env))) {
+    if (status.amount !== order.amount_cents || (status.ccy !== undefined && status.ccy !== monobankCcy(order.currency))) {
       console.error('monobank amount mismatch', order.id);
-      await env.DB.prepare(`UPDATE orders SET note = 'The paid amount does not match the order.' WHERE id = ?1 AND status = 'pending'`).bind(order.id).run();
+      await env.DB.prepare(`UPDATE orders SET note = 'The paid amount does not match the order.' WHERE id = ?1 AND status IN ('pending', 'failed')`).bind(order.id).run();
       return;
     }
     await fulfillOrder(env, order.id, null, null);
+  } else if (status.status === 'reversed' && order.status === 'paid') {
+    console.error('monobank payment reversed after it was paid', order.id);
+    await env.DB.prepare(`UPDATE orders SET note = 'Monobank reversed this payment (refund or chargeback). End the plan in /admin if the money was returned.' WHERE id = ?1 AND status = 'paid'`).bind(order.id).run();
   } else if (status.status === 'failure' || status.status === 'reversed') {
     await env.DB.prepare(`UPDATE orders SET status = 'failed' WHERE id = ?1 AND status = 'pending'`).bind(order.id).run();
   }
@@ -25,7 +28,7 @@ export async function settleMonobank(env: Env, order: OrderRow, status: { status
 
 /** Asks Monobank about one pending card order. */
 export async function checkMonobankOrder(env: Env, order: OrderRow): Promise<void> {
-  if (order.provider !== 'monobank' || !order.provider_ref || order.status !== 'pending' || !monobankEnabled(env)) return;
+  if (order.provider !== 'monobank' || !order.provider_ref || (order.status !== 'pending' && order.status !== 'failed') || !monobankEnabled(env)) return;
   const st = await getInvoiceStatus(env, order.provider_ref);
   if (st) await settleMonobank(env, order, st);
 }
@@ -56,8 +59,8 @@ export async function sweepOrders(env: Env & CheckEnv, now: number): Promise<voi
   await checkCryptoOrders(env);
   if (!monobankEnabled(env)) return;
   const { results } = await env.DB
-    .prepare(`SELECT ${ORDER_COLUMNS} FROM orders WHERE provider = 'monobank' AND status = 'pending' AND created_at <= ?1 ORDER BY created_at LIMIT 20`)
-    .bind(now - 120)
+    .prepare(`SELECT ${ORDER_COLUMNS} FROM orders WHERE provider = 'monobank' AND status IN ('pending', 'failed') AND created_at <= ?1 AND created_at > ?2 ORDER BY created_at LIMIT 20`)
+    .bind(now - 120, now - 6 * 3600)
     .all<OrderRow>();
   for (const o of results) await checkMonobankOrder(env, o).catch(() => undefined);
 }

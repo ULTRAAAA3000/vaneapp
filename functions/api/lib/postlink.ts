@@ -43,6 +43,10 @@ export function postUrl(platform: string, externalId: string | null, telegramCha
       const url = httpsUrl(externalId);
       return url && /(^|\.)reddit\.com$/.test(new URL(url).hostname) ? url : null;
     }
+    case 'pinterest': {
+      const url = httpsUrl(externalId);
+      return url && /(^|\.)pinterest\.[a-z.]+$/.test(new URL(url).hostname) ? url : null;
+    }
     case 'facebook': {
       const url = httpsUrl(externalId);
       return url && /(^|\.)facebook\.com$/.test(new URL(url).hostname) ? url : null;
