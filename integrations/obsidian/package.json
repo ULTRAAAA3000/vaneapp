@@ -1,0 +1,13 @@
+{
+  "name": "vane-for-obsidian",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Vane for Obsidian: post the open note to your channels. Built from the repository root with `npm run build:obsidian`; this file only holds what an editor needs to type-check the source.",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "obsidian": "latest",
+    "typescript": "^5.4.0"
+  }
+}

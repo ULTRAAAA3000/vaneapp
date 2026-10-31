@@ -194,7 +194,7 @@
       if (typeof kdlg.close === 'function') kdlg.close(); else kdlg.removeAttribute('open');
     }
 
-    var INT_NAMES = { claude: 'Claude', chatgpt: 'ChatGPT', make: 'Make', zapier: 'Zapier', wordpress: 'WordPress plugin', api: 'Own script / other' };
+    var INT_NAMES = { claude: 'Claude', notion: 'Notion', chatgpt: 'ChatGPT', make: 'Make', zapier: 'Zapier', wordpress: 'WordPress plugin', obsidian: 'Obsidian plugin', api: 'Own script / other' };
     // Picking where the key will be used fills in the name if it is still empty (it stays editable).
     $('keyIntegration').addEventListener('change', function () {
       var n = $('keyName');

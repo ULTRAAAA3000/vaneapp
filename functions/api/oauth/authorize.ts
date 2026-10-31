@@ -2,7 +2,7 @@
  * The two calls behind the /connect page (the sign-in screen of the Claude connector). Cookie sign-in, same origin.
  *
  *   GET  /api/oauth/authorize?client_id&redirect_uri&response_type=code&code_challenge&code_challenge_method=S256&state
- *        → who is asking and what the connection will use, so the page can show "Claude wants to use your Vane"
+ *        → who is asking and what the connection will use, so the page can show "Claude wants to use your Vane" (or Notion)
  *   POST /api/oauth/authorize   same fields in a JSON body (+ optional apiKey)
  *        → { redirect }: where to send the browser (back to Claude with ?code=&state=)
  *
@@ -16,7 +16,7 @@ import { requireUser } from '../lib/auth';
 import { generateApiKey, hashApiKey, MAX_KEYS_PER_USER, parseApiKey } from '../lib/apikeys';
 import { fail, failCode, isRecord, json, methodNotAllowed, readJson, UUID_RE } from '../lib/http';
 import { isMissingSchema } from '../lib/integrations';
-import { CODE_TTL, CONNECTOR_KEY_NAME, hashSecret, loadClient, newCode, validChallenge, type OauthClient } from '../lib/oauth';
+import { CODE_TTL, connectorFor, hashSecret, loadClient, newCode, validChallenge, type OauthClient } from '../lib/oauth';
 import { apiAllowed } from '../lib/plans';
 import { bump, retryAfter } from '../lib/throttle';
 import { loadSubscription } from '../lib/usage';
@@ -27,10 +27,10 @@ async function check(env: Env, p: Record<string, unknown>): Promise<Asked | Resp
   const str = (k: string, max: number): string => (typeof p[k] === 'string' && (p[k] as string).length <= max ? (p[k] as string) : '');
   if (str('response_type', 20) !== 'code') return failCode(400, 'invalid_request', 'This sign-in link is not valid (response_type).');
   const client = await loadClient(env, str('client_id', 80));
-  if (!client) return failCode(400, 'invalid_client', 'This connection request is not valid. Start again from Claude.');
+  if (!client) return failCode(400, 'invalid_client', 'This connection request is not valid. Start again from the app you are connecting.');
   const redirectUri = str('redirect_uri', 512);
-  if (!client.redirectUris.includes(redirectUri)) return failCode(400, 'invalid_redirect', 'This connection request is not valid (redirect address). Start again from Claude.');
-  if (str('code_challenge_method', 10) !== 'S256' || !validChallenge(p.code_challenge)) return failCode(400, 'invalid_request', 'This connection request is not valid (PKCE). Start again from Claude.');
+  if (!client.redirectUris.includes(redirectUri)) return failCode(400, 'invalid_redirect', 'This connection request is not valid (redirect address). Start again from the app you are connecting.');
+  if (str('code_challenge_method', 10) !== 'S256' || !validChallenge(p.code_challenge)) return failCode(400, 'invalid_request', 'This connection request is not valid (PKCE). Start again from the app you are connecting.');
   return { client, redirectUri, challenge: p.code_challenge as string, state: str('state', 512) };
 }
 
@@ -60,7 +60,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const live = apiAllowed(await loadSubscription(env, auth.userId));
   let host = '';
   try { host = new URL(asked.redirectUri).host; } catch { /* checked above */ }
-  return json({ ok: true, client: { name: asked.client.name, host }, user: { email: user?.email ?? '' }, live, keyName: CONNECTOR_KEY_NAME, keys: await ownKeys(env, auth.userId) });
+  return json({ ok: true, client: { name: asked.client.name, host }, user: { email: user?.email ?? '' }, live, keyName: connectorFor(asked.client.name, asked.client.redirectUris).keyName, keys: await ownKeys(env, auth.userId) });
 };
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
@@ -94,10 +94,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     if (!row) return failCode(400, 'invalid_api_key', 'That key was not found on your account, or it was revoked.');
     keyId = row.id;
   } else {
+    const connector = connectorFor(asked.client.name, asked.client.redirectUris);
     const prev = await env.DB
       .prepare(`SELECT g.key_id FROM oauth_grants g JOIN api_keys k ON k.id = g.key_id
                  WHERE g.user_id = ?1 AND g.client_id = ?2 AND k.revoked_at IS NULL AND k.name = ?3 ORDER BY g.created_at DESC LIMIT 1`)
-      .bind(auth.userId, asked.client.clientId, CONNECTOR_KEY_NAME).first<{ key_id: string }>();
+      .bind(auth.userId, asked.client.clientId, connector.keyName).first<{ key_id: string }>();
     if (prev) {
       keyId = prev.key_id;
     } else {
@@ -107,10 +108,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       const key = await generateApiKey('post', mode);
       keyId = crypto.randomUUID();
       try {
-        await env.DB.prepare('INSERT INTO api_keys (id, user_id, name, scope, mode, key_hash, hint, created_at, integration) VALUES (?1, ?2, ?3, \'post\', ?4, ?5, ?6, ?7, \'claude\')').bind(keyId, auth.userId, CONNECTOR_KEY_NAME, mode, key.hash, key.hint, now).run();
+        await env.DB.prepare('INSERT INTO api_keys (id, user_id, name, scope, mode, key_hash, hint, created_at, integration) VALUES (?1, ?2, ?3, \'post\', ?4, ?5, ?6, ?7, ?8)').bind(keyId, auth.userId, connector.keyName, mode, key.hash, key.hint, now, connector.integration).run();
       } catch (err) {
         if (!isMissingSchema(err)) throw err;
-        await env.DB.prepare('INSERT INTO api_keys (id, user_id, name, scope, mode, key_hash, hint, created_at) VALUES (?1, ?2, ?3, \'post\', ?4, ?5, ?6, ?7)').bind(keyId, auth.userId, CONNECTOR_KEY_NAME, mode, key.hash, key.hint, now).run();
+        await env.DB.prepare('INSERT INTO api_keys (id, user_id, name, scope, mode, key_hash, hint, created_at) VALUES (?1, ?2, ?3, \'post\', ?4, ?5, ?6, ?7)').bind(keyId, auth.userId, connector.keyName, mode, key.hash, key.hint, now).run();
       }
     }
   }
