@@ -21,6 +21,7 @@ import type { D1PreparedStatement, PagesFunction } from '@cloudflare/workers-typ
 import type { ChannelRow, ChannelType, Env } from '../../../types';
 import { requireUser } from '../lib/auth';
 import { fail, failCode, isRecord, json, readJson, UUID_RE } from '../lib/http';
+import { ownMediaMissing } from '../lib/library';
 import { mediaKindFromUrl } from '../lib/media';
 import { postUnits } from '../lib/plans';
 import { graphemeLength, mastodonLength, threadsLength, utf8Length } from '../lib/text';
@@ -97,6 +98,7 @@ export async function validateCreatePost(env: Env, userId: string, body: unknown
   if (body.mediaUrl !== undefined && body.mediaUrl !== null && body.mediaUrl !== '') {
     if (!isValidMediaUrl(body.mediaUrl)) return bad(fail(400, 'mediaUrl must be a public https URL'));
     mediaUrl = body.mediaUrl;
+    if (await ownMediaMissing(env, mediaUrl)) return bad(fail(400, 'The attached file was deleted from the Library. Attach it again, or choose another file.'));
   }
 
   // ── content rules: no obscene language, no 18+ or graphic-violence pictures (see lib/moderation.ts)

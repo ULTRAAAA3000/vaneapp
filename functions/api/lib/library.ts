@@ -111,6 +111,21 @@ export async function referencedKeys(env: Env, userId: string): Promise<Set<stri
   return keys;
 }
 
+const OWN_MEDIA_PATH = /^\/api\/media\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:jpg|png|webp|mp4|mov))$/;
+
+/**
+ * True when the link is one of our own uploads (/api/media/<key>) and the file is no longer in storage, i.e. it was deleted from the
+ * Library after being attached. A post created with such a link would fail when it is sent, so creation refuses it up front.
+ * Any other link, or a server without storage bound, is not checked.
+ */
+export async function ownMediaMissing(env: Env, url: string): Promise<boolean> {
+  if (!env.MEDIA) return false;
+  let path: string;
+  try { path = new URL(url).pathname; } catch { return false; }
+  const m = OWN_MEDIA_PATH.exec(path);
+  return m ? (await env.MEDIA.head(m[1])) === null : false;
+}
+
 const CURSOR = /^(\d+)_(\d+)$/;               // '<created_at>_<rowid>' of the last file on the previous page
 
 export async function listAssets(
