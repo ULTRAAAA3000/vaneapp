@@ -1223,6 +1223,18 @@
     $('tabHistory').setAttribute('aria-selected', String(h));
     renderPosts();
   }
+  function postsCollapsed() { try { return localStorage.getItem('vane.postsCollapsed') === '1'; } catch (e) { return false; } }
+  function applyCollapse() {
+    var c = postsCollapsed(), n = (S.tab === 'upcoming' ? S.upcoming : S.history).length;
+    $('posts').hidden = c;
+    var t = $('postsToggle');
+    t.setAttribute('aria-expanded', String(!c));
+    t.textContent = c ? 'Show' + (n ? ' (' + n + ')' : '') : 'Collapse';
+  }
+  $('postsToggle').addEventListener('click', function () {
+    try { localStorage.setItem('vane.postsCollapsed', postsCollapsed() ? '0' : '1'); } catch (e) { /* private mode */ }
+    applyCollapse();
+  });
   $('tabUpcoming').addEventListener('click', function () { setTab('upcoming'); });
   $('tabHistory').addEventListener('click', function () { setTab('history'); });
 
@@ -1239,6 +1251,7 @@
     var box = $('posts');
     var list = S.tab === 'upcoming' ? S.upcoming : S.history;
     var groups = groupPosts(list);
+    applyCollapse();
 
     if (!groups.length) {
       box.innerHTML =

@@ -12,8 +12,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/vane.css?v=f14c2a0095" />
-  <link rel="stylesheet" href="/assets/app.css?v=68caf300f5" />
+  <link rel="stylesheet" href="/assets/vane.css?v=aa1317ecc8" />
+  <link rel="stylesheet" href="/assets/app.css?v=b31e507c0a" />
 </head>
 
 <body class="min-h-screen overflow-x-hidden bg-[#070708]">
@@ -138,6 +138,7 @@
       <a href="#automation" data-tab="automation" class="dtab">Make &amp; Zapier</a>
       <a href="#notion" data-tab="notion" class="dtab">Notion</a>
       <a href="#obsidian" data-tab="obsidian" class="dtab">Obsidian</a>
+      <a href="#agents" data-tab="agents" class="dtab">Agents</a>
     </nav>
 
     <div data-view="create" class="mt-5">
@@ -212,7 +213,10 @@
     <!-- ═══════════ POSTS ═══════════ -->
     <section data-view="create" class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" style="animation-delay:.22s" aria-labelledby="postsTitle">
       <div class="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="postsTitle" class="text-lg font-semibold tracking-tight">Posts</h2>
+        <div class="flex items-center gap-2">
+          <h2 id="postsTitle" class="text-lg font-semibold tracking-tight">Posts</h2>
+          <button id="postsToggle" type="button" class="btn btn-ghost btn-sm" aria-expanded="true" aria-controls="posts">Collapse</button>
+        </div>
         <div class="relative grid grid-cols-2 rounded-full bg-white/[0.06] p-1 text-sm" role="tablist" aria-label="Post list">
           <span id="postsSeg" class="absolute bottom-1 left-1 top-1 w-[calc(50%-0.25rem)] rounded-full bg-white transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]" aria-hidden="true"></span>
           <button id="tabUpcoming" type="button" role="tab" aria-selected="true" class="relative z-10 rounded-full px-5 py-1.5 font-semibold transition-colors">Upcoming</button>
@@ -505,6 +509,36 @@
         <li>Use a separate key for each tool. To cut one off, revoke that key under <a href="#api" class="underline underline-offset-2">API keys</a>; the others keep working.</li>
         <li>Want something else? Any tool that can send an HTTP request works with the same key: see <a href="/developers" class="underline underline-offset-2">Developers</a>.</li>
       </ul>
+    </section>
+
+    <section id="viewAgents" data-view="agents" hidden class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" aria-labelledby="agentsTitle">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0">
+          <h2 id="agentsTitle" class="text-lg font-semibold tracking-tight">Agent log</h2>
+          <p class="mt-1 max-w-xl text-xs text-white/45">What your AI assistants and integrations do with your Vane account, live: Claude and Notion tool calls, Make, Zapier, WordPress, Obsidian and your own scripts. Only counts, times and codes are shown, never the text of your posts.</p>
+        </div>
+        <div class="flex shrink-0 items-center gap-2 text-xs text-white/60"><span id="agentDot" class="live-dot is-off" aria-hidden="true"></span><span id="agentStatus" aria-live="polite">Connecting…</span></div>
+      </div>
+
+      <div id="agentChips" class="mt-4 flex flex-wrap gap-1.5" role="group" aria-label="Show only one integration">
+        <button type="button" class="chip-int" data-int="" aria-pressed="true">All</button><button type="button" class="chip-int" data-int="claude" aria-pressed="false">Claude</button><button type="button" class="chip-int" data-int="notion" aria-pressed="false">Notion</button><button type="button" class="chip-int" data-int="obsidian" aria-pressed="false">Obsidian</button><button type="button" class="chip-int" data-int="make" aria-pressed="false">Make</button><button type="button" class="chip-int" data-int="zapier" aria-pressed="false">Zapier</button><button type="button" class="chip-int" data-int="wordpress" aria-pressed="false">WordPress</button><button type="button" class="chip-int" data-int="chatgpt" aria-pressed="false">ChatGPT</button><button type="button" class="chip-int" data-int="api" aria-pressed="false">API</button>
+      </div>
+
+      <div class="term mt-4">
+        <div class="term-bar"><span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span><span class="ml-2 truncate">vane ~ agents</span></div>
+        <div id="agentTerm" class="term-body" role="log" aria-label="Agent activity, newest at the bottom" tabindex="0"></div>
+        <button id="agentJump" type="button" hidden class="btn btn-white btn-sm absolute bottom-3 right-3 z-10">↓ New lines</button>
+      </div>
+
+      <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <div class="flex flex-wrap items-center gap-2">
+          <button id="agentPause" type="button" class="btn btn-ghost btn-sm" aria-pressed="false">Pause</button>
+          <button id="agentDemo" type="button" class="btn btn-ghost btn-sm" hidden>Show a demo</button>
+          <span id="agentDemoNote" hidden class="text-xs text-violet-300">Demo lines, made up on your screen. <button id="agentDemoExit" type="button" class="underline underline-offset-2">Back to the real log</button></span>
+        </div>
+        <button id="agentClear" type="button" class="btn btn-ghost btn-sm">Clear log</button>
+      </div>
+      <p class="mt-3 text-xs leading-relaxed text-white/40">The newest 300 lines are kept for 30 days. Connect <a href="#claude" class="underline underline-offset-2">Claude</a>, <a href="#notion" class="underline underline-offset-2">Notion</a> or <a href="#obsidian" class="underline underline-offset-2">Obsidian</a>, then ask your assistant to list your channels and watch this window.</p>
     </section>
 
     <section id="aiStudio" data-view="ai" hidden class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" aria-labelledby="aiTitle"></section>
@@ -1025,13 +1059,15 @@
   <script src="/assets/vane.js?v=a2c867edc4"></script>
   <script src="/assets/media-picker.js?v=86dfab3b84"></script>
   <script src="/assets/insights.js?v=c81d5838ef"></script>
-  <script src="/assets/dashboard.js?v=c32ef87971"></script>
+  <script src="/assets/dashboard.js?v=b2cf0a16d0"></script>
   <script src="/assets/ai.js?v=33d5e51dfa"></script>
-  <script src="/assets/library.js?v=fa5f8eea75"></script>
+  <script src="/assets/library.js?v=c95c2700f3"></script>
   <script src="/assets/snippets.js?v=2833a28950"></script>
   <script src="/assets/drafts.js?v=9ce82a983a"></script>
   <script src="/assets/aistudio.js?v=e134a0e708"></script>
   <script src="/assets/aihistory.js?v=72fff6ab0e"></script>
+  <script src="/assets/feedback.js?v=f9ecedc629" defer></script>
+  <script src="/assets/agentlog.js?v=bc41af9992"></script>
   <script src="/assets/composer-tools.js?v=0c636c4c2b"></script>
   <script src="/assets/track.js?v=a3d04e70d1" data-path="/app" defer></script>
 </body>
