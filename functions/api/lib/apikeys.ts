@@ -15,7 +15,7 @@
 import type { Env, KeyMode, KeyScope } from '../../../types';
 import { failCode } from './http';
 import {
-  INTEGRATION_NAMES, inferIntegration, integrationDisabled, isIntegrationId, isMissingSchema, mcpClientOf, mcpOuterOf, opOf,
+  INTEGRATION_NAMES, inferIntegration, integrationDisabled, isIntegrationId, isMissingSchema, mcpClientOf, mcpOuterOf, opOf, rememberAuth,
   recordApiUse, rememberMcpKey, type IntegrationId,
 } from './integrations';
 import { apiAllowed, refreshPlanSpecs, resolveSubscription, type Subscription, type SubscriptionRow } from './plans';
@@ -234,6 +234,7 @@ export async function requireApiKey(request: Request, env: Env, need: KeyScope):
     };
   }
   // A request made by the MCP endpoint is counted once, as the tool call (mcp.ts), not once per inner REST call.
+  rememberAuth(request, { userId: row.user_id, keyId: row.id, integration });
   if (outer) rememberMcpKey(outer, row.id);
   else await recordApiUse(env, { keyId: row.id, integration, op: opOf(request.method, new URL(request.url).pathname), now });
 

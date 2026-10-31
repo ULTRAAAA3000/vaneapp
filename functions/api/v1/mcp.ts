@@ -18,7 +18,8 @@ import { json, isRecord, methodNotAllowed } from '../lib/http';
 import { sha256Hex } from '../lib/session';
 import { onRequestGet as listChannels } from './channels/index';
 import { onRequestGet as listPosts, onRequestPost as createPost } from './posts/index';
-import { markMcpClient, markMcpInternal, recordMcpCall } from '../lib/integrations';
+import { authOf, markMcpClient, markMcpInternal, recordMcpCall, rememberAuth } from '../lib/integrations';
+import { mcpLine, plural, recordAgentEvent, refusal, utc } from '../lib/agentlog';
 import { ACCESS_PREFIX, CORS, grantForAccessToken, preflight, resourceMetadataUrl } from '../lib/oauth';
 
 const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
@@ -130,6 +131,18 @@ const text = (t: string, isError = false): ToolResult => ({ content: [{ type: 't
 
 type Ctx = Parameters<PagesFunction<Env>>[0];
 
+/** What a tool call came to, for the agent log (the line the person sees in the "Agents" tab): never the post text, only counts, times, codes. */
+const outcomes = new WeakMap<Request, { args: string; ok: boolean; summary: string }>();
+const note = (request: Request, args: string, ok: boolean, summary: string): void => { outcomes.set(request, { args, ok, summary }); };
+
+async function logTool(env: Env, request: Request, tool: string, r: ToolResult): Promise<void> {
+  const who = authOf(request);
+  if (!who) return;
+  const o = outcomes.get(request) ?? { args: '', ok: !r.isError, summary: r.isError ? 'failed' : 'done' };
+  outcomes.delete(request);
+  await recordAgentEvent(env, { userId: who.userId, integration: who.integration, via: 'mcp', tool, ok: o.ok, message: mcpLine(tool, o.args, o.summary) });
+}
+
 /** Runs a REST handler in-process, with the caller's own Authorization header. */
 async function callApi(env: Env, request: Request, handler: PagesFunction<Env>, method: 'GET' | 'POST', path: string, body?: unknown, extra: HeadersInit = {}): Promise<{ status: number; data: any }> {
   const headers = new Headers(extra);
@@ -158,8 +171,9 @@ type Channel = { id: string; platform: string; name: string; isActive: boolean }
 
 async function toolListChannels(env: Env, request: Request): Promise<ToolResult> {
   const r = await callApi(env, request, listChannels, 'GET', '/api/v1/channels');
-  if (r.status !== 200) return apiProblem(r.status, r.data);
+  if (r.status !== 200) { note(request, '', false, refusal(r.status, r.data)); return apiProblem(r.status, r.data); }
   const chans: Channel[] = r.data.channels ?? [];
+  note(request, '', true, `${plural(chans.length, 'channel')} found`);
   if (!chans.length) return text('No channels are connected yet. The user can connect one in the Vane dashboard.');
   return text(chans.map((c) => `- ${c.name} (${c.platform})${c.isActive ? '' : ' [inactive]'} id=${c.id}`).join('\n'));
 }
@@ -185,9 +199,10 @@ const SHORT = (t: string, n: number): string => (t.length > n ? t.slice(0, n - 1
 async function toolListPosts(env: Env, request: Request, args: Record<string, unknown>): Promise<ToolResult> {
   const view = args.view === 'history' ? 'history' : 'upcoming';
   const r = await callApi(env, request, listPosts, 'GET', `/api/v1/posts?view=${view}`);
-  if (r.status !== 200) return apiProblem(r.status, r.data);
+  if (r.status !== 200) { note(request, view, false, refusal(r.status, r.data)); return apiProblem(r.status, r.data); }
   type Item = { groupId: string; channelName: string; platform: string; content: string; scheduledAt: number; status: string; error: string | null; url: string | null };
   const posts: Item[] = r.data.posts ?? [];
+  note(request, view, true, `${plural(new Set(posts.map((p) => p.groupId)).size, view === 'upcoming' ? 'scheduled post' : 'post')} found`);
   if (!posts.length) return text(view === 'upcoming' ? 'Nothing is scheduled.' : 'No posts have been sent yet.');
   const groups = new Map<string, Item[]>();
   for (const p of posts) groups.set(p.groupId, [...(groups.get(p.groupId) ?? []), p]);
@@ -201,14 +216,15 @@ async function toolListPosts(env: Env, request: Request, args: Record<string, un
 async function toolCreatePost(env: Env, request: Request, args: Record<string, unknown>): Promise<ToolResult> {
   const content = typeof args.text === 'string' ? args.text : '';
   const wanted = Array.isArray(args.channels) ? args.channels.filter((c): c is string => typeof c === 'string') : [];
-  if (!content.trim()) return text('text is required.', true);
-  if (!wanted.length) return text('channels is required: at least one channel (see vane_list_channels).', true);
+  if (!content.trim()) { note(request, '', false, 'refused: text is required'); return text('text is required.', true); }
+  if (!wanted.length) { note(request, '', false, 'refused: channels is required'); return text('channels is required: at least one channel (see vane_list_channels).', true); }
 
   const list = await callApi(env, request, listChannels, 'GET', '/api/v1/channels');
-  if (list.status !== 200) return apiProblem(list.status, list.data);
+  if (list.status !== 200) { note(request, plural(wanted.length, 'channel'), false, refusal(list.status, list.data)); return apiProblem(list.status, list.data); }
   const chans: Channel[] = list.data.channels ?? [];
   const { ids, missing } = resolveChannels(wanted, chans);
   if (missing.length) {
+    note(request, plural(wanted.length, 'channel'), false, `refused: ${plural(missing.length, 'unknown channel')}`);
     return text(`No such channel: ${missing.join(', ')}. Connected: ${chans.map((c) => `${c.name} (${c.platform})`).join(', ') || 'none'}.`, true);
   }
 
@@ -224,7 +240,8 @@ async function toolCreatePost(env: Env, request: Request, args: Record<string, u
     ? { 'idempotency-key': 'mcp-' + (await sha256Hex(JSON.stringify([content, [...ids].sort(), scheduledAt, body.mediaUrl ?? null]))).slice(0, 40) }
     : {};
   const r = await callApi(env, request, createPost, 'POST', '/api/v1/posts', body, extra);
-  if (r.status !== 201) return apiProblem(r.status, r.data);
+  if (r.status !== 201) { note(request, plural(ids.length, 'channel'), false, refusal(r.status, r.data)); return apiProblem(r.status, r.data); }
+  note(request, plural(ids.length, 'channel'), true, r.data.test ? 'TEST MODE, nothing posted' : `scheduled for ${utc(r.data.scheduledAt)}`);
 
   const names = chans.filter((c) => ids.includes(c.id)).map((c) => `${c.name} (${c.platform})`).join(', ');
   const when = new Date(r.data.scheduledAt * 1000).toISOString();
@@ -260,9 +277,10 @@ async function handle(env: Env, request: Request, msg: Rpc): Promise<unknown | n
     case 'tools/call': {
       const p = isRecord(msg.params) ? msg.params : {};
       const args = isRecord(p.arguments) ? p.arguments : {};
-      if (p.name === 'vane_list_channels') { const r = await toolListChannels(env, request); await recordMcpCall(env, request, 'vane_list_channels'); return rpcResult(id, r); }
-      if (p.name === 'vane_list_posts') { const r = await toolListPosts(env, request, args); await recordMcpCall(env, request, 'vane_list_posts'); return rpcResult(id, r); }
-      if (p.name === 'vane_create_post') { const r = await toolCreatePost(env, request, args); await recordMcpCall(env, request, 'vane_create_post'); return rpcResult(id, r); }
+      const finish = async (tool: string, r: ToolResult) => { await recordMcpCall(env, request, tool); await logTool(env, request, tool, r); return rpcResult(id, r); };
+      if (p.name === 'vane_list_channels') return finish('vane_list_channels', await toolListChannels(env, request));
+      if (p.name === 'vane_list_posts') return finish('vane_list_posts', await toolListPosts(env, request, args));
+      if (p.name === 'vane_create_post') return finish('vane_create_post', await toolCreatePost(env, request, args));
       return rpcError(id, -32602, `Unknown tool: ${String(p.name)}`);
     }
     default: return rpcError(id, -32601, `Method not found: ${String(msg.method)}`);
@@ -291,6 +309,7 @@ async function authenticate(env: Env, request: Request): Promise<Request | Respo
   const forced = new Request(request, { headers });
   forceKeyId(forced, g.keyId);
   markMcpClient(forced, g.integration);   // a Notion agent is counted as Notion, anything else as Claude
+  rememberAuth(forced, { userId: g.userId, keyId: g.keyId, integration: g.integration });   // for the agent log
   return forced;
 }
 

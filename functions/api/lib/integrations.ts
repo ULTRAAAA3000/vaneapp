@@ -205,6 +205,7 @@ export function opOf(method: string, pathname: string): string {
 const mcpInner = new WeakMap<Request, Request>();
 const mcpKey = new WeakMap<Request, string>();
 const mcpClient = new WeakMap<Request, IntegrationId>();
+const authed = new WeakMap<Request, { userId: string; keyId: string; integration: IntegrationId }>();
 
 export const markMcpInternal = (inner: Request, outer: Request): void => { mcpInner.set(inner, outer); };
 export const mcpOuterOf = (inner: Request): Request | undefined => mcpInner.get(inner);
@@ -213,6 +214,10 @@ export const rememberMcpKey = (outer: Request, keyId: string): void => { mcpKey.
 /** Which client is on the other end of the MCP connection (Claude or a Notion agent): decided by the OAuth client that was connected, never by a header. */
 export const markMcpClient = (outer: Request, id: IntegrationId): void => { mcpClient.set(outer, id); };
 export const mcpClientOf = (outer: Request): IntegrationId => mcpClient.get(outer) ?? 'claude';
+
+/** Who a request was accepted for (set by the key check / the MCP sign-in, read by the agent log). Unforgeable, in-process only. */
+export const rememberAuth = (request: Request, who: { userId: string; keyId: string; integration: IntegrationId }): void => { authed.set(request, who); };
+export const authOf = (request: Request) => authed.get(request) ?? null;
 
 /** Counts one MCP tool call for the key the inner requests authenticated with (nothing if none did). */
 export async function recordMcpCall(env: Env, outer: Request, tool: string): Promise<void> {
