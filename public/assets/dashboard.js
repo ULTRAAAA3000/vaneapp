@@ -6,6 +6,7 @@
 
   // ───────────────────────── state ─────────────────────────
   var S = {
+    shares: {},
     user: null,
     uploads: false,
     channels: [],
@@ -203,6 +204,7 @@
     renderAll();
     if (restored) Vane.toast('info', 'Your unsent draft is back.');
     reportConnectReturn();
+    loadShares();
 
     setInterval(function () { renderStats(); renderPosts(); }, 30000);
     // live posts: poll while the tab is visible, and catch up the moment it is back in front
@@ -1292,7 +1294,15 @@
                 : '<button type="button" data-act="cancel" data-group="' + esc(p.groupId) + '" class="btn btn-ghost btn-sm">Cancel</button>') +
             '</div>'
           : S.tab === 'history'
-            ? '<div class="shrink-0 self-start"><button type="button" data-act="reuse" data-group="' + esc(p.groupId) + '" class="btn btn-ghost btn-sm" title="Copy this post into the editor">Reuse</button></div>'
+            ? '<div class="flex shrink-0 flex-wrap items-center gap-1.5 self-start">' +
+                (g.some(function (x) { return x.status === 'sent'; })
+                  ? (S.shares[p.groupId]
+                      ? '<button type="button" data-act="sharecopy" data-group="' + esc(p.groupId) + '" class="btn btn-white btn-sm" title="Copy the public link">Copy link</button>' +
+                        '<button type="button" data-act="shareoff" data-group="' + esc(p.groupId) + '" class="btn btn-ghost btn-sm" title="The link stops working">Stop sharing</button>'
+                      : '<button type="button" data-act="share" data-group="' + esc(p.groupId) + '" class="btn btn-ghost btn-sm" title="Get a public page for this post">Share preview</button>')
+                  : '') +
+                '<button type="button" data-act="reuse" data-group="' + esc(p.groupId) + '" class="btn btn-ghost btn-sm" title="Copy this post into the editor">Reuse</button>' +
+              '</div>'
             : '') +
       '</article>';
     }).join('');
@@ -1314,7 +1324,36 @@
     Vane.toast('ok', g[0].mediaUrl ? 'Text copied to the editor. Add the image or video again.' : 'Copied to the editor. Pick a time and schedule it.');
   }
 
+  async function loadShares() {
+    var r = await Vane.api('GET', '/api/posts/share');
+    if (r.ok && r.data.shares) { S.shares = r.data.shares; renderPosts(); }
+  }
+  async function sharePreview(btn) {
+    var gid = btn.getAttribute('data-group');
+    btn.disabled = true;
+    var r = await Vane.api('POST', '/api/posts/share', { groupId: gid });
+    if (!r.ok) { btn.disabled = false; Vane.toast('err', r.error); return; }
+    S.shares[gid] = r.data.url;
+    renderPosts();
+    copyText(r.data.url).then(function (ok) { Vane.toast('ok', ok ? 'Public link copied. Paste it anywhere.' : 'Public page is ready: ' + r.data.url); });
+  }
+  async function stopShare(btn) {
+    var gid = btn.getAttribute('data-group');
+    btn.disabled = true;
+    var r = await Vane.api('DELETE', '/api/posts/share?groupId=' + encodeURIComponent(gid));
+    if (!r.ok) { btn.disabled = false; Vane.toast('err', r.error); return; }
+    delete S.shares[gid];
+    renderPosts();
+    Vane.toast('ok', 'Sharing stopped. The link no longer works.');
+  }
+
   $('posts').addEventListener('click', async function (e) {
+    var share = e.target.closest('[data-act="share"]');
+    if (share) return sharePreview(share);
+    var off = e.target.closest('[data-act="shareoff"]');
+    if (off) return stopShare(off);
+    var cp = e.target.closest('[data-act="sharecopy"]');
+    if (cp) return copyWithToast(S.shares[cp.getAttribute('data-group')] || '', 'Public link');
     var reuse = e.target.closest('[data-act="reuse"]');
     if (reuse) return reusePost(reuse.getAttribute('data-group'));
     var btn = e.target.closest('[data-act="cancel"]');
