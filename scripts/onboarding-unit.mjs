@@ -94,7 +94,27 @@ console.log('\nrobustness');
   const { db, env } = fresh();
   db.exec('DROP TABLE onboarding_progress');
   const s = await ob.loadOnboarding(env, 'u1');
-  check('without the table the card just stays hidden, nothing throws', s.hidden === true && s.celebrate === false);
+  check('without the table nothing throws and there is never confetti', s.celebrate === false);
+}
+{
+  // any other database failure must still not break the dashboard: the card hides
+  const bad = { DB: { prepare() { throw new Error('D1 is down'); } } };
+  const s = await ob.loadOnboarding(bad, 'u1');
+  check('a real database error hides the card instead of breaking the page', s.hidden === true && s.celebrate === false);
+}
+
+console.log('\nwhen the onboarding_progress table is not in the database yet');
+{
+  const { db, env, add } = fresh();
+  db.exec('DROP TABLE onboarding_progress');
+  const s0 = await ob.loadOnboarding(env, 'u1');
+  check('a new account still sees the card, with nothing done and no confetti', !s0.hidden && !s0.celebrate && s0.done === 0 && s0.total === 4);
+  add.channel();
+  const s1 = await ob.loadOnboarding(env, 'u1');
+  check('the steps still tick themselves', !s1.hidden && done(s1) === 'channel');
+  add.key('notion'); add.post('sent');
+  const s4 = await ob.loadOnboarding(env, 'u1');
+  check('a finished checklist is hidden (nothing left to show) and never celebrates, so no confetti on every visit', s4.done === 4 && s4.hidden && !s4.celebrate);
 }
 
 console.log(`\n${passed} passed, ${failed.length} failed`);

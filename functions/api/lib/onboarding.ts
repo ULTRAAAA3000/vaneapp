@@ -9,6 +9,9 @@
  *
  * The table `onboarding_progress` only remembers the card: closed with the cross, or the confetti already shown.
  * An account that is already complete the first time the card is looked at is marked as celebrated at once: old news gets no confetti.
+ *
+ * If that table is not in the database yet (the migration `npm run db:migrate:onboarding` was not run) the card is STILL shown: the
+ * steps are read from other tables. Only the memory is missing, so closing the card lasts until the next visit and the confetti is skipped.
  */
 import type { Env } from '../../../types';
 import { isMissingSchema } from './integrations';
@@ -42,17 +45,24 @@ export async function loadOnboarding(env: Env, userId: string, now = Math.floor(
     const done = steps.filter((s) => s.done).length;
     const complete = done === steps.length;
 
-    let row = await env.DB
-      .prepare('SELECT dismissed_at, celebrated_at FROM onboarding_progress WHERE user_id = ?1')
-      .bind(userId)
-      .first<{ dismissed_at: number | null; celebrated_at: number | null }>();
-    if (!row) {
-      const celebrated = complete ? now : null;                       // already complete on first sight: nothing to celebrate
-      await env.DB
-        .prepare('INSERT OR IGNORE INTO onboarding_progress (user_id, created_at, celebrated_at) VALUES (?1, ?2, ?3)')
-        .bind(userId, now, celebrated)
-        .run();
-      row = { dismissed_at: null, celebrated_at: celebrated };
+    let row: { dismissed_at: number | null; celebrated_at: number | null } | null;
+    try {
+      row = await env.DB
+        .prepare('SELECT dismissed_at, celebrated_at FROM onboarding_progress WHERE user_id = ?1')
+        .bind(userId)
+        .first<{ dismissed_at: number | null; celebrated_at: number | null }>();
+      if (!row) {
+        const celebrated = complete ? now : null;                     // already complete on first sight: nothing to celebrate
+        await env.DB
+          .prepare('INSERT OR IGNORE INTO onboarding_progress (user_id, created_at, celebrated_at) VALUES (?1, ?2, ?3)')
+          .bind(userId, now, celebrated)
+          .run();
+        row = { dismissed_at: null, celebrated_at: celebrated };
+      }
+    } catch (err) {
+      if (!isMissingSchema(err)) throw err;
+      // No table to remember anything in: show the card while there is something to do; a finished checklist has nothing left to show.
+      return { steps, done, total: steps.length, hidden: complete, celebrate: false };
     }
     const hidden = row.dismissed_at !== null || row.celebrated_at !== null;
     return { steps, done, total: steps.length, hidden, celebrate: complete && row.dismissed_at === null && row.celebrated_at === null };
