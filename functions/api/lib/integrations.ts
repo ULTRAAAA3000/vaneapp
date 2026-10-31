@@ -1,5 +1,5 @@
 /**
- * Integrations: the tools people connect to Vane (Claude, ChatGPT, Make, Zapier, WordPress, their own scripts).
+ * Integrations: the tools people connect to Vane (Claude, Notion, ChatGPT, Make, Zapier, WordPress, Obsidian, their own scripts).
  *
  * What this file does
  *   1. CATALOG      what each integration is, how a user connects it, how far it is built (shown in /admin → Integrations)
@@ -8,9 +8,10 @@
  *   4. KILL SWITCH  the admin can switch an integration off; its requests are then refused (403 integration_disabled)
  *
  * How a request is attributed, in this order
- *   a. it came through the MCP endpoint            → claude   (an unforgeable, in-process marker, see markMcpInternal)
+ *   a. it came through the MCP endpoint            → the client that connected: notion for a Notion agent, otherwise claude
+ *                                                     (an unforgeable, in-process marker, see markMcpInternal / markMcpClient)
  *   b. the key was labelled when it was created    → that label ("Used with" in the dashboard)
- *   c. the client says who it is (User-Agent)      → chatgpt / zapier / make / claude / wordpress
+ *   c. the client says who it is (User-Agent)      → chatgpt / zapier / make / claude / notion / wordpress / obsidian
  *   d. the key's NAME says it ("Make.com")         → the same keywords
  *   e. otherwise                                   → api (direct API: scripts, curl, anything else)
  * Only (a) and (b) are certain. (c) and (d) are best-effort, which is why the admin also shows how much traffic fell into `api`.
@@ -20,12 +21,12 @@
  */
 import type { Env } from '../../../types';
 
-export const INTEGRATION_IDS = ['claude', 'chatgpt', 'make', 'zapier', 'wordpress', 'api'] as const;
+export const INTEGRATION_IDS = ['claude', 'notion', 'chatgpt', 'make', 'zapier', 'wordpress', 'obsidian', 'api'] as const;
 export type IntegrationId = (typeof INTEGRATION_IDS)[number];
 export const isIntegrationId = (v: unknown): v is IntegrationId => typeof v === 'string' && (INTEGRATION_IDS as readonly string[]).includes(v);
 
 export const INTEGRATION_NAMES: Record<IntegrationId, string> = {
-  claude: 'Claude', chatgpt: 'ChatGPT', make: 'Make', zapier: 'Zapier', wordpress: 'WordPress plugin', api: 'Direct API',
+  claude: 'Claude', notion: 'Notion', chatgpt: 'ChatGPT', make: 'Make', zapier: 'Zapier', wordpress: 'WordPress plugin', obsidian: 'Obsidian plugin', api: 'Direct API',
 };
 
 /** Where the store / marketplace review stands. Free choice from a short list, set by the admin. */
@@ -82,6 +83,19 @@ export function catalog(origin: string): IntegrationDef[] {
       verification: 'Works as a custom connector today. Listing in the Claude connector directory needs OAuth (not built yet): see AUTOMATION_INTEGRATIONS.md, phase 3.',
     },
     {
+      id: 'notion', name: 'Notion', kind: 'MCP connector (Custom Agents)', build: 'live', color: '#e5e7eb',
+      summary: 'A Notion Custom Agent can list your channels and schedule posts, so a content calendar kept in Notion can publish through Vane. It uses the same remote MCP server as Claude.',
+      auth: 'OAuth 2.1 with PKCE and dynamic client registration: the person presses Connect in Notion and Allow on Vane\'s /connect page. No key to copy.',
+      endpoints: [{ label: 'MCP server URL', value: `${api}/mcp` }],
+      steps: [
+        'A Notion workspace admin turns on Settings → Connections → Enable custom MCP servers (and approves the URL if approvals are required).',
+        'In the Custom Agent: Settings → Add connection → Custom MCP server, paste the URL above and press Connect.',
+        'Vane opens: sign in and press Allow. Vane makes a key named "Notion connector" (live when the plan has API access, otherwise a test key).',
+        'Ask the agent to show your Vane channels, then to schedule a post. Two tools appear: vane_list_channels and vane_create_post.',
+      ],
+      verification: 'Works as a custom MCP server (Notion shows its "has not reviewed this server" notice for every custom server). Custom Agents are a Notion Business/Enterprise feature. Nothing to submit to Notion.',
+    },
+    {
       id: 'chatgpt', name: 'ChatGPT', kind: 'Custom GPT Actions', build: 'live', color: '#34d399',
       summary: 'A Custom GPT can schedule and read posts by importing Vane\'s OpenAPI description as an Action.',
       auth: 'API Key, auth type Bearer: the user\'s Vane API key.',
@@ -126,6 +140,18 @@ export function catalog(origin: string): IntegrationDef[] {
       verification: 'A plugin in the WordPress.org directory goes through a manual review (often weeks). Nothing submitted yet.',
     },
     {
+      id: 'obsidian', name: 'Obsidian plugin', kind: 'Desktop and mobile plugin', build: 'live', color: '#a78bfa',
+      summary: 'Post the open note (or the selected text) to your channels from inside Obsidian, now or at a chosen time. The plugin turns Markdown into plain post text and talks to the REST API.',
+      auth: 'The user\'s Vane API key, stored in the plugin settings (Obsidian keeps it in the vault\'s plugin data).',
+      endpoints: [{ label: 'Base URL', value: api }, { label: 'Plugin download', value: `${origin}/downloads/vane-for-obsidian.zip` }],
+      steps: [
+        'The user creates a key (picking "Obsidian" under "Used with").',
+        'Unzip vane-for-obsidian.zip into <vault>/.obsidian/plugins/ and enable "Vane" under Community plugins.',
+        'Settings → Vane: paste the key and press Load channels. Then run "Post note to Vane" from the command palette.',
+      ],
+      verification: 'Installed by hand from the zip. A listing in Obsidian\'s community plugin directory goes through a review by the Obsidian team: not submitted yet.',
+    },
+    {
       id: 'api', name: 'Direct API', kind: 'Scripts and everything else', build: 'live', color: '#94a3b8',
       summary: 'Anything that calls the REST API without being one of the above: scripts, curl, n8n, other automation tools. Also where traffic lands when its source cannot be told.',
       auth: 'The user\'s Vane API key in an "Authorization: Bearer" header.',
@@ -147,6 +173,8 @@ export function inferIntegration(userAgent: string | null, keyName: string): Int
     if (ua.includes('integromat') || ua.includes('make.com') || /\bmake\//.test(ua)) return 'make';
     if (ua.includes('anthropic') || ua.includes('claude')) return 'claude';
     if (ua.includes('wordpress')) return 'wordpress';
+    if (ua.includes('obsidian')) return 'obsidian';
+    if (ua.includes('notion')) return 'notion';
   }
   const name = keyName.slice(0, 120).toLowerCase();
   if (name.includes('claude') || name.includes('anthropic') || name.includes('mcp')) return 'claude';
@@ -154,6 +182,8 @@ export function inferIntegration(userAgent: string | null, keyName: string): Int
   if (name.includes('make') || name.includes('integromat')) return 'make';
   if (name.includes('zapier')) return 'zapier';
   if (name.includes('wordpress')) return 'wordpress';
+  if (name.includes('obsidian')) return 'obsidian';
+  if (name.includes('notion')) return 'notion';
   return null;
 }
 
@@ -174,16 +204,21 @@ export function opOf(method: string, pathname: string): string {
 // A WeakMap keyed by the request object cannot be forged by a client, unlike a header.
 const mcpInner = new WeakMap<Request, Request>();
 const mcpKey = new WeakMap<Request, string>();
+const mcpClient = new WeakMap<Request, IntegrationId>();
 
 export const markMcpInternal = (inner: Request, outer: Request): void => { mcpInner.set(inner, outer); };
 export const mcpOuterOf = (inner: Request): Request | undefined => mcpInner.get(inner);
 export const rememberMcpKey = (outer: Request, keyId: string): void => { mcpKey.set(outer, keyId); };
 
+/** Which client is on the other end of the MCP connection (Claude or a Notion agent): decided by the OAuth client that was connected, never by a header. */
+export const markMcpClient = (outer: Request, id: IntegrationId): void => { mcpClient.set(outer, id); };
+export const mcpClientOf = (outer: Request): IntegrationId => mcpClient.get(outer) ?? 'claude';
+
 /** Counts one MCP tool call for the key the inner requests authenticated with (nothing if none did). */
 export async function recordMcpCall(env: Env, outer: Request, tool: string): Promise<void> {
   const keyId = mcpKey.get(outer);
   if (!keyId) return;
-  await recordApiUse(env, { keyId, integration: 'claude', op: `mcp:${tool.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 40)}` });
+  await recordApiUse(env, { keyId, integration: mcpClientOf(outer), op: `mcp:${tool.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 40)}` });
 }
 
 // ───────────────────────── schema tolerance ─────────────────────────

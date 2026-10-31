@@ -1,5 +1,6 @@
 /**
- * OAuth 2.1 for the Claude connector (the remote MCP server at /api/v1/mcp). This file is NOT a route.
+ * OAuth 2.1 for the connectors of AI assistants that speak MCP (Claude, Notion agents): the remote MCP server at /api/v1/mcp.
+ * This file is NOT a route.
  *
  * Claude discovers everything from /.well-known/*, registers itself (RFC 7591), sends the person to /connect, and exchanges the
  * code (PKCE S256) at /api/oauth/token. The access token is opaque: it points at a grant, and the grant holds one ordinary API key
@@ -15,6 +16,18 @@ export const REFRESH_TTL = 90 * 86400;
 export const CODE_TTL = 600;
 export const MAX_REDIRECTS = 5;
 export const CONNECTOR_KEY_NAME = 'Claude connector';
+
+/** Which assistant connected: it decides the name and label of the key made for it, and how its traffic is counted. */
+export type Connector = { integration: 'claude' | 'notion'; keyName: string; label: string };
+const CLAUDE: Connector = { integration: 'claude', keyName: CONNECTOR_KEY_NAME, label: 'Claude' };
+const NOTION: Connector = { integration: 'notion', keyName: 'Notion connector', label: 'Notion' };
+/** A client registers itself (RFC 7591), so its name is only a hint: the address it comes back to is checked too. Anything unknown is treated as Claude, as before. */
+export function connectorFor(clientName: string, redirectUris: readonly string[]): Connector {
+  const hostIsNotion = redirectUris.some((u) => {
+    try { return /(^|\.)notion\.(so|com|site)$/i.test(new URL(u).hostname); } catch { return false; }
+  });
+  return hostIsNotion || /\bnotion\b/i.test(clientName) ? NOTION : CLAUDE;
+}
 
 export const ACCESS_PREFIX = 'vane_at_';
 export const REFRESH_PREFIX = 'vane_rt_';
@@ -108,16 +121,20 @@ export async function purgeOauth(env: Pick<Env, 'DB'>, now = Math.floor(Date.now
   ]).catch(() => undefined);
 }
 
-export interface Authorized { grantId: string; keyId: string; keyEnc: string; userId: string }
+export interface Authorized { grantId: string; keyId: string; keyEnc: string; userId: string; integration: Connector['integration'] }
 
 /** The grant behind an access token, or null (unknown, expired, or the grant/key was revoked). */
 export async function grantForAccessToken(env: Pick<Env, 'DB'>, token: string, now: number): Promise<Authorized | null> {
   if (!token.startsWith(ACCESS_PREFIX) || token.length > 100) return null;
   const row = await env.DB
-    .prepare(`SELECT g.id AS grant_id, g.key_id, g.key_enc, g.user_id
+    .prepare(`SELECT g.id AS grant_id, g.key_id, g.key_enc, g.user_id, c.client_name, c.redirect_uris
                 FROM oauth_tokens t JOIN oauth_grants g ON g.id = t.grant_id JOIN api_keys k ON k.id = g.key_id
+                LEFT JOIN oauth_clients c ON c.client_id = g.client_id
                WHERE t.token_hash = ?1 AND t.kind = 'access' AND t.expires_at > ?2 AND g.revoked_at IS NULL AND k.revoked_at IS NULL`)
     .bind(await hashSecret(token), now)
-    .first<{ grant_id: string; key_id: string; key_enc: string; user_id: string }>();
-  return row ? { grantId: row.grant_id, keyId: row.key_id, keyEnc: row.key_enc, userId: row.user_id } : null;
+    .first<{ grant_id: string; key_id: string; key_enc: string; user_id: string; client_name: string | null; redirect_uris: string | null }>();
+  if (!row) return null;
+  let uris: string[] = [];
+  try { const parsed = JSON.parse(row.redirect_uris ?? '[]'); if (Array.isArray(parsed)) uris = parsed.filter((x): x is string => typeof x === 'string'); } catch { /* no addresses: judged by the name */ }
+  return { grantId: row.grant_id, keyId: row.key_id, keyEnc: row.key_enc, userId: row.user_id, integration: connectorFor(row.client_name ?? '', uris).integration };
 }
