@@ -609,6 +609,17 @@ CREATE TABLE IF NOT EXISTS video_links (
   created_at  INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
+-- ───────────────────────── Public preview of a published post ─────────────────────────
+-- The owner presses "Share preview" on a sent post: one unguessable address (/p/<token>) shows its text, picture and networks to anyone.
+-- One preview per post group; "Stop sharing" deletes the row and the address stops working.
+CREATE TABLE IF NOT EXISTS post_previews (
+  token       TEXT    PRIMARY KEY,                                              -- 128 random bits, base64url (22 chars)
+  group_id    TEXT    NOT NULL UNIQUE,
+  user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_post_previews_user ON post_previews(user_id, created_at DESC);
+
 -- ───────────────────────── Webhooks: where Vane tells other systems that a post was published or failed ─────────────────────────
 -- Make / Zapier subscribe here (REST hooks); anyone can subscribe with an API key: POST /api/v1/webhooks.
 CREATE TABLE IF NOT EXISTS webhook_subscriptions (
@@ -998,6 +1009,39 @@ CREATE TABLE IF NOT EXISTS oauth_tokens (
   used_at     INTEGER                                           -- a refresh token is single-use (rotated)
 );
 CREATE INDEX IF NOT EXISTS idx_oauth_tokens_grant ON oauth_tokens(grant_id);
+
+-- ───────────────────────── Feedback & Roadmap board ────────────────────────
+CREATE TABLE IF NOT EXISTS feedback_items (
+  id          TEXT    PRIMARY KEY,                           -- uuid (seed rows: 'seed-<network>')
+  user_id     TEXT    REFERENCES users(id) ON DELETE SET NULL, -- NULL = added by you in /admin
+  kind        TEXT    NOT NULL DEFAULT 'feature'
+              CHECK (kind IN ('network', 'feature', 'bug', 'other')),
+  title       TEXT    NOT NULL,
+  body        TEXT    NOT NULL DEFAULT '',
+  status      TEXT    NOT NULL DEFAULT 'open'
+              CHECK (status IN ('open', 'planned', 'building', 'done', 'declined')),
+  hidden      INTEGER NOT NULL DEFAULT 0,                    -- 1 = off the public board (spam, duplicates)
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_feedback_items_user ON feedback_items (user_id, created_at);
+
+-- One vote per person per idea; the number shown is COUNT(*) of these rows, so it can never drift.
+CREATE TABLE IF NOT EXISTS feedback_votes (
+  item_id     TEXT    NOT NULL REFERENCES feedback_items(id) ON DELETE CASCADE,
+  user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+  PRIMARY KEY (item_id, user_id)
+);
+
+-- The first ideas on the board: networks people can vote to get next (change or add more in /admin → Feedback).
+INSERT OR IGNORE INTO feedback_items (id, kind, title, body) VALUES
+  ('seed-pinterest', 'network', 'Pinterest', 'Post Pins with an image or video to your boards.'),
+  ('seed-x',         'network', 'X (Twitter)', 'Post to X from the same editor.'),
+  ('seed-instagram', 'network', 'Instagram posts', 'Photos and carousels to an Instagram Business or Creator account.'),
+  ('seed-tumblr',    'network', 'Tumblr', ''),
+  ('seed-medium',    'network', 'Medium', 'Cross-post articles.'),
+  ('seed-whatsapp',  'network', 'WhatsApp Channels', '');
 
 -- ───────────────────────── Contact form (/about#contact) ─────────────────────────
 -- Every message is kept, so nothing is lost when the email could not be sent. Read them in the D1 Console:
