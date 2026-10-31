@@ -281,6 +281,7 @@
       netIcon: netIcon,
       onTag: function (t) { tags.insert(t); }
     });
+    Vane.renderLiveCard($('liveCard'), S.history, { limit: 200 });
     var pill = $('streakPill');
     pill.textContent = '🔥 ' + ins.streak + ' days in a row';
     pill.classList.toggle('hidden', ins.streak < 2);

@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/assets/vane.css?v=f14c2a0095" />
-  <link rel="stylesheet" href="/assets/app.css?v=17d663a2c7" />
+  <link rel="stylesheet" href="/assets/app.css?v=df7af9f921" />
 </head>
 
 <body class="min-h-screen overflow-x-hidden bg-[#070708]">
@@ -90,6 +90,11 @@
         <div id="statNext" class="pixel text-3xl tracking-tight sm:text-4xl">—</div>
         <div id="statNextSub" class="mt-2 truncate text-xs text-white/45">Until your next post</div>
       </div>
+    </section>
+
+    <!-- live card: time saved, delivery rate and a weekday sparkline for the last week or month (assets/insights.js) -->
+    <section class="fade-up glass-d mt-4 rounded-3xl p-5 sm:p-7" style="animation-delay:.08s" aria-label="Your results">
+      <div id="liveCard"><div class="skeleton h-40"></div></div>
     </section>
 
     <!-- ═══════════ CHANNELS + PREVIEW: above the workspace, full width ═══════════ -->
@@ -894,11 +899,10 @@
 
   <script src="/assets/vane.js?v=a2c867edc4"></script>
   <script src="/assets/media-picker.js?v=77ebb5a885"></script>
-  <script src="/assets/insights.js?v=be1faaaac6"></script>
-  <script src="/assets/dashboard.js?v=8fb27ae9e7"></script>
+  <script src="/assets/insights.js?v=c81d5838ef"></script>
+  <script src="/assets/dashboard.js?v=1fddf864ec"></script>
   <script src="/assets/ai.js?v=33d5e51dfa"></script>
   <script src="/assets/library.js?v=5121cd3b5d"></script>
-  <script src="/assets/feedback.js?v=f9ecedc629"></script>
   <script src="/assets/snippets.js?v=2833a28950"></script>
   <script src="/assets/drafts.js?v=9ce82a983a"></script>
   <script src="/assets/aistudio.js?v=66b8ad3d92"></script>
