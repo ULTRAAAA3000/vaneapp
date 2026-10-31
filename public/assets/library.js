@@ -69,7 +69,8 @@
     S.view = view;
     [].forEach.call(document.querySelectorAll('[data-view]'), function (el) { el.hidden = el.getAttribute('data-view') !== view; });
     [].forEach.call(document.querySelectorAll('#dashTabs [data-tab]'), function (a) {
-      if (a.getAttribute('data-tab') === view) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+      if (a.getAttribute('data-tab') === view) { a.setAttribute('aria-current', 'page'); if (a.scrollIntoView) a.scrollIntoView({ inline: 'center', block: 'nearest' }); }   // on a phone the row scrolls: keep the open tab in sight
+      else a.removeAttribute('aria-current');
     });
     if (view !== 'create' && view !== 'library') document.dispatchEvent(new CustomEvent('vane:' + view));
     if (view === 'library') load(false);                 // always fresh: a file may have been uploaded from the editor meanwhile
