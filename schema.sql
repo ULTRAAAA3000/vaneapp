@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS channels (
   id           TEXT    PRIMARY KEY,                         -- uuid
   user_id      TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   type         TEXT    NOT NULL
-               CHECK (type IN ('telegram', 'x', 'linkedin', 'webhook', 'bluesky', 'mastodon', 'threads', 'discord', 'devto', 'reddit', 'facebook')),
+               CHECK (type IN ('telegram', 'x', 'linkedin', 'webhook', 'bluesky', 'mastodon', 'threads', 'discord', 'devto', 'reddit', 'facebook', 'pinterest')),
   name         TEXT    NOT NULL,                            -- display label, e.g. "@vane_dev"
   credentials  TEXT    NOT NULL,                            -- JSON, encrypted at app level (tokens, chat_id, url, secret)
   is_active    INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
@@ -1039,4 +1039,14 @@ CREATE TABLE IF NOT EXISTS ai_voice (
   samples     TEXT    NOT NULL DEFAULT '[]',
   enabled     INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
   updated_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+-- ───────────────────────── Onboarding checklist (the card at the top of the dashboard) ─────────────────────────
+-- The steps themselves are never stored: they are read from the account (a channel, an API key, a sent post, an integration), see
+-- functions/api/lib/onboarding.ts. This table only remembers what the person did with the card.
+CREATE TABLE IF NOT EXISTS onboarding_progress (
+  user_id       TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  created_at    INTEGER NOT NULL DEFAULT (unixepoch()),
+  dismissed_at  INTEGER,                                                        -- the person closed the card with the cross
+  celebrated_at INTEGER                                                         -- the confetti has been shown (or the account was already complete: no confetti for old news)
 );

@@ -6,7 +6,7 @@
   var esc = Vane.esc;
   var S = { tool: 'generate', tone: 'professional', lang: 'en', picked: null, busy: false, voice: null, useVoice: true, ready: false, result: null, queue: null };
   var DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  var NAMES = { telegram: 'Telegram', linkedin: 'LinkedIn', bluesky: 'Bluesky', mastodon: 'Mastodon', discord: 'Discord', devto: 'Dev.to', threads: 'Threads', reddit: 'Reddit', facebook: 'Facebook', x: 'X', webhook: 'Webhook' };
+  var NAMES = { telegram: 'Telegram', linkedin: 'LinkedIn', bluesky: 'Bluesky', mastodon: 'Mastodon', discord: 'Discord', devto: 'Dev.to', threads: 'Threads', reddit: 'Reddit', pinterest: 'Pinterest', facebook: 'Facebook', x: 'X', webhook: 'Webhook' };
   var TONES = [['mine', 'My voice'], ['professional', 'Professional'], ['viral', 'Viral'], ['friendly', 'Friendly'], ['tech', 'Tech / indie']];
   var LANGS = [['en', 'English'], ['uk', 'Українська'], ['ru', 'Русский'], ['de', 'Deutsch'], ['es', 'Español'], ['fr', 'Français'], ['pl', 'Polski'], ['it', 'Italiano'], ['pt', 'Português'], ['tr', 'Türkçe']];
   var TOOLS = [

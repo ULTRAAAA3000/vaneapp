@@ -2,7 +2,7 @@
   var root = document.getElementById('vane-app');
   if (!root) return;
   var api = wp.apiFetch;
-  var NAMES = { telegram: 'Telegram', bluesky: 'Bluesky', mastodon: 'Mastodon', threads: 'Threads', x: 'X', linkedin: 'LinkedIn', discord: 'Discord', devto: 'Dev.to', reddit: 'Reddit', facebook: 'Facebook', webhook: 'Webhook' };
+  var NAMES = { telegram: 'Telegram', bluesky: 'Bluesky', mastodon: 'Mastodon', threads: 'Threads', x: 'X', linkedin: 'LinkedIn', discord: 'Discord', devto: 'Dev.to', reddit: 'Reddit', pinterest: 'Pinterest', facebook: 'Facebook', webhook: 'Webhook' };
   var TABS = [['compose', 'Write'], ['queue', 'Scheduled'], ['history', 'History'], ['settings', 'Settings']];
 
   var S = {
