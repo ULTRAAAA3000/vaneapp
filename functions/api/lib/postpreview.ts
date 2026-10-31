@@ -4,6 +4,7 @@ import { toB64Url } from './encoding';
 import { fail, json, UUID_RE } from './http';
 import { ROOT_DOMAIN, siteOf } from './hosts';
 import { postUrl } from './postlink';
+import { textProblem } from './moderation';
 import { bump, retryAfter } from './throttle';
 
 const PER_HOUR = 60;
@@ -26,17 +27,23 @@ const addressOf = (env: Env, request: Request, token: string): string => `${orig
 const isUnavailable = (err: unknown): boolean => err instanceof Error && /no such table/i.test(err.message);
 const notReady = (): Response => fail(503, 'Share preview needs one database update (run schema.sql). Please try again later.');
 
-async function ownsSent(env: Env, userId: string, groupId: string): Promise<boolean> {
-  const row = await env.DB.prepare(`SELECT 1 AS ok FROM posts WHERE COALESCE(group_id, id) = ?1 AND user_id = ?2 AND status = 'sent' LIMIT 1`).bind(groupId, userId).first();
-  return !!row;
+/** The texts of the channels of this post that really went out (empty = nothing to share, or not yours). */
+async function sentTexts(env: Env, userId: string, groupId: string): Promise<string[]> {
+  const { results } = await env.DB.prepare(`SELECT content FROM posts WHERE COALESCE(group_id, id) = ?1 AND user_id = ?2 AND status = 'sent' LIMIT 30`).bind(groupId, userId).all<{ content: string }>();
+  return results.map((r) => r.content);
 }
 
 export async function sharePost(env: Env, request: Request, userId: string, groupId: unknown): Promise<Response> {
   if (typeof groupId !== 'string' || !UUID_RE.test(groupId)) return fail(400, 'groupId must be a post id.');
-  if (!(await ownsSent(env, userId, groupId))) return fail(404, 'Only a published post can be shared.');
+  const texts = await sentTexts(env, userId, groupId);
+  if (!texts.length) return fail(404, 'Only a published post can be shared.');
   try {
     const old = await env.DB.prepare('SELECT token FROM post_previews WHERE group_id = ?1 AND user_id = ?2').bind(groupId, userId).first<{ token: string }>();
     if (old) return json({ ok: true, groupId, token: old.token, url: addressOf(env, request, old.token) });
+
+    // The page lives on our domain, so the same text check as for posting applies before a new address is made.
+    const bad = textProblem(env, ...texts);
+    if (bad) return fail(422, bad);
 
     const key = `preview:${userId}`;
     const wait = await retryAfter(env, key, PER_HOUR);
