@@ -138,7 +138,6 @@
       <a href="#automation" data-tab="automation" class="dtab">Make &amp; Zapier</a>
       <a href="#notion" data-tab="notion" class="dtab">Notion</a>
       <a href="#obsidian" data-tab="obsidian" class="dtab">Obsidian</a>
-      <a href="#agents" data-tab="agents" class="dtab">Agents</a>
     </nav>
 
     <div data-view="create" class="mt-5">
@@ -252,6 +251,36 @@
         </summary>
         <div id="apiQuickBody" class="space-y-5 px-5 pb-5"></div>
       </details>
+    </section>
+
+    <section id="viewAgents" data-view="create" class="fade-up glass-d mt-5 scroll-mt-20 rounded-3xl p-5 sm:p-7" aria-labelledby="agentsTitle">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0">
+          <h2 id="agentsTitle" class="text-lg font-semibold tracking-tight">Agent log</h2>
+          <p class="mt-1 max-w-xl text-xs text-white/45">What your AI assistants and integrations do with your Vane account, live: Claude and Notion tool calls, Make, Zapier, WordPress, Obsidian and your own scripts. Only counts, times and codes are shown, never the text of your posts.</p>
+        </div>
+        <div class="flex shrink-0 items-center gap-2 text-xs text-white/60"><span id="agentDot" class="live-dot is-off" aria-hidden="true"></span><span id="agentStatus" aria-live="polite">Connecting…</span></div>
+      </div>
+
+      <div id="agentChips" class="mt-4 flex flex-wrap gap-1.5" role="group" aria-label="Show only one integration">
+        <button type="button" class="chip-int" data-int="" aria-pressed="true">All</button><button type="button" class="chip-int" data-int="claude" aria-pressed="false">Claude</button><button type="button" class="chip-int" data-int="notion" aria-pressed="false">Notion</button><button type="button" class="chip-int" data-int="obsidian" aria-pressed="false">Obsidian</button><button type="button" class="chip-int" data-int="make" aria-pressed="false">Make</button><button type="button" class="chip-int" data-int="zapier" aria-pressed="false">Zapier</button><button type="button" class="chip-int" data-int="wordpress" aria-pressed="false">WordPress</button><button type="button" class="chip-int" data-int="chatgpt" aria-pressed="false">ChatGPT</button><button type="button" class="chip-int" data-int="api" aria-pressed="false">API</button>
+      </div>
+
+      <div class="term mt-4">
+        <div class="term-bar"><span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span><span class="ml-2 truncate">vane ~ agents</span></div>
+        <div id="agentTerm" class="term-body" role="log" aria-label="Agent activity, newest at the bottom" tabindex="0"></div>
+        <button id="agentJump" type="button" hidden class="btn btn-white btn-sm absolute bottom-3 right-3 z-10">↓ New lines</button>
+      </div>
+
+      <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <div class="flex flex-wrap items-center gap-2">
+          <button id="agentPause" type="button" class="btn btn-ghost btn-sm" aria-pressed="false">Pause</button>
+          <button id="agentDemo" type="button" class="btn btn-ghost btn-sm" hidden>Show a demo</button>
+          <span id="agentDemoNote" hidden class="text-xs text-violet-300">Demo lines, made up on your screen. <button id="agentDemoExit" type="button" class="underline underline-offset-2">Back to the real log</button></span>
+        </div>
+        <button id="agentClear" type="button" class="btn btn-ghost btn-sm">Clear log</button>
+      </div>
+      <p class="mt-3 text-xs leading-relaxed text-white/40">The newest 300 lines are kept for 30 days. Connect <a href="#claude" class="underline underline-offset-2">Claude</a>, <a href="#notion" class="underline underline-offset-2">Notion</a> or <a href="#obsidian" class="underline underline-offset-2">Obsidian</a>, then ask your assistant to list your channels and watch this window.</p>
     </section>
 
     <section id="viewSnippets" data-view="snippets" hidden class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" aria-labelledby="snippetsTitle">
@@ -523,35 +552,6 @@
       </ul>
     </section>
 
-    <section id="viewAgents" data-view="agents" hidden class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" aria-labelledby="agentsTitle">
-      <div class="flex flex-wrap items-start justify-between gap-3">
-        <div class="min-w-0">
-          <h2 id="agentsTitle" class="text-lg font-semibold tracking-tight">Agent log</h2>
-          <p class="mt-1 max-w-xl text-xs text-white/45">What your AI assistants and integrations do with your Vane account, live: Claude and Notion tool calls, Make, Zapier, WordPress, Obsidian and your own scripts. Only counts, times and codes are shown, never the text of your posts.</p>
-        </div>
-        <div class="flex shrink-0 items-center gap-2 text-xs text-white/60"><span id="agentDot" class="live-dot is-off" aria-hidden="true"></span><span id="agentStatus" aria-live="polite">Connecting…</span></div>
-      </div>
-
-      <div id="agentChips" class="mt-4 flex flex-wrap gap-1.5" role="group" aria-label="Show only one integration">
-        <button type="button" class="chip-int" data-int="" aria-pressed="true">All</button><button type="button" class="chip-int" data-int="claude" aria-pressed="false">Claude</button><button type="button" class="chip-int" data-int="notion" aria-pressed="false">Notion</button><button type="button" class="chip-int" data-int="obsidian" aria-pressed="false">Obsidian</button><button type="button" class="chip-int" data-int="make" aria-pressed="false">Make</button><button type="button" class="chip-int" data-int="zapier" aria-pressed="false">Zapier</button><button type="button" class="chip-int" data-int="wordpress" aria-pressed="false">WordPress</button><button type="button" class="chip-int" data-int="chatgpt" aria-pressed="false">ChatGPT</button><button type="button" class="chip-int" data-int="api" aria-pressed="false">API</button>
-      </div>
-
-      <div class="term mt-4">
-        <div class="term-bar"><span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span><span class="ml-2 truncate">vane ~ agents</span></div>
-        <div id="agentTerm" class="term-body" role="log" aria-label="Agent activity, newest at the bottom" tabindex="0"></div>
-        <button id="agentJump" type="button" hidden class="btn btn-white btn-sm absolute bottom-3 right-3 z-10">↓ New lines</button>
-      </div>
-
-      <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
-        <div class="flex flex-wrap items-center gap-2">
-          <button id="agentPause" type="button" class="btn btn-ghost btn-sm" aria-pressed="false">Pause</button>
-          <button id="agentDemo" type="button" class="btn btn-ghost btn-sm" hidden>Show a demo</button>
-          <span id="agentDemoNote" hidden class="text-xs text-violet-300">Demo lines, made up on your screen. <button id="agentDemoExit" type="button" class="underline underline-offset-2">Back to the real log</button></span>
-        </div>
-        <button id="agentClear" type="button" class="btn btn-ghost btn-sm">Clear log</button>
-      </div>
-      <p class="mt-3 text-xs leading-relaxed text-white/40">The newest 300 lines are kept for 30 days. Connect <a href="#claude" class="underline underline-offset-2">Claude</a>, <a href="#notion" class="underline underline-offset-2">Notion</a> or <a href="#obsidian" class="underline underline-offset-2">Obsidian</a>, then ask your assistant to list your channels and watch this window.</p>
-    </section>
 
     <section id="aiStudio" data-view="ai" hidden class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" aria-labelledby="aiTitle"></section>
 
@@ -1073,7 +1073,7 @@
   <script src="/assets/insights.js?v=c81d5838ef"></script>
   <script src="/assets/dashboard.js?v=b2cf0a16d0"></script>
   <script src="/assets/ai.js?v=33d5e51dfa"></script>
-  <script src="/assets/library.js?v=c95c2700f3"></script>
+  <script src="/assets/library.js?v=ea530acfbf"></script>
   <script src="/assets/snippets.js?v=2833a28950"></script>
   <script src="/assets/drafts.js?v=9ce82a983a"></script>
   <script src="/assets/aistudio.js?v=e134a0e708"></script>
