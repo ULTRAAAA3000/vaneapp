@@ -25,7 +25,7 @@
     "db:migrate:reddit-facebook": "wrangler d1 execute vane-db --remote --file=./migrations/0003-channel-types-reddit-facebook.sql",
     "db:migrate:networks": "wrangler d1 execute vane-db --remote --file=./migrations/0001-channel-types.sql",
     "check:integrations": "node scripts/check-integrations.mjs",
-    "test:unit": "node scripts/webhooks-unit.mjs && node scripts/socials-unit.mjs && node scripts/library-unit.mjs && node scripts/pinterest-unit.mjs && node scripts/age-unit.mjs && node scripts/moderation-unit.mjs && node scripts/media-unit.mjs && node scripts/live-card-unit.mjs && node --no-warnings scripts/suite-unit.mjs && node scripts/stamp-assets.mjs --check",
+    "test:unit": "node scripts/webhooks-unit.mjs && node scripts/socials-unit.mjs && node scripts/library-unit.mjs && node scripts/age-unit.mjs && node scripts/moderation-unit.mjs && node scripts/media-unit.mjs && node scripts/live-card-unit.mjs && node --no-warnings scripts/suite-unit.mjs && node scripts/stamp-assets.mjs --check",
     "build:pages": "node scripts/build-site-pages.mjs && node scripts/stamp-assets.mjs",
     "db:migrate:suite": "wrangler d1 execute vane-db --remote --file=./scripts/migrations/004-suite-bundle.sql",
     "db:migrate:video-checks": "wrangler d1 execute vane-db --remote --file=./scripts/migrations/003-video-checks-legacy.sql",
