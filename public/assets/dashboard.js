@@ -995,12 +995,14 @@
     else if (!S.selected.size) msg = 'Pick at least one channel.';
     else if (!text && !media) msg = 'Write something or add an image or video.';
     else if (len > limit) msg = media && t.net === 'telegram' ? 'With an image or video the text can be at most ' + CAPTION_LIMIT + ' characters.' : 'Text is too long for ' + netName(t.net) + '.';
-    else if (!whenEl.value || isNaN(new Date(whenEl.value).getTime())) msg = 'Pick a date and time.';
-    else if (new Date(whenEl.value).getTime() <= Date.now() + 30000) msg = 'Pick a time at least a minute from now.';
+    var timeMsg = '';
+    if (!whenEl.value || isNaN(new Date(whenEl.value).getTime())) timeMsg = 'Pick a date and time.';
+    else if (new Date(whenEl.value).getTime() <= Date.now() + 30000) timeMsg = 'Pick a time at least a minute from now.';
 
-    $('hint').textContent = msg;
-    $('schedBtn').disabled = !!msg || S.submitting;
-    return msg;
+    $('nowBtn').disabled = !!msg || S.submitting;
+    $('hint').textContent = msg || timeMsg;
+    $('schedBtn').disabled = !!(msg || timeMsg) || S.submitting;
+    return msg || timeMsg;
   }
 
   // ───────────────────────── preview (per network) ─────────────────────────
@@ -1181,29 +1183,31 @@
     if (e.target && e.target.tagName === 'IMG' && e.target.hasAttribute('data-hide-on-error')) e.target.style.display = 'none';
   }, true);
 
-  // submit
-  $('schedBtn').addEventListener('click', async function () {
+  // submit: Schedule uses the picked time; Post now queues it for the next sender run (it goes out within about a minute)
+  async function submitPost(now) {
     var problem = validate();
-    if (problem || S.submitting) return;
+    if (now ? (problem && problem !== 'Pick a date and time.' && problem.indexOf('Pick a time') !== 0) : problem) return;
+    if (S.submitting) return;
 
-    S.submitting = true; $('schedBtn').disabled = true;
-    $('schedSpin').classList.remove('hidden'); $('schedLabel').textContent = 'Scheduling…';
+    var btn = now ? 'now' : 'sched';
+    S.submitting = true; $('schedBtn').disabled = true; $('nowBtn').disabled = true;
+    $(btn + 'Spin').classList.remove('hidden'); $(btn + 'Label').textContent = now ? 'Sending…' : 'Scheduling…';
 
     var body = {
       content: textEl.value.trim(),
       channelIds: Array.from(S.selected),
-      scheduledAt: new Date(whenEl.value).toISOString()
+      scheduledAt: now ? new Date(Date.now() + 5000).toISOString() : new Date(whenEl.value).toISOString()
     };
     if (currentMedia()) body.mediaUrl = currentMedia();
 
     var r = await Vane.api('POST', '/api/posts', body);
     S.submitting = false;
-    $('schedSpin').classList.add('hidden'); $('schedLabel').textContent = 'Schedule post';
+    $(btn + 'Spin').classList.add('hidden'); $(btn + 'Label').textContent = now ? 'Post now' : 'Schedule post';
 
     if (!r.ok) { Vane.toast('err', r.error); validate(); return; }
 
     var n = r.data.posts.length;
-    Vane.toast('ok', 'Scheduled for ' + fmtWhen.format(new Date(r.data.scheduledAt * 1000)) + (n > 1 ? ' on ' + n + ' channels.' : '.'));
+    Vane.toast('ok', now ? 'Sending' + (n > 1 ? ' to ' + n + ' channels' : '') + ' now. It goes out within about a minute.' : 'Scheduled for ' + fmtWhen.format(new Date(r.data.scheduledAt * 1000)) + (n > 1 ? ' on ' + n + ' channels.' : '.'));
     textEl.value = ''; picker.clear(); saveDraft();
     document.dispatchEvent(new CustomEvent('vane:scheduled'));
     initQuick();
@@ -1212,7 +1216,9 @@
     S.tab = 'upcoming'; setTab('upcoming');
     renderAll();
     $('posts').scrollIntoView({ behavior: 'smooth', block: 'center' });
-  });
+  }
+  $('schedBtn').addEventListener('click', function () { submitPost(false); });
+  $('nowBtn').addEventListener('click', function () { submitPost(true); });
 
   // ───────────────────────── posts list ─────────────────────────
   function setTab(tab) {
@@ -1223,6 +1229,18 @@
     $('tabHistory').setAttribute('aria-selected', String(h));
     renderPosts();
   }
+  function postsCollapsed() { try { return localStorage.getItem('vane.postsCollapsed') === '1'; } catch (e) { return false; } }
+  function applyCollapse() {
+    var c = postsCollapsed(), n = (S.tab === 'upcoming' ? S.upcoming : S.history).length;
+    $('posts').hidden = c;
+    var t = $('postsToggle');
+    t.setAttribute('aria-expanded', String(!c));
+    t.textContent = c ? 'Show' + (n ? ' (' + n + ')' : '') : 'Collapse';
+  }
+  $('postsToggle').addEventListener('click', function () {
+    try { localStorage.setItem('vane.postsCollapsed', postsCollapsed() ? '0' : '1'); } catch (e) { /* private mode */ }
+    applyCollapse();
+  });
   $('tabUpcoming').addEventListener('click', function () { setTab('upcoming'); });
   $('tabHistory').addEventListener('click', function () { setTab('history'); });
 
@@ -1239,6 +1257,7 @@
     var box = $('posts');
     var list = S.tab === 'upcoming' ? S.upcoming : S.history;
     var groups = groupPosts(list);
+    applyCollapse();
 
     if (!groups.length) {
       box.innerHTML =

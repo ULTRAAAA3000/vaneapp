@@ -1,5 +1,6 @@
 /**
- * Feedback & Roadmap board: the "Feedback / Vote for features" button in the corner of the dashboard.
+ * Feedback & Roadmap board: a round black button with a chat icon and a small red "!" in the bottom-left corner of the dashboard
+ * (no words on it; the label and the tooltip say "Feedback / Vote for Features").
  * Opens a dialog where people vote on which network or feature gets built next, and suggest their own.
  *
  * Data: GET /api/feedback (the ideas with votes), POST /api/feedback { action: 'vote' | 'create' }.
@@ -19,8 +20,14 @@
     btn = document.createElement('button');
     btn.type = 'button';
     btn.id = 'fbOpen';
-    btn.className = 'fixed bottom-4 left-4 z-40 inline-flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-medium text-[#010101] shadow-xl shadow-black/40 transition hover:scale-[1.03] active:scale-[.98]';
-    btn.innerHTML = '<span aria-hidden="true">💬</span><span class="sm:hidden">Feedback</span><span class="hidden sm:inline">Feedback / Vote for Features</span>';
+    btn.className = 'fixed bottom-4 left-4 z-40 inline-flex h-12 w-12 items-center justify-center rounded-full bg-black text-white shadow-xl shadow-black/60 ring-1 ring-white/25 transition hover:scale-[1.06] hover:ring-white/50 active:scale-[.96]';
+    btn.setAttribute('aria-label', 'Feedback: vote for features and suggest ideas');
+    btn.title = 'Feedback / Vote for Features';
+    // A speech bubble with a small red "!" badge on its corner; the words are in the label and the tooltip.
+    btn.innerHTML =
+      '<svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<path d="M21 11.5a8.4 8.4 0 0 1-8.9 8.4 9 9 0 0 1-3.2-.6L3.5 21l1.6-4.7A8.3 8.3 0 0 1 3.5 11.5 8.5 8.5 0 0 1 12 3a8.5 8.5 0 0 1 9 8.5z"/></svg>' +
+      '<span aria-hidden="true" class="absolute -right-0.5 -top-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full bg-red-500 text-[11px] font-bold leading-none text-white ring-2 ring-black">!</span>';
     document.body.appendChild(btn);
 
     dlg = document.createElement('dialog');
