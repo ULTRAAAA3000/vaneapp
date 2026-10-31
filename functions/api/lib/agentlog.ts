@@ -7,6 +7,9 @@
  *   Listed channels → 4 channels found                                           (Make, Zapier, WordPress, Obsidian, a script…)
  *   Scheduled a post for 2026-11-02 09:00 UTC on 2 channels
  *
+ * A PAID-PLAN feature: nothing is recorded for an account on the Free Trial (or whose paid plan has lapsed), the tab is not shown to it
+ * and the feed answers 402. Wiping the log stays open to everyone, so a person who downgrades can still erase what was kept.
+ *
  * METADATA ONLY, on purpose: counts, times, platform names, error codes. The text of a post, a key, a channel name never goes in.
  * Failing to write a line never fails the request it describes: the log is an extra.
  *
@@ -16,6 +19,7 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env } from '../../../types';
 import { authOf, isMissingSchema, mcpOuterOf, type IntegrationId } from './integrations';
+import { loadSubscription } from './usage';
 
 export const KEEP_PER_USER = 300;
 export const KEEP_DAYS = 30;
@@ -26,8 +30,14 @@ export interface AgentEvent { id: number; at: number; integration: string; via: 
 
 const clip = (s: string): string => (s.length > MESSAGE_MAX ? `${s.slice(0, MESSAGE_MAX - 1)}…` : s);
 
+/** Is the account on a paid plan right now? (A paid plan that lapsed has already fallen back to the Free Trial.) Any trouble reading it counts as "no". */
+export async function agentLogAllowed(env: Env, userId: string, now = Math.floor(Date.now() / 1000)): Promise<boolean> {
+  try { return (await loadSubscription(env, userId, now)).plan !== 'free'; } catch { return false; }
+}
+
 export async function recordAgentEvent(env: Env, e: AgentEventIn, now = Math.floor(Date.now() / 1000)): Promise<void> {
   try {
+    if (!(await agentLogAllowed(env, e.userId, now))) return;        // a paid-plan feature: the Free Trial leaves no trace
     await env.DB
       .prepare('INSERT INTO agent_events (user_id, integration, via, tool, ok, message, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)')
       .bind(e.userId, e.integration, e.via, e.tool ?? null, e.ok ? 1 : 0, clip(e.message), now)

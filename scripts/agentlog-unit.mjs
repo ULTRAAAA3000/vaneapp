@@ -24,7 +24,9 @@ rmSync(dir, { recursive: true, force: true });
 function fresh() {
   const db = new DatabaseSync(':memory:');
   db.exec(readFileSync('schema.sql', 'utf8'));
-  db.exec(`INSERT INTO users (id, email) VALUES ('u1', 'a@example.com'), ('u2', 'b@example.com')`);
+  db.exec(`INSERT INTO users (id, email) VALUES ('u1', 'a@example.com'), ('u2', 'b@example.com'), ('free', 'f@example.com'), ('lapsed', 'l@example.com'), ('gone', 'g@example.com')`);
+  // u1 and u2 are on a paid plan with no expiry; "free" has no subscription; "lapsed" had Pro that ended; "gone" cancelled it.
+  db.exec(`INSERT INTO subscriptions (user_id, plan, status, current_period_end) VALUES ('u1', 'pro', 'active', NULL), ('u2', 'suite', 'active', 4102444800), ('lapsed', 'pro', 'active', 1000), ('gone', 'pro', 'canceled', 4102444800)`);
   const env = { DB: { prepare(sql) {
     let args = [];
     const st = {
@@ -64,6 +66,27 @@ console.log('\nwriting and reading lines');
   check('a bad filter value is ignored, not injected', (await log.listAgentEvents(env, 'u1', { integration: "x' OR 1=1 --" })).events.length === 5);
   await log.recordAgentEvent(env, ev({ message: 'x'.repeat(500) }), 1200);
   check('a very long line is cut', (await log.listAgentEvents(env, 'u1', { limit: 1 })).events[0].message.length <= 200);
+}
+
+console.log('\na paid-plan feature');
+{
+  const { db, env } = fresh();
+  const now = 1_800_000_000;
+  check('a paid plan may have the log (Pro, and the Suite)', (await log.agentLogAllowed(env, 'u1', now)) === true && (await log.agentLogAllowed(env, 'u2', now)) === true);
+  check('the Free Trial may not', (await log.agentLogAllowed(env, 'free', now)) === false);
+  check('a paid plan that has ended may not', (await log.agentLogAllowed(env, 'lapsed', now)) === false);
+  check('a cancelled plan may not', (await log.agentLogAllowed(env, 'gone', now)) === false);
+  check('an unknown account may not', (await log.agentLogAllowed(env, 'nobody', now)) === false);
+  for (const id of ['free', 'lapsed', 'gone']) await log.recordAgentEvent(env, ev({ userId: id }), now);
+  check('nothing is recorded for the Free Trial, a lapsed plan or a cancelled one', db.prepare('SELECT COUNT(*) AS n FROM agent_events').get().n === 0);
+  await log.recordAgentEvent(env, ev({ userId: 'u1' }), now);
+  check('a paid account is recorded', db.prepare('SELECT COUNT(*) AS n FROM agent_events').get().n === 1);
+  db.exec(`UPDATE subscriptions SET status = 'canceled' WHERE user_id = 'u1'`);
+  await log.recordAgentEvent(env, ev({ userId: 'u1' }), now);
+  check('the moment a plan is cancelled the recording stops', db.prepare('SELECT COUNT(*) AS n FROM agent_events').get().n === 1);
+  db.exec(`INSERT INTO agent_events (user_id, integration, via, ok, message) VALUES ('free', 'claude', 'mcp', 1, 'left over')`);
+  await log.clearAgentEvents(env, 'free');
+  check('anyone can still wipe what was kept (a downgrade does not trap the lines)', db.prepare(`SELECT COUNT(*) AS n FROM agent_events WHERE user_id = 'free'`).get().n === 0);
 }
 
 console.log('\nkeeping it small');
@@ -125,6 +148,10 @@ console.log('\nthe REST wrapper');
   integ.rememberAuth(req, { userId: 'u1', keyId: 'k1', integration: 'make' });
   await call(log.agentLogged('posts.create', handler(201, { ok: true, posts: [1] }, { 'Idempotent-Replayed': 'true' })), req);
   check('a replayed request (same Idempotency-Key) is not a second event', rows().length === before);
+
+  req = new Request('https://x.dev/api/v1/channels'); integ.rememberAuth(req, { userId: 'free', keyId: 'k2', integration: 'make' });
+  await call(log.agentLogged('channels.list', handler(200, { channels: [1] })), req);
+  check('a call made by a Free Trial account leaves no line', rows().length === before);
 
   db.exec('DROP TABLE agent_events');
   req = new Request('https://x.dev/api/v1/channels'); integ.rememberAuth(req, { userId: 'u1', keyId: 'k1', integration: 'make' });
