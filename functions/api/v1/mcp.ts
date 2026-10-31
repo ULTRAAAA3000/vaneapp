@@ -18,7 +18,7 @@ import { json, isRecord, methodNotAllowed } from '../lib/http';
 import { sha256Hex } from '../lib/session';
 import { onRequestGet as listChannels } from './channels/index';
 import { onRequestGet as listPosts, onRequestPost as createPost } from './posts/index';
-import { markMcpInternal, recordMcpCall } from '../lib/integrations';
+import { markMcpClient, markMcpInternal, recordMcpCall } from '../lib/integrations';
 import { ACCESS_PREFIX, CORS, grantForAccessToken, preflight, resourceMetadataUrl } from '../lib/oauth';
 
 const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
@@ -290,6 +290,7 @@ async function authenticate(env: Env, request: Request): Promise<Request | Respo
   headers.delete('authorization');
   const forced = new Request(request, { headers });
   forceKeyId(forced, g.keyId);
+  markMcpClient(forced, g.integration);   // a Notion agent is counted as Notion, anything else as Claude
   return forced;
 }
 

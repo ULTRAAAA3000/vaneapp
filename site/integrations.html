@@ -1,8 +1,8 @@
-<!--page {"slug":"integrations","title":"Integrations","desc":"Schedule posts from Claude, Make, Zapier, WordPress or plain HTTP. Every connector uses the same Vane API and the same keys."}-->
+<!--page {"slug":"integrations","title":"Integrations","desc":"Schedule posts from Claude, Notion, ChatGPT, Obsidian, Make, Zapier, WordPress or plain HTTP. Every connector uses the same Vane API and the same keys."}-->
       <section class="reveal">
         <p class="eyebrow">Integrations</p>
         <h1 class="mt-3 max-w-3xl">Post from wherever you already work.</h1>
-        <p class="lead mt-5">Ask an AI to schedule it, drop it into an automation, or publish from your CMS. Every connector below talks to the same <a href="/developers" class="link">Vane API</a>, so your plan, quota and channels are the same everywhere.</p>
+        <p class="lead mt-5">Ask Claude or a Notion agent to schedule it, post from a note in Obsidian, drop it into an automation, or publish from your CMS. Every connector below talks to the same <a href="/developers" class="link">Vane API</a>, so your plan, quota and channels are the same everywhere.</p>
         <div class="glass-d mt-7 inline-flex max-w-2xl items-start gap-3 rounded-2xl px-4 py-3 text-sm text-white/65">
           <span class="mt-0.5 text-amber-300">●</span>
           <span>API access opens with launch. <a href="/#join" class="link">Join the waitlist</a> to get early keys. Start with a <code class="i">cpost_test_…</code> key: everything works, nothing is posted or counted.</span>
@@ -18,6 +18,16 @@
           <div class="flex items-center justify-between"><h2 class="!text-xl">Claude</h2><span class="badge badge-live">Self-serve</span></div>
           <p class="copy mt-3">Tell Claude “post this to Telegram and Bluesky tomorrow at 9:00”. A connector built on the Model Context Protocol gives it two tools: list your channels and create a post.</p>
           <ol class="copy mt-4 list-decimal space-y-1 pl-5"><li>Create a key in the dashboard.</li><li>Add the Vane connector to Claude Desktop (or the remote endpoint <code class="i">/api/v1/mcp</code>).</li><li>Ask.</li></ol>
+        </article>
+        <article class="glass-d card">
+          <div class="flex items-center justify-between"><h2 class="!text-xl">Notion</h2><span class="badge badge-live">Self-serve</span></div>
+          <p class="copy mt-3">Keep your content calendar in Notion and let a Notion agent publish it. Say “schedule every row marked Ready” and the agent shows each post, waits for your yes, then schedules it through Vane. It uses the same Model Context Protocol connector as Claude.</p>
+          <ol class="copy mt-4 list-decimal space-y-1 pl-5"><li>In Notion, allow custom MCP servers (Settings → Connections).</li><li>Add <code class="i">https://vaneapp.dev/api/v1/mcp</code> as a custom connection of your agent and press Allow on Vane’s page.</li><li>Ask.</li></ol>
+        </article>
+        <article class="glass-d card">
+          <div class="flex items-center justify-between"><h2 class="!text-xl">Obsidian</h2><span class="badge badge-live">Self-serve</span></div>
+          <p class="copy mt-3"><b>Vane for Obsidian</b> posts the open note, or the text you selected, to your channels now or at a time you pick. Markdown is turned into clean post text first, and you can edit it before it goes. Works on desktop and mobile.</p>
+          <p class="copy mt-3"><a href="/downloads/vane-for-obsidian.zip" class="link" download>Download the plugin →</a> then unzip it into your vault’s <code class="i">.obsidian/plugins</code> folder and add your key.</p>
         </article>
         <article class="glass-d card">
           <div class="flex items-center justify-between"><h2 class="!text-xl">Zapier</h2><span class="badge badge-soon">Soon</span></div>

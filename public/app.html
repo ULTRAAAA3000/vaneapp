@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/assets/vane.css?v=f14c2a0095" />
-  <link rel="stylesheet" href="/assets/app.css?v=3429c0b533" />
+  <link rel="stylesheet" href="/assets/app.css?v=97f80743bc" />
 </head>
 
 <body class="min-h-screen overflow-x-hidden bg-[#070708]">
@@ -136,6 +136,8 @@
       <a href="#claude" data-tab="claude" class="dtab">Claude</a>
       <a href="#wordpress" data-tab="wordpress" class="dtab">WordPress</a>
       <a href="#automation" data-tab="automation" class="dtab">Make &amp; Zapier</a>
+      <a href="#notion" data-tab="notion" class="dtab">Notion</a>
+      <a href="#obsidian" data-tab="obsidian" class="dtab">Obsidian</a>
     </nav>
 
     <div data-view="create" class="mt-5">
@@ -347,6 +349,96 @@
         <li><b class="text-white/80">Write:</b> a post with the character limit of each network, an image from your Media Library, or one of your latest articles with its link.</li>
         <li><b class="text-white/80">Scheduled and history:</b> see the queue and cancel a post before it goes out; see what was sent, with a link to the live post and the reason if it failed.</li>
         <li><b class="text-white/80">Vane Cross-Post:</b> a panel in the editor sidebar. Pick channels and edit the text; it is sent once, when the article first goes live. Editing it later never posts again.</li>
+    <section id="viewNotion" data-view="notion" hidden class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" aria-labelledby="notionTitle">
+      <h2 id="notionTitle" class="text-lg font-semibold tracking-tight">Connect Notion</h2>
+      <p class="mt-1 text-xs text-white/45">Publish from your Notion content calendar: tell a Notion agent “schedule every row marked Ready” and it posts through Vane, after you approve. Notion adds Vane as a custom MCP connection; you add it once, by hand, in Notion’s settings.</p>
+
+      <div class="mt-5 rounded-2xl bg-white/[0.04] p-4 ring-1 ring-white/5">
+        <span class="lbl">MCP server address</span>
+        <div class="mt-1 flex flex-wrap items-center gap-2">
+          <code id="notionUrl" class="min-w-0 flex-1 break-all rounded-xl bg-black/30 px-3 py-2 text-sm">https://vaneapp.dev/api/v1/mcp</code>
+          <button type="button" class="btn btn-white btn-sm" data-copy="notionUrl">Copy</button>
+        </div>
+      </div>
+
+      <ol class="mt-6 space-y-4 text-sm leading-relaxed text-white/70">
+        <li><b class="text-white">1. Allow custom connections.</b> A Notion workspace admin opens Settings → Connections and turns on <b>Enable custom MCP servers</b>. Custom Agents are part of Notion’s Business and Enterprise plans; if you do not see the option, check your Notion plan or ask your workspace admin.</li>
+        <li><b class="text-white">2. Add Vane to an agent.</b> Open the Custom Agent, go to Settings → <b>Add connection</b> → <b>Custom MCP server</b>, name it <code>Vane</code>, paste the address above and press <b>Connect</b>. Notion shows a notice that it has not reviewed the server; that is shown for every custom server.</li>
+        <li><b class="text-white">3. Press Allow.</b> A Vane page opens. Sign in and press <b>Allow</b>. No key to copy: Vane makes a key called “Notion connector” for you. Your keys are in <a href="#api" class="underline underline-offset-2">API keys</a>.</li>
+        <li><b class="text-white">4. Give the agent its rules.</b> Paste the instructions below into the agent’s instructions, so it always shows you the post and waits for your yes.</li>
+        <li><b class="text-white">5. Try it.</b> Ask the agent: “Show my Vane channels”, then “Post ‘Hello’ to Telegram in 5 minutes”. A test key says <b>TEST MODE</b> and posts nothing.</li>
+      </ol>
+
+      <div class="mt-6 rounded-2xl border border-white/10 p-4">
+        <div class="flex items-center justify-between gap-2"><h3 class="text-sm font-semibold">Agent instructions</h3><button type="button" class="btn btn-white btn-sm" data-copy="notionRules" data-label="Instructions">Copy</button></div>
+        <pre id="notionRules" class="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-xl bg-black/30 px-3 py-2 text-xs leading-relaxed text-white/75">You are the Vane publisher for this workspace. You post to my social channels through the Vane connector.
+1. Before the first post of a conversation, call vane_list_channels and use only the channels it returns.
+2. When I point at a Notion page or a database row, post only the text I mean (the page body or its "Post text" property), never the whole page.
+3. Always show me the final text, the channels and the time, and wait for my yes before you call vane_create_post. Never post by yourself or on a schedule of your own.
+4. I write times in my local time. Send scheduled_at as an ISO 8601 time with its offset.
+5. After posting, tell me what was scheduled and for when. If I asked, set that row's Status to "Scheduled".
+6. If a tool answers with an error, show me its message and stop. Do not retry with changed text.</pre>
+      </div>
+
+      <h3 class="mt-7 text-sm font-semibold">A content calendar that publishes</h3>
+      <p class="mt-1 text-xs text-white/45">Make a Notion database with these properties, then let the agent read it:</p>
+      <div class="mt-3 overflow-x-auto rounded-2xl border border-white/10">
+        <table class="w-full min-w-[30rem] text-left text-sm">
+          <thead><tr class="text-[11px] uppercase tracking-wider text-white/40"><th class="px-4 py-2.5 font-medium">Property</th><th class="px-4 py-2.5 font-medium">Type</th><th class="px-4 py-2.5 font-medium">Used for</th></tr></thead>
+          <tbody class="divide-y divide-white/[0.06] text-white/70">
+            <tr><td class="px-4 py-2.5 font-medium text-white">Post text</td><td class="px-4 py-2.5">Text</td><td class="px-4 py-2.5">What goes out, word for word.</td></tr>
+            <tr><td class="px-4 py-2.5 font-medium text-white">Channels</td><td class="px-4 py-2.5">Multi-select</td><td class="px-4 py-2.5">Telegram, Bluesky, Mastodon… the agent matches them to your Vane channels.</td></tr>
+            <tr><td class="px-4 py-2.5 font-medium text-white">Publish at</td><td class="px-4 py-2.5">Date</td><td class="px-4 py-2.5">When to post, in your time.</td></tr>
+            <tr><td class="px-4 py-2.5 font-medium text-white">Status</td><td class="px-4 py-2.5">Status</td><td class="px-4 py-2.5">Draft → Ready → Scheduled. The agent only takes <b>Ready</b> rows and marks them Scheduled.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="mt-3 text-xs text-white/45">Then ask: “Schedule every row in Content calendar with Status Ready.” It shows each post and waits for your yes.</p>
+
+      <h3 class="mt-7 text-sm font-semibold">Good to know</h3>
+      <ul class="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-white/60">
+        <li>Posts made through Notion count against your plan like any API post. Live posting needs a plan with API access (the Suite includes it); a test key is always free.</li>
+        <li>The agent only sees your channel names and your posts, never your passwords or channel credentials.</li>
+        <li>To disconnect, revoke the key “Notion connector” under <a href="#api" class="underline underline-offset-2">API keys</a>, or remove the connection in Notion.</li>
+      </ul>
+    </section>
+
+    <section id="viewObsidian" data-view="obsidian" hidden class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" aria-labelledby="obsidianTitle">
+      <h2 id="obsidianTitle" class="text-lg font-semibold tracking-tight">Vane for Obsidian</h2>
+      <p class="mt-1 text-xs text-white/45">Post or schedule the open note, or just the selected text, to your channels without leaving Obsidian. Works on desktop and on the phone. Markdown is turned into plain post text, and you can edit it before sending.</p>
+
+      <div class="mt-5 rounded-2xl bg-white/[0.04] p-4 ring-1 ring-white/5">
+        <span class="lbl">Plugin</span>
+        <div class="mt-1 flex flex-wrap items-center gap-2">
+          <a href="/downloads/vane-for-obsidian.zip" download class="btn btn-white btn-sm">Download vane-for-obsidian.zip</a>
+          <span class="text-xs text-white/45">A folder called <code>vane</code> with three files.</span>
+        </div>
+      </div>
+
+      <ol class="mt-6 space-y-4 text-sm leading-relaxed text-white/70">
+        <li><b class="text-white">1. Make a key.</b> Under <a href="#api" class="underline underline-offset-2">API keys</a> create one and pick <b>Obsidian plugin</b> in “Used with”. A test key (cpost_test_…) checks everything and posts nothing, handy for a first try.</li>
+        <li><b class="text-white">2. Install the plugin.</b> Unzip it into <code>&lt;your vault&gt;/.obsidian/plugins/</code> so you get <code>.obsidian/plugins/vane/</code>. In Obsidian: Settings → Community plugins → turn off Restricted mode, press the refresh icon, enable <b>Vane</b>. On a phone, copy the folder there with your file app or your sync tool.</li>
+        <li><b class="text-white">3. Paste the key.</b> Settings → Vane → <b>Vane API key</b>, then press <b>Load channels</b>.</li>
+        <li><b class="text-white">4. Post.</b> Open a note, press Ctrl/Cmd+P and run <b>Post note to Vane</b> (or click the send icon in the left bar). Tick the channels, choose “As soon as possible” or a time, press Post.</li>
+      </ol>
+
+      <h3 class="mt-7 text-sm font-semibold">Commands</h3>
+      <div class="mt-3 overflow-x-auto rounded-2xl border border-white/10">
+        <table class="w-full min-w-[30rem] text-left text-sm">
+          <thead><tr class="text-[11px] uppercase tracking-wider text-white/40"><th class="px-4 py-2.5 font-medium">Command</th><th class="px-4 py-2.5 font-medium">What it does</th></tr></thead>
+          <tbody class="divide-y divide-white/[0.06] text-white/70">
+            <tr><td class="px-4 py-2.5 font-medium text-white">Post note to Vane</td><td class="px-4 py-2.5">Opens the post window with the whole note.</td></tr>
+            <tr><td class="px-4 py-2.5 font-medium text-white">Post selection to Vane</td><td class="px-4 py-2.5">The same, for the text you selected (only shows when something is selected).</td></tr>
+            <tr><td class="px-4 py-2.5 font-medium text-white">Reload Vane channels</td><td class="px-4 py-2.5">Reads your channels again after you connect a new one.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="mt-7 text-sm font-semibold">What happens to your note</h3>
+      <ul class="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-white/60">
+        <li>The properties block, comments (<code>%%…%%</code>), embeds and images are dropped. <code>**bold**</code>, headings and <code>[[wikilinks]]</code> lose their markers; web links are written out in full. #hashtags and line breaks stay.</li>
+        <li>You see the final text in the window and can change it. Both clean-up options can be switched off in the plugin settings.</li>
+        <li>The plugin does not attach images or video yet. For those use the editor on the Create tab.</li>
       </ul>
 
       <h3 class="mt-7 text-sm font-semibold">Good to know</h3>
@@ -889,6 +981,7 @@
             <option value="make">Make</option>
             <option value="zapier">Zapier</option>
             <option value="wordpress">WordPress plugin</option>
+            <option value="obsidian">Obsidian plugin</option>
             <option value="api">My own script or another tool</option>
           </select>
         </div>
@@ -932,10 +1025,9 @@
   <script src="/assets/vane.js?v=a2c867edc4"></script>
   <script src="/assets/media-picker.js?v=86dfab3b84"></script>
   <script src="/assets/insights.js?v=c81d5838ef"></script>
-  <script src="/assets/dashboard.js?v=b884f2c48a"></script>
+  <script src="/assets/dashboard.js?v=aea9d8cb99"></script>
   <script src="/assets/ai.js?v=33d5e51dfa"></script>
-  <script src="/assets/library.js?v=e5e99128ac"></script>
-  <script src="/assets/library-picker.js?v=75266cc3f5"></script>
+  <script src="/assets/library.js?v=fa5f8eea75"></script>
   <script src="/assets/snippets.js?v=2833a28950"></script>
   <script src="/assets/drafts.js?v=9ce82a983a"></script>
   <script src="/assets/aistudio.js?v=e134a0e708"></script>

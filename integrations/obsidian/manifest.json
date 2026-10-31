@@ -1,0 +1,10 @@
+{
+  "id": "vane",
+  "name": "Vane",
+  "version": "1.0.0",
+  "minAppVersion": "1.4.0",
+  "description": "Post or schedule the open note, or the selected text, to your Telegram, X, LinkedIn, Bluesky, Threads and Mastodon channels through Vane.",
+  "author": "Vane",
+  "authorUrl": "https://vaneapp.dev",
+  "isDesktopOnly": false
+}
