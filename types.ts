@@ -30,7 +30,6 @@ export interface Env {
   JWT_SECRET?: string;          // signs/verifies API bearer tokens (>= 32 chars)
   STRIPE_SECRET_KEY?: string;
   MONOBANK_TOKEN?: string;          // Monobank Acquiring merchant token (secret): card / Apple Pay / Google Pay checkout is off without it
-  MONOBANK_CCY?: string;            // optional: ISO 4217 number the invoices are made in (default 840 = USD; 980 = UAH, 978 = EUR)
   CRYPTO_WALLET?: string;           // plain var: the Solana address that receives USDT / USDC (crypto checkout is off without it)
   SOLANA_RPC_URL?: string;          // optional: a Solana RPC address (Helius, QuickNode); the public one is used when empty
   SYSTEM_BOT_TOKEN?: string;        // token of the shared Vane bot used by Quick Connect
@@ -326,7 +325,6 @@ export interface CronEnv {
   LINKEDIN_CLIENT_SECRET?: string;
   LINKEDIN_VERSION?: string;       // the same optional value as on Pages
   MONOBANK_TOKEN?: string;         // the same secret as on Pages: lets the cron ask Monobank about card orders whose webhook never came
-  MONOBANK_CCY?: string;
   RESEND_API_KEY?: string;         // the same secret as on Pages: lets the cron send the weekly Analytics report
   EMAIL_FROM?: string;             // the same variable as on Pages
   JWT_SECRET?: string;             // the same secret as on Pages: signs the unsubscribe link in that email

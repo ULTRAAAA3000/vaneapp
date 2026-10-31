@@ -23,7 +23,7 @@ export const modelsFor = (env: Env, text: string): string[] => {
 };
 export const modelOf = (env: Env): string => (typeof env.AI_MODEL === 'string' && /^@cf\/[\w.\/-]+$/.test(env.AI_MODEL.trim()) ? env.AI_MODEL.trim() : AI_MODEL);
 export const FREE_TOOLS = ['clean', 'hashtags'] as const;
-export const PREMIUM_TOOLS = ['tone', 'hook', 'cta', 'reformat', 'generate', 'plan', 'winners', 'repurpose'] as const;
+export const PREMIUM_TOOLS = ['tone', 'hook', 'cta', 'reformat', 'generate', 'plan', 'winners', 'repurpose', 'review', 'translate', 'ideas'] as const;
 export type AiTool = (typeof FREE_TOOLS)[number] | (typeof PREMIUM_TOOLS)[number];
 export const isPremiumTool = (t: string): boolean => (PREMIUM_TOOLS as readonly string[]).includes(t);
 export const isAiTool = (t: unknown): t is AiTool => typeof t === 'string' && ((FREE_TOOLS as readonly string[]).includes(t) || isPremiumTool(t));
@@ -129,7 +129,7 @@ export function cleanAnswer(raw: string): string {
 }
 
 const URL_RE = /https?:\/\/[^\s<>"')]+/g;
-const urlsOf = (s: string): string[] => (s.match(URL_RE) ?? []).map((u) => u.replace(/[.,;:!?]+$/, ''));
+export const urlsOf = (s: string): string[] => (s.match(URL_RE) ?? []).map((u) => u.replace(/[.,;:!?]+$/, ''));
 const missingUrls = (before: string, after: string): boolean => urlsOf(before).some((u) => !after.includes(u));
 
 export const COMMON = [
@@ -143,7 +143,7 @@ export const COMMON = [
 export const wrap = (text: string): string => `<text>\n${text}\n</text>`;
 
 /** Runs a prompt and, if the answer is too long for the network, asks once for a shorter one, then trims. */
-async function askFitting(env: Env, system: string, userText: string, platform: ChannelType, limit: number, original: string | null): Promise<string> {
+export async function askFitting(env: Env, system: string, userText: string, platform: ChannelType, limit: number, original: string | null): Promise<string> {
   let out = cleanAnswer(await ask(env, system, userText));
   if (measure(platform, out) > limit) {
     out = cleanAnswer(await ask(env, system, `${userText}\n\nYour previous answer was ${measure(platform, out)} characters. Rewrite it to at most ${Math.floor(limit * 0.9)} characters.`));
@@ -262,4 +262,4 @@ export async function toolPlan(env: Env, topic: string, networks: ChannelType[],
   return items.sort((a, b) => a.day - b.day);
 }
 
-export const inputLimit = (tool: AiTool): number => (tool === 'generate' || tool === 'plan' || tool === 'winners' ? MAX_IDEA : MAX_INPUT);
+export const inputLimit = (tool: AiTool): number => (tool === 'generate' || tool === 'plan' || tool === 'winners' || tool === 'ideas' ? MAX_IDEA : MAX_INPUT);

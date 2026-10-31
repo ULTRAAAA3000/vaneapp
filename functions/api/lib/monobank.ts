@@ -9,25 +9,23 @@ import { callJson } from './httpcall';
 const API = 'https://api.monobank.ua/api/merchant';
 
 export const monobankEnabled = (env: Pick<Env, 'MONOBANK_TOKEN'>): boolean => (env.MONOBANK_TOKEN ?? '').trim().length > 8;
-export const monobankCcy = (env: Pick<Env, 'MONOBANK_CCY'>): number => {
-  const n = Number((env.MONOBANK_CCY ?? '').trim());
-  return n === 980 || n === 978 || n === 840 ? n : 840;
-};
+const CCY: Record<string, number> = { UAH: 980, USD: 840, EUR: 978 };
+export const monobankCcy = (currency: string): number | null => CCY[currency.toUpperCase()] ?? null;
 
 const headers = (env: Pick<Env, 'MONOBANK_TOKEN'>): Record<string, string> => ({ 'X-Token': (env.MONOBANK_TOKEN ?? '').trim() });
 
 export interface MonoInvoice { invoiceId: string; pageUrl: string }
 
 export async function createInvoice(
-  env: Pick<Env, 'MONOBANK_TOKEN' | 'MONOBANK_CCY'>,
-  o: { orderId: string; amountCents: number; title: string; email: string; planId: string; redirectUrl: string; webHookUrl: string; validitySeconds: number },
+  env: Pick<Env, 'MONOBANK_TOKEN'>,
+  o: { orderId: string; amountCents: number; ccy: number; title: string; email: string; planId: string; redirectUrl: string; webHookUrl: string; validitySeconds: number },
 ): Promise<{ ok: true; invoice: MonoInvoice } | { ok: false; error: string }> {
   const res = await callJson<{ invoiceId?: string; pageUrl?: string; errText?: string; errCode?: string }>(`${API}/invoice/create`, {
     method: 'POST',
     headers: headers(env),
     json: {
       amount: o.amountCents,
-      ccy: monobankCcy(env),
+      ccy: o.ccy,
       redirectUrl: o.redirectUrl,
       webHookUrl: o.webHookUrl,
       validity: o.validitySeconds,

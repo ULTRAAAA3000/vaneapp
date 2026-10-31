@@ -89,8 +89,8 @@
   };
   NET.pinterest = {
     name: 'Pinterest', ready: false, blurb: 'Pins to one of your boards', setup: 'Name the board, then sign in with Pinterest and allow Vane to pin.',
-    tile: 'bg-red-500/15 text-red-300', limit: 900, bg: '#111111', hint: 'A pin needs a picture. The first line is the pin title (up to 100 characters), the rest is the description. The first https link becomes the pin\'s destination.',
-    icon: { fill: true, d: 'M12.017 0C5.396 0 .029 5.367.029 11.987c0 5.079 3.158 9.417 7.618 11.162-.105-.949-.199-2.403.041-3.439.219-.937 1.406-5.957 1.406-5.957s-.359-.72-.359-1.781c0-1.663.967-2.911 2.168-2.911 1.024 0 1.518.769 1.518 1.688 0 1.029-.653 2.567-.992 3.992-.285 1.193.6 2.165 1.775 2.165 2.128 0 3.768-2.245 3.768-5.487 0-2.861-2.063-4.869-5.008-4.869-3.41 0-5.409 2.562-5.409 5.199 0 1.033.394 2.143.889 2.741.099.12.112.225.085.345-.09.375-.293 1.199-.334 1.363-.053.225-.172.271-.401.165-1.495-.69-2.433-2.878-2.433-4.646 0-3.776 2.748-7.252 7.92-7.252 4.158 0 7.392 2.967 7.392 6.923 0 4.135-2.607 7.462-6.233 7.462-1.214 0-2.354-.629-2.758-1.379l-.749 2.848c-.271 1.043-1.002 2.35-1.492 3.146C9.57 23.812 10.763 24 12.017 24c6.624 0 11.99-5.367 11.99-11.988C24.007 5.367 18.641 0 12.017 0z' }
+    tile: 'bg-rose-500/15 text-rose-300', limit: 900, bg: '#111111', hint: 'A pin needs a picture. The first line is the pin title (up to 100 characters), the rest is the description. The first https link becomes the pin\'s destination.',
+    icon: { d: 'M12 3a9 9 0 0 0-3.3 17.4c-.1-.8-.2-2 0-2.9l1.1-4.6s-.3-.6-.3-1.4c0-1.3.8-2.3 1.7-2.3.8 0 1.2.6 1.2 1.3 0 .8-.5 2-.8 3.1-.2.9.5 1.7 1.4 1.7 1.7 0 3-1.8 3-4.4 0-2.3-1.6-3.9-4-3.9a4.1 4.1 0 0 0-4.3 4.1c0 .8.3 1.7.7 2.2M10 14l-1.300 5.300' }
   };
   var NET_ORDER = ['telegram', 'linkedin', 'threads', 'facebook', 'reddit', 'pinterest', 'bluesky', 'mastodon', 'discord', 'devto'];
   // channels of a network this dashboard has no entry for (for example "x" or "webhook") get the generic link icon
@@ -283,6 +283,7 @@
       netIcon: netIcon,
       onTag: function (t) { tags.insert(t); }
     });
+    Vane.renderLiveCard($('liveCard'), S.history, { limit: 200 });
     var pill = $('streakPill');
     pill.textContent = '🔥 ' + ins.streak + ' days in a row';
     pill.classList.toggle('hidden', ins.streak < 2);
@@ -874,6 +875,16 @@
       picker.set(d.media || null);
       renderChips(); renderPreview(); validate(); saveDraft();
     },
+    channels: function () {
+      return S.channels.filter(function (c) { return c.isActive !== false; }).map(function (c) { return { id: c.id, platform: c.platform, name: c.name, selected: S.selected.has(c.id) }; });
+    },
+    select: function (ids) {
+      var own = {};
+      S.channels.forEach(function (c) { own[c.id] = 1; });
+      S.selected = new Set((ids || []).filter(function (id) { return own[id]; }));
+      S.selectionTouched = true;
+      renderChips(); renderPreview(); validate();
+    },
     networks: function () {
       var seen = {};
       return S.channels.filter(function (c) { return S.selected.has(c.id); }).map(function (c) { return c.platform; }).filter(function (p) { return !seen[p] && (seen[p] = 1); });
@@ -1111,13 +1122,14 @@
   function viewPinterest(c) {
     var lines = c.text.split('\n'), title = (lines[0] || '').replace(/^#+\s*/, '').trim();
     var body = lines.slice(1).join('\n').trim();
-    return '<div class="p-3.5"><div class="mx-auto max-w-[240px] overflow-hidden rounded-2xl bg-[#1c1c1c] ring-1 ring-white/10">' +
-      (c.m ? pvMedia(c.m, 'max-h-72 w-full object-cover') : '<div class="flex h-40 items-center justify-center bg-white/[0.04] px-3 text-center text-[12px] text-amber-200">A pin needs a picture</div>') +
+    return '<div class="p-3.5"><div class="mx-auto max-w-[17rem] overflow-hidden rounded-2xl bg-[#1c1c1c] ring-1 ring-white/10">' +
+      pvMedia(c.m, 'max-h-72 w-full') +
       '<div class="p-3"><div class="break-words text-[14px] font-semibold leading-snug">' + (title ? esc(title) : EMPTY) + '</div>' +
-      (body ? '<div class="mt-1 line-clamp-3 break-words text-[12px] leading-snug text-white/60">' + Vane.rich(body) + '</div>' : '') +
-      '<div class="mt-2 text-[11px] text-white/40">' + pvAvatar(16, c.name) + ' ' + esc(c.name) + '</div></div></div></div>';
+        (body ? '<div class="mt-1 line-clamp-4 break-words text-[12px] leading-snug text-white/60">' + Vane.rich(body) + '</div>' : '') +
+        '<div class="mt-2.5 flex items-center gap-2 text-[11px] text-white/50">' + pvAvatar(20, c.name) + '<span>' + esc(c.name) + '</span></div>' +
+      '</div></div></div>';
   }
-  var PV_VIEW = { pinterest: viewPinterest, reddit: viewReddit, facebook: viewFacebook, telegram: viewTelegram, linkedin: viewLinkedin, threads: viewThreads, bluesky: viewBluesky, mastodon: viewMastodon, discord: viewDiscord, devto: viewDevto };
+  var PV_VIEW = { reddit: viewReddit, pinterest: viewPinterest, facebook: viewFacebook, telegram: viewTelegram, linkedin: viewLinkedin, threads: viewThreads, bluesky: viewBluesky, mastodon: viewMastodon, discord: viewDiscord, devto: viewDevto };
 
   // tabs are built once, then only their pressed state changes (keeps keyboard focus)
   function syncPvTabs() {
@@ -1395,7 +1407,7 @@
       html += '<p class="mt-4 border-t border-white/10 pt-4 text-xs leading-relaxed text-white/45">' + esc(line) + '</p>';
     }
     box.innerHTML = html;
-    // Vane Suite = posting + video in one plan. Offered to everyone who is not on it yet, once it is switched on.
+    // Vane Suite = posting + video + analytics + AI Pass (+ 75 API posts a month) in one plan. Offered to everyone who is not on it yet, once it is switched on.
     if (u.plan.id !== 'suite') {
       Vane.api('GET', '/api/billing/plan?id=suite').then(function (r) {
         if (!r.ok || !r.data.plan || !r.data.plan.buyable || !box.isConnected || box.querySelector('[data-suite]')) return;
@@ -1403,7 +1415,7 @@
         a.setAttribute('data-suite', '1');
         a.className = 'btn btn-white mt-4 inline-flex';
         a.href = '/checkout?plan=suite';
-        a.textContent = 'Get Vane Suite: posting + video';
+        a.textContent = 'Get Vane Suite: posting, video, analytics and AI';
         box.appendChild(a);
       }).catch(function () { /* the offer is optional */ });
     }
@@ -1495,7 +1507,7 @@
       '<div><span class="mb-2 block text-[0.7rem] font-medium uppercase tracking-widest text-white/40">OpenAPI spec</span>' +
         '<div class="flex items-center gap-2.5"><code class="field min-w-0 flex-1 truncate font-mono !text-[13px]">' + esc(base + '/openapi.json') + '</code>' +
         '<button type="button" data-copy="' + esc(base + '/openapi.json') + '" data-label="Spec URL" class="btn btn-ghost btn-sm shrink-0">Copy</button></div>' +
-        '<p class="mt-2 text-xs leading-relaxed text-white/45">Paste it into a Custom GPT (Actions → Import from URL), Postman or any tool that reads OpenAPI.</p></div>' +
+        '<p class="mt-2 text-xs leading-relaxed text-white/45">Paste it into Postman or any tool that reads OpenAPI. Custom GPT: soon.</p></div>' +
       '<div><span class="mb-2 block text-[0.7rem] font-medium uppercase tracking-widest text-white/40">Channel IDs <span class="normal-case tracking-normal text-white/30">(use them as channelIds)</span></span><div class="space-y-2">' + chans + '</div></div>' +
       '<div><div class="flex items-center justify-between"><span class="block text-[0.7rem] font-medium uppercase tracking-widest text-white/40">Example request</span>' +
         '<button type="button" data-copy-snippet class="text-xs text-white/45 transition-colors hover:text-white">Copy</button></div>' +

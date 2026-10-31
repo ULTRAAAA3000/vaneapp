@@ -30,8 +30,8 @@ export interface NetworkInfo {
 }
 
 /** Vane Studio networks are detected from the code itself: implemented as soon as a real publisher is registered (videopublishers.ts). */
-const studio = (id: VideoPlatform | 'pinterest', name: string, what: string): NetworkInfo => {
-  const done = id !== 'pinterest' && hasRealPublisher(id);
+const studio = (id: VideoPlatform, name: string, what: string): NetworkInfo => {
+  const done = hasRealPublisher(id);
   return { id, name, product: 'studio', implemented: done, code: done ? what : 'Connect and upload flow not written yet' };
 };
 
@@ -51,7 +51,6 @@ export const NETWORKS: readonly NetworkInfo[] = [
   studio('youtube', 'YouTube', 'Connect (Google OAuth, upload scope only) and upload (resumable, cover, made-for-kids, category)'),
   studio('tiktok', 'TikTok', ''),
   studio('instagram', 'Instagram Reels', 'Connect (Instagram Login, Business/Creator) and publish Reels from a temporary public link'),
-  studio('pinterest', 'Pinterest', ''),
 ];
 
 export const networkInfo = (id: string): NetworkInfo | undefined => NETWORKS.find((n) => n.id === id);

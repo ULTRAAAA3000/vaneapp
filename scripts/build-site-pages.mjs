@@ -74,7 +74,7 @@ function layout({ slug, title, desc, body, crumbs = [], faq = [], ogTitle }) {
   <meta property="og:image" content="${OG_IMAGE}" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="Vane: schedule once, post everywhere" />
+  <meta property="og:image:alt" content="Vane: publish everywhere, schedule anything" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="${esc(title)} — Vane" />
   <meta name="twitter:description" content="${esc(desc)}" />
@@ -263,7 +263,7 @@ function injectSeo(file, { path, title, desc, canonical, extra = [] }) {
   <meta property="og:image" content="${OG_IMAGE}" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="Vane: schedule once, post everywhere" />
+  <meta property="og:image:alt" content="Vane: publish everywhere, schedule anything" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="${esc(title)}" />
   <meta name="twitter:description" content="${esc(desc)}" />
