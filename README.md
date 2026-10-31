@@ -363,6 +363,11 @@ Both connect by pasting one secret, no app review: a **Discord webhook URL** (Se
 
 Medium (closed to new integrations) and Reddit (API access needs manual approval) are intentionally not open.
 
+## Feedback & Roadmap board
+
+- **In the dashboard** (`public/assets/feedback.js`): a round black button with a chat icon and a small red "!" in the bottom-left corner, no words on it (the accessible label and the hover tooltip say "Feedback / Vote for Features"). It opens a dialog where people vote for the networks and features they want and suggest their own (`GET/POST /api/feedback`; one vote per person per idea, a few new ideas per day, no links).
+- **In /admin → Feedback** (`VIEWS.feedback` in `public/assets/admin.js`, `GET/POST/PUT/DELETE /api/admin/feedback`): the results on top (all votes and votes in the last 7 days, how many people voted, ideas waiting for an answer, new ideas and open bugs, the most voted ideas as bars, votes by type), then your own idea form and the full list. Filters: All / Needs an answer / Bugs / Networks / Features / Hidden. For each idea you can set the status (Open, Planned, Building now, Shipped, Declined), hide it from the board or delete it. Tables: `feedback_items`, `feedback_votes` (`npm run db:migrate:feedback`). Rules and tests: `functions/api/lib/feedback.ts`, `scripts/feedback-unit.mjs`.
+
 ## Status badge: "All Systems Operational • Edge Latency: 18 ms"
 
 A small pill with a pulsing dot at the bottom of both dashboards (it refreshes every 60 s while the tab is visible) and in the footer of the public pages (one check per visit). Both parts are measured, nothing is decoration:
