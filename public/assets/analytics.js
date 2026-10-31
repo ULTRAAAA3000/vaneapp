@@ -5,7 +5,7 @@
   var fmt = function (n) { return n === null || n === undefined ? '–' : n >= 10000 ? (n / 1000).toFixed(n >= 100000 ? 0 : 1).replace(/\.0$/, '') + 'k' : String(n); };
   var NS = 'http://www.w3.org/2000/svg';
   var COLORS = ['#7dd3fc', '#86efac', '#fcd34d', '#f9a8d4', '#c4b5fd', '#fdba74'];
-  var LABEL = { bluesky: 'Bluesky', mastodon: 'Mastodon', telegram: 'Telegram', devto: 'Dev.to', x: 'X', linkedin: 'LinkedIn', threads: 'Threads', discord: 'Discord', reddit: 'Reddit', facebook: 'Facebook', webhook: 'Webhook' };
+  var LABEL = { bluesky: 'Bluesky', mastodon: 'Mastodon', telegram: 'Telegram', devto: 'Dev.to', x: 'X', linkedin: 'LinkedIn', threads: 'Threads', discord: 'Discord', reddit: 'Reddit', pinterest: 'Pinterest', facebook: 'Facebook', webhook: 'Webhook' };
   var TABS = [['overview', 'Overview'], ['posts', 'Posts'], ['followers', 'Followers'], ['compare', 'Compare', true], ['times', 'Best times', true], ['bot', 'Telegram bot'], ['plans', 'Free and Pro']];
   var SORTS = [['new', 'Newest first'], ['old', 'Oldest first'], ['reactions', 'Most reactions'], ['likes', 'Most likes'], ['replies', 'Most replies'], ['reposts', 'Most reposts'], ['views', 'Most views']];
   var DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];

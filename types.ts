@@ -70,6 +70,8 @@ export interface Env {
   REDDIT_CLIENT_SECRET?: string;    // secret
   FACEBOOK_APP_ID?: string;         // plain var
   FACEBOOK_APP_SECRET?: string;     // secret
+  PINTEREST_APP_ID?: string;        // plain var
+  PINTEREST_APP_SECRET?: string;    // secret
   /** Vane Studio → Instagram Reels (Meta app with Instagram API / Instagram Login): the connect button is off until both are set */
   INSTAGRAM_APP_ID?: string;        // plain var
   INSTAGRAM_APP_SECRET?: string;    // secret
@@ -86,7 +88,7 @@ export interface Env {
 
 // ───────────────────────── Enums ─────────────────────────
 export type Plan = 'free' | 'pro';
-export type ChannelType = 'telegram' | 'x' | 'linkedin' | 'webhook' | 'bluesky' | 'mastodon' | 'threads' | 'discord' | 'devto' | 'reddit' | 'facebook';
+export type ChannelType = 'telegram' | 'x' | 'linkedin' | 'webhook' | 'bluesky' | 'mastodon' | 'threads' | 'discord' | 'devto' | 'reddit' | 'facebook' | 'pinterest';
 export type PostStatus =
   | 'draft'
   | 'scheduled'
@@ -171,6 +173,7 @@ export type ChannelCredentials =
   | { type: 'devto'; apiKey: string; userId: number; username: string }
   | { type: 'reddit'; username: string; subreddit: string; accessToken: string; refreshToken: string; expiresAt: number }
   | { type: 'facebook'; pageId: string; pageName: string; accessToken: string }
+  | { type: 'pinterest'; username: string; boardId: string; boardName: string; accessToken: string; refreshToken: string; expiresAt: number }
   | { type: 'webhook'; url: string; secret?: string };
 
 // ───────────────────────── API contracts ─────────────────────────
@@ -262,6 +265,7 @@ export interface UserFeatures {
   threads: boolean;
   reddit: boolean;
   facebook: boolean;
+  pinterest: boolean;
 }
 export type MeResponse = { ok: true; user: UserPublic; features: UserFeatures } | ApiError;
 
@@ -328,6 +332,8 @@ export interface CronEnv {
   SOLANA_RPC_URL?: string;        // the same optional value as on Pages
   REDDIT_CLIENT_ID?: string;      // the same as on Pages: renews the Reddit access (an hour) before each post
   REDDIT_CLIENT_SECRET?: string;  // the same secret as on Pages
+  PINTEREST_APP_ID?: string;      // the same as on Pages: renews the Pinterest access before a pin
+  PINTEREST_APP_SECRET?: string;  // the same secret as on Pages
   YOUTUBE_CLIENT_ID?: string;     // the same as on Pages: renews the YouTube access before each upload
   YOUTUBE_CLIENT_SECRET?: string; // the same secret as on Pages
   TIKTOK_CLIENT_KEY?: string;     // the same as on Pages: renews the TikTok access (a day) before each post
