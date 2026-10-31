@@ -19,6 +19,7 @@
  */
 import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env, UsageSummary } from '../../../../types';
+import { agentLogged } from '../../lib/agentlog';
 import { requireApiKey, type ApiKeyContext } from '../../lib/apikeys';
 import { fail, failCode, json, methodNotAllowed, readJson } from '../../lib/http';
 import { idemBegin, idemCompleteStatement, idemRelease, type IdemClaim } from '../../lib/idempotency';
@@ -27,11 +28,11 @@ import { insertPostGroup, validateCreatePost } from '../../posts/create';
 import { listPostsForUser } from '../../posts/list';
 import { quotaHeaders, releaseApiPost, reserveApiPost, usageLogStatement, usageSummary } from '../../lib/usage';
 
-export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
+export const onRequestGet: PagesFunction<Env> = agentLogged('posts.list', async ({ request, env }) => {
   const auth = await requireApiKey(request, env, 'post');
   if (!auth.ok) return auth.response;
   return listPostsForUser(env, auth.userId, new URL(request.url).searchParams.get('view') ?? 'upcoming');
-};
+});
 
 /** The 201 answer. For a live key the quota snapshot is taken after the units were reserved, so it is already final. */
 const created = (groupId: string, scheduledAt: number, posts: { id: string; channelId: string; status: 'scheduled' }[], overage: boolean, usage: UsageSummary) => ({
@@ -93,7 +94,7 @@ async function createPost(env: Env, auth: ApiKeyContext, data: unknown, claim: I
   return json(created(saved.groupId, v.scheduledAt, saved.posts, reservation.overage, usage), 201, quotaHeaders(usage));
 }
 
-export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
+export const onRequestPost: PagesFunction<Env> = agentLogged('posts.create', async ({ request, env }) => {
   const auth = await requireApiKey(request, env, 'post');
   if (!auth.ok) return auth.response;
 
@@ -124,6 +125,6 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   // Only a success is remembered (it was stored together with the post). Anything else frees the key for the retry.
   if (claim && res.status !== 201) await idemRelease(env, claim);
   return res;
-};
+});
 
 export const onRequest: PagesFunction<Env> = async () => methodNotAllowed('GET, POST');

@@ -12,8 +12,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/vane.css?v=f14c2a0095" />
-  <link rel="stylesheet" href="/assets/app.css?v=da1b3bf6f9" />
+  <link rel="stylesheet" href="/assets/vane.css?v=aa1317ecc8" />
+  <link rel="stylesheet" href="/assets/app.css?v=8c32755594" />
 </head>
 
 <body class="min-h-screen overflow-x-hidden bg-[#070708]">
@@ -131,6 +131,7 @@
       <a href="#claude" data-tab="claude" class="dtab">Claude</a>
       <a href="#notion" data-tab="notion" class="dtab">Notion</a>
       <a href="#obsidian" data-tab="obsidian" class="dtab">Obsidian</a>
+      <a href="#agents" data-tab="agents" class="dtab">Agents</a>
     </nav>
 
     <div data-view="create" class="mt-5">
@@ -415,6 +416,36 @@
         <li>The key is kept in the plugin’s data file inside your vault. If you sync or share the vault, keep <code>.obsidian/plugins/vane/data.json</code> out of it, or use a key you can revoke.</li>
         <li>To disconnect, revoke the key under <a href="#api" class="underline underline-offset-2">API keys</a> and disable the plugin.</li>
       </ul>
+    </section>
+
+    <section id="viewAgents" data-view="agents" hidden class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" aria-labelledby="agentsTitle">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0">
+          <h2 id="agentsTitle" class="text-lg font-semibold tracking-tight">Agent log</h2>
+          <p class="mt-1 max-w-xl text-xs text-white/45">What your AI assistants and integrations do with your Vane account, live: Claude and Notion tool calls, Make, Zapier, WordPress, Obsidian and your own scripts. Only counts, times and codes are shown, never the text of your posts.</p>
+        </div>
+        <div class="flex shrink-0 items-center gap-2 text-xs text-white/60"><span id="agentDot" class="live-dot is-off" aria-hidden="true"></span><span id="agentStatus" aria-live="polite">Connecting…</span></div>
+      </div>
+
+      <div id="agentChips" class="mt-4 flex flex-wrap gap-1.5" role="group" aria-label="Show only one integration">
+        <button type="button" class="chip-int" data-int="" aria-pressed="true">All</button><button type="button" class="chip-int" data-int="claude" aria-pressed="false">Claude</button><button type="button" class="chip-int" data-int="notion" aria-pressed="false">Notion</button><button type="button" class="chip-int" data-int="obsidian" aria-pressed="false">Obsidian</button><button type="button" class="chip-int" data-int="make" aria-pressed="false">Make</button><button type="button" class="chip-int" data-int="zapier" aria-pressed="false">Zapier</button><button type="button" class="chip-int" data-int="wordpress" aria-pressed="false">WordPress</button><button type="button" class="chip-int" data-int="chatgpt" aria-pressed="false">ChatGPT</button><button type="button" class="chip-int" data-int="api" aria-pressed="false">API</button>
+      </div>
+
+      <div class="term mt-4">
+        <div class="term-bar"><span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span><span class="ml-2 truncate">vane ~ agents</span></div>
+        <div id="agentTerm" class="term-body" role="log" aria-label="Agent activity, newest at the bottom" tabindex="0"></div>
+        <button id="agentJump" type="button" hidden class="btn btn-white btn-sm absolute bottom-3 right-3 z-10">↓ New lines</button>
+      </div>
+
+      <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <div class="flex flex-wrap items-center gap-2">
+          <button id="agentPause" type="button" class="btn btn-ghost btn-sm" aria-pressed="false">Pause</button>
+          <button id="agentDemo" type="button" class="btn btn-ghost btn-sm" hidden>Show a demo</button>
+          <span id="agentDemoNote" hidden class="text-xs text-violet-300">Demo lines, made up on your screen. <button id="agentDemoExit" type="button" class="underline underline-offset-2">Back to the real log</button></span>
+        </div>
+        <button id="agentClear" type="button" class="btn btn-ghost btn-sm">Clear log</button>
+      </div>
+      <p class="mt-3 text-xs leading-relaxed text-white/40">The newest 300 lines are kept for 30 days. Connect <a href="#claude" class="underline underline-offset-2">Claude</a>, <a href="#notion" class="underline underline-offset-2">Notion</a> or <a href="#obsidian" class="underline underline-offset-2">Obsidian</a>, then ask your assistant to list your channels and watch this window.</p>
     </section>
 
     <section id="aiStudio" data-view="ai" hidden class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" aria-labelledby="aiTitle"></section>
@@ -906,11 +937,12 @@
   <script src="/assets/insights.js?v=be1faaaac6"></script>
   <script src="/assets/dashboard.js?v=af623bc4e3"></script>
   <script src="/assets/ai.js?v=33d5e51dfa"></script>
-  <script src="/assets/library.js?v=4926ae79f5"></script>
+  <script src="/assets/library.js?v=18894accfa"></script>
   <script src="/assets/snippets.js?v=2833a28950"></script>
   <script src="/assets/drafts.js?v=9ce82a983a"></script>
   <script src="/assets/aistudio.js?v=7de8bcf433"></script>
   <script src="/assets/aihistory.js?v=819e5b45de"></script>
+  <script src="/assets/agentlog.js?v=bc41af9992"></script>
   <script src="/assets/composer-tools.js?v=0c636c4c2b"></script>
   <script src="/assets/track.js?v=a3d04e70d1" data-path="/app" defer></script>
 </body>

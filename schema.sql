@@ -1026,3 +1026,19 @@ CREATE TABLE IF NOT EXISTS ai_voice (
   enabled     INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
   updated_at  INTEGER NOT NULL DEFAULT (unixepoch())
 );
+
+-- ───────────────────────── Agent log (the "Agents" tab: what an AI assistant or an integration did with your account) ─────────────────────────
+-- One short line per thing an integration did (Claude / Notion tool call, a Make or Zapier request, the Obsidian or WordPress plugin…),
+-- written by functions/api/lib/agentlog.ts. Metadata only: counts, times, platform names and error codes. Never the text of a post,
+-- never a key. The newest 300 lines per person are kept (and nothing older than 30 days); the person can wipe them from the tab.
+CREATE TABLE IF NOT EXISTS agent_events (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,                           -- also the cursor the tab polls with
+  user_id      TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  integration  TEXT    NOT NULL,                                            -- claude | notion | obsidian | make | zapier | chatgpt | wordpress | api
+  via          TEXT    NOT NULL CHECK (via IN ('mcp', 'api')),
+  tool         TEXT,                                                        -- the MCP tool, e.g. vane_list_channels
+  ok           INTEGER NOT NULL CHECK (ok IN (0, 1)),
+  message      TEXT    NOT NULL,                                            -- one line, no post text
+  created_at   INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_agent_events_user ON agent_events(user_id, id);
