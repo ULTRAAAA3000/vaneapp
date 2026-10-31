@@ -27,6 +27,7 @@
     "check:integrations": "node scripts/check-integrations.mjs",
     "test:unit": "node scripts/run-tests.mjs",
     "build:pages": "node scripts/build-site-pages.mjs && node scripts/stamp-assets.mjs",
+    "db:migrate:agents": "wrangler d1 execute vane-db --remote --file=./scripts/migrations/008-agent-log.sql",
     "db:migrate:onboarding": "wrangler d1 execute vane-db --remote --file=./scripts/migrations/007-onboarding.sql",
     "db:migrate:feedback": "wrangler d1 execute vane-db --remote --file=./scripts/migrations/005-feedback.sql",
     "db:migrate:suite": "wrangler d1 execute vane-db --remote --file=./scripts/migrations/004-suite-bundle.sql",
