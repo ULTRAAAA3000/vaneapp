@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/assets/vane.css?v=f14c2a0095" />
-  <link rel="stylesheet" href="/assets/app.css?v=a736a0b59b" />
+  <link rel="stylesheet" href="/assets/app.css?v=ebd06abdb8" />
 </head>
 
 <body class="min-h-screen overflow-x-hidden bg-[#070708]">
@@ -766,6 +766,35 @@
         </form>
       </div>
 
+      <div data-step="pinterest" class="hidden">
+        <ol class="mt-6 space-y-3 text-sm text-white/65">
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>Type the name of the board to pin to. It must already exist on your Pinterest account; each channel pins to one board.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Press <b class="font-semibold text-white">Continue with Pinterest</b> and <b class="font-semibold text-white">Give access</b>. You come straight back here.</span></li>
+        </ol>
+        <p class="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-xs leading-relaxed text-white/50">Vane may only read your boards and username and create pins. Every pin needs a picture; the first line is the title and the first link becomes its destination.</p>
+
+        <form id="pnForm" class="mt-6 space-y-4" novalidate autocomplete="off">
+          <div>
+            <label for="pnBoard" class="lbl">Board</label>
+            <input id="pnBoard" type="text" maxlength="100" placeholder="My recipes" class="field" />
+          </div>
+          <div>
+            <label for="pnName" class="lbl">Display name</label>
+            <input id="pnName" type="text" maxlength="80" placeholder="Same as your board" class="field" />
+          </div>
+
+          <div id="pnErr" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
+
+          <div class="flex items-center justify-end gap-3 pt-1">
+            <button type="button" id="pnCancel" class="btn btn-ghost">Cancel</button>
+            <button type="submit" id="pnSubmit" class="btn btn-white">
+              <span id="pnSpin" class="spinner spinner-dark hidden"></span>
+              <span id="pnLabel">Continue with Pinterest</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
       <div data-step="facebook" class="hidden">
         <ol class="mt-6 space-y-3 text-sm text-white/65">
           <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>Press <b class="font-semibold text-white">Continue with Facebook</b>. Facebook asks you to sign in and to choose the <b class="font-semibold text-white">Pages</b> Vane may post to.</span></li>
@@ -993,12 +1022,12 @@
   <script src="/assets/vane.js?v=a2c867edc4"></script>
   <script src="/assets/media-picker.js?v=77ebb5a885"></script>
   <script src="/assets/insights.js?v=c81d5838ef"></script>
-  <script src="/assets/dashboard.js?v=686adcee93"></script>
+  <script src="/assets/dashboard.js?v=aea9d8cb99"></script>
   <script src="/assets/ai.js?v=33d5e51dfa"></script>
   <script src="/assets/library.js?v=2b36cb5071"></script>
   <script src="/assets/snippets.js?v=2833a28950"></script>
   <script src="/assets/drafts.js?v=9ce82a983a"></script>
-  <script src="/assets/aistudio.js?v=66b8ad3d92"></script>
+  <script src="/assets/aistudio.js?v=e134a0e708"></script>
   <script src="/assets/aihistory.js?v=72fff6ab0e"></script>
   <script src="/assets/composer-tools.js?v=0c636c4c2b"></script>
   <script src="/assets/track.js?v=a3d04e70d1" data-path="/app" defer></script>
