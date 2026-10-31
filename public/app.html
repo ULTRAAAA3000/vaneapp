@@ -353,6 +353,18 @@
         <li><b class="text-white/80">Write:</b> a post with the character limit of each network, an image from your Media Library, or one of your latest articles with its link.</li>
         <li><b class="text-white/80">Scheduled and history:</b> see the queue and cancel a post before it goes out; see what was sent, with a link to the live post and the reason if it failed.</li>
         <li><b class="text-white/80">Vane Cross-Post:</b> a panel in the editor sidebar. Pick channels and edit the text; it is sent once, when the article first goes live. Editing it later never posts again.</li>
+      </ul>
+
+      <h3 class="mt-7 text-sm font-semibold">Good to know</h3>
+      <ul class="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-white/60">
+        <li>Your key stays on your server; the browser never sees it. Only Editors and Administrators can post, only Administrators can connect the key.</li>
+        <li>Live posting needs a plan with API access; a test key is always free. Posts made from WordPress count against your plan like any API post.</li>
+        <li>To stop cross-posting: Vane → Settings  untick <b>Cross-post new articles</b>, or switch it off for one article in the editor sidebar.</li>
+        <li>To disconnect, press <b>Disconnect</b> under Vane → Settings, then revoke the key under <a href="#api" class="underline underline-offset-2">API keys</a>. Deleting the plugin removes its settings.</li>
+        <li>More detail and screenshots on the <a href="/wordpress" class="underline underline-offset-2">WordPress plugin page</a>.</li>
+      </ul>
+    </section>
+
     <section id="viewNotion" data-view="notion" hidden class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" aria-labelledby="notionTitle">
       <h2 id="notionTitle" class="text-lg font-semibold tracking-tight">Connect Notion</h2>
       <p class="mt-1 text-xs text-white/45">Publish from your Notion content calendar: tell a Notion agent “schedule every row marked Ready” and it posts through Vane, after you approve. Notion adds Vane as a custom MCP connection; you add it once, by hand, in Notion’s settings.</p>
