@@ -16,7 +16,7 @@
   <meta property="og:image" content="https://vaneapp.dev/assets/og.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="Vane: schedule once, post everywhere" />
+  <meta property="og:image:alt" content="Vane: publish everywhere, schedule anything" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Integrations — Vane" />
   <meta name="twitter:description" content="Schedule posts from Claude, Notion, ChatGPT, Obsidian, Make, Zapier, WordPress or plain HTTP. Every connector uses the same Vane API and the same keys." />
@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/site.css?v=0f9962717c" />
+  <link rel="stylesheet" href="/assets/site.css?v=a75e2eb977" />
   <link rel="stylesheet" href="/assets/vane.css?v=f14c2a0095" />
   <style>
     html { scroll-behavior: smooth; scroll-padding-top: 5rem; }
@@ -111,6 +111,10 @@
 
       <section class="reveal mt-12 grid gap-5 md:grid-cols-2">
         <article class="glass-d card">
+          <div class="flex items-center justify-between"><h2 class="!text-xl">ChatGPT</h2><span class="badge badge-soon">Soon</span></div>
+          <p class="copy mt-3">A Custom GPT that lists your channels, shows you the text, channels and time, waits for your “yes”, then schedules the post. No code. Coming soon.</p>
+        </article>
+        <article class="glass-d card">
           <div class="flex items-center justify-between"><h2 class="!text-xl">Claude</h2><span class="badge badge-live">Self-serve</span></div>
           <p class="copy mt-3">Tell Claude “post this to Telegram and Bluesky tomorrow at 9:00”. A connector built on the Model Context Protocol gives it two tools: list your channels and create a post.</p>
           <ol class="copy mt-4 list-decimal space-y-1 pl-5"><li>Create a key in the dashboard.</li><li>Add the Vane connector to Claude Desktop (or the remote endpoint <code class="i">/api/v1/mcp</code>).</li><li>Ask.</li></ol>
@@ -119,13 +123,6 @@
           <div class="flex items-center justify-between"><h2 class="!text-xl">Notion</h2><span class="badge badge-live">Self-serve</span></div>
           <p class="copy mt-3">Keep your content calendar in Notion and let a Notion agent publish it. Say “schedule every row marked Ready” and the agent shows each post, waits for your yes, then schedules it through Vane. It uses the same Model Context Protocol connector as Claude.</p>
           <ol class="copy mt-4 list-decimal space-y-1 pl-5"><li>In Notion, allow custom MCP servers (Settings → Connections).</li><li>Add <code class="i">https://vaneapp.dev/api/v1/mcp</code> as a custom connection of your agent and press Allow on Vane’s page.</li><li>Ask.</li></ol>
-        </article>
-      </section>
-      <section class="reveal mt-5 grid gap-5 md:grid-cols-2">
-        <article class="glass-d card">
-          <div class="flex items-center justify-between"><h2 class="!text-xl">ChatGPT</h2><span class="badge badge-live">Self-serve</span></div>
-          <p class="copy mt-3">A Custom GPT that lists your channels, shows you the text, channels and time, waits for your “yes”, then schedules the post. No code.</p>
-          <ol class="copy mt-4 list-decimal space-y-1 pl-5"><li>Create a key in the dashboard.</li><li>In ChatGPT, create a GPT and import <code class="i">https://vaneapp.dev/api/v1/openapi.json</code> as its Action.</li><li>Paste the key as the Bearer token.</li></ol>
         </article>
         <article class="glass-d card">
           <div class="flex items-center justify-between"><h2 class="!text-xl">Obsidian</h2><span class="badge badge-live">Self-serve</span></div>
