@@ -609,6 +609,17 @@ CREATE TABLE IF NOT EXISTS video_links (
   created_at  INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
+-- ───────────────────────── Public preview of a published post ─────────────────────────
+-- The owner presses "Share preview" on a sent post: one unguessable address (/p/<token>) shows its text, picture and networks to anyone.
+-- One preview per post group; "Stop sharing" deletes the row and the address stops working.
+CREATE TABLE IF NOT EXISTS post_previews (
+  token       TEXT    PRIMARY KEY,                                              -- 128 random bits, base64url (22 chars)
+  group_id    TEXT    NOT NULL UNIQUE,
+  user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_post_previews_user ON post_previews(user_id, created_at DESC);
+
 -- ───────────────────────── Webhooks: where Vane tells other systems that a post was published or failed ─────────────────────────
 -- Make / Zapier subscribe here (REST hooks); anyone can subscribe with an API key: POST /api/v1/webhooks.
 CREATE TABLE IF NOT EXISTS webhook_subscriptions (
