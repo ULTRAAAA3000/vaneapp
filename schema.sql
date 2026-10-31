@@ -999,37 +999,6 @@ CREATE TABLE IF NOT EXISTS oauth_tokens (
 );
 CREATE INDEX IF NOT EXISTS idx_oauth_tokens_grant ON oauth_tokens(grant_id);
 
--- ───────────────────────── Contact form (/about#contact) ─────────────────────────
--- Every message is kept, so nothing is lost when the email could not be sent. Read them in the D1 Console:
---   SELECT datetime(created_at,'unixepoch') AS at, topic, name, email, message, mailed FROM contact_messages ORDER BY id DESC LIMIT 50;
-CREATE TABLE IF NOT EXISTS contact_messages (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
-  topic       TEXT    NOT NULL,
-  name        TEXT    NOT NULL,
-  email       TEXT    NOT NULL,
-  message     TEXT    NOT NULL,
-  ip          TEXT,
-  mailed      INTEGER NOT NULL DEFAULT 0 CHECK (mailed IN (0, 1))
-);
-
--- ───────────────────────── Age gate (new accounts must be 16+) ─────────────────────────
--- We keep only the fact that the person confirmed their age at sign-up, never the date of birth.
--- Accounts that existed before the gate have no row.
-CREATE TABLE IF NOT EXISTS age_confirmations (
-  user_id       TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  min_age       INTEGER NOT NULL,
-  confirmed_at  INTEGER NOT NULL DEFAULT (unixepoch())
-);
-
-CREATE TABLE IF NOT EXISTS ai_voice (
-  user_id     TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  description TEXT    NOT NULL DEFAULT '',
-  samples     TEXT    NOT NULL DEFAULT '[]',
-  enabled     INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
-  updated_at  INTEGER NOT NULL DEFAULT (unixepoch())
-);
-
 -- ───────────────────────── Feedback & Roadmap board ────────────────────────
 CREATE TABLE IF NOT EXISTS feedback_items (
   id          TEXT    PRIMARY KEY,                           -- uuid (seed rows: 'seed-<network>')
@@ -1062,6 +1031,37 @@ INSERT OR IGNORE INTO feedback_items (id, kind, title, body) VALUES
   ('seed-tumblr',    'network', 'Tumblr', ''),
   ('seed-medium',    'network', 'Medium', 'Cross-post articles.'),
   ('seed-whatsapp',  'network', 'WhatsApp Channels', '');
+
+-- ───────────────────────── Contact form (/about#contact) ─────────────────────────
+-- Every message is kept, so nothing is lost when the email could not be sent. Read them in the D1 Console:
+--   SELECT datetime(created_at,'unixepoch') AS at, topic, name, email, message, mailed FROM contact_messages ORDER BY id DESC LIMIT 50;
+CREATE TABLE IF NOT EXISTS contact_messages (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+  topic       TEXT    NOT NULL,
+  name        TEXT    NOT NULL,
+  email       TEXT    NOT NULL,
+  message     TEXT    NOT NULL,
+  ip          TEXT,
+  mailed      INTEGER NOT NULL DEFAULT 0 CHECK (mailed IN (0, 1))
+);
+
+-- ───────────────────────── Age gate (new accounts must be 16+) ─────────────────────────
+-- We keep only the fact that the person confirmed their age at sign-up, never the date of birth.
+-- Accounts that existed before the gate have no row.
+CREATE TABLE IF NOT EXISTS age_confirmations (
+  user_id       TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  min_age       INTEGER NOT NULL,
+  confirmed_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+CREATE TABLE IF NOT EXISTS ai_voice (
+  user_id     TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  description TEXT    NOT NULL DEFAULT '',
+  samples     TEXT    NOT NULL DEFAULT '[]',
+  enabled     INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
+  updated_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);
 
 -- ───────────────────────── Onboarding checklist (the card at the top of the dashboard) ─────────────────────────
 -- The steps themselves are never stored: they are read from the account (a channel, an API key, a sent post, an integration), see
