@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/site.css?v=a75e2eb977" />
+  <link rel="stylesheet" href="/assets/site.css?v=e386c5dd6e" />
   <link rel="stylesheet" href="/assets/vane.css?v=f14c2a0095" />
   <style>
     html { scroll-behavior: smooth; scroll-padding-top: 5rem; }
@@ -201,9 +201,11 @@
           <p>© <span id="year"></span> Vane · vaneapp.dev · Powered by <a href="https://wysb.eu" target="_blank" rel="noopener" class="font-medium text-white/50 transition-colors hover:text-white">WYSB</a></p>
           <p><a href="/privacy" class="hover:text-white">Privacy</a> · <a href="/terms" class="hover:text-white">Terms</a></p>
         </div>
+        <div class="mt-6 flex justify-center"><div data-status-badge></div></div>
       </div>
     </footer>
   </div>
+  <script src="/assets/status.js?v=5951604964" defer></script>
   <script>
     document.getElementById('year').textContent = new Date().getFullYear();
     (function () {

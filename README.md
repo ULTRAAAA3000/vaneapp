@@ -363,6 +363,15 @@ Both connect by pasting one secret, no app review: a **Discord webhook URL** (Se
 
 Medium (closed to new integrations) and Reddit (API access needs manual approval) are intentionally not open.
 
+## Status badge: "All Systems Operational • Edge Latency: 18 ms"
+
+A small pill with a pulsing dot at the bottom of both dashboards (it refreshes every 60 s while the tab is visible) and in the footer of the public pages (one check per visit). Both parts are measured, nothing is decoration:
+
+- **Edge latency** is the median of three timed round trips from the visitor's browser to `GET /api/health?ping=1`, which answers without touching the database (a first request is thrown away: it pays for opening the connection). Above 500 ms the number turns amber. Hover shows the Cloudflare data centre that answered (`colo`, for example FRA), the round trip and what was checked.
+- **Status** comes from `GET /api/health` (public, no cookies, never cached; remembered for 10 s per isolate so open dashboards cost the database almost nothing). The rules are in `functions/api/lib/health.ts`: *operational* = the database answers and no scheduled post waits more than 5 minutes past its time and none sits in `processing` for more than 10 minutes (the cron worker runs every minute, so a longer wait means it is not keeping up); *degraded* = the database answers but publishing is late (the pill reads "Publishing delayed"); *down* = the database does not answer (HTTP 503). With nothing due, publishing counts as fine because nobody is waiting.
+- The browser side shows "Can't reach Vane" when `/api/health` does not answer within 6 s and "You are offline" without a network.
+- Code: `public/assets/status.js` (markup: `<div data-status-badge data-status-poll="60"></div>`; omit `data-status-poll` to check once). Tests: `scripts/status-unit.mjs`.
+
 ## Dashboard: hashtag memory, Insights, drafts
 
 All of it is computed in the browser from the two post lists the dashboard already loads (`/api/posts?view=upcoming|history`, up to 200 each): no new endpoint, no schema change. The code is `public/assets/insights.js` (pure helpers on `Vane.tags` / `Vane.insights`, UI in `Vane.createTagAssist` / `Vane.renderInsights`), wired up in `dashboard.js`.
