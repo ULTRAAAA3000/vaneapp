@@ -41,6 +41,32 @@ async function loadCounters(env: Env, userId: string, period: string): Promise<C
 
 const bucket = (limit: number, used: number): UsageBucket => ({ limit, used, remaining: Math.max(limit - used, 0) });
 
+/** [from, to) in unix seconds for a period key: 'YYYY-MM' (UTC month) or 'lifetime'. */
+export function periodRange(period: string, now: number): { from: number; to: number } {
+  const m = /^(\d{4})-(\d{2})$/.exec(period);
+  if (!m) return { from: 0, to: now + 1 };
+  const y = Number(m[1]), mo = Number(m[2]) - 1;
+  return { from: Math.floor(Date.UTC(y, mo, 1) / 1000), to: Math.floor(Date.UTC(y, mo + 1, 1) / 1000) };
+}
+
+/**
+ * Paid AI credits (the "extra" source) of one period: how many and what they cost, in micro-USD. `usage_counters.overage_micro_usd`
+ * adds extra posts and extra AI credits into ONE number, so the AI share is read from the usage log instead of being guessed.
+ * A missing table or a failing query means "none", never an error for the page.
+ */
+export async function loadAiExtra(env: Env, userId: string, period: string, now: number): Promise<{ uses: number; micro: number }> {
+  try {
+    const { from, to } = periodRange(period, now);
+    const row = await env.DB
+      .prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(cost_micro_usd), 0) AS micro FROM usage_logs WHERE user_id = ?1 AND kind = 'ai_post' AND overage = 1 AND created_at >= ?2 AND created_at < ?3`)
+      .bind(userId, from, to)
+      .first<{ n: number; micro: number }>();
+    return { uses: row?.n ?? 0, micro: row?.micro ?? 0 };
+  } catch {
+    return { uses: 0, micro: 0 };
+  }
+}
+
 /** Price of one extra AI credit for this account, in micro-USD: the cheaper of the plan's rate and the AI Pass rate; null = nothing to pay for. */
 export function aiExtraRate(spec: PlanSpec, passActive: boolean): number | null {
   const rates = [spec.overage && spec.overage.aiPost > 0 ? spec.overage.aiPost : null, passActive ? aiPassOffer().overageMicro : null].filter((r): r is number => r !== null);
@@ -48,7 +74,7 @@ export function aiExtraRate(spec: PlanSpec, passActive: boolean): number | null 
 }
 
 /** AI credits as the dashboard shows them. See aiMode() for how a plan's `aiCredits` is read. */
-function aiBucket(spec: PlanSpec, sub: Subscription, used: number, bonus: number, pass: AiPassState): UsageSummary['ai'] {
+function aiBucket(spec: PlanSpec, sub: Subscription, used: number, bonus: number, pass: AiPassState, extraNow: { uses: number; micro: number }): UsageSummary['ai'] {
   const mode = aiMode(spec);
   const offer = aiPassOffer();
   const passCredits = pass.active ? offer.credits : 0;
@@ -66,7 +92,12 @@ function aiBucket(spec: PlanSpec, sub: Subscription, used: number, bonus: number
     bonus,
     pass: { active: pass.active, credits: passCredits, used: pass.used, remaining: passLeft, endsAt: pass.endsAt },
     offer: !pass.active && offer.active ? { priceUsd: offer.priceCents / 100, credits: offer.credits, interval: offer.interval, overageUsd: offer.overageMicro !== null ? microToUsd(offer.overageMicro) : null } : null,
-    extra: { enabled: sub.overageEnabled, rateUsd: rate !== null ? microToUsd(rate) : null },
+    // postUsd: the same switch also bills extra posts over the plan, so the screen must be able to say so before it is switched on
+    extra: {
+      enabled: sub.overageEnabled, rateUsd: rate !== null ? microToUsd(rate) : null,
+      postUsd: spec.overage ? microToUsd(spec.overage.post) : null,
+      uses: extraNow.uses, costUsd: microToUsd(extraNow.micro),
+    },
   };
 }
 
@@ -86,6 +117,7 @@ export async function usageSummary(env: Env, userId: string, sub: Subscription, 
   const lim = limitsFor(sub);
   const rates = overageRates(sub);
 
+  const aiExtra = await loadAiExtra(env, userId, period, now);
   // Free Trial: UI and API posts draw from ONE total.
   const shared = lim.shared !== null ? bucket(lim.shared, c.api_posts + c.ui_posts) : null;
   return {
@@ -97,14 +129,17 @@ export async function usageSummary(env: Env, userId: string, sub: Subscription, 
     api: shared ?? bucket(lim.api, c.api_posts),
     ui: shared ?? bucket(lim.ui, c.ui_posts),
     shared,
-    ai: aiBucket(spec, sub, c.ai_generations, await loadAiBonus(env, userId), await loadAiPass(env, userId, now)),
+    ai: aiBucket(spec, sub, c.ai_generations, await loadAiBonus(env, userId), await loadAiPass(env, userId, now), aiExtra),
     apiAccess: apiAllowed(sub),
     overage: {
       enabled: rates !== null,
       postUsd: spec.overage ? microToUsd(spec.overage.post) : null,
       aiPostUsd: spec.overage ? microToUsd(spec.overage.aiPost) : null,
       posts: c.overage_posts,
-      costUsd: microToUsd(c.overage_micro_usd),
+      // extra POSTS only: the counter also holds what extra AI credits cost, which is reported on its own below
+      costUsd: microToUsd(Math.max(c.overage_micro_usd - aiExtra.micro, 0)),
+      aiUses: aiExtra.uses,
+      aiCostUsd: microToUsd(aiExtra.micro),
     },
   };
 }

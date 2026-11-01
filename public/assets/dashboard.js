@@ -1456,7 +1456,8 @@
 
       var ov = u.overage, line;
       if (ov.enabled) {
-        line = 'Extra posts are billed at $' + ov.postUsd + ' each' + (ov.posts ? ' (' + ov.posts + ' so far, $' + ov.costUsd.toFixed(2) + ')' : '') + '.';
+        line = 'Extra posts are billed at $' + ov.postUsd + ' each' + (ov.posts ? ' (' + ov.posts + ' so far, $' + ov.costUsd.toFixed(2) + ')' : '') + '.' +
+          (ov.aiUses ? ' Extra AI credits so far this period: ' + ov.aiUses + ', $' + ov.aiCostUsd.toFixed(2) + '.' : '');
       } else if (u.plan.id === 'free') {
         line = 'When the allowance is used up, posting pauses. You are never charged.';
       } else {

@@ -257,6 +257,16 @@ Only a **successful** answer is remembered: a request that failed (400, 402, 5xx
 - Dashboard posts are **counted** (they share the Free Trial total) but not blocked yet; that comes with the dashboard part.
 - All prices and limits live in `functions/api/lib/plans.ts`.
 
+### Extra usage (going over the quota): how it is counted, shown and billed
+
+- **Three kinds, one rule: stop unless the account chose to pay.** Extra posts (API plan $0.03, Pro $0.015), extra AI credits in Vane Post ($0.09 on the API plan, $0.045 on Pro, $0.02 with the AI Pass: the cheapest price that applies) and extra AI generations in Vane Studio ($0.02, its own switch in the AI writer). Order of spending for AI: plan credits, then the AI Pass, then credits an admin gave, then paid extras.
+- **One switch in Vane Post** (`subscriptions.overage_enabled`, `POST /api/usage/overage`) covers extra posts **and** extra AI credits, so the dashboard asks for confirmation first and names both prices (`ai.extra.rateUsd` and `ai.extra.postUsd`). Studio has its own (`video_ai_settings`). Paying for a plan never changes the switch.
+- **Counted when it happens, in one statement** (so two parallel requests never both take the last free unit): `usage_counters.overage_posts` and `overage_micro_usd` (extra posts **and** extra AI credits together, in millionths of a dollar), `usage_logs` (`overage = 1` per paid use, written last, only after the request succeeded; a refunded request leaves nothing behind) and `video_ai_overage` for Studio. The usage API splits them: `overage.posts`/`costUsd` are extra posts, `overage.aiUses`/`aiCostUsd` are paid AI credits.
+- **Prices from /admin → Plans are checked** (`price()` in `plans.ts`): above $0 and at most $100. Empty, 0, negative or text means "no price", so the plan simply stops (a negative price would pay the user for going over, and 0 would make extras free without a limit). Quotas are whole numbers, never below 0 (a typo like -5 means none, never unlimited).
+- **Nothing charges extra usage automatically.** Checkout sells plans, not usage. The list to invoice from is **/admin → Orders → Extra usage to bill** (per account and month: extra posts, extra AI credits, the amount; Studio's extra generations listed below it because they follow the video plan's period). Open decisions are listed in the pull request.
+- Tests: `scripts/overage-unit.mjs`.
+
+
 ### Giving an account a plan by hand (until payments do it)
 
 ```

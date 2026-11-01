@@ -445,8 +445,11 @@ export interface UsageSummary {
     pass: { active: boolean; credits: number; used: number; remaining: number; endsAt: number | null };
     /** the AI Pass offer for accounts that do not have it; null = nothing to offer */
     offer: { priceUsd: number; credits: number; interval: string; overageUsd: number | null } | null;
-    /** "when credits run out": stop, or pay per extra credit. rateUsd = the price of one extra credit (null: nothing to pay for) */
-    extra: { enabled: boolean; rateUsd: number | null };
+    /**
+     * "when credits run out": stop, or pay per extra credit. rateUsd = the price of one extra credit (null: nothing to pay for).
+     * postUsd = the price of an extra POST on this plan: the same switch bills those too. uses / costUsd = paid credits this period.
+     */
+    extra: { enabled: boolean; rateUsd: number | null; postUsd: number | null; uses: number; costUsd: number };
   };
   /** may this account send live API requests? */
   apiAccess: boolean;
@@ -455,8 +458,12 @@ export interface UsageSummary {
     /** price per post beyond the quota (USD), null when this plan is never billed for extras */
     postUsd: number | null;
     aiPostUsd: number | null;
+    /** extra posts this period, and what they cost (extra AI credits are NOT in costUsd, see aiCostUsd) */
     posts: number;
     costUsd: number;
+    /** paid AI credits this period and what they cost */
+    aiUses: number;
+    aiCostUsd: number;
   };
 }
 

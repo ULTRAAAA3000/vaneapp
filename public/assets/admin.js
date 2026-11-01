@@ -1012,6 +1012,7 @@
         return '<button type="button" class="chip" data-act="order-filter" data-status="' + f[0] + '" aria-pressed="' + (f[0] === st) + '"><span>' + f[1] + '</span></button>';
       }).join('');
       show(seq, title('Orders', num(r.data.paid.count) + ' paid · ' + money0(r.data.paid.cents) + ' in total. Card payments confirm themselves through Monobank; crypto is found on the Solana chain. If you saw the money yourself, press Confirm.') +
+        '<div id="extraUsage" class="mb-6"></div>' +
         '<div class="mb-4 flex flex-wrap gap-2">' + filters + '</div>' +
         card('', table([
           { h: 'When', r: function (o) { return esc(when(o.createdAt)); } },
@@ -1028,8 +1029,44 @@
               (o.status === 'pending' ? '<button type="button" class="btn btn-ghost btn-sm" data-act="order-cancel" data-id="' + o.id + '">Cancel</button>' : '') + '</div>';
           } },
         ], r.data.orders, { empty: 'No orders yet.' })));
+      loadExtraUsage(seq);
     });
   };
+
+  /**
+   * "Extra usage to bill": what each account used beyond its quota (extra posts, extra AI credits) in a month, and what that comes to.
+   * Nothing charges this automatically; it is the list to invoice from. Studio's extra AI generations are listed below it.
+   */
+  function loadExtraUsage(seq) {
+    var month = S.extraMonth || '';
+    call('GET', '/api/admin/extra-usage' + (month ? '?month=' + month : '')).then(function (r) {
+      var el = $('extraUsage');
+      if (!alive(seq) || !el) return;
+      if (!r.ok) { el.innerHTML = card('Extra usage to bill', empty(r.error)); return; }
+      var d = r.data, usd = function (n) { return '$' + n.toFixed(2); };
+      var y = Number(d.month.slice(0, 4)), m = Number(d.month.slice(5, 7));
+      var prev = new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 7), next = new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 7);
+      var chips = [[prev, '← ' + prev], [next, next + ' →']].map(function (c) {
+        return '<button type="button" class="chip !px-3 !py-1.5 !text-xs" data-act="extra-month" data-m="' + c[0] + '">' + c[1] + '</button>';
+      }).join('');
+      var body = '<p class="mb-3 text-xs leading-relaxed text-white/50">What accounts used beyond their quota in ' + esc(d.month) + ' (UTC), at the prices that applied. Nothing charges this automatically: invoice these amounts.</p>' +
+        table([
+          { h: 'Account', r: function (x) { return '<span class="font-medium">' + esc(x.email) + '</span>'; } },
+          { h: 'Extra posts', r: function (x) { return x.posts ? num(x.posts) + '<div class="text-xs text-white/40">' + usd(x.postsUsd) + '</div>' : '<span class="text-white/30">–</span>'; } },
+          { h: 'Extra AI credits', r: function (x) { return x.aiUses ? num(x.aiUses) + '<div class="text-xs text-white/40">' + usd(x.aiUsd) + '</div>' : '<span class="text-white/30">–</span>'; } },
+          { h: 'To bill', r: function (x) { return '<span class="font-semibold">' + usd(x.totalUsd) + '</span>'; } },
+        ], d.rows, { empty: 'Nobody went over their quota this month.' }) +
+        '<p class="mt-3 text-sm">Total for ' + esc(d.month) + ': <span class="font-semibold">' + usd(d.totalUsd) + '</span></p>' +
+        (d.studio.length ? '<h3 class="mt-6 text-sm font-semibold">Vane Studio: extra AI generations</h3><p class="mt-1 text-xs text-white/45">They follow the video plan\'s own period, so they are not split by month.</p>' +
+          table([
+            { h: 'Account', r: function (x) { return esc(x.email); } },
+            { h: 'Period', r: function (x) { return '<span class="text-xs text-white/55">' + esc(/^p\d+$/.test(x.period) ? 'until ' + new Date(Number(x.period.slice(1)) * 1000).toISOString().slice(0, 10) : x.period) + '</span>'; } },
+            { h: 'Extra generations', r: function (x) { return num(x.uses); } },
+            { h: 'To bill', r: function (x) { return '<span class="font-semibold">' + usd(x.usd) + '</span>'; } },
+          ], d.studio, { empty: '' }) : '');
+      el.innerHTML = card('Extra usage to bill', body, '<div class="flex gap-1.5">' + chips + '</div>');
+    });
+  }
 
   // ── Activity
   VIEWS.activity = function (seq) {
@@ -1168,6 +1205,7 @@
       call('DELETE', '/api/admin/plans?id=' + encodeURIComponent(el.dataset.id)).then(function (r) { if (r.ok) { Vane.toast('ok', 'Plan deleted.'); route(); } else Vane.toast('err', r.error); });
     }, true);
     else if (a === 'order-filter') { S.orderStatus = el.dataset.status; route(); }
+    else if (a === 'extra-month') { S.extraMonth = el.dataset.m; route(); }
     else if (a === 'order-check') call('POST', '/api/admin/orders', { action: 'check', orderId: el.dataset.id }).then(function (r) { if (r.ok) { Vane.toast('ok', 'Status: ' + r.data.status + '.'); route(); } else Vane.toast('err', r.error); });
     else if (a === 'order-cancel') confirmBox('Cancel this waiting order? Nothing is refunded or charged.', 'Cancel order', function () {
       call('POST', '/api/admin/orders', { action: 'cancel', orderId: el.dataset.id }).then(function (r) { if (r.ok) { Vane.toast('ok', 'Order canceled.'); route(); } else Vane.toast('err', r.error); });
