@@ -166,11 +166,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       }
       throw err;
     }
-    // The Suite bundle is Post + Studio + Analytics Pro: the gift switches all of them on for the same time.
+    // The Suite bundle is Post + Studio + Analytics Pro + AI Pass: the gift switches all of them on for the same time.
     if (plan.id === 'suite') {
       const until = days === null ? null : now + days * 86400;
       await grantAccess(env, 'video_subscriptions', user.id, until, now);
       await grantAccess(env, 'analytics_subscriptions', user.id, until, now);
+      await grantAccess(env, 'ai_pass', user.id, until, now);
     }
     await audit(env, request, 'user.grant_plan', user.email, { plan: plan.id, addon, overage, days, note });
     return json({ ok: true }, 201);
@@ -268,10 +269,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       .bind(b.userId, now)
       .run();
     if (!res.meta.changes) return fail(404, 'This user has no active paid plan.');
-    // Ending Suite ends the Studio and Analytics halves too (it was one purchase).
+    // Ending Suite ends the Studio, Analytics and AI Pass parts too (it was one purchase).
     if (was?.plan === 'suite') {
       await env.DB.prepare(`UPDATE video_subscriptions SET status = 'canceled', current_period_end = ?2, updated_at = ?2 WHERE user_id = ?1 AND status = 'active'`).bind(b.userId, now).run();
       await env.DB.prepare(`UPDATE analytics_subscriptions SET status = 'canceled', current_period_end = ?2, updated_at = ?2 WHERE user_id = ?1 AND status = 'active'`).bind(b.userId, now).run();
+      await env.DB.prepare(`UPDATE ai_pass SET status = 'canceled', current_period_end = ?2, updated_at = ?2 WHERE user_id = ?1 AND status = 'active'`).bind(b.userId, now).run();
     }
     await audit(env, request, 'user.revoke_plan', user.email);
     return json({ ok: true });

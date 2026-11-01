@@ -207,7 +207,53 @@
     };
   }
 
-  Vane.insights = { compute: compute };
+  // ───────────────────────── live card: pure helpers ─────────────────────────
+  /** An estimate, not a measurement: minutes it takes to post once by hand (open the network, paste, format, post). */
+  var MIN_PER_DELIVERY = 3;
+
+  /**
+   * Figures for the "Live Analytics" card over the last `days` calendar days (today included), from the history list.
+   * Every figure counts deliveries (a post to 3 channels is 3), like the status badges.
+   * `limit` is the size the server caps the list at: when the list is full and still reaches into the period,
+   * older posts may be missing, so `truncated` is true and the card says so.
+   * Shape: { days, sent, failed, rate (percent with one decimal, never rounded up to 100 while a delivery failed, or null),
+   *          platforms, minutes, byWeekday[7] (Monday first), peak (weekday index or -1), today (weekday index), truncated }
+   */
+  function period(history, now, days, limit) {
+    history = history || [];
+    var t = new Date(now); t.setHours(0, 0, 0, 0);
+    var start = new Date(t.getFullYear(), t.getMonth(), t.getDate() - (days - 1)).getTime();
+    var sent = 0, failed = 0, platforms = {}, byWeekday = [0, 0, 0, 0, 0, 0, 0], oldest = Infinity;
+    history.forEach(function (p) {
+      var at = stamp(p);
+      if (at < oldest) oldest = at;
+      if (at < start || at > now + 60000) return;
+      if (p.status === 'sent') {
+        sent++;
+        platforms[p.platform] = 1;
+        byWeekday[(new Date(at).getDay() + 6) % 7]++;
+      } else if (p.status === 'failed') failed++;
+    });
+    var settled = sent + failed, peak = -1;
+    byWeekday.forEach(function (n, i) { if (n > 0 && (peak < 0 || n > byWeekday[peak])) peak = i; });
+    return {
+      days: days, sent: sent, failed: failed,
+      rate: settled ? (failed ? Math.floor(sent / settled * 1000) / 10 : 100) : null,
+      platforms: Object.keys(platforms).length,
+      minutes: sent * MIN_PER_DELIVERY,
+      byWeekday: byWeekday, peak: peak, today: (new Date(now).getDay() + 6) % 7,
+      truncated: !!limit && history.length >= limit && oldest > start
+    };
+  }
+
+  /** "~25 minutes", "~1 hour", "~4.5 hours" (the part after the tilde); the short form is "25 min" / "4.5 h". */
+  function fmtSaved(minutes, short) {
+    if (minutes < 60) { var m = Math.round(minutes); return short ? m + ' min' : m + (m === 1 ? ' minute' : ' minutes'); }
+    var h = Math.round(minutes / 6) / 10, txt = String(h).replace(/\.0$/, '');
+    return short ? txt + ' h' : txt + (h === 1 ? ' hour' : ' hours');
+  }
+
+  Vane.insights = { compute: compute, period: period, fmtSaved: fmtSaved, MIN_PER_DELIVERY: MIN_PER_DELIVERY };
 
   // ───────────────────────── insights: the card ─────────────────────────
   var fmtDay = typeof Intl !== 'undefined' ? new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short' }) : null;
@@ -289,5 +335,86 @@
       btns[i].addEventListener('click', function () { if (opts.onTag) opts.onTag(this.getAttribute('data-tag')); });
     }
     return d;
+  };
+  // ───────────────────────── live card ─────────────────────────
+  var RANGES = { week: { days: 7, noun: 'week', label: 'Week' }, month: { days: 30, noun: 'month', label: 'Month' } };
+  var fmtWdLong = typeof Intl !== 'undefined' ? new Intl.DateTimeFormat(undefined, { weekday: 'long' }) : null;
+  var MONDAY = new Date(2024, 0, 1); // a Monday: the seven labels of the sparkline
+  var wdDate = function (i) { return new Date(MONDAY.getFullYear(), MONDAY.getMonth(), MONDAY.getDate() + i); };
+  var plural = function (n, one, many) { return n + ' ' + (n === 1 ? one : many); };
+
+  function readRange() { try { var r = localStorage.getItem('vane.live.range'); return RANGES[r] ? r : 'week'; } catch (e) { return 'week'; } }
+  function saveRange(r) { try { localStorage.setItem('vane.live.range', r); } catch (e) { /* private mode: the choice just isn't remembered */ } }
+
+  /** The sparkline: posts per weekday, Monday first. A straight polyline with the busiest day marked. */
+  function sparkline(d) {
+    var W = 224, H = 70, PX = 10, TOP = 12, BOT = 58, step = (W - 2 * PX) / 6;
+    var max = Math.max.apply(null, d.byWeekday.concat([1]));
+    var xs = d.byWeekday.map(function (v, i) { return +(PX + i * step).toFixed(1); });
+    var ys = d.byWeekday.map(function (v) { return +(BOT - (v / max) * (BOT - TOP)).toFixed(1); });
+    var pts = xs.map(function (x, i) { return x + ',' + ys[i]; });
+    var dots = d.byWeekday.map(function (v, i) {
+      var tip = fmtWdLong.format(wdDate(i)) + ': ' + (v ? v + ' sent' : 'nothing sent');
+      var r = i === d.peak ? 4 : 2.5;
+      return '<g><circle cx="' + xs[i] + '" cy="' + ys[i] + '" r="' + r + '" fill="' + (i === d.peak ? '#6ee7b7' : '#fff') + '" fill-opacity="' + (v ? 1 : .35) + '"/>' +
+        (i === d.today ? '<circle cx="' + xs[i] + '" cy="' + ys[i] + '" r="7" fill="none" stroke="#fff" stroke-opacity=".35"/>' : '') +
+        '<circle cx="' + xs[i] + '" cy="' + ys[i] + '" r="10" fill="transparent"><title>' + esc(tip) + '</title></circle></g>';
+    }).join('');
+    var labels = d.byWeekday.map(function (v, i) {
+      return '<text x="' + xs[i] + '" y="' + (H + 10) + '" text-anchor="middle" font-size="9" fill="#fff" fill-opacity="' + (i === d.today ? .9 : .35) + '"' + (i === d.today ? ' font-weight="600"' : '') + '>' + esc(fmtWd.format(wdDate(i))) + '</text>';
+    }).join('');
+    var summary = d.peak < 0 ? 'No posts sent in this period.' : 'Posts sent by weekday. Busiest day: ' + fmtWdLong.format(wdDate(d.peak)) + ', ' + d.byWeekday[d.peak] + ' sent.';
+    return '<svg viewBox="0 0 ' + W + ' ' + (H + 16) + '" class="mt-3 block h-auto w-full" role="img" aria-label="' + esc(summary) + '">' +
+      '<line x1="' + PX + '" y1="' + BOT + '" x2="' + (W - PX) + '" y2="' + BOT + '" stroke="#fff" stroke-opacity=".1"/>' +
+      '<polygon points="' + PX + ',' + BOT + ' ' + pts.join(' ') + ' ' + (W - PX) + ',' + BOT + '" fill="#fff" fill-opacity=".07"/>' +
+      '<polyline points="' + pts.join(' ') + '" fill="none" stroke="#fff" stroke-opacity=".75" stroke-width="1.75" stroke-linejoin="round" stroke-linecap="round"/>' +
+      dots + labels + '</svg>';
+  }
+
+  /**
+   * "Live Analytics" card on the dashboard home: time saved, delivery rate and a weekday sparkline for the last week or month.
+   * Called again with fresh lists whenever the dashboard reloads them, so it stays live. root: the element to fill.
+   * opts: { limit (the size the server caps the history at) }
+   */
+  Vane.renderLiveCard = function (root, history, opts) {
+    opts = opts || {};
+    var range = readRange();
+    function draw() {
+      var R = RANGES[range], d = period(history, Date.now(), R.days, opts.limit);
+      var seg = Object.keys(RANGES).map(function (k) {
+        return '<button type="button" data-range="' + k + '" class="chip" aria-pressed="' + (k === range) + '">' + RANGES[k].label + '</button>';
+      }).join('');
+      var saved = d.sent
+        ? '<div class="pixel text-4xl tracking-tight sm:text-5xl">' + esc(fmtSaved(d.minutes, true)) + '</div>' +
+          '<p class="mt-3 text-sm leading-relaxed text-white/70">You saved ~' + esc(fmtSaved(d.minutes)) + ' this ' + R.noun + ' with Vane.</p>'
+        : '<div class="pixel text-4xl tracking-tight text-white/30 sm:text-5xl">—</div>' +
+          '<p class="mt-3 text-sm leading-relaxed text-white/50">Send a post and Vane starts counting the time it saves you.</p>';
+      var rate = d.rate === null
+        ? '<div class="pixel text-4xl tracking-tight text-white/30 sm:text-5xl">—</div>' +
+          '<p class="mt-3 text-sm leading-relaxed text-white/50">No finished posts in this period yet.</p>'
+        : '<div class="pixel text-4xl tracking-tight sm:text-5xl">' + d.rate + '%</div>' +
+          '<p class="mt-3 text-sm leading-relaxed text-white/70">delivery rate across ' + plural(d.platforms, 'platform', 'platforms') + '.</p>' +
+          '<p class="mt-1 text-xs text-white/35">' + d.sent + ' sent' + (d.failed ? ', ' + d.failed + ' failed' : '') + '</p>';
+      var busiest = d.peak < 0 ? 'Nothing sent in this period yet.' : 'Busiest day: <b class="font-semibold text-white/80">' + esc(fmtWdLong.format(wdDate(d.peak))) + '</b>, ' + d.byWeekday[d.peak] + ' sent.';
+      root.innerHTML =
+        '<div class="flex flex-wrap items-center justify-between gap-3">' +
+          '<div class="flex items-center gap-3"><h2 id="liveTitle" class="text-lg font-semibold tracking-tight">Your results</h2>' +
+          '<span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/10 px-2.5 py-1 text-xs font-medium text-emerald-300"><span class="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-300"></span>Live</span></div>' +
+          '<div class="flex gap-2" role="group" aria-label="Period">' + seg + '</div>' +
+        '</div>' +
+        '<div class="mt-5 grid gap-4 lg:grid-cols-3">' +
+          '<div class="rounded-2xl bg-white/[0.04] p-5 ring-1 ring-white/5"><span class="lbl">Time saved</span>' + saved + '</div>' +
+          '<div class="rounded-2xl bg-white/[0.04] p-5 ring-1 ring-white/5"><span class="lbl">Success rate</span>' + rate + '</div>' +
+          '<div class="rounded-2xl bg-white/[0.04] p-5 ring-1 ring-white/5"><div class="flex items-center justify-between"><span class="lbl !mb-0">Posts by weekday</span><span class="text-xs text-white/35">Last ' + R.days + ' days</span></div>' +
+            sparkline(d) + '<p class="mt-2 text-xs text-white/45">' + busiest + '</p></div>' +
+        '</div>' +
+        '<p class="mt-4 text-xs leading-relaxed text-white/30">Time saved is an estimate: about ' + MIN_PER_DELIVERY + ' minutes for every delivery you did not post by hand (opening the network, pasting, formatting, posting).' +
+          (d.truncated ? ' Based on your latest ' + opts.limit + ' finished posts.' : '') + '</p>';
+      var btns = root.querySelectorAll('[data-range]');
+      for (var i = 0; i < btns.length; i++) {
+        btns[i].addEventListener('click', function () { range = this.getAttribute('data-range'); saveRange(range); draw(); });
+      }
+    }
+    draw();
   };
 })();

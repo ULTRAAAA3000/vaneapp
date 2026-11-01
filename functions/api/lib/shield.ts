@@ -172,7 +172,7 @@ export async function shieldBefore(env: Env, request: Request, path: string, cli
 export function strikeWeight(status: number, path: string, request: Request): number {
   if (path.startsWith(PUBLIC_MEDIA)) return 0;              // a missing picture is not probing (and Telegram / Meta fetch these)
   if (path === '/api/auth/me' || path === '/api/auth/config') return 0; // the landing page asks "am I signed in?" for every visitor: 401 is the normal answer
-  if (status === 404 || status === 405) return 1;
+  if (status === 404 || status === 405) return request.headers.has('cookie') || request.headers.has('authorization') ? 0.2 : 1;
   if ((status === 401 || status === 403) && !request.headers.has('authorization') && !request.headers.has('cookie')) return 1;
   return 0;
 }

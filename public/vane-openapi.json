@@ -3,7 +3,7 @@
   "info": {
     "title": "Vane API",
     "version": "1.0.0",
-    "description": "Schedule social posts from your own tools. Use it from a ChatGPT Custom GPT (Actions), Claude, Make, Zapier or plain HTTP.\n\nAuthentication: `Authorization: Bearer cpost_live_…`. Create a key in the Vane dashboard. A `cpost_test_…` key validates and answers like a live one but posts nothing and counts nothing.\n\nErrors are `{ \"ok\": false, \"error\": \"…\", \"code\": \"…\" }`; branch on `code`.",
+    "description": "Schedule social posts from your own tools. Use it from Claude, Make, Zapier or plain HTTP (a ChatGPT Custom GPT is coming soon).\n\nAuthentication: `Authorization: Bearer cpost_live_…`. Create a key in the Vane dashboard. A `cpost_test_…` key validates and answers like a live one but posts nothing and counts nothing.\n\nErrors are `{ \"ok\": false, \"error\": \"…\", \"code\": \"…\" }`; branch on `code`.",
     "contact": {
       "url": "https://vaneapp.dev"
     }

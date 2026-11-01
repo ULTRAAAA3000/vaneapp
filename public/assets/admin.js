@@ -202,7 +202,7 @@
   $('logout').addEventListener('click', function () { call('POST', '/api/admin/logout').then(function () { toGate('Signed out.'); }); });
 
   // ───────────────────────── navigation ─────────────────────────
-  var TABS = [['overview', 'Overview'], ['users', 'Users'], ['plans', 'Plans'], ['orders', 'Orders'], ['networks', 'Networks'], ['integrations', 'Integrations'], ['ai', 'AI'], ['social', 'Social'], ['traffic', 'Traffic'], ['search', 'Search'], ['security', 'Security'], ['settings', 'Settings'], ['activity', 'Activity']];
+  var TABS = [['overview', 'Overview'], ['users', 'Users'], ['plans', 'Plans'], ['orders', 'Orders'], ['networks', 'Networks'], ['integrations', 'Integrations'], ['feedback', 'Feedback'], ['ai', 'AI'], ['social', 'Social'], ['traffic', 'Traffic'], ['search', 'Search'], ['security', 'Security'], ['settings', 'Settings'], ['activity', 'Activity']];
   function route() {
     var tab = (location.hash || '#overview').slice(1);
     if (!TABS.some(function (t) { return t[0] === tab; })) tab = 'overview';
@@ -1043,12 +1043,63 @@
     });
   };
 
+  //  Feedback: ideas from the dashboard board. Answer them, hide spam, add polls of your own.
+  var FB_STATUS = [['open', 'Open'], ['planned', 'Planned'], ['building', 'Building now'], ['done', 'Shipped'], ['declined', 'Declined (hidden)']];
+  var FB_KIND = [['network', 'Network'], ['feature', 'Feature'], ['bug', 'Bug'], ['other', 'Other']];
+  VIEWS.feedback = function (seq) {
+    call('GET', '/api/admin/feedback').then(function (r) {
+      if (!alive(seq)) return;
+      if (!r.ok) return show(seq, errorBox(r.error));
+      var items = r.data.items, st = r.data.stats || {};
+      var f = S.fbFilter || 'all', week = Date.now() / 1000 - 7 * 86400;
+      var live = items.filter(function (i) { return !i.hidden && i.status !== 'declined'; });
+      var waiting = live.filter(function (i) { return i.status === 'open'; });
+      var bugs = live.filter(function (i) { return i.kind === 'bug' && i.status !== 'done'; });
+      var fresh = items.filter(function (i) { return i.createdAt >= week && i.author; });
+      var top = live.filter(function (i) { return i.votes > 0; }).sort(function (a, b) { return b.votes - a.votes; }).slice(0, 8);
+      var byKind = FB_KIND.map(function (k) { return [k[1], items.filter(function (i) { return i.kind === k[0]; }).reduce(function (n, i) { return n + i.votes; }, 0)]; });
+      var kindMax = Math.max.apply(null, byKind.map(function (k) { return k[1]; }).concat([1]));
+      var results =
+        '<div class="grid grid-cols-2 gap-4 lg:grid-cols-4">' +
+          stat('Votes', num(st.votes), '+' + num(st.votes7d) + ' in the last 7 days') +
+          stat('People who voted', num(st.voters), 'of all accounts') +
+          stat('Waiting for an answer', num(waiting.length), 'open ideas on the board') +
+          stat('New from users', num(fresh.length), 'ideas in the last 7 days' + (bugs.length ? ' · ' + num(bugs.length) + ' bug' + (bugs.length === 1 ? '' : 's') + ' not shipped' : '')) +
+        '</div>' +
+        '<div class="mt-4 grid gap-4 lg:grid-cols-3">' +
+          card('Most voted', top.length ? top.map(function (i) { return hbar(esc(i.title) + ' ' + tag(i.kind), i.votes, top[0].votes, num(i.votes) + (i.votes === 1 ? ' vote' : ' votes') + (i.status !== 'open' ? ' · ' + esc((FB_STATUS.filter(function (s2) { return s2[0] === i.status; })[0] || [0, i.status])[1]) : '')); }).join('') : empty('No votes yet.'), '', 'lg:col-span-2') +
+          card('Votes by type', byKind.map(function (k) { return hbar(esc(k[0]), k[1], kindMax, num(k[1])); }).join('')) +
+        '</div><div class="mt-4"></div>';
+      var FILTERS = [['all', 'All'], ['waiting', 'Needs an answer'], ['bug', 'Bugs'], ['network', 'Networks'], ['feature', 'Features'], ['hidden', 'Hidden']];
+      var shown = items.filter(function (i) {
+        return f === 'waiting' ? (!i.hidden && i.status === 'open') : f === 'hidden' ? (i.hidden || i.status === 'declined') : f === 'all' ? true : i.kind === f;
+      });
+      var chips = FILTERS.map(function (x) { return '<button type="button" class="chip !px-3 !py-1.5 !text-xs" data-act="fb-filter" data-f="' + x[0] + '" aria-pressed="' + (x[0] === f) + '">' + x[1] + '</button>'; }).join('');
+      var add = card('Add an idea', '<p class="mb-3 text-sm text-white/50">Put something on the board yourself, for example a network you are thinking about. It starts with no votes.</p>' +
+        '<div class="flex flex-wrap items-end gap-3">' +
+          '<div><label class="lbl" for="fbaKind">Type</label><select id="fbaKind" class="field">' + FB_KIND.map(function (k) { return '<option value="' + k[0] + '">' + k[1] + '</option>'; }).join('') + '</select></div>' +
+          '<div class="min-w-[14rem] flex-1"><label class="lbl" for="fbaTitle">Title</label><input id="fbaTitle" class="field" maxlength="80" placeholder="e.g. Bluesky video" /></div>' +
+          '<button type="button" class="btn btn-white" data-act="fb-add">Add</button></div>');
+      var list = card('Ideas (' + num(shown.length) + (shown.length !== items.length ? ' of ' + num(items.length) : '') + ')', table([
+        { h: 'Idea', r: function (i) { return '<div class="font-medium' + (i.hidden ? ' text-white/40 line-through' : '') + '">' + esc(i.title) + '</div>' + (i.body ? '<div class="mt-0.5 max-w-xl text-[11px] text-white/45">' + esc(i.body) + '</div>' : '') + '<div class="mt-0.5 text-[11px] text-white/35">' + esc(when(i.createdAt)) + ' · ' + (i.author ? esc(i.author) : 'you') + '</div>'; } },
+        { h: 'Type', r: function (i) { return tag(i.kind); } },
+        { h: 'Votes', cls: 'text-right', r: function (i) { return '<span class="text-base font-semibold">' + num(i.votes) + '</span>'; } },
+        { h: 'Status', r: function (i) { return '<select class="field !py-1.5 !text-xs" data-act="fb-status" data-id="' + esc(i.id) + '">' + FB_STATUS.map(function (s2) { return '<option value="' + s2[0] + '"' + (s2[0] === i.status ? ' selected' : '') + '>' + s2[1] + '</option>'; }).join('') + '</select>'; } },
+        { h: 'Shown', cls: 'text-right', r: function (i) { return '<button type="button" class="switch" role="switch" data-act="fb-hide" data-id="' + esc(i.id) + '" aria-checked="' + (!i.hidden) + '" aria-label="Show on the board: ' + esc(i.title) + '"></button>'; } },
+        { h: '', cls: 'text-right', r: function (i) { return '<button type="button" class="btn btn-ghost btn-sm" data-act="fb-del" data-id="' + esc(i.id) + '" data-name="' + esc(i.title) + '">Delete</button>'; } }
+      ], shown, { empty: items.length ? 'Nothing under this filter.' : 'No ideas yet. If this stays empty, run npm run db:migrate:feedback once.' }), '<div class="flex flex-wrap gap-1.5">' + chips + '</div>');
+      show(seq, title('Feedback', 'What people want next. The dashboard shows the most voted first; ideas you mark Shipped close for votes, Declined and hidden ones disappear from the board.') + results + add + '<div class="mt-4"></div>' + list);
+    });
+  };
+
   // ───────────────────────── clicks ─────────────────────────
   function putSetting(key, value, done) {
     var body = {}; body[key] = value;
     call('PUT', '/api/admin/settings', body).then(function (r) { if (r.ok) { Vane.toast('ok', 'Saved.'); if (done) done(r.data.settings); } else { Vane.toast('err', r.error); route(); } });
   }
   document.addEventListener('change', function (e) {
+    var fbSt = e.target.closest('[data-act="fb-status"]');
+    if (fbSt) { call('PUT', '/api/admin/feedback', { id: fbSt.dataset.id, status: fbSt.value }).then(function (r) { Vane.toast(r.ok ? 'ok' : 'err', r.ok ? 'Saved.' : r.error); }); return; }
     var note = e.target.closest('[data-act="net-note"]');
     if (note) { call('PUT', '/api/admin/networks', { network: note.dataset.id, note: note.value.trim() }).then(function (r) { Vane.toast(r.ok ? 'ok' : 'err', r.ok ? 'Note saved.' : r.error); }); return; }
     var intField = e.target.closest('[data-act="int-note"], [data-act="int-listing"]');
@@ -1073,6 +1124,21 @@
     else if (a === 'drawer-close') closeDrawer();
     else if (a === 'modal-close') closeModal();
     else if (a === 'ai-price') openAiPrice(el);
+    else if (a === 'fb-filter') { S.fbFilter = el.dataset.f; route(); }
+    else if (a === 'fb-add') {
+      var fbTitle = $('fbaTitle').value.trim();
+      if (fbTitle.length < 3) { Vane.toast('err', 'Give the idea a title.'); return; }
+      call('POST', '/api/admin/feedback', { kind: $('fbaKind').value, title: fbTitle }).then(function (r) { Vane.toast(r.ok ? 'ok' : 'err', r.ok ? 'Added.' : r.error); if (r.ok) route(); });
+    }
+    else if (a === 'fb-hide') {
+      var fbShow = el.getAttribute('aria-checked') !== 'true';
+      call('PUT', '/api/admin/feedback', { id: el.dataset.id, hidden: !fbShow }).then(function (r) { Vane.toast(r.ok ? 'ok' : 'err', r.ok ? (fbShow ? 'Shown on the board.' : 'Hidden from the board.') : r.error); route(); });
+    }
+    else if (a === 'fb-del') {
+      confirmBox('Delete <b>' + esc(el.dataset.name) + '</b> and all its votes? This cannot be undone. To just take it off the board, use the switch instead.', 'Delete', function () {
+        call('DELETE', '/api/admin/feedback?id=' + encodeURIComponent(el.dataset.id)).then(function (r) { Vane.toast(r.ok ? 'ok' : 'err', r.ok ? 'Deleted.' : r.error); route(); });
+      }, true);
+    }
     else if (a === 'net-nocode') Vane.toast('err', el.dataset.name + ' cannot be switched on yet: its code is not written.');
     else if (a === 'net-toggle') {
       var wantOn = el.getAttribute('aria-checked') !== 'true';

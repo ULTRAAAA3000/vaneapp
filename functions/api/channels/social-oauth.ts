@@ -26,24 +26,25 @@ import * as li from './linkedin';
 import * as th from './threads';
 import * as rd from './reddit';
 import * as fb from './facebook';
+import * as pn from './pinterest';
 
-export type Network = 'linkedin' | 'threads' | 'reddit' | 'facebook';
-type Reason = 'ok' | 'reconnected' | 'denied' | 'noperm' | 'expired' | 'failed' | 'migrate' | 'limit' | 'off' | 'nopages';
+export type Network = 'linkedin' | 'threads' | 'reddit' | 'facebook' | 'pinterest';
+type Reason = 'ok' | 'reconnected' | 'denied' | 'noperm' | 'expired' | 'failed' | 'migrate' | 'limit' | 'off' | 'nopages' | 'noboard';
 
 const STATE_TTL_SECONDS = 600;
 const STARTS_PER_USER_PER_HOUR = 10;
 const STARTS_PER_IP_PER_HOUR = 30;
 const MAX_NAME_LEN = 80;
-const LABEL: Record<Network, string> = { linkedin: 'LinkedIn', threads: 'Threads', reddit: 'Reddit', facebook: 'Facebook' };
+const LABEL: Record<Network, string> = { linkedin: 'LinkedIn', threads: 'Threads', reddit: 'Reddit', facebook: 'Facebook', pinterest: 'Pinterest' };
 
 const originOf = (request: Request, env: Env): string => (env.APP_URL ? env.APP_URL.replace(/\/+$/, '') : new URL(request.url).origin);
 /** The address to register in the LinkedIn / Meta developer portal as the redirect (callback) URL. */
 export const redirectUriFor = (net: Network, request: Request, env: Env): string => `${originOf(request, env)}/api/channels/${net}/callback`;
 
 const configured = (net: Network, env: Env): boolean =>
-  net === 'linkedin' ? li.linkedinConfigured(env) : net === 'threads' ? th.threadsConfigured(env) : net === 'reddit' ? rd.redditConfigured(env) : fb.facebookConfigured(env);
+  net === 'linkedin' ? li.linkedinConfigured(env) : net === 'threads' ? th.threadsConfigured(env) : net === 'reddit' ? rd.redditConfigured(env) : net === 'pinterest' ? pn.pinterestConfigured(env) : fb.facebookConfigured(env);
 const authorizeUrl = (net: Network, env: Env, redirectUri: string, state: string): string =>
-  net === 'linkedin' ? li.authorizeUrl(env, redirectUri, state) : net === 'threads' ? th.authorizeUrl(env, redirectUri, state) : net === 'reddit' ? rd.authorizeUrl(env, redirectUri, state) : fb.authorizeUrl(env, redirectUri, state);
+  net === 'linkedin' ? li.authorizeUrl(env, redirectUri, state) : net === 'threads' ? th.authorizeUrl(env, redirectUri, state) : net === 'reddit' ? rd.authorizeUrl(env, redirectUri, state) : net === 'pinterest' ? pn.authorizeUrl(env, redirectUri, state) : fb.authorizeUrl(env, redirectUri, state);
 
 // ───────────────────────── start ─────────────────────────
 export const startHandler = (net: Network): PagesFunction<Env> => async ({ request, env }) => {
@@ -69,6 +70,12 @@ export const startHandler = (net: Network): PagesFunction<Env> => async ({ reque
     const sub = rd.cleanSubreddit(parsed.data.subreddit);
     if (!sub) return fail(400, 'Enter the subreddit to post to, for example r/webdev (letters, digits and underscore).');
     target = sub;
+  }
+
+  if (net === 'pinterest') {
+    const board = pn.cleanBoard(parsed.data.board);
+    if (!board) return fail(400, 'Enter the name of the Pinterest board to pin to.');
+    target = board;
   }
 
   const userKey = `${net}:start:${auth.userId}`;
@@ -107,7 +114,7 @@ interface Connected {
   defaultName: string;
   blob: Record<string, unknown>;
 }
-type ConnectOutcome = { ok: true; connected: Connected[] } | { ok: false; reason: 'failed' | 'noperm' | 'nopages' };
+type ConnectOutcome = { ok: true; connected: Connected[] } | { ok: false; reason: 'failed' | 'noperm' | 'nopages' | 'noboard' };
 
 async function connect(net: Network, env: Env, redirectUri: string, code: string, now: number, target: string, customName: string): Promise<ConnectOutcome> {
   if (net === 'linkedin') {
@@ -126,6 +133,17 @@ async function connect(net: Network, env: Env, redirectUri: string, code: string
     const me = await rd.readProfile(t.tokens.accessToken);
     if (!me.ok) return { ok: false, reason: 'failed' };
     return { ok: true, connected: [{ identity: rd.redditIdentityOf(me.username, sub), defaultName: `r/${sub} (u/${me.username})`, blob: rd.redditBlob({ username: me.username, subreddit: sub, ...t.tokens }) }] };
+  }
+  if (net === 'pinterest') {
+    const wanted = pn.cleanBoard(target);
+    if (!wanted) return { ok: false, reason: 'failed' };
+    const t = await pn.exchangeCode(env, redirectUri, code, now);
+    if (!t.ok) return t;
+    const me = await pn.readProfile(t.tokens.accessToken);
+    if (!me.ok) return { ok: false, reason: 'failed' };
+    const board = await pn.findBoard(t.tokens.accessToken, wanted);
+    if (!board.ok) return board;
+    return { ok: true, connected: [{ identity: pn.pinterestIdentityOf(me.username, board.id), defaultName: `${board.name} (${me.username})`, blob: pn.pinterestBlob({ username: me.username, boardId: board.id, boardName: board.name, ...t.tokens }) }] };
   }
   if (net === 'facebook') {
     const t = await fb.exchangeCode(env, redirectUri, code);
@@ -154,6 +172,8 @@ async function findSameAccount(net: Network, env: Env, userId: string, identity:
       ? (await li.loadLinkedinCreds(row.credentials, env.ENCRYPTION_KEY))?.urn === identity
       : net === 'reddit'
         ? (await rd.redditIdentity(row.credentials, env.ENCRYPTION_KEY)) === identity
+        : net === 'pinterest'
+          ? (await pn.pinterestIdentity(row.credentials, env.ENCRYPTION_KEY)) === identity
         : net === 'facebook'
           ? (await fb.facebookIdentity(row.credentials, env.ENCRYPTION_KEY)) === identity
           : (await th.threadsIdentity(row.credentials, env.ENCRYPTION_KEY)) === identity; // by account, so a channel whose access was removed is revived

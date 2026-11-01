@@ -37,7 +37,7 @@ export function openApiDocument(origin: string): Json {
       title: 'Vane API',
       version: '1.0.0',
       description:
-        'Schedule posts to your connected channels from scripts, Make, Zapier or a Custom GPT.\n\n' +
+        'Schedule posts to your connected channels from scripts, Make or Zapier (a Custom GPT is coming soon).\n\n' +
         'Authentication: send your key as `Authorization: Bearer <key>`. Create keys in the dashboard (API access).\n' +
         '- `cpost_live_…` posts for real and counts toward your plan quota.\n' +
         '- `cpost_test_…` is simulated: requests are validated and answered with `"test": true`, but nothing is posted or counted.\n\n' +

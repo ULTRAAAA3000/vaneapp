@@ -13,6 +13,7 @@
  * file is refused with 503 media_unchecked (try again), it is never let through unchecked.
  * Checks, in order: signed-in user → R2 bound → per-user rate limit → body size (read with a hard
  * cap, never fully buffered beyond it) → real file type from the BYTES → whole-file structure (nothing hidden after the end, no script/archive/executable inside) → image dimensions → the plan's library storage.
+ * The plan's library storage limit (storageMb) is checked before the content check: it is free, the content check is not.
  * Every stored file also gets a row in `media_assets`, which is what the Library tab lists.
  */
 import type { PagesFunction } from '@cloudflare/workers-types';
@@ -98,6 +99,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return fail(413, 'Videos can be up to 20 MB (Telegram\'s limit for media sent by link).');
   }
 
+  const kind = image ?? video!;
+  const overQuota = await checkStorageQuota(env, auth.userId, bytes.length);   // cheaper than the content check, so it goes first
+  if (overQuota) return overQuota;
+
   if (!modOff(env)) {
     let pics: Picture[] = [];
     if (image) pics = [{ bytes, mime: image.mime }];
@@ -112,9 +117,6 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     if (!verdict.ok) return failCode(mediaStatus(verdict.reason), mediaCode(verdict.reason), mediaMessage(verdict.reason, !image));
   }
 
-  const kind = image ?? video!;
-  const overQuota = await checkStorageQuota(env, auth.userId, bytes.length);
-  if (overQuota) return overQuota;
   await bump(env, key, 3600);
   const objectKey = `${crypto.randomUUID()}.${kind.ext}`; // unguessable: the link itself is the capability
   await env.MEDIA.put(objectKey, bytes, {

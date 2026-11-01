@@ -26,6 +26,7 @@ import { loadDevtoCreds, sendDevtoPost } from '../../functions/api/channels/devt
 import { LINKEDIN_RENEW_BEFORE_SECONDS, linkedinBlob, loadLinkedinCreds, renewLinkedin, sendLinkedinPost, type LinkedinCreds } from '../../functions/api/channels/linkedin';
 import { loadRedditCreds, redditBlob, refreshRedditToken, sendRedditPost } from '../../functions/api/channels/reddit';
 import { loadFacebookCreds, sendFacebookPost } from '../../functions/api/channels/facebook';
+import { loadPinterestCreds, pinterestBlob, refreshPinterestToken, sendPinterestPin } from '../../functions/api/channels/pinterest';
 import { THREADS_RENEW_BEFORE_SECONDS, loadThreadsCreds, refreshThreadsToken, sendThreadsPost, threadsBlob, type ThreadsCreds } from '../../functions/api/channels/threads';
 import { encryptToken } from '../../functions/api/lib/crypto';
 import { isValidMediaUrl, sendTelegramPost } from '../../functions/api/channels/telegram';
@@ -210,6 +211,7 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
     if (ch.type === 'threads') return deliverThreads(post, ch);
     if (ch.type === 'reddit') return deliverReddit(post, ch);
     if (ch.type === 'facebook') return deliverFacebook(post, ch);
+    if (ch.type === 'pinterest') return deliverPinterest(post, ch);
     if (ch.type !== 'telegram') return finish(post, 'failed', `Publishing to ${ch.type} is not supported yet.`);
 
     const resolved = await credsFor(ch);
@@ -425,6 +427,30 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
 
     const res = await sendRedditPost(creds, post.content, media.url);
     if (res.ok) return finish(post, 'sent', null, { externalId: res.url || res.id, network: 'Reddit' });
+    if (res.retryable && post.attempts < MAX_ATTEMPTS) return finish(post, 'retry', res.error, { retryAfter: res.retryAfter });
+    return finish(post, 'failed', res.retryable ? `${res.error} (gave up after ${post.attempts} attempts)` : res.error);
+  }
+
+  async function deliverPinterest(post: Claimed, ch: ChannelInfo): Promise<void> {
+    let creds = await loadPinterestCreds(ch.credentials, env.ENCRYPTION_KEY);
+    if (!creds) {
+      console.error(`vane-cron: could not read credentials of channel ${ch.id} (wrong ENCRYPTION_KEY or corrupt data)`);
+      return finish(post, post.attempts < MAX_ATTEMPTS ? 'retry' : 'failed', CREDS_ERROR.unreadable);
+    }
+    if (!creds.accessToken || creds.expiresAt - nowSec < 300) {
+      const renewed = await refreshPinterestToken(env, creds, nowSec);
+      if (!renewed.ok) {
+        if (renewed.revoked) return finish(post, 'failed', 'Pinterest no longer accepts the saved sign-in. Reconnect the account.');
+        return finish(post, post.attempts < MAX_ATTEMPTS ? 'retry' : 'failed', 'Pinterest did not answer when renewing the sign-in.');
+      }
+      creds = renewed.creds;
+      await saveCreds(ch, pinterestBlob(creds));
+    }
+    const media = mediaOf(post);
+    if ('error' in media) return finish(post, 'failed', media.error);
+
+    const res = await sendPinterestPin(creds, post.content, media.url);
+    if (res.ok) return finish(post, 'sent', null, { externalId: res.url, network: 'Pinterest' });
     if (res.retryable && post.attempts < MAX_ATTEMPTS) return finish(post, 'retry', res.error, { retryAfter: res.retryAfter });
     return finish(post, 'failed', res.retryable ? `${res.error} (gave up after ${post.attempts} attempts)` : res.error);
   }

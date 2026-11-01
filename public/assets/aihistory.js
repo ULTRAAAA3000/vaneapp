@@ -4,10 +4,10 @@
   if (!list) return;
   var items = [], maxPinned = 4;
   var esc = function (s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
-  var TITLES = { generate: 'Post', plan: 'Week plan', winners: 'Like my best', repurpose: 'Series' };
+  var TITLES = { generate: 'Post', plan: 'Week plan', winners: 'Like my best', repurpose: 'Series', ideas: 'Ideas', translate: 'Translation' };
   var DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  var many = function (it) { return it.tool === 'plan' || it.tool === 'repurpose' || it.tool === 'winners'; };
-  var parts = function (it) { var r = it.result || {}; return it.tool === 'winners' ? (r.options || []).map(function (t, i) { return { label: 'Option ' + (i + 1), text: t }; }) : (r.items || []).map(function (x, i) { return { label: it.tool === 'plan' ? DAYS[x.day] || 'Day ' + (x.day + 1) : 'Post ' + (i + 1), text: x.text }; }); };
+  var many = function (it) { return it.tool === 'plan' || it.tool === 'repurpose' || it.tool === 'winners' || it.tool === 'ideas'; };
+  var parts = function (it) { var r = it.result || {}; return it.tool === 'winners' || it.tool === 'ideas' ? (r.options || []).map(function (t, i) { return { label: (it.tool === 'ideas' ? 'Idea ' : 'Option ') + (i + 1), text: t }; }) : (r.items || []).map(function (x, i) { return { label: it.tool === 'plan' ? DAYS[x.day] || 'Day ' + (x.day + 1) : 'Post ' + (i + 1), text: x.text }; }); };
 
   function textBlock(t, id, i) {
     return '<p class="whitespace-pre-wrap rounded-xl border border-white/10 bg-[#1a1a1f] p-3 text-sm leading-relaxed text-white/90">' + esc(t) + '</p>' +

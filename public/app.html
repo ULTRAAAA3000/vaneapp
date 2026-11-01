@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/assets/vane.css?v=aa1317ecc8" />
-  <link rel="stylesheet" href="/assets/app.css?v=8c32755594" />
+  <link rel="stylesheet" href="/assets/app.css?v=7a8829e5f7" />
 </head>
 
 <body class="min-h-screen overflow-x-hidden bg-[#070708]">
@@ -51,8 +51,11 @@
         <span id="streakPill" class="hidden rounded-full border border-amber-300/20 bg-amber-400/10 px-2.5 py-1 text-xs font-medium text-amber-200"></span>
       </div>
       <h1 id="greeting" class="mt-2 text-3xl font-semibold leading-[1.1] tracking-tight sm:text-4xl">Welcome</h1>
-      <p class="mt-2 text-sm text-white/55">Schedule once. Ship everywhere.</p>
+      <p class="mt-2 text-sm text-white/55">Publish everywhere. Schedule anything.</p>
     </section>
+
+    <!-- onboarding checklist (assets/onboarding.js): hidden until the server says there is something to show -->
+    <section id="onboarding" hidden class="fade-up glass-d mt-6 rounded-3xl p-5 sm:p-6" style="animation-delay:.02s" aria-labelledby="onboardingTitle"></section>
 
     <!-- hand-off to the other product -->
     <section class="fade-up mt-6 grid gap-3 sm:grid-cols-2 sm:gap-4" style="animation-delay:.03s">
@@ -92,6 +95,11 @@
       </div>
     </section>
 
+    <!-- live card: time saved, delivery rate and a weekday sparkline for the last week or month (assets/insights.js) -->
+    <section class="fade-up glass-d mt-4 rounded-3xl p-5 sm:p-7" style="animation-delay:.08s" aria-label="Your results">
+      <div id="liveCard"><div class="skeleton h-40"></div></div>
+    </section>
+
     <!-- ═══════════ CHANNELS + PREVIEW: above the workspace, full width ═══════════ -->
     <div class="mt-6 grid items-start gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,.9fr)]">
       <!-- channels: every connected network in a row, and the Connect button -->
@@ -129,9 +137,11 @@
       <a href="#drafts" data-tab="drafts" class="dtab">Drafts</a>
       <a href="#ai" data-tab="ai" class="dtab">AI</a>
       <a href="#claude" data-tab="claude" class="dtab">Claude</a>
+      <a href="#wordpress" data-tab="wordpress" class="dtab">WordPress</a>
+      <a href="#automation" data-tab="automation" class="dtab">Make &amp; Zapier</a>
       <a href="#notion" data-tab="notion" class="dtab">Notion</a>
       <a href="#obsidian" data-tab="obsidian" class="dtab">Obsidian</a>
-      <a href="#agents" data-tab="agents" class="dtab" style="display:none">Agents</a>
+      <a href="#agents" data-tab="agents" class="dtab">Agents</a>
     </nav>
 
     <div data-view="create" class="mt-5">
@@ -191,6 +201,10 @@
           <span id="schedSpin" class="spinner spinner-dark hidden"></span>
           <span id="schedLabel">Schedule post</span>
         </button>
+        <button id="nowBtn" type="button" class="btn btn-ghost !py-3" title="Send it right away: it goes out within about a minute">
+          <span id="nowSpin" class="spinner hidden"></span>
+          <span id="nowLabel">Post now</span>
+        </button>
         <button id="draftBtn" type="button" class="btn btn-ghost !py-3">Save draft</button>
         <span id="hint" class="text-xs text-white/45"></span>
       </div>
@@ -206,7 +220,10 @@
     <!-- ═══════════ POSTS ═══════════ -->
     <section data-view="create" class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" style="animation-delay:.22s" aria-labelledby="postsTitle">
       <div class="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="postsTitle" class="text-lg font-semibold tracking-tight">Posts</h2>
+        <div class="flex items-center gap-2">
+          <h2 id="postsTitle" class="text-lg font-semibold tracking-tight">Posts</h2>
+          <button id="postsToggle" type="button" class="btn btn-ghost btn-sm" aria-expanded="true" aria-controls="posts">Collapse</button>
+        </div>
         <div class="relative grid grid-cols-2 rounded-full bg-white/[0.06] p-1 text-sm" role="tablist" aria-label="Post list">
           <span id="postsSeg" class="absolute bottom-1 left-1 top-1 w-[calc(50%-0.25rem)] rounded-full bg-white transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]" aria-hidden="true"></span>
           <button id="tabUpcoming" type="button" role="tab" aria-selected="true" class="relative z-10 rounded-full px-5 py-1.5 font-semibold transition-colors">Upcoming</button>
@@ -223,7 +240,7 @@
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 id="apiTitle" class="text-lg font-semibold tracking-tight">API access</h2>
-          <p class="mt-1 text-xs text-white/45">Post from Make, Zapier, your own scripts or a Custom GPT.</p>
+          <p class="mt-1 text-xs text-white/45">Post from Make, Zapier, your own scripts or a Custom GPT (soon).</p>
         </div>
         <button id="keyNewBtn" type="button" class="btn btn-white btn-sm">
           <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Create key
@@ -242,6 +259,36 @@
         </summary>
         <div id="apiQuickBody" class="space-y-5 px-5 pb-5"></div>
       </details>
+    </section>
+
+    <section id="viewAgents" data-view="create" style="display:none" class="fade-up glass-d mt-5 scroll-mt-20 rounded-3xl p-5 sm:p-7" aria-labelledby="agentsTitle">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0">
+          <h2 id="agentsTitle" class="text-lg font-semibold tracking-tight">Agent log</h2>
+          <p class="mt-1 max-w-xl text-xs text-white/45">What your AI assistants and integrations do with your Vane account, live: Claude and Notion tool calls, Make, Zapier, WordPress, Obsidian and your own scripts. Only counts, times and codes are shown, never the text of your posts.</p>
+        </div>
+        <div class="flex shrink-0 items-center gap-2 text-xs text-white/60"><span id="agentDot" class="live-dot is-off" aria-hidden="true"></span><span id="agentStatus" aria-live="polite">Connecting…</span></div>
+      </div>
+
+      <div id="agentChips" class="mt-4 flex flex-wrap gap-1.5" role="group" aria-label="Show only one integration">
+        <button type="button" class="chip-int" data-int="" aria-pressed="true">All</button><button type="button" class="chip-int" data-int="claude" aria-pressed="false">Claude</button><button type="button" class="chip-int" data-int="notion" aria-pressed="false">Notion</button><button type="button" class="chip-int" data-int="obsidian" aria-pressed="false">Obsidian</button><button type="button" class="chip-int" data-int="make" aria-pressed="false">Make</button><button type="button" class="chip-int" data-int="zapier" aria-pressed="false">Zapier</button><button type="button" class="chip-int" data-int="wordpress" aria-pressed="false">WordPress</button><button type="button" class="chip-int" data-int="chatgpt" aria-pressed="false">ChatGPT</button><button type="button" class="chip-int" data-int="api" aria-pressed="false">API</button>
+      </div>
+
+      <div class="term mt-4">
+        <div class="term-bar"><span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span><span class="ml-2 truncate">vane ~ agents</span></div>
+        <div id="agentTerm" class="term-body" role="log" aria-label="Agent activity, newest at the bottom" tabindex="0"></div>
+        <button id="agentJump" type="button" hidden class="btn btn-white btn-sm absolute bottom-3 right-3 z-10">↓ New lines</button>
+      </div>
+
+      <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <div class="flex flex-wrap items-center gap-2">
+          <button id="agentPause" type="button" class="btn btn-ghost btn-sm" aria-pressed="false">Pause</button>
+          <button id="agentDemo" type="button" class="btn btn-ghost btn-sm" hidden>Show a demo</button>
+          <span id="agentDemoNote" hidden class="text-xs text-violet-300">Demo lines, made up on your screen. <button id="agentDemoExit" type="button" class="underline underline-offset-2">Back to the real log</button></span>
+        </div>
+        <button id="agentClear" type="button" class="btn btn-ghost btn-sm">Clear log</button>
+      </div>
+      <p class="mt-3 text-xs leading-relaxed text-white/40">The newest 300 lines are kept for 30 days. Connect <a href="#claude" class="underline underline-offset-2">Claude</a>, <a href="#notion" class="underline underline-offset-2">Notion</a> or <a href="#obsidian" class="underline underline-offset-2">Obsidian</a>, then ask your assistant to list your channels and watch this window.</p>
     </section>
 
     <section id="viewSnippets" data-view="snippets" hidden class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" aria-labelledby="snippetsTitle">
@@ -315,6 +362,43 @@
         <li>Posts made through Claude count against your plan like any API post. Live posting needs a plan with API access; a test key is always free.</li>
         <li>Claude only sees your channel names and your posts, never your passwords or channel credentials.</li>
         <li>To disconnect, revoke the key “Claude connector” under <a href="#api" class="underline underline-offset-2">API keys</a>, or remove the connector in Claude.</li>
+      </ul>
+    </section>
+
+    <section id="viewWordpress" data-view="wordpress" hidden class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" aria-labelledby="wpTitle">
+      <h2 id="wpTitle" class="text-lg font-semibold tracking-tight">Vane for WordPress</h2>
+      <p class="mt-1 text-xs text-white/45">Vane inside your WordPress admin: write a post, pick the channels, post now or schedule it, and cross-post every new article the moment you publish it.</p>
+
+      <div class="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white/[0.04] p-4 ring-1 ring-white/5">
+        <div>
+          <span class="lbl">Plugin file</span>
+          <p class="mt-1 text-sm font-medium text-white">vane-for-wordpress.zip</p>
+          <p class="mt-0.5 text-xs text-white/45">Version 2.0 · WordPress 6.0+ and PHP 7.4+ · free</p>
+        </div>
+        <a href="/downloads/vane-for-wordpress.zip" class="btn btn-white btn-sm" download>Download plugin (.zip)</a>
+      </div>
+
+      <ol class="mt-6 space-y-4 text-sm leading-relaxed text-white/70">
+        <li><b class="text-white">1. Add the plugin.</b> In WordPress open <b>Plugins → Add New → Upload Plugin</b>, choose the file you just downloaded, press <b>Install Now</b>, then <b>Activate</b>. Do not unzip it first.</li>
+        <li><b class="text-white">2. Make a key.</b> Create an API key under <a href="#api" class="underline underline-offset-2">API keys</a> and under <b>Used with</b> choose <b>WordPress plugin</b>. Start with a <code>cpost_test_…</code> key: it tries everything and posts nothing.</li>
+        <li><b class="text-white">3. Connect.</b> In the WordPress menu open <b>Vane</b>, paste the key and press <b>Connect</b>. Your plan and channels appear.</li>
+        <li><b class="text-white">4. Post.</b> On the <b>Write</b> tab type something, tick a channel and press <b>Post now</b>. When you are happy, swap to a <code>cpost_live_…</code> key under <b>Settings</b>.</li>
+      </ol>
+
+      <h3 class="mt-7 text-sm font-semibold">What you get</h3>
+      <ul class="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-white/60">
+        <li><b class="text-white/80">Write:</b> a post with the character limit of each network, an image from your Media Library, or one of your latest articles with its link.</li>
+        <li><b class="text-white/80">Scheduled and history:</b> see the queue and cancel a post before it goes out; see what was sent, with a link to the live post and the reason if it failed.</li>
+        <li><b class="text-white/80">Vane Cross-Post:</b> a panel in the editor sidebar. Pick channels and edit the text; it is sent once, when the article first goes live. Editing it later never posts again.</li>
+      </ul>
+
+      <h3 class="mt-7 text-sm font-semibold">Good to know</h3>
+      <ul class="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-white/60">
+        <li>Your key stays on your server; the browser never sees it. Only Editors and Administrators can post, only Administrators can connect the key.</li>
+        <li>Live posting needs a plan with API access; a test key is always free. Posts made from WordPress count against your plan like any API post.</li>
+        <li>To stop cross-posting: Vane → Settings  untick <b>Cross-post new articles</b>, or switch it off for one article in the editor sidebar.</li>
+        <li>To disconnect, press <b>Disconnect</b> under Vane → Settings, then revoke the key under <a href="#api" class="underline underline-offset-2">API keys</a>. Deleting the plugin removes its settings.</li>
+        <li>More detail and screenshots on the <a href="/wordpress" class="underline underline-offset-2">WordPress plugin page</a>.</li>
       </ul>
     </section>
 
@@ -412,41 +496,70 @@
 
       <h3 class="mt-7 text-sm font-semibold">Good to know</h3>
       <ul class="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-white/60">
-        <li>Posts made from Obsidian count against your plan like any API post. Live posting needs a plan with API access (the Suite includes it).</li>
-        <li>The key is kept in the plugin’s data file inside your vault. If you sync or share the vault, keep <code>.obsidian/plugins/vane/data.json</code> out of it, or use a key you can revoke.</li>
-        <li>To disconnect, revoke the key under <a href="#api" class="underline underline-offset-2">API keys</a> and disable the plugin.</li>
+        <li>Your key stays on your server; the browser never sees it. Only Editors and Administrators can post, only Administrators can connect the key.</li>
+        <li>Live posting needs a plan with API access; a test key is always free. Posts made from WordPress count against your plan like any API post.</li>
+        <li>To stop cross-posting: Vane → Settings  untick <b>Cross-post new articles</b>, or switch it off for one article in the editor sidebar.</li>
+        <li>To disconnect, press <b>Disconnect</b> under Vane → Settings, then revoke the key under <a href="#api" class="underline underline-offset-2">API keys</a>. Deleting the plugin removes its settings.</li>
+        <li>More detail and screenshots on the <a href="/wordpress" class="underline underline-offset-2">WordPress plugin page</a>.</li>
       </ul>
     </section>
 
-    <section id="viewAgents" data-view="agents" hidden style="display:none" class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" aria-labelledby="agentsTitle">
-      <div class="flex flex-wrap items-start justify-between gap-3">
-        <div class="min-w-0">
-          <h2 id="agentsTitle" class="text-lg font-semibold tracking-tight">Agent log</h2>
-          <p class="mt-1 max-w-xl text-xs text-white/45">What your AI assistants and integrations do with your Vane account, live: Claude and Notion tool calls, Make, Zapier, WordPress, Obsidian and your own scripts. Only counts, times and codes are shown, never the text of your posts.</p>
-        </div>
-        <div class="flex shrink-0 items-center gap-2 text-xs text-white/60"><span id="agentDot" class="live-dot is-off" aria-hidden="true"></span><span id="agentStatus" aria-live="polite">Connecting…</span></div>
+    <section id="viewAutomation" data-view="automation" hidden class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" aria-labelledby="autoTitle">
+      <h2 id="autoTitle" class="text-lg font-semibold tracking-tight">Make &amp; Zapier</h2>
+      <p class="mt-1 text-xs text-white/45">Post from your automations: a new row, a new article or a finished video turns into a scheduled post. Both use an API key from Vane; you add it once when you create the connection.</p>
+
+      <div class="mt-5 rounded-2xl bg-white/[0.04] p-4 ring-1 ring-white/5">
+        <span class="lbl">Before you start: get a key</span>
+        <p class="mt-1 text-sm leading-relaxed text-white/70">Open <a href="#api" class="underline underline-offset-2">API keys</a>, create a key and under <b>Used with</b> choose <b>Make</b> or <b>Zapier</b>. Begin with a <code>cpost_test_…</code> key: requests are checked and answered like real ones, but nothing is posted or counted. Switch to a <code>cpost_live_…</code> key when it works (live keys need a plan with API access).</p>
       </div>
 
-      <div id="agentChips" class="mt-4 flex flex-wrap gap-1.5" role="group" aria-label="Show only one integration">
-        <button type="button" class="chip-int" data-int="" aria-pressed="true">All</button><button type="button" class="chip-int" data-int="claude" aria-pressed="false">Claude</button><button type="button" class="chip-int" data-int="notion" aria-pressed="false">Notion</button><button type="button" class="chip-int" data-int="obsidian" aria-pressed="false">Obsidian</button><button type="button" class="chip-int" data-int="make" aria-pressed="false">Make</button><button type="button" class="chip-int" data-int="zapier" aria-pressed="false">Zapier</button><button type="button" class="chip-int" data-int="wordpress" aria-pressed="false">WordPress</button><button type="button" class="chip-int" data-int="chatgpt" aria-pressed="false">ChatGPT</button><button type="button" class="chip-int" data-int="api" aria-pressed="false">API</button>
+      <h3 class="mt-7 text-sm font-semibold">Make</h3>
+      <ol class="mt-3 space-y-4 text-sm leading-relaxed text-white/70">
+        <li><b class="text-white">1. Add the Vane app.</b> In a Make scenario press <b>+</b> and search for <b>Vane</b>.</li>
+        <li><b class="text-white">2. Create the connection.</b> Press <b>Create a connection</b>, paste your key and save. Make checks it right away.</li>
+        <li><b class="text-white">3. Pick a module.</b> For example <b>Schedule a Post</b>: fill in the text and the time, and choose channels from the list (it shows your channel names, so there are no ids to paste).</li>
+        <li><b class="text-white">4. Run once.</b> With a test key the result says <b>TEST MODE</b> and nothing is posted. Then swap in the live key.</li>
+      </ol>
+      <div class="mt-4 overflow-x-auto rounded-2xl border border-white/10">
+        <table class="w-full min-w-[30rem] text-left text-sm">
+          <thead><tr class="text-[11px] uppercase tracking-wider text-white/40"><th class="px-4 py-2.5 font-medium">Module</th><th class="px-4 py-2.5 font-medium">What it does</th></tr></thead>
+          <tbody class="divide-y divide-white/[0.06] text-white/70">
+            <tr><td class="px-4 py-2.5 font-medium text-white">Schedule a Post</td><td class="px-4 py-2.5">Action. Schedules a post, or sends it right away.</td></tr>
+            <tr><td class="px-4 py-2.5 font-medium text-white">Get a Post</td><td class="px-4 py-2.5">Action. Reads one post and its status.</td></tr>
+            <tr><td class="px-4 py-2.5 font-medium text-white">Cancel a Post</td><td class="px-4 py-2.5">Action. Removes a post that has not gone out yet.</td></tr>
+            <tr><td class="px-4 py-2.5 font-medium text-white">List Posts</td><td class="px-4 py-2.5">Search. Scheduled or recent posts.</td></tr>
+            <tr><td class="px-4 py-2.5 font-medium text-white">List Channels</td><td class="px-4 py-2.5">Search. The channels connected to Vane.</td></tr>
+          </tbody>
+        </table>
       </div>
 
-      <div class="term mt-4">
-        <div class="term-bar"><span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span><span class="ml-2 truncate">vane ~ agents</span></div>
-        <div id="agentTerm" class="term-body" role="log" aria-label="Agent activity, newest at the bottom" tabindex="0"></div>
-        <button id="agentJump" type="button" hidden class="btn btn-white btn-sm absolute bottom-3 right-3 z-10">↓ New lines</button>
+      <h3 class="mt-8 text-sm font-semibold">Zapier</h3>
+      <ol class="mt-3 space-y-4 text-sm leading-relaxed text-white/70">
+        <li><b class="text-white">1. Add the Vane app.</b> In a Zap choose <b>Vane</b> as the trigger or as the action app.</li>
+        <li><b class="text-white">2. Sign in with your key.</b> When Zapier asks to connect an account, paste your API key. Zapier tests it right away.</li>
+        <li><b class="text-white">3. Pick what Vane does.</b> Use <b>Create Social Post</b> as the action: text, channels (a list of your channel names), publish time and an optional image.</li>
+        <li><b class="text-white">4. Test the Zap.</b> A test key posts nothing. Then swap in the live key.</li>
+      </ol>
+      <div class="mt-4 overflow-x-auto rounded-2xl border border-white/10">
+        <table class="w-full min-w-[30rem] text-left text-sm">
+          <thead><tr class="text-[11px] uppercase tracking-wider text-white/40"><th class="px-4 py-2.5 font-medium">Step</th><th class="px-4 py-2.5 font-medium">What it does</th></tr></thead>
+          <tbody class="divide-y divide-white/[0.06] text-white/70">
+            <tr><td class="px-4 py-2.5 font-medium text-white">Create Social Post</td><td class="px-4 py-2.5">Action. Schedules a post to the channels you pick.</td></tr>
+            <tr><td class="px-4 py-2.5 font-medium text-white">New Published Post</td><td class="px-4 py-2.5">Instant trigger. Fires the moment a post goes out.</td></tr>
+            <tr><td class="px-4 py-2.5 font-medium text-white">Post Failed</td><td class="px-4 py-2.5">Instant trigger. Fires when a post could not be sent, so you can be told.</td></tr>
+          </tbody>
+        </table>
       </div>
 
-      <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
-        <div class="flex flex-wrap items-center gap-2">
-          <button id="agentPause" type="button" class="btn btn-ghost btn-sm" aria-pressed="false">Pause</button>
-          <button id="agentDemo" type="button" class="btn btn-ghost btn-sm" hidden>Show a demo</button>
-          <span id="agentDemoNote" hidden class="text-xs text-violet-300">Demo lines, made up on your screen. <button id="agentDemoExit" type="button" class="underline underline-offset-2">Back to the real log</button></span>
-        </div>
-        <button id="agentClear" type="button" class="btn btn-ghost btn-sm">Clear log</button>
-      </div>
-      <p class="mt-3 text-xs leading-relaxed text-white/40">The newest 300 lines are kept for 30 days. Connect <a href="#claude" class="underline underline-offset-2">Claude</a>, <a href="#notion" class="underline underline-offset-2">Notion</a> or <a href="#obsidian" class="underline underline-offset-2">Obsidian</a>, then ask your assistant to list your channels and watch this window.</p>
+      <h3 class="mt-7 text-sm font-semibold">Good to know</h3>
+      <ul class="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-white/60">
+        <li>Errors read like <code>[402] message (quota_exceeded)</code>, so a scenario or Zap can react to the code.</li>
+        <li>Posts made from automations count against your plan like any API post.</li>
+        <li>Use a separate key for each tool. To cut one off, revoke that key under <a href="#api" class="underline underline-offset-2">API keys</a>; the others keep working.</li>
+        <li>Want something else? Any tool that can send an HTTP request works with the same key: see <a href="/developers" class="underline underline-offset-2">Developers</a>.</li>
+      </ul>
     </section>
+
 
     <section id="aiStudio" data-view="ai" hidden class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" aria-labelledby="aiTitle"></section>
 
@@ -487,6 +600,8 @@
       <p id="libEmpty" class="mt-8 hidden text-center text-sm leading-relaxed text-white/45"></p>
       <div class="mt-6 text-center"><button id="libMore" type="button" class="btn btn-ghost btn-sm hidden">Load more</button></div>
     </section>
+    <!-- system status: real edge latency and health (assets/status.js, GET /api/health) -->
+    <div class="mt-10 flex justify-center"><div data-status-badge data-status-poll="60"></div></div>
   </main>
 
   <!-- ═══════════ CONNECT A CHANNEL ═══════════ -->
@@ -707,6 +822,35 @@
         </form>
       </div>
 
+      <div data-step="pinterest" class="hidden">
+        <ol class="mt-6 space-y-3 text-sm text-white/65">
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>Type the name of the board to pin to. It must already exist on your Pinterest account; each channel pins to one board.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Press <b class="font-semibold text-white">Continue with Pinterest</b> and <b class="font-semibold text-white">Give access</b>. You come straight back here.</span></li>
+        </ol>
+        <p class="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-xs leading-relaxed text-white/50">Vane may only read your boards and username and create pins. Every pin needs a picture; the first line is the title and the first link becomes its destination.</p>
+
+        <form id="pnForm" class="mt-6 space-y-4" novalidate autocomplete="off">
+          <div>
+            <label for="pnBoard" class="lbl">Board</label>
+            <input id="pnBoard" type="text" maxlength="100" placeholder="My recipes" class="field" />
+          </div>
+          <div>
+            <label for="pnName" class="lbl">Display name</label>
+            <input id="pnName" type="text" maxlength="80" placeholder="Same as your board" class="field" />
+          </div>
+
+          <div id="pnErr" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
+
+          <div class="flex items-center justify-end gap-3 pt-1">
+            <button type="button" id="pnCancel" class="btn btn-ghost">Cancel</button>
+            <button type="submit" id="pnSubmit" class="btn btn-white">
+              <span id="pnSpin" class="spinner spinner-dark hidden"></span>
+              <span id="pnLabel">Continue with Pinterest</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
       <div data-step="facebook" class="hidden">
         <ol class="mt-6 space-y-3 text-sm text-white/65">
           <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>Press <b class="font-semibold text-white">Continue with Facebook</b>. Facebook asks you to sign in and to choose the <b class="font-semibold text-white">Pages</b> Vane may post to.</span></li>
@@ -887,8 +1031,7 @@
           <select id="keyIntegration" class="field">
             <option value="">Not sure, or something else</option>
             <option value="claude">Claude</option>
-            <option value="notion">Notion</option>
-            <option value="chatgpt">ChatGPT</option>
+            <option value="chatgpt" disabled>ChatGPT (soon)</option>
             <option value="make">Make</option>
             <option value="zapier">Zapier</option>
             <option value="wordpress">WordPress plugin</option>
@@ -932,16 +1075,20 @@
     </div>
   </dialog>
 
+  <script src="/assets/status.js?v=5951604964" defer></script>
   <script src="/assets/vane.js?v=a2c867edc4"></script>
-  <script src="/assets/media-picker.js?v=77ebb5a885"></script>
-  <script src="/assets/insights.js?v=be1faaaac6"></script>
-  <script src="/assets/dashboard.js?v=af623bc4e3"></script>
+  <script src="/assets/media-picker.js?v=86dfab3b84"></script>
+  <script src="/assets/insights.js?v=c81d5838ef"></script>
+  <script src="/assets/dashboard.js?v=a3519d36d9"></script>
   <script src="/assets/ai.js?v=33d5e51dfa"></script>
-  <script src="/assets/library.js?v=18894accfa"></script>
+  <script src="/assets/library.js?v=ea530acfbf"></script>
+  <script src="/assets/library-picker.js?v=75266cc3f5"></script>
   <script src="/assets/snippets.js?v=2833a28950"></script>
   <script src="/assets/drafts.js?v=9ce82a983a"></script>
-  <script src="/assets/aistudio.js?v=7de8bcf433"></script>
-  <script src="/assets/aihistory.js?v=819e5b45de"></script>
+  <script src="/assets/aistudio.js?v=e134a0e708"></script>
+  <script src="/assets/aihistory.js?v=72fff6ab0e"></script>
+  <script src="/assets/onboarding.js?v=76d0855c09"></script>
+  <script src="/assets/feedback.js?v=14411ed552" defer></script>
   <script src="/assets/agentlog.js?v=34106d693e"></script>
   <script src="/assets/composer-tools.js?v=0c636c4c2b"></script>
   <script src="/assets/track.js?v=a3d04e70d1" data-path="/app" defer></script>

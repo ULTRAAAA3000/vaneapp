@@ -275,14 +275,9 @@
       name: 'Instagram Reels', ready: true, blurb: 'Business and Creator accounts', setup: 'Choose which account Vane should publish to.',
       tile: 'bg-orange-500/15 text-orange-300',
       icon: { d: 'M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zM16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37zM17.5 6.5h.01' }
-    },
-    pinterest: {
-      name: 'Pinterest', ready: false, blurb: 'Video Pins with a link to your site', setup: 'Choose which board Vane should publish to.',
-      tile: 'bg-rose-500/15 text-rose-300',
-      icon: { d: 'M12 3a9 9 0 0 0-3.3 17.4c-.1-.8-.2-2 0-2.9l1.1-4.6s-.3-.6-.3-1.4c0-1.3.8-2.3 1.7-2.3.8 0 1.2.6 1.2 1.3 0 .8-.5 2-.8 3.1-.2.9.5 1.7 1.4 1.7 1.7 0 3-1.8 3-4.4 0-2.3-1.6-3.9-4-3.9a4.1 4.1 0 0 0-4.3 4.1c0 .8.3 1.7.7 2.2M10 14l-1.300 5.300' }
     }
   };
-  var VNET_ORDER = ['youtube', 'tiktok', 'instagram', 'pinterest'];
+  var VNET_ORDER = ['youtube', 'tiktok', 'instagram'];
   var VNET_OTHER = { tile: 'bg-white/[0.08] text-white/70', icon: { d: 'M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7' } };
   var TRASH = '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6M10 11v6M14 11v6"/></svg>';
 
@@ -312,7 +307,7 @@
         '<div class="rounded-2xl border border-dashed border-white/10 px-5 py-8 text-center">' +
           '<div class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl ' + netTile('other') + '">' + netIcon('other', 'h-5 w-5') + '</div>' +
           '<p class="mt-4 text-sm font-medium">No channels yet</p>' +
-          '<p class="mx-auto mt-1 max-w-[20rem] text-xs leading-relaxed text-white/45">YouTube, TikTok, Instagram Reels and Pinterest open one by one as each network approves Vane. You will connect them here.</p>' +
+          '<p class="mx-auto mt-1 max-w-[20rem] text-xs leading-relaxed text-white/45">YouTube, TikTok and Instagram Reels open one by one as each network approves Vane. You will connect them here.</p>' +
           '<div class="mt-4 flex flex-wrap justify-center gap-2">' + VNET_ORDER.map(function (k) {
             return '<span class="inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-2.5 py-1 text-xs text-white/60">' + netIcon(k, 'h-3.5 w-3.5') + esc(VNET[k].name) + '<span class="text-[10px] font-semibold uppercase tracking-wide text-white/40">Soon</span></span>';
           }).join('') + '</div>' +
@@ -458,14 +453,20 @@
 
   /** Reloads the history. While something is queued or publishing it keeps itself fresh (the server also nudges due retries on each call). */
   async function loadPublications() {
+    clearTimeout(S.pubTimer);
+    S.pubTimer = null;
     var r = await Vane.api('GET', '/api/video/publications');
-    if (!r.ok) return;
+    if (!r.ok) {
+      S.pubFails = (S.pubFails || 0) + 1;
+      if (S.pubFails < 4 && r.status !== 401 && r.status !== 429) S.pubTimer = setTimeout(loadPublications, 4000 * Math.pow(2, S.pubFails));
+      return;
+    }
+    S.pubFails = 0;
     S.publications = r.data.publications;
     renderPublications();
     var busy = S.publications.some(function (p) { return p.status === 'queued' || p.status === 'publishing'; });
     $('pubLive').classList.toggle('hidden', !busy);
-    clearTimeout(S.pubTimer);
-    S.pubTimer = busy ? setTimeout(loadPublications, 4000) : null;
+    if (busy) S.pubTimer = setTimeout(function () { if (document.hidden) { S.pubTimer = null; } else loadPublications(); }, 4000);
   }
 
   $('publications').addEventListener('click', async function (e) {
@@ -489,7 +490,7 @@
 
     if (!channels.length) {
       openModal('<h3 class="mb-2 text-base font-semibold">Publish "' + esc(v.title) + '"</h3>' +
-        '<p class="text-sm leading-relaxed text-white/60">You have no video channels yet. YouTube, TikTok, Instagram Reels and Pinterest open one by one as each network approves Vane. Once a channel is connected, publishing is one click here.</p>' +
+        '<p class="text-sm leading-relaxed text-white/60">You have no video channels yet. YouTube, TikTok and Instagram Reels open one by one as each network approves Vane. Once a channel is connected, publishing is one click here.</p>' +
         '<div class="mt-5 flex justify-end gap-2"><button class="btn btn-ghost btn-sm" id="mClose">Close</button><button class="btn btn-white btn-sm" id="pubNets">See the networks</button></div>');
       $('mClose').addEventListener('click', closeModal);
       $('pubNets').addEventListener('click', function () { closeModal(); openConnect(); });
@@ -1082,27 +1083,37 @@
         '<p class="mt-4 border-t border-white/10 pt-4 text-xs leading-relaxed text-white/45">Each key can make up to 10 requests a minute. A full library answers with a 409 until you delete a video.</p>';
     }
     box.innerHTML = html;
-    var buy = async function () {
-      var r = await Vane.api('GET', '/api/billing/plan?id=video');
-      if (!r.ok || !r.data.plan || !r.data.plan.buyable || !box.isConnected) return;
-      var a = document.createElement('a');
-      a.className = 'btn btn-white mt-4 inline-flex';
-      a.href = (/^studio\.vaneapp\.dev$/i.test(location.hostname) ? 'https://vaneapp.dev' : '') + '/checkout?plan=video';
-      a.textContent = S.active || S.lapsed ? 'Renew Vane Studio' : 'Get Vane Studio';
-      if (!S.active || (S.endsAt && S.endsAt - Date.now() / 1000 < 7 * 86400)) box.appendChild(a);
+    planOffers().then(function (offers) {
+      if (!box.isConnected) return;
+      var studioHost = /^studio\.vaneapp\.dev$/i.test(location.hostname) ? 'https://vaneapp.dev' : '';
+      if (offers.video && !box.querySelector('[data-video-offer]') && (!S.active || (S.endsAt && S.endsAt - Date.now() / 1000 < 7 * 86400))) {
+        var a = document.createElement('a');
+        a.setAttribute('data-video-offer', '1');
+        a.className = 'btn btn-white mt-4 inline-flex';
+        a.href = studioHost + '/checkout?plan=video';
+        a.textContent = S.active || S.lapsed ? 'Renew Vane Studio' : 'Get Vane Studio';
+        box.appendChild(a);
+      }
+      if (offers.suite && !box.querySelector('[data-suite]')) {
+        var b = document.createElement('a');
+        b.setAttribute('data-suite', '1');
+        b.className = 'btn mt-3 inline-flex';
+        b.href = studioHost + '/checkout?plan=suite';
+        b.textContent = 'Or get Vane Suite: video + posting';
+        box.appendChild(b);
+      }
+    });
+  }
+
+  var plansAsked = null;
+  function planOffers() {
+    if (plansAsked) return plansAsked;
+    var ask = async function (id) {
+      var r = await Vane.api('GET', '/api/billing/plan?id=' + id, undefined, { noRedirect: true });
+      return !!(r.ok && r.data.plan && r.data.plan.buyable);
     };
-    buy();
-    // Vane Suite = Studio + Vane Post Pro in one payment.
-    (async function () {
-      var r = await Vane.api('GET', '/api/billing/plan?id=suite');
-      if (!r.ok || !r.data.plan || !r.data.plan.buyable || !box.isConnected || box.querySelector('[data-suite]')) return;
-      var a = document.createElement('a');
-      a.setAttribute('data-suite', '1');
-      a.className = 'btn mt-3 inline-flex';
-      a.href = (/^studio\.vaneapp\.dev$/i.test(location.hostname) ? 'https://vaneapp.dev' : '') + '/checkout?plan=suite';
-      a.textContent = 'Or get Vane Suite: video + posting';
-      box.appendChild(a);
-    })();
+    plansAsked = Promise.all([ask('video'), ask('suite')]).then(function (v) { return { video: v[0], suite: v[1] }; });
+    return plansAsked;
   }
 
   /** Quick start: base URL, your videos' ids and a ready-made request (never contains a real key). Returns the request text. */
@@ -1148,6 +1159,8 @@
     renderQuota: renderApiQuota,
     renderQuick: renderApiQuick
   });
+
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && !S.pubTimer && S.publications && S.publications.some(function (p) { return p.status === 'queued' || p.status === 'publishing'; })) loadPublications(); });
 
   // ───────────────────────── sign out ─────────────────────────
   $('logoutBtn').addEventListener('click', async function () {

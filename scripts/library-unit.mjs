@@ -50,5 +50,16 @@ const none = await lib.referencedKeys(env([
 ]), 'u');
 check('foreign links, broken JSON and odd shapes are ignored without errors', none.size === 0);
 
+console.log('\nlinks to our own files that are gone');
+const GOOD = '44444444-4444-4444-8444-444444444444.png';
+const store = (present) => ({ MEDIA: { head: async (k) => (present.includes(k) ? { key: k } : null) } });
+check('a deleted upload is reported as missing', await lib.ownMediaMissing(store([]), `https://post.vaneapp.dev/api/media/${GOOD}`) === true);
+check('an upload that is still stored is fine', await lib.ownMediaMissing(store([GOOD]), `https://post.vaneapp.dev/api/media/${GOOD}`) === false);
+check('works on any of our hosts and with a query string', await lib.ownMediaMissing(store([]), `https://vaneapp.dev/api/media/${GOOD}?x=1`) === true);
+check('another site\'s image is never checked', await lib.ownMediaMissing(store([]), 'https://example.com/photo.jpg') === false);
+check('a path that is not an upload key is not checked', await lib.ownMediaMissing(store([]), 'https://post.vaneapp.dev/api/media/../secret.png') === false && await lib.ownMediaMissing(store([]), 'https://post.vaneapp.dev/api/media/notakey.png') === false);
+check('without storage bound nothing is checked', await lib.ownMediaMissing({}, `https://post.vaneapp.dev/api/media/${GOOD}`) === false);
+check('a malformed address is ignored', await lib.ownMediaMissing(store([]), 'not a url') === false);
+
 console.log(`\n${passed} passed, ${failed.length} failed`);
 if (failed.length) { console.log('Failed:\n  - ' + failed.join('\n  - ')); process.exit(1); }

@@ -24,7 +24,7 @@ import { shieldAfter, shieldBefore, withApiHeaders } from './api/lib/shield';
 const VIDEO_API = ['/api/video/', '/api/v1/video/'];
 
 /** What studio. may call: the video API, sign-in/out, and API keys (the video dashboard creates cvid_ keys). */
-const STUDIO_API = [...VIDEO_API, '/api/auth/', '/api/keys'];
+const STUDIO_API = [...VIDEO_API, '/api/auth/', '/api/keys', '/api/billing/plan'];
 
 const ANALYTICS_API = ['/api/auth/', '/api/waitlist', '/api/analytics/'];
 

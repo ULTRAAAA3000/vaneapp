@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS channels (
   id           TEXT    PRIMARY KEY,                         -- uuid
   user_id      TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   type         TEXT    NOT NULL
-               CHECK (type IN ('telegram', 'x', 'linkedin', 'webhook', 'bluesky', 'mastodon', 'threads', 'discord', 'devto', 'reddit', 'facebook')),
+               CHECK (type IN ('telegram', 'x', 'linkedin', 'webhook', 'bluesky', 'mastodon', 'threads', 'discord', 'devto', 'reddit', 'facebook', 'pinterest')),
   name         TEXT    NOT NULL,                            -- display label, e.g. "@vane_dev"
   credentials  TEXT    NOT NULL,                            -- JSON, encrypted at app level (tokens, chat_id, url, secret)
   is_active    INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
@@ -227,7 +227,7 @@ CREATE INDEX IF NOT EXISTS idx_usage_logs_user ON usage_logs(user_id, created_at
 
 -- ───────────────────────── Vane Studio / Video Engine (a separate product with its own dashboard) ─────────────────────────
 -- Vane Studio, ECONOMY_AND_FINANCE.md §2.5: $12.00 / month, sold and metered apart from Vane Post (Free / API / Pro).
--- The $18.00 Suite bundle (§2.6) is Post + Studio: it will just create a row in BOTH subscription tables.
+-- The $40.00 Suite bundle (§2.6) is Post + Studio + Analytics Pro + AI Pass: it creates a row in EACH of their subscription tables.
 -- That is why it gets its own tables: `subscriptions` and `users` are never touched, so this file stays re-runnable.
 
 -- Who has the Video Engine. No row = no access. A row that is not 'active' or whose period has ended counts as no access.
@@ -332,7 +332,7 @@ INSERT OR IGNORE INTO plans (id, name, tagline, price_cents, features, limits, s
    '{"apiPostsPerMonth":180,"apiAccess":1,"overagePostUsd":0.03,"overageAiPostUsd":0.09}', 20);
 INSERT OR IGNORE INTO plans (id, name, tagline, badge, price_cents, compare_price_cents, yearly_price_cents, features, limits, highlight, sort) VALUES
   ('pro', 'Pro Dashboard', 'standard, or $99 a year.', 'Early Bird', 999, 1200, 9900,
-   '["Full dashboard with calendar and Kanban","Unlimited workspaces and channels","1,000 posts a month","Telegram inline buttons, spoilers and polls","Media library on Cloudflare R2","Vane AI Pass included","Extra posts: $0.015 each, $0.045 for AI posts"]',
+   '["Full dashboard: composer, library, drafts and insights","Unlimited workspaces and channels","1,000 posts a month","Telegram Quick Connect with channel verification","Media library on Cloudflare R2","Vane AI Pass included","Extra posts: $0.015 each, $0.045 for AI posts"]',
    '{"postsPerMonth":1000,"aiCredits":250,"apiAccess":0,"overagePostUsd":0.015,"overageAiPostUsd":0.045}', 1, 30);
 INSERT OR IGNORE INTO plans (id, name, tagline, price_cents, features, limits, cta_label, coming_soon, is_active, sort) VALUES
   ('video', 'Video Engine', 'Video publishing, end to end.', 899,
@@ -609,6 +609,17 @@ CREATE TABLE IF NOT EXISTS video_links (
   created_at  INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
+-- ───────────────────────── Public preview of a published post ─────────────────────────
+-- The owner presses "Share preview" on a sent post: one unguessable address (/p/<token>) shows its text, picture and networks to anyone.
+-- One preview per post group; "Stop sharing" deletes the row and the address stops working.
+CREATE TABLE IF NOT EXISTS post_previews (
+  token       TEXT    PRIMARY KEY,                                              -- 128 random bits, base64url (22 chars)
+  group_id    TEXT    NOT NULL UNIQUE,
+  user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_post_previews_user ON post_previews(user_id, created_at DESC);
+
 -- ───────────────────────── Webhooks: where Vane tells other systems that a post was published or failed ─────────────────────────
 -- Make / Zapier subscribe here (REST hooks); anyone can subscribe with an API key: POST /api/v1/webhooks.
 CREATE TABLE IF NOT EXISTS webhook_subscriptions (
@@ -848,15 +859,18 @@ CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_pending ON orders(status, provider, expires_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_invoice ON orders(provider_ref) WHERE provider = 'monobank' AND provider_ref IS NOT NULL;
 
--- The Suite bundle (Post Pro + Studio in ONE plan and ONE payment, ECONOMY_AND_FINANCE.md §2.6). It shows on /pricing as "Coming soon"
--- until you switch it on in /admin → Plans (tick Active, untick Coming soon). Buying it switches on Pro posting AND Vane Studio together.
+-- The Suite bundle (ONE plan, ONE payment, ECONOMY_AND_FINANCE.md §2.6): Post Pro + Vane Studio + Analytics Pro + the AI Pass, and
+-- 75 API posts a month (apiPostsPerMonth / apiAccess below). It shows on /pricing as "Coming soon" until you switch it on in
+-- /admin → Plans (tick Active, untick Coming soon). Buying it switches all four on together (lib/billing.ts → activate).
 INSERT OR IGNORE INTO plans (id, name, tagline, badge, price_cents, yearly_price_cents, features, limits, cta_label, highlight, coming_soon, is_public, is_active, sort) VALUES
-  ('suite', 'Vane Suite', 'Posting and video in one plan.', 'Best value', 1800, 17900,
-   '["Everything in Vane Post Pro: 1,000 posts a month, unlimited channels","Everything in Vane Studio: video library, API and AI","Post a new video to all your networks in one click","One payment, one renewal date, one invoice","Vane AI Pass included"]',
-   '{"postsPerMonth":1000,"aiCredits":250,"apiAccess":0,"overagePostUsd":0.015,"overageAiPostUsd":0.045}', 'Get Suite', 0, 1, 1, 0, 45);
--- A Suite row from an earlier run of this file (hidden, never edited) becomes the public "coming soon" card. An edited row is left alone.
-UPDATE plans SET is_public = 1, coming_soon = 1, badge = 'Best value', yearly_price_cents = 17900, tagline = 'Posting and video in one plan.',
-  features = '["Everything in Vane Post Pro: 1,000 posts a month, unlimited channels","Everything in Vane Studio: video library, API and AI","Post a new video to all your networks in one click","One payment, one renewal date, one invoice","Vane AI Pass included"]'
+  ('suite', 'Vane Suite', 'Posting, video, analytics and AI in one plan.', 'Best value', 4000, 39900,
+   '["Everything in Vane Post Pro: 1,000 posts a month, unlimited channels","Everything in Vane Studio: video library and publishing","Analytics Pro: reports across all your networks","Vane AI Pass included, on top of the plan''s own AI credits","API access: 75 API posts a month","Post a new video to all your networks in one click","One payment, one renewal date, one invoice"]',
+   '{"postsPerMonth":1000,"apiPostsPerMonth":75,"aiCredits":250,"apiAccess":1,"overagePostUsd":0.015,"overageAiPostUsd":0.045}', 'Get Suite', 0, 1, 1, 0, 45);
+-- A Suite row from an earlier run of this file (hidden, never edited) becomes the public "coming soon" card. An edited row is left alone
+-- (an existing database gets the new limits and text from scripts/migrations/004-suite-bundle.sql).
+UPDATE plans SET is_public = 1, coming_soon = 1, badge = 'Best value', price_cents = 4000, yearly_price_cents = 39900, tagline = 'Posting, video, analytics and AI in one plan.',
+  features = '["Everything in Vane Post Pro: 1,000 posts a month, unlimited channels","Everything in Vane Studio: video library and publishing","Analytics Pro: reports across all your networks","Vane AI Pass included, on top of the plan''s own AI credits","API access: 75 API posts a month","Post a new video to all your networks in one click","One payment, one renewal date, one invoice"]',
+  limits = '{"postsPerMonth":1000,"apiPostsPerMonth":75,"aiCredits":250,"apiAccess":1,"overagePostUsd":0.015,"overageAiPostUsd":0.045}'
   WHERE id = 'suite' AND is_public = 0 AND is_active = 0 AND coming_soon = 0 AND updated_at = created_at;
 
 -- ═════════════════════ Admin: networks on/off and the AI token ledger ═════════════════════
@@ -996,6 +1010,39 @@ CREATE TABLE IF NOT EXISTS oauth_tokens (
 );
 CREATE INDEX IF NOT EXISTS idx_oauth_tokens_grant ON oauth_tokens(grant_id);
 
+-- ───────────────────────── Feedback & Roadmap board ────────────────────────
+CREATE TABLE IF NOT EXISTS feedback_items (
+  id          TEXT    PRIMARY KEY,                           -- uuid (seed rows: 'seed-<network>')
+  user_id     TEXT    REFERENCES users(id) ON DELETE SET NULL, -- NULL = added by you in /admin
+  kind        TEXT    NOT NULL DEFAULT 'feature'
+              CHECK (kind IN ('network', 'feature', 'bug', 'other')),
+  title       TEXT    NOT NULL,
+  body        TEXT    NOT NULL DEFAULT '',
+  status      TEXT    NOT NULL DEFAULT 'open'
+              CHECK (status IN ('open', 'planned', 'building', 'done', 'declined')),
+  hidden      INTEGER NOT NULL DEFAULT 0,                    -- 1 = off the public board (spam, duplicates)
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_feedback_items_user ON feedback_items (user_id, created_at);
+
+-- One vote per person per idea; the number shown is COUNT(*) of these rows, so it can never drift.
+CREATE TABLE IF NOT EXISTS feedback_votes (
+  item_id     TEXT    NOT NULL REFERENCES feedback_items(id) ON DELETE CASCADE,
+  user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+  PRIMARY KEY (item_id, user_id)
+);
+
+-- The first ideas on the board: networks people can vote to get next (change or add more in /admin → Feedback).
+INSERT OR IGNORE INTO feedback_items (id, kind, title, body) VALUES
+  ('seed-pinterest', 'network', 'Pinterest', 'Post Pins with an image or video to your boards.'),
+  ('seed-x',         'network', 'X (Twitter)', 'Post to X from the same editor.'),
+  ('seed-instagram', 'network', 'Instagram posts', 'Photos and carousels to an Instagram Business or Creator account.'),
+  ('seed-tumblr',    'network', 'Tumblr', ''),
+  ('seed-medium',    'network', 'Medium', 'Cross-post articles.'),
+  ('seed-whatsapp',  'network', 'WhatsApp Channels', '');
+
 -- ───────────────────────── Contact form (/about#contact) ─────────────────────────
 -- Every message is kept, so nothing is lost when the email could not be sent. Read them in the D1 Console:
 --   SELECT datetime(created_at,'unixepoch') AS at, topic, name, email, message, mailed FROM contact_messages ORDER BY id DESC LIMIT 50;
@@ -1042,3 +1089,13 @@ CREATE TABLE IF NOT EXISTS agent_events (
   created_at   INTEGER NOT NULL DEFAULT (unixepoch())
 );
 CREATE INDEX IF NOT EXISTS idx_agent_events_user ON agent_events(user_id, id);
+
+-- ───────────────────────── Onboarding checklist (the card at the top of the dashboard) ─────────────────────────
+-- The steps themselves are never stored: they are read from the account (a channel, an API key, a sent post, an integration), see
+-- functions/api/lib/onboarding.ts. This table only remembers what the person did with the card.
+CREATE TABLE IF NOT EXISTS onboarding_progress (
+  user_id       TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  created_at    INTEGER NOT NULL DEFAULT (unixepoch()),
+  dismissed_at  INTEGER,                                                        -- the person closed the card with the cross
+  celebrated_at INTEGER                                                         -- the confetti has been shown (or the account was already complete: no confetti for old news)
+);

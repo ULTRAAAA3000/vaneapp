@@ -41,6 +41,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
           : n.id === 'instagram' && !instagramConfigured(env) ? 'Code is ready. Add INSTAGRAM_APP_ID and INSTAGRAM_APP_SECRET (Pages) to open it for users.'
           : n.id === 'tiktok' && !tiktokConfigured(env) ? 'Code is ready. Add TIKTOK_CLIENT_KEY and TIKTOK_CLIENT_SECRET (Pages and the cron worker) to open it for users.'
           : n.id === 'reddit' && !(env.REDDIT_CLIENT_ID && env.REDDIT_CLIENT_SECRET) ? 'Code is ready. Add REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET (Pages and the cron worker).'
+          : n.id === 'pinterest' && !(env.PINTEREST_APP_ID && env.PINTEREST_APP_SECRET) ? 'Code is ready. Add PINTEREST_APP_ID and PINTEREST_APP_SECRET (Pages and the cron worker).'
           : n.id === 'facebook' && !(env.FACEBOOK_APP_ID && env.FACEBOOK_APP_SECRET) ? 'Code is ready. Add FACEBOOK_APP_ID and FACEBOOK_APP_SECRET (Pages).' : null,
         note: f?.note ?? '', updatedAt: f?.updatedAt ?? null, updatedBy: f?.updatedBy ?? null,
         stats: post ? { channels: ch.get(n.id)?.n ?? 0, activeChannels: ch.get(n.id)?.active ?? 0, waiting: wt.get(n.id)?.n ?? 0, scheduled: up.get(n.id)?.n ?? 0, failed24h: fl.get(n.id)?.n ?? 0 } : null,

@@ -10,6 +10,7 @@
 import type { CronEnv } from '../../types';
 import { LINKEDIN_RENEW_BEFORE_SECONDS, linkedinBlob, loadLinkedinCreds, renewLinkedin } from '../../functions/api/channels/linkedin';
 import { THREADS_RENEW_BEFORE_SECONDS, loadThreadsCreds, refreshThreadsToken, threadsBlob } from '../../functions/api/channels/threads';
+import { PINTEREST_RENEW_BEFORE_SECONDS, loadPinterestCreds, pinterestBlob, refreshPinterestToken } from '../../functions/api/channels/pinterest';
 import { encryptToken } from '../../functions/api/lib/crypto';
 
 const UNTOUCHED_FOR_SECONDS = 40 * 24 * 3600;
@@ -26,9 +27,9 @@ export async function renewExpiringTokens(env: CronEnv, nowSec: number): Promise
   if (!env.ENCRYPTION_KEY || env.ENCRYPTION_KEY.length < 32) return out;
 
   const { results } = await env.DB
-    .prepare(`SELECT id, type, credentials FROM channels WHERE type IN ('threads', 'linkedin') AND is_active = 1 AND updated_at <= ?1 ORDER BY updated_at ASC LIMIT ?2`)
+    .prepare(`SELECT id, type, credentials FROM channels WHERE type IN ('threads', 'linkedin', 'pinterest') AND is_active = 1 AND updated_at <= ?1 ORDER BY updated_at ASC LIMIT ?2`)
     .bind(nowSec - UNTOUCHED_FOR_SECONDS, PER_RUN)
-    .all<{ id: string; type: 'threads' | 'linkedin'; credentials: string }>();
+    .all<{ id: string; type: 'threads' | 'linkedin' | 'pinterest'; credentials: string }>();
 
   for (const row of results) {
     out.checked++;
@@ -38,6 +39,12 @@ export async function renewExpiringTokens(env: CronEnv, nowSec: number): Promise
       if (c && c.expiresAt > nowSec && c.expiresAt - nowSec < THREADS_RENEW_BEFORE_SECONDS) {
         const n = await refreshThreadsToken(c, nowSec);
         if (n) blob = threadsBlob(n);
+      }
+    } else if (row.type === 'pinterest') {
+      const c = await loadPinterestCreds(row.credentials, env.ENCRYPTION_KEY);
+      if (c && c.expiresAt - nowSec < PINTEREST_RENEW_BEFORE_SECONDS) {
+        const n = await refreshPinterestToken(env, c, nowSec);
+        if (n.ok) blob = pinterestBlob(n.creds);
       }
     } else {
       const c = await loadLinkedinCreds(row.credentials, env.ENCRYPTION_KEY);

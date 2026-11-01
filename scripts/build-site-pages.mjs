@@ -74,7 +74,7 @@ function layout({ slug, title, desc, body, crumbs = [], faq = [], ogTitle }) {
   <meta property="og:image" content="${OG_IMAGE}" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="Vane: schedule once, post everywhere" />
+  <meta property="og:image:alt" content="Vane: publish everywhere, schedule anything" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="${esc(title)} — Vane" />
   <meta name="twitter:description" content="${esc(desc)}" />
@@ -173,9 +173,11 @@ ${body}
           <p>© <span id="year"></span> Vane · vaneapp.dev · Powered by <a href="https://wysb.eu" target="_blank" rel="noopener" class="font-medium text-white/50 transition-colors hover:text-white">WYSB</a></p>
           <p><a href="/privacy" class="hover:text-white">Privacy</a> · <a href="/terms" class="hover:text-white">Terms</a></p>
         </div>
+        <div class="mt-6 flex justify-center"><div data-status-badge></div></div>
       </div>
     </footer>
   </div>
+  <script src="/assets/status.js?v=0" defer></script>
   <script>
     document.getElementById('year').textContent = new Date().getFullYear();
     (function () {
@@ -263,7 +265,7 @@ function injectSeo(file, { path, title, desc, canonical, extra = [] }) {
   <meta property="og:image" content="${OG_IMAGE}" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="Vane: schedule once, post everywhere" />
+  <meta property="og:image:alt" content="Vane: publish everywhere, schedule anything" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="${esc(title)}" />
   <meta name="twitter:description" content="${esc(desc)}" />

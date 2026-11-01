@@ -1,3 +1,5 @@
+> **Soon.** The ChatGPT connector is not offered to users yet: the website, dashboards and public API description say "Soon". The code below is kept for the launch.
+
 # Vane for ChatGPT (Custom GPT)
 
 A Custom GPT that schedules posts through Vane. It uses the public API through its OpenAPI description, no code needed.

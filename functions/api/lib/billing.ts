@@ -116,7 +116,7 @@ async function grantAnalytics(env: Env, o: OrderRow, now: number): Promise<void>
     .run();
 }
 
-/** What a paid order switches on. 'video' = Vane Studio, 'ai-pass' = AI Pass, 'api-addon' = Pro's API add-on, 'suite' = Pro + Studio, anything else = that plan. */
+/** What a paid order switches on. 'video' = Vane Studio, 'ai-pass' = AI Pass, 'api-addon' = Pro's API add-on, 'suite' = Pro + Studio + Analytics Pro + AI Pass (its API posts come from the plan's own limits), anything else = that plan. */
 export async function activate(env: Env, o: OrderRow, now: number): Promise<void> {
   if (o.plan_id === 'video') return grantVideo(env, o, now);
   if (o.plan_id === 'ai-pass') return grantAiPass(env, o, now);
@@ -129,6 +129,7 @@ export async function activate(env: Env, o: OrderRow, now: number): Promise<void
   if (o.plan_id === 'suite') {
     await grantVideo(env, o, now);
     await grantAnalytics(env, o, now);
+    await grantAiPass(env, o, now);
   }
 }
 
@@ -146,7 +147,7 @@ export async function addonAllowed(env: Env, userId: string, now: number): Promi
 export async function fulfillOrder(env: Env, orderId: string, txRef: string | null = null, note: string | null = null): Promise<'paid' | 'already' | 'missing'> {
   const now = Math.floor(Date.now() / 1000);
   const claim = await env.DB
-    .prepare(`UPDATE orders SET status = 'paid', paid_at = ?2, tx_ref = COALESCE(?3, tx_ref), note = COALESCE(?4, note) WHERE id = ?1 AND status IN ('pending', 'expired')`)
+    .prepare(`UPDATE orders SET status = 'paid', paid_at = ?2, tx_ref = COALESCE(?3, tx_ref), note = COALESCE(?4, note) WHERE id = ?1 AND (status IN ('pending', 'expired') OR (status = 'failed' AND provider = 'monobank'))`)
     .bind(orderId, now, txRef, note)
     .run();
   const order = await env.DB.prepare(`SELECT ${ORDER_COLUMNS} FROM orders WHERE id = ?1`).bind(orderId).first<OrderRow>();
@@ -164,6 +165,16 @@ export async function fulfillOrder(env: Env, orderId: string, txRef: string | nu
 
 const escHtml = (s: string): string => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
 
+/** When access really ends after this order (a renewal starts from the old end, so it is not simply now + one period). */
+async function periodEnd(env: Env, o: OrderRow, now: number): Promise<number> {
+  const table = o.plan_id === 'video' ? 'video_subscriptions' : o.plan_id === 'ai-pass' ? 'ai_pass' : o.plan_id === 'analytics' ? 'analytics_subscriptions' : 'subscriptions';
+  try {
+    const row = await env.DB.prepare(`SELECT current_period_end FROM ${table} WHERE user_id = ?1`).bind(o.user_id).first<{ current_period_end: number | null }>();
+    if (row?.current_period_end) return row.current_period_end;
+  } catch { /* fall back below */ }
+  return addInterval(now, o.interval);
+}
+
 /** The receipt e-mail (only when Resend is set up). Never blocks or fails an activation. */
 export async function sendReceipt(env: Env, o: OrderRow, now: number): Promise<void> {
   if (!emailConfigured(env)) return;
@@ -171,10 +182,10 @@ export async function sendReceipt(env: Env, o: OrderRow, now: number): Promise<v
   let name = '';
   try { const b = JSON.parse(o.billing) as { email?: string; name?: string }; to = b.email ?? ''; name = b.name ?? ''; } catch { return; }
   if (!to) return;
-  const amount = `$${(o.amount_cents / 100).toFixed(2)}`;
-  const until = new Date(addInterval(now, o.interval) * 1000).toISOString().slice(0, 10);
+  const amount = `${(o.amount_cents / 100).toFixed(2)} ${o.currency}`;
+  const until = new Date((await periodEnd(env, o, now)) * 1000).toISOString().slice(0, 10);
   const how = o.provider === 'crypto' ? 'Crypto (Solana)' : 'Card';
-  const lines = [`Plan: ${o.plan_name} (${o.interval === 'year' ? '1 year' : '1 month'})`, `Amount: ${amount} USD`, `Paid with: ${how}`, `Active until about: ${until}`, `Order: ${o.id}`];
+  const lines = [`Plan: ${o.plan_name} (${o.interval === 'year' ? '1 year' : '1 month'})`, `Amount: ${amount}`, `Paid with: ${how}`, `Active until about: ${until}`, `Order: ${o.id}`];
   await sendMail(env, {
     to,
     optional: true,
