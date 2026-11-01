@@ -1,6 +1,11 @@
 {
   "url": "/me",
   "method": "GET",
+  "headers": {
+    "Authorization": "Bearer {{connection.apiKey}}",
+    "Content-Type": "application/json",
+    "Accept": "application/json"
+  },
   "response": {
     "temp": {
       "keyName": "{{body.key.name}}"
