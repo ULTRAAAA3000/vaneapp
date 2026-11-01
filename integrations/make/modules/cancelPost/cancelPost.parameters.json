@@ -1,9 +1,1 @@
-[
-  {
-    "name": "id",
-    "type": "text",
-    "label": "Post ID",
-    "required": true,
-    "help": "Only a post that is still scheduled can be cancelled. The quota unit is not given back."
-  }
-]
+[]

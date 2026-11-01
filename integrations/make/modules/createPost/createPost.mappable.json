@@ -1,0 +1,33 @@
+[
+  {
+    "name": "channelIds",
+    "type": "array",
+    "label": "Channels",
+    "required": true,
+    "spec": {
+      "type": "select",
+      "options": "rpc://listChannels"
+    },
+    "help": "Where to publish. One run counts as one post against your quota, however many channels you pick."
+  },
+  {
+    "name": "content",
+    "type": "text",
+    "label": "Text",
+    "required": true,
+    "multiline": true
+  },
+  {
+    "name": "scheduledAt",
+    "type": "date",
+    "label": "Publish at",
+    "required": true,
+    "help": "Must be in the future."
+  },
+  {
+    "name": "mediaUrl",
+    "type": "url",
+    "label": "Image URL",
+    "help": "Optional. A public https link to an image."
+  }
+]

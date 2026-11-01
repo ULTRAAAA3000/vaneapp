@@ -35,7 +35,7 @@ for (const dir of ['modules', 'rpcs', 'connections']) {
   }
 }
 for (const name of readdirSync('integrations/make/modules')) {
-  const params = readFileSync(join('integrations/make/modules', name, `${name}.parameters.json`), 'utf8');
+  const params = ['parameters', 'mappable'].map((kind) => { try { return readFileSync(join('integrations/make/modules', name, `${name}.${kind}.json`), 'utf8'); } catch { return ''; } }).join('\n');
   for (const m of params.matchAll(/rpc:\/\/(\w+)/g)) {
     checked++;
     if (!rpcNames.has(m[1])) { bad++; console.error(`FAIL make/modules/${name}: rpc://${m[1]} does not exist`); }
