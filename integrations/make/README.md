@@ -14,6 +14,8 @@ The *Channels* field of Schedule a Post is a dropdown filled from `GET /channels
 
 ## Install
 
+Building the app by hand in the Make web editor? Follow [documentation/MAKE_SETUP.md](../../documentation/MAKE_SETUP.md): every tab, with the exact JSON to paste, and the three things that break it (the connection field must be named `apiKey`, every call carries its own `Authorization` header, the `rpc://` name must match the RPC, and the fields live in *Mappable parameters*).
+
 1. In Make: *Create a new app*, or use the **Make Apps Editor** extension for VS Code and open this folder.
 2. Import the folder (`makecomapp.json` lists the parts). The connection test is `GET /me`.
 3. In a scenario add the *Vane* app, create a connection and paste a `cpost_test_…` key first: requests are validated and answered like real ones, but nothing is posted or counted. Switch to a `cpost_live_…` key when it works.

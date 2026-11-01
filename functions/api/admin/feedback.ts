@@ -1,7 +1,8 @@
 /**
  * Feedback & Roadmap board, admin side (/admin → Feedback).
  *
- * GET    /api/admin/feedback                     every idea (also hidden and declined) with votes, who added it and when
+ * GET    /api/admin/feedback                     every idea (also hidden and declined) with votes, who added it and when, plus overall
+ *                                                 figures: { votes, voters, votes7d } (all votes, how many people voted, votes in the last 7 days)
  * POST   /api/admin/feedback { kind, title, body?, status? }   add an idea yourself (for example a network poll)
  * PUT    /api/admin/feedback { id, status?, hidden?, title? }  answer an idea: open / planned / building / done / declined, hide it, retitle it
  * DELETE /api/admin/feedback?id=...              remove an idea and its votes
@@ -29,8 +30,12 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
           LIMIT 500`,
       )
       .all<{ id: string; kind: string; title: string; body: string; status: string; hidden: number; created_at: number; email: string | null; votes: number }>();
+    const totals = await env.DB
+      .prepare(`SELECT COUNT(*) AS votes, COUNT(DISTINCT user_id) AS voters, COALESCE(SUM(created_at > unixepoch() - 604800), 0) AS votes7d FROM feedback_votes`)
+      .first<{ votes: number; voters: number; votes7d: number }>();
     return json({
       ok: true,
+      stats: { votes: totals?.votes ?? 0, voters: totals?.voters ?? 0, votes7d: totals?.votes7d ?? 0 },
       items: results.map((r) => ({ id: r.id, kind: r.kind, title: r.title, body: r.body, status: r.status, hidden: !!r.hidden, createdAt: r.created_at, author: r.email, votes: r.votes })),
     });
   } catch (err) {

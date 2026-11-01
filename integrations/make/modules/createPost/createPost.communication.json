@@ -1,6 +1,11 @@
 {
   "url": "/posts",
   "method": "POST",
+  "headers": {
+    "Authorization": "Bearer {{connection.apiKey}}",
+    "Content-Type": "application/json",
+    "Accept": "application/json"
+  },
   "body": {
     "content": "{{parameters.content}}",
     "channelIds": "{{parameters.channelIds}}",

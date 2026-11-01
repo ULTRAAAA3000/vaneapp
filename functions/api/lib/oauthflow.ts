@@ -5,7 +5,9 @@ import type { Provider } from './oauthlogin';
 const COOKIE = 'vane_oauth';
 const TTL = 600;
 
-export interface OAuthState { p: Provider; state: string; verifier: string; product: 'post' | 'studio'; next: string }
+/** `intent` is what the person pressed on the login page: 'login' (Sign in tab) never creates an account, 'register' (Create account tab) may. */
+export type Intent = 'login' | 'register';
+export interface OAuthState { p: Provider; state: string; verifier: string; product: 'post' | 'studio'; next: string; intent: Intent }
 
 /** The main site in production (one fixed address the provider knows), the request's own origin in local dev and previews. */
 const siteBase = (request: Request): string => {
@@ -26,7 +28,7 @@ export function readState(request: Request): OAuthState | null {
       try {
         const v = JSON.parse(decodeURIComponent(part.slice(i + 1).trim())) as Partial<OAuthState>;
         if ((v.p === 'github' || v.p === 'google') && typeof v.state === 'string' && typeof v.verifier === 'string') {
-          return { p: v.p, state: v.state, verifier: v.verifier, product: v.product === 'studio' ? 'studio' : 'post', next: typeof v.next === 'string' && /^\/checkout(\?[A-Za-z0-9=&%._-]*)?$/.test(v.next) ? v.next : '' };
+          return { p: v.p, state: v.state, verifier: v.verifier, product: v.product === 'studio' ? 'studio' : 'post', next: typeof v.next === 'string' && /^\/checkout(\?[A-Za-z0-9=&%._-]*)?$/.test(v.next) ? v.next : '', intent: v.intent === 'login' ? 'login' : 'register' };
         }
       } catch { /* a damaged cookie is the same as none */ }
     }
@@ -34,8 +36,9 @@ export function readState(request: Request): OAuthState | null {
   return null;
 }
 
-export const loginRedirect = (request: Request, error: string): Response =>
-  new Response(null, { status: 302, headers: { Location: `${siteBase(request)}/login?error=${error}`, 'Cache-Control': 'no-store' } });
+/** Back to the login page with a reason; `via` names the provider so the message can say "Google" / "GitHub". */
+export const loginRedirect = (request: Request, error: string, via?: Provider): Response =>
+  new Response(null, { status: 302, headers: { Location: `${siteBase(request)}/login?error=${error}${via ? `&via=${via}` : ''}`, 'Cache-Control': 'no-store' } });
 
 export function successUrl(request: Request, product: 'post' | 'studio', next: string): string {
   const base = siteBase(request);
