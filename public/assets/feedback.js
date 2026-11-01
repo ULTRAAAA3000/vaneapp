@@ -19,7 +19,7 @@
   function build() {
     btn = document.createElement('button');
     btn.type = 'button';
-    btn.id = 'fbOpen';
+    btn.id = 'feedbackOpen';
     btn.className = 'fixed bottom-4 left-4 z-40 inline-flex h-12 w-12 items-center justify-center rounded-full bg-black text-white shadow-xl shadow-black/60 ring-1 ring-white/25 transition hover:scale-[1.06] hover:ring-white/50 active:scale-[.96]';
     btn.setAttribute('aria-label', 'Feedback: vote for features and suggest ideas');
     btn.title = 'Feedback / Vote for Features';
@@ -31,34 +31,34 @@
     document.body.appendChild(btn);
 
     dlg = document.createElement('dialog');
-    dlg.id = 'fbDialog';
+    dlg.id = 'feedbackDialog';
     dlg.className = 'vane-dialog';
-    dlg.setAttribute('aria-labelledby', 'fbTitle');
+    dlg.setAttribute('aria-labelledby', 'feedbackTitle');
     dlg.innerHTML =
       '<div class="glass-d-strong max-h-[calc(100vh-2rem)] overflow-y-auto rounded-3xl p-6 shadow-2xl sm:p-8">' +
         '<div class="flex items-start justify-between gap-4">' +
-          '<div><h2 id="fbTitle" class="text-xl font-semibold tracking-tight">What should we build next?</h2>' +
+          '<div><h2 id="feedbackTitle" class="text-xl font-semibold tracking-tight">What should we build next?</h2>' +
           '<p class="mt-1 text-xs leading-relaxed text-white/50">Vote for the networks and features you want. The most wanted ones get built first, and you can follow the progress right here.</p></div>' +
-          '<button id="fbClose" type="button" class="icon-btn" aria-label="Close"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>' +
+          '<button id="feedbackClose" type="button" class="icon-btn" aria-label="Close"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>' +
         '</div>' +
         '<div class="mt-5 flex gap-1.5" role="tablist" aria-label="Feedback">' +
           '<button type="button" role="tab" data-fb-tab="vote" class="btn btn-sm">Vote</button>' +
           '<button type="button" role="tab" data-fb-tab="suggest" class="btn btn-sm">Suggest an idea</button>' +
         '</div>' +
-        '<div id="fbVote" class="mt-4">' +
-          '<div class="flex flex-wrap items-center gap-1.5" id="fbKinds"></div>' +
-          '<div id="fbList" class="mt-3 space-y-2" aria-live="polite"></div>' +
+        '<div id="feedbackVote" class="mt-4">' +
+          '<div class="flex flex-wrap items-center gap-1.5" id="feedbackKinds"></div>' +
+          '<div id="feedbackList" class="mt-3 space-y-2" aria-live="polite"></div>' +
         '</div>' +
-        '<div id="fbSuggest" class="mt-4 hidden">' +
+        '<div id="feedbackSuggest" class="mt-4 hidden">' +
           '<div class="space-y-4">' +
-            '<div><label class="lbl" for="fbKind">What is it about?</label>' +
-              '<select id="fbKind" class="field"><option value="network">A network to add</option><option value="feature" selected>A feature</option><option value="bug">Something that does not work</option><option value="other">Something else</option></select></div>' +
-            '<div><label class="lbl" for="fbName">Title</label><input id="fbName" class="field" maxlength="80" placeholder="e.g. Pinterest, or: Repeat a post every week" autocomplete="off" /></div>' +
-            '<div><label class="lbl" for="fbBody">Details <span class="normal-case tracking-normal text-white/30">(optional)</span></label>' +
-              '<textarea id="fbBody" class="field min-h-[6rem] resize-y" maxlength="500" placeholder="What would you use it for?"></textarea>' +
-              '<div id="fbCount" class="mt-1 text-right text-[11px] text-white/35">0 / 500</div></div>' +
-            '<div id="fbErr" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>' +
-            '<button id="fbSend" type="button" class="btn btn-white w-full !py-3">Add to the board</button>' +
+            '<div><label class="lbl" for="feedbackKind">What is it about?</label>' +
+              '<select id="feedbackKind" class="field"><option value="network">A network to add</option><option value="feature" selected>A feature</option><option value="bug">Something that does not work</option><option value="other">Something else</option></select></div>' +
+            '<div><label class="lbl" for="feedbackName">Title</label><input id="feedbackName" class="field" maxlength="80" placeholder="e.g. Pinterest, or: Repeat a post every week" autocomplete="off" /></div>' +
+            '<div><label class="lbl" for="feedbackBody">Details <span class="normal-case tracking-normal text-white/30">(optional)</span></label>' +
+              '<textarea id="feedbackBody" class="field min-h-[6rem] resize-y" maxlength="500" placeholder="What would you use it for?"></textarea>' +
+              '<div id="feedbackCount" class="mt-1 text-right text-[11px] text-white/35">0 / 500</div></div>' +
+            '<div id="feedbackErr" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>' +
+            '<button id="feedbackSend" type="button" class="btn btn-white w-full !py-3">Add to the board</button>' +
             '<p class="text-center text-[11px] text-white/35">Your idea is shown to other users without your name, and it starts with your vote.</p>' +
           '</div>' +
         '</div>' +
@@ -66,33 +66,34 @@
     document.body.appendChild(dlg);
 
     btn.addEventListener('click', open);
-    $('fbClose').addEventListener('click', function () { dlg.close(); });
+    $('feedbackClose').addEventListener('click', function () { dlg.close(); });
     dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
     dlg.addEventListener('click', onClick);
-    $('fbBody').addEventListener('input', function () { $('fbCount').textContent = $('fbBody').value.length + ' / ' + S.limits.body; });
-    $('fbSend').addEventListener('click', send);
+    $('feedbackBody').addEventListener('input', function () { $('feedbackCount').textContent = $('feedbackBody').value.length + ' / ' + S.limits.body; });
+    $('feedbackSend').addEventListener('click', send);
   }
 
-  function $(id) { return document.getElementById(id); }
+  /** Our own elements only: looked up inside the dialog, never on the whole page (the dashboard has ids of its own, e.g. the Facebook panel). */
+  function $(id) { return dlg.querySelector('#' + id); }
 
   function setTab(tab) {
     S.tab = tab;
-    $('fbVote').classList.toggle('hidden', tab !== 'vote');
-    $('fbSuggest').classList.toggle('hidden', tab !== 'suggest');
+    $('feedbackVote').classList.toggle('hidden', tab !== 'vote');
+    $('feedbackSuggest').classList.toggle('hidden', tab !== 'suggest');
     Array.prototype.forEach.call(dlg.querySelectorAll('[data-fb-tab]'), function (b) {
       var on = b.getAttribute('data-fb-tab') === tab;
       b.className = 'btn btn-sm ' + (on ? 'btn-white' : 'btn-ghost');
       b.setAttribute('aria-selected', on ? 'true' : 'false');
     });
-    if (tab === 'suggest') $('fbName').focus();
+    if (tab === 'suggest') $('feedbackName').focus();
   }
 
   async function open() {
     if (!dlg.open) dlg.showModal();
     setTab(S.tab);
-    if (!S.loaded) $('fbList').innerHTML = '<p class="py-6 text-center text-sm text-white/40">Loading…</p>';
+    if (!S.loaded) $('feedbackList').innerHTML = '<p class="py-6 text-center text-sm text-white/40">Loading…</p>';
     var r = await Vane.api('GET', '/api/feedback');
-    if (!r.ok) { $('fbList').innerHTML = '<p class="py-6 text-center text-sm text-red-300">' + esc(r.error || 'Could not load the board.') + '</p>'; return; }
+    if (!r.ok) { $('feedbackList').innerHTML = '<p class="py-6 text-center text-sm text-red-300">' + esc(r.error || 'Could not load the board.') + '</p>'; return; }
     S.items = r.data.items || [];
     S.unavailable = !!r.data.unavailable;
     if (r.data.limits) S.limits = r.data.limits;
@@ -102,7 +103,7 @@
 
   function render() {
     var kinds = ['all'].concat(Object.keys(KINDS));
-    $('fbKinds').innerHTML = kinds.map(function (k) {
+    $('feedbackKinds').innerHTML = kinds.map(function (k) {
       var on = S.kind === k;
       return '<button type="button" data-fb-kind="' + k + '" aria-pressed="' + on + '" class="rounded-full px-3 py-1 text-xs font-medium transition ' + (on ? 'bg-white text-[#010101]' : 'bg-white/[0.07] text-white/70 hover:bg-white/[0.12]') + '">' + FILTERS[k] + '</button>';
     }).join('') +
@@ -115,12 +116,12 @@
       return S.sort === 'new' ? b.createdAt - a.createdAt : b.votes - a.votes || b.createdAt - a.createdAt;
     });
 
-    if (S.unavailable) { $('fbList').innerHTML = '<p class="py-6 text-center text-sm text-white/45">The feedback board is not available yet. Please check back soon.</p>'; return; }
+    if (S.unavailable) { $('feedbackList').innerHTML = '<p class="py-6 text-center text-sm text-white/45">The feedback board is not available yet. Please check back soon.</p>'; return; }
     if (!list.length) {
-      $('fbList').innerHTML = '<div class="py-8 text-center"><p class="text-sm text-white/50">' + (S.items.length ? 'Nothing here yet.' : 'No ideas yet.') + '</p><button type="button" data-fb-tab="suggest" class="btn btn-white btn-sm mt-3">Suggest the first one</button></div>';
+      $('feedbackList').innerHTML = '<div class="py-8 text-center"><p class="text-sm text-white/50">' + (S.items.length ? 'Nothing here yet.' : 'No ideas yet.') + '</p><button type="button" data-fb-tab="suggest" class="btn btn-white btn-sm mt-3">Suggest the first one</button></div>';
       return;
     }
-    $('fbList').innerHTML = list.map(function (i) {
+    $('feedbackList').innerHTML = list.map(function (i) {
       var st = STATUS[i.status];
       var closed = i.status === 'done';
       return '<div id="fb-' + esc(i.id) + '" class="flex items-start gap-3 rounded-2xl bg-white/[0.04] p-3.5 ring-1 ring-white/5">' +
@@ -147,12 +148,12 @@
 
   async function send() {
     if (S.busy) return;
-    var err = $('fbErr'), title = $('fbName').value.trim();
+    var err = $('feedbackErr'), title = $('feedbackName').value.trim();
     err.classList.add('hidden');
-    if (title.length < 3) { err.textContent = 'Give the idea a short title (at least 3 characters).'; err.classList.remove('hidden'); $('fbName').focus(); return; }
-    S.busy = true; $('fbSend').disabled = true;
-    var r = await Vane.api('POST', '/api/feedback', { action: 'create', kind: $('fbKind').value, title: title, body: $('fbBody').value.trim() });
-    S.busy = false; $('fbSend').disabled = false;
+    if (title.length < 3) { err.textContent = 'Give the idea a short title (at least 3 characters).'; err.classList.remove('hidden'); $('feedbackName').focus(); return; }
+    S.busy = true; $('feedbackSend').disabled = true;
+    var r = await Vane.api('POST', '/api/feedback', { action: 'create', kind: $('feedbackKind').value, title: title, body: $('feedbackBody').value.trim() });
+    S.busy = false; $('feedbackSend').disabled = false;
     if (!r.ok) {
       // the same idea is already there: take the person to it instead of leaving them with a dead end
       var dupId = r.data && r.data.itemId;
@@ -161,7 +162,7 @@
       return;
     }
     Vane.toast('ok', 'Thank you! Your idea is on the board and has your vote.');
-    $('fbName').value = ''; $('fbBody').value = ''; $('fbCount').textContent = '0 / ' + S.limits.body;
+    $('feedbackName').value = ''; $('feedbackBody').value = ''; $('feedbackCount').textContent = '0 / ' + S.limits.body;
     S.kind = 'all'; S.sort = 'new'; setTab('vote');
     await open();
   }

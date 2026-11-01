@@ -126,9 +126,26 @@
   function stop() { if (timer) { clearInterval(timer); timer = 0; } }
 
   // The tab is a section the dashboard shows or hides: start polling when it appears, stop when it goes.
-  new MutationObserver(function () { if (root.hidden) stop(); else start(); }).observe(root, { attributes: true, attributeFilter: ['hidden'] });
-  document.addEventListener('visibilitychange', function () { setStatus(); if (!document.hidden && !root.hidden) poll(); });
-  if (!root.hidden) start();
+  function activate() {
+    new MutationObserver(function () { if (root.hidden) stop(); else start(); }).observe(root, { attributes: true, attributeFilter: ['hidden'] });
+    document.addEventListener('visibilitychange', function () { setStatus(); if (!document.hidden && !root.hidden) poll(); });
+    if (!root.hidden) start();
+  }
+
+  // The agent log is a paid-plan feature: the tab and the section are invisible (inline display:none) until the server says this
+  // account may have them. On the Free Trial, or when that cannot be found out, they are removed and a #agents link goes home.
+  var tab = document.querySelector('#dashTabs [data-tab="agents"]');
+  Vane.api('GET', '/api/agent-log?access=1').then(function (r) {
+    if (r.ok && r.data && r.data.allowed) {
+      if (tab) tab.style.display = '';
+      root.style.display = '';
+      activate();
+    } else {
+      if (tab) tab.remove();
+      root.remove();
+      if (location.hash === '#agents') location.hash = '#create';
+    }
+  }).catch(function () { if (tab) tab.remove(); root.remove(); });
 
   body.addEventListener('scroll', function () { stick = atBottom(); if (stick) jump.hidden = true; }, { passive: true });
   jump.addEventListener('click', function () { toBottom(); stick = true; });
