@@ -7,6 +7,8 @@
   var form = $('form'), email = $('email'), password = $('password'), nameInput = $('name');
   var birth = $('birth');
   var errBox = $('err'), submit = $('submit'), spin = $('spin'), label = $('submitLabel');
+  // The address as the page was opened. Read FIRST: setMode() below rewrites the URL (syncUrl) and would wipe ?error=... before it is read.
+  var PARAMS = new URLSearchParams(location.search);
   var mode = 'login';
   var product = 'post';   // 'post' | 'studio': where the visitor is signing in to
 
@@ -117,7 +119,8 @@
   };
   function oauthHref(p) {
     var base = /^(www\.)?vaneapp\.dev$|^(post|studio)\.vaneapp\.dev$/i.test(location.hostname) ? 'https://vaneapp.dev' : '';
-    var q = ['product=' + product], next = new URLSearchParams(location.search).get('next');
+    // intent: the tab the person is on. On "Sign in" an address without an account must not silently start a sign-up.
+    var q = ['product=' + product, 'intent=' + (mode === 'register' ? 'register' : 'login')], next = new URLSearchParams(location.search).get('next');
     if (/^\/checkout(\?[A-Za-z0-9=&%._-]*)?$/.test(next || '')) q.push('next=' + encodeURIComponent(next));
     return base + '/api/auth/oauth/' + p + '/start?' + q.join('&');
   }
@@ -145,9 +148,15 @@
     if (!r.ok) return showError(r.error, r.status === 400 ? birth : null);
     location.assign(a.href);
   });   // the product switch may have changed since the buttons were drawn
-  var oauthError = new URLSearchParams(location.search).get('error');
-  if (oauthError === 'age') setMode('register');
-  if (oauthError && OAUTH_ERRORS[oauthError]) { errBox.textContent = OAUTH_ERRORS[oauthError]; errBox.classList.remove('hidden'); }
+  var oauthError = PARAMS.get('error');
+  var oauthVia = PARAMS.get('via') === 'github' ? 'GitHub' : 'Google';
+  if (oauthError === 'age' || oauthError === 'noaccount') setMode('register');
+  if (oauthError === 'noaccount') {
+    // Said plainly, and the Create account tab is already open with the date of birth waiting.
+    errBox.textContent = 'There is no Vane account for that ' + oauthVia + ' address yet. Create one here: enter your date of birth, then choose ' + oauthVia + ' again.';
+    errBox.classList.remove('hidden');
+    birth.focus();
+  } else if (oauthError && OAUTH_ERRORS[oauthError]) { errBox.textContent = OAUTH_ERRORS[oauthError]; errBox.classList.remove('hidden'); }
 
   // ── Turnstile (bot protection): active only when the server reports a site key
   var ts = { key: null, id: null, token: '' };

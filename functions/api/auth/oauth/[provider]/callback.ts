@@ -23,8 +23,8 @@ export const onRequestGet: PagesFunction<Env, 'provider'> = async ({ request, en
   }
   const id = await fetchIdentity(p, env, callbackUrl(request, p), code, saved.verifier);
   if (!id) return done(loginRedirect(request, 'failed'));
-  const r = await signInWith(env, request, p, id);
-  if (!r.ok) return done(loginRedirect(request, r.code));
+  const r = await signInWith(env, request, p, id, saved.intent);
+  if (!r.ok) return done(loginRedirect(request, r.code, p));
   const res = new Response(null, { status: 302, headers: { Location: successUrl(request, saved.product, saved.next), 'Cache-Control': 'no-store' } });
   res.headers.append('Set-Cookie', r.cookie);
   res.headers.append('Set-Cookie', clearedProofCookie(request));
