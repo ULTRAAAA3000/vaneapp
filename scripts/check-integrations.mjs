@@ -25,6 +25,22 @@ for (const [dir] of dirs) {
     }
   }
 }
+// Make: every call sends the key itself (a hand-built app may have an empty Base tab), and every rpc:// a module points at exists
+const rpcNames = new Set(readdirSync('integrations/make/rpcs'));
+for (const dir of ['modules', 'rpcs', 'connections']) {
+  for (const name of readdirSync(join('integrations/make', dir))) {
+    const c = JSON.parse(readFileSync(join('integrations/make', dir, name, `${name}.communication.json`), 'utf8'));
+    checked++;
+    if (c.headers?.Authorization !== 'Bearer {{connection.apiKey}}') { bad++; console.error(`FAIL make/${dir}/${name}: no Authorization header with the connection key`); }
+  }
+}
+for (const name of readdirSync('integrations/make/modules')) {
+  const params = readFileSync(join('integrations/make/modules', name, `${name}.parameters.json`), 'utf8');
+  for (const m of params.matchAll(/rpc:\/\/(\w+)/g)) {
+    checked++;
+    if (!rpcNames.has(m[1])) { bad++; console.error(`FAIL make/modules/${name}: rpc://${m[1]} does not exist`); }
+  }
+}
 // Zapier: every `${BASE}/path` the app calls must exist in the spec (any method)
 const specPaths = new Set(Object.keys(spec.paths).map((p) => p.replace(/^\/api\/v1/, '')));
 for (const dir of ['integrations/zapier/triggers', 'integrations/zapier/creates', 'integrations/zapier']) {

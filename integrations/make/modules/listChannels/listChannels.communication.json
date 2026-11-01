@@ -1,6 +1,11 @@
 {
   "url": "/channels",
   "method": "GET",
+  "headers": {
+    "Authorization": "Bearer {{connection.apiKey}}",
+    "Content-Type": "application/json",
+    "Accept": "application/json"
+  },
   "response": {
     "iterate": "{{body.channels}}",
     "output": "{{item}}"

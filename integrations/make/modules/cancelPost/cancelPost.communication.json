@@ -1,6 +1,11 @@
 {
   "url": "/posts/{{parameters.id}}",
   "method": "DELETE",
+  "headers": {
+    "Authorization": "Bearer {{connection.apiKey}}",
+    "Content-Type": "application/json",
+    "Accept": "application/json"
+  },
   "response": {
     "output": "{{body}}"
   }
