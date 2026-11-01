@@ -1,6 +1,7 @@
 /**
  * GET /api/auth/oauth/github/start?product=post|studio&next=/checkout?plan=pro
  * GET /api/auth/oauth/google/start
+ *    &intent=login|register   which tab the person pressed: with `login` a new address never gets an account (the page says "no account, create one")
  *   → 302 to the provider. The callback always lives on the main site (a provider accepts one fixed address), so the buttons point there.
  */
 import type { PagesFunction } from '@cloudflare/workers-types';
@@ -25,11 +26,13 @@ export const onRequestGet: PagesFunction<Env, 'provider'> = async ({ request, en
   const product = url.searchParams.get('product') === 'studio' ? 'studio' : 'post';
   const next = /^\/checkout(\?[A-Za-z0-9=&%._-]*)?$/.test(url.searchParams.get('next') ?? '') ? url.searchParams.get('next')! : '';
 
+  const intent = url.searchParams.get('intent') === 'register' ? 'register' : 'login';   // when in doubt, never create an account
+
   const state = toB64Url(crypto.getRandomValues(new Uint8Array(24)));
   const verifier = toB64Url(crypto.getRandomValues(new Uint8Array(32)));
   const challenge = toB64Url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))));
   const target = authorizeUrl(p, env, callbackUrl(request, p), state, challenge);
-  return new Response(null, { status: 302, headers: { Location: target, 'Set-Cookie': stateCookie(request, JSON.stringify({ p, state, verifier, product, next })), 'Cache-Control': 'no-store' } });
+  return new Response(null, { status: 302, headers: { Location: target, 'Set-Cookie': stateCookie(request, JSON.stringify({ p, state, verifier, product, next, intent })), 'Cache-Control': 'no-store' } });
 };
 
 export const onRequest: PagesFunction<Env> = async () => methodNotAllowed('GET');

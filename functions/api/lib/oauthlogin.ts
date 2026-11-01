@@ -82,9 +82,14 @@ export async function fetchIdentity(p: Provider, env: Env, redirectUri: string, 
   return { subject: clean(u.data.sub, 64), email, name: clean(u.data.name, 80) || null };
 }
 
-export type SignIn = { ok: true; cookie: string } | { ok: false; code: 'closed' | 'disabled' | 'failed' | 'age' | 'minor' };
+export type SignIn = { ok: true; cookie: string } | { ok: false; code: 'closed' | 'disabled' | 'failed' | 'age' | 'minor' | 'noaccount' };
 
-export async function signInWith(env: Env, request: Request, p: Provider, id: Identity): Promise<SignIn> {
+/**
+ * `intent` is what the person pressed. 'login' only signs in to an account that exists (found by the provider's id or by the verified email);
+ * for an address with no account it answers `noaccount` and creates NOTHING, so the page can say "there is no account, create one".
+ * 'register' also creates the account (after the age check), as before.
+ */
+export async function signInWith(env: Env, request: Request, p: Provider, id: Identity, intent: 'login' | 'register' = 'register'): Promise<SignIn> {
   let userId: string | null = null;
   const linked = await env.DB.prepare('SELECT user_id FROM oauth_identities WHERE provider = ?1 AND subject = ?2').bind(p, id.subject).first<{ user_id: string }>();
   let created = false;
@@ -93,6 +98,10 @@ export async function signInWith(env: Env, request: Request, p: Provider, id: Id
     const byMail = await env.DB.prepare('SELECT id FROM users WHERE email = ?1').bind(id.email).first<{ id: string }>();
     if (byMail) userId = byMail.id;
     else {
+      if (intent === 'login') {
+        await logAttempt(env, request, { kind: 'login', ok: false, reason: 'oauth_no_account', email: id.email });
+        return { ok: false, code: 'noaccount' };
+      }
       if (!(await getSettings(env)).registration_open) return { ok: false, code: 'closed' };
       if (isBlockedMinor(request)) return { ok: false, code: 'minor' };
       if (!(await hasProof(env, request))) return { ok: false, code: 'age' };   // a brand-new account needs the date of birth first (see lib/age.ts)
