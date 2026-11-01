@@ -174,13 +174,20 @@ export const microToUsd = (micro: number): number => Math.round(micro) / USD;
 //   overagePostUsd / overageAiPostUsd → price per extra post (missing = the plan simply stops)
 // The row with kind 'addon' and id 'api-addon' sets the add-on's extra API posts.
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+/** A quota from the catalog: a whole number, never below 0 (a typo like -5 means "none", never "unlimited"). Missing = null. */
+const count = (v: unknown): number | null => { const n = num(v); return n === null ? null : Math.max(0, Math.floor(n)); };
+/**
+ * A price per extra use, in USD: above 0 and at most $100. Anything else (empty, 0, negative, text) means "no price", so the plan
+ * simply stops. A negative price would pay the user for going over, and 0 would make extra use free without a limit.
+ */
+export const price = (v: unknown): number | null => { const n = num(v); return n !== null && n > 0 && n <= 100 ? n : null; };
 
 export function specFromCatalog(id: string, label: string, limits: Record<string, unknown>): PlanSpec {
-  const life = num(limits.postsLifetime);
-  const api = num(limits.apiPostsPerMonth) ?? 0;
-  const ui = num(limits.postsPerMonth) ?? 0;
-  const op = num(limits.overagePostUsd);
-  const oa = num(limits.overageAiPostUsd);
+  const life = count(limits.postsLifetime);
+  const api = count(limits.apiPostsPerMonth) ?? 0;
+  const ui = count(limits.postsPerMonth) ?? 0;
+  const op = price(limits.overagePostUsd);
+  const oa = price(limits.overageAiPostUsd);
   const access = num(limits.apiAccess);
   return {
     id, label,
@@ -190,9 +197,9 @@ export function specFromCatalog(id: string, label: string, limits: Record<string
     shared: life,
     apiIncluded: access !== null ? access === 1 : life !== null || api > 0,
     overage: op !== null || oa !== null ? { post: Math.round((op ?? oa ?? 0) * USD), aiPost: Math.round((oa ?? op ?? 0) * USD) } : null,
-    channels: num(limits.channels),
-    aiCredits: num(limits.aiCredits),
-    storageMb: num(limits.storageMb),
+    channels: count(limits.channels),
+    aiCredits: count(limits.aiCredits),
+    storageMb: count(limits.storageMb),
   };
 }
 
@@ -212,10 +219,10 @@ export async function refreshPlanSpecs(env: { DB: D1Database }): Promise<void> {
       let limits: Record<string, unknown> = {};
       try { limits = JSON.parse(r.limits) as Record<string, unknown>; } catch { /* corrupt row: no limits */ }
       if (r.kind === 'addon') {
-        if (r.id === 'api-addon') addon = num(limits.apiPostsPerMonth) ?? addon;
+        if (r.id === 'api-addon') addon = count(limits.apiPostsPerMonth) ?? addon;
         if (r.id === 'ai-pass') {
-          const extra = num(limits.overageAiPostUsd);
-          pass = { active: r.is_active === 1, priceCents: r.price_cents, interval: r.interval, credits: Math.max(0, Math.floor(num(limits.aiCredits) ?? NO_AI_PASS.credits)), overageMicro: extra !== null && extra > 0 ? Math.round(extra * USD) : null };
+          const extra = price(limits.overageAiPostUsd);
+          pass = { active: r.is_active === 1, priceCents: r.price_cents, interval: r.interval, credits: count(limits.aiCredits) ?? NO_AI_PASS.credits, overageMicro: extra !== null ? Math.round(extra * USD) : null };
         }
         continue;
       }

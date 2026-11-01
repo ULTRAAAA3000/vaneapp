@@ -133,12 +133,16 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       case 'repurpose': result = await toolRepurpose(metered, text, networks, voice.text); break;
       default: result = { items: await toolPlan(metered, text, networks, voice.text) };
     }
+    // Everything that can still fail comes first; the log row (what the account is billed from) is written last. A request that
+    // fails here is refunded below, and then there must be no log row left behind that still says "charged".
+    const historyId = await saveHistory(env, auth.userId, tool, text, result);
     if (reservation && reservation.ok) {
       await aiLogStatement(env, { userId: auth.userId, overage: reservation.overage, costMicro: reservation.costMicro, ref: tool, now }).run().catch(() => undefined);
     }
-    const usage = await usageSummary(env, auth.userId, sub, now);
-    const historyId = await saveHistory(env, auth.userId, tool, text, result);
-    return json({ ok: true, tool, ...result, voice: voice.source, historyId, ai: usage.ai });
+    // The result is made and (if it was a paid credit) logged: failing to read the counters back must not turn it into an error
+    // and a refund, so the dashboard just refreshes its own numbers when `ai` is missing.
+    const ai = await usageSummary(env, auth.userId, sub, now).then((u) => u.ai, () => undefined);
+    return json({ ok: true, tool, ...result, voice: voice.source, historyId, ai });
   } catch (err) {
     if (reservation && reservation.ok) await releaseAiGeneration(env, auth.userId, reservation);
     if (err instanceof AiError) return failCode(err.status, err.code, err.message);
