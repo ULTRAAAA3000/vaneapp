@@ -328,7 +328,7 @@ INSERT OR IGNORE INTO plans (id, name, tagline, price_cents, features, limits, s
    '{"channels":2,"postsLifetime":30,"aiCredits":10,"apiAccess":1}', 10);
 INSERT OR IGNORE INTO plans (id, name, tagline, price_cents, features, limits, sort) VALUES
   ('api', 'Developer API', 'A headless gateway for scripts and bots.', 599,
-   '["REST API with Bearer auth, webhooks and an OpenAPI spec","180 API posts a month (about 6 a day)","Custom GPT and Claude MCP access when they launch","Extra posts: $0.03 each, $0.09 for AI posts"]',
+   '["REST API with Bearer auth, webhooks and an OpenAPI spec","180 API posts a month (about 6 a day)","Claude and Notion (MCP) access today, Custom GPT when it launches","Extra posts: $0.03 each, $0.09 for AI posts"]',
    '{"apiPostsPerMonth":180,"apiAccess":1,"overagePostUsd":0.03,"overageAiPostUsd":0.09}', 20);
 INSERT OR IGNORE INTO plans (id, name, tagline, badge, price_cents, compare_price_cents, yearly_price_cents, features, limits, highlight, sort) VALUES
   ('pro', 'Pro Dashboard', 'standard, or $99 a year.', 'Early Bird', 999, 1200, 9900,
