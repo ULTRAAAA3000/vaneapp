@@ -131,6 +131,7 @@ export async function usageSummary(env: Env, userId: string, sub: Subscription, 
     shared,
     ai: aiBucket(spec, sub, c.ai_generations, await loadAiBonus(env, userId), await loadAiPass(env, userId, now), aiExtra),
     apiAccess: apiAllowed(sub),
+    features: { priorityDispatch: sub.plan !== 'free' && spec.ui > 0, advancedMcpTools: sub.plan !== 'free' && spec.ui > 0 },   // = isDashboardPlan() in paid.ts (not imported: it imports this file)
     overage: {
       enabled: rates !== null,
       postUsd: spec.overage ? microToUsd(spec.overage.post) : null,

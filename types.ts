@@ -453,6 +453,8 @@ export interface UsageSummary {
   };
   /** may this account send live API requests? */
   apiAccess: boolean;
+  /** what the paid plans add: posts leave on their second (priority lane), and the assistant gets the advanced MCP tools */
+  features: { priorityDispatch: boolean; advancedMcpTools: boolean };
   overage: {
     enabled: boolean;
     /** price per post beyond the quota (USD), null when this plan is never billed for extras */

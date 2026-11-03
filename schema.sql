@@ -332,7 +332,7 @@ INSERT OR IGNORE INTO plans (id, name, tagline, price_cents, features, limits, s
    '{"apiPostsPerMonth":180,"apiAccess":1,"overagePostUsd":0.03,"overageAiPostUsd":0.09}', 20);
 INSERT OR IGNORE INTO plans (id, name, tagline, badge, price_cents, compare_price_cents, yearly_price_cents, features, limits, highlight, sort) VALUES
   ('pro', 'Pro Dashboard', 'standard, or $120 a year.', 'Early Bird', 1199, 1499, 12000,
-   '["Full dashboard with calendar and Kanban","Unlimited workspaces and channels","1,000 posts a month","Telegram inline buttons, spoilers and polls","Media library on Cloudflare R2","Vane AI Pass included","Extra posts: $0.015 each, $0.045 for AI posts"]',
+   '["Full dashboard with calendar and Kanban","Unlimited workspaces and channels","1,000 posts a month","Telegram inline buttons, spoilers and polls","Media library on Cloudflare R2","Vane AI Pass included","Priority dispatch: posts leave on the second you chose","Advanced MCP tools for Claude and Notion: results, best times, series","Extra posts: $0.015 each, $0.045 for AI posts"]',
    '{"postsPerMonth":1000,"aiCredits":30,"apiAccess":0,"overagePostUsd":0.015,"overageAiPostUsd":0.045}', 1, 30);
 INSERT OR IGNORE INTO plans (id, name, tagline, price_cents, features, limits, cta_label, coming_soon, is_active, sort) VALUES
   ('video', 'Video Engine', 'Video publishing, end to end.', 1499,
@@ -864,12 +864,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_invoice ON orders(provider_ref) WHE
 -- /admin → Plans (tick Active, untick Coming soon). Buying it switches all four on together (lib/billing.ts → activate).
 INSERT OR IGNORE INTO plans (id, name, tagline, badge, price_cents, yearly_price_cents, features, limits, cta_label, highlight, coming_soon, is_public, is_active, sort) VALUES
   ('suite', 'Vane Suite', 'Posting, video, analytics and AI in one plan.', 'Best value', 3999, NULL,
-   '["Everything in Vane Post Pro: 1,000 posts a month, unlimited channels","Everything in Vane Studio: video library and publishing","Analytics Pro: reports across all your networks","Vane AI Pass included, on top of the plan''s own AI credits","API access: 75 API posts a month","Post a new video to all your networks in one click","One payment, one renewal date, one invoice"]',
+   '["Everything in Vane Post Pro: 1,000 posts a month, unlimited channels","Everything in Vane Studio: video library and publishing","Analytics Pro: reports across all your networks","Vane AI Pass included, on top of the plan''s own AI credits","API access: 75 API posts a month","Priority dispatch and the advanced MCP tools of Pro","Post a new video to all your networks in one click","One payment, one renewal date, one invoice"]',
    '{"postsPerMonth":1000,"apiPostsPerMonth":75,"aiCredits":100,"apiAccess":1,"overagePostUsd":0.015,"overageAiPostUsd":0.045}', 'Get Suite', 0, 1, 1, 0, 45);
 -- A Suite row from an earlier run of this file (hidden, never edited) becomes the public "coming soon" card. An edited row is left alone
 -- (an existing database gets the new limits and text from scripts/migrations/004-suite-bundle.sql).
 UPDATE plans SET is_public = 1, coming_soon = 1, badge = 'Best value', price_cents = 3999, yearly_price_cents = NULL, tagline = 'Posting, video, analytics and AI in one plan.',
-  features = '["Everything in Vane Post Pro: 1,000 posts a month, unlimited channels","Everything in Vane Studio: video library and publishing","Analytics Pro: reports across all your networks","Vane AI Pass included, on top of the plan''s own AI credits","API access: 75 API posts a month","Post a new video to all your networks in one click","One payment, one renewal date, one invoice"]',
+  features = '["Everything in Vane Post Pro: 1,000 posts a month, unlimited channels","Everything in Vane Studio: video library and publishing","Analytics Pro: reports across all your networks","Vane AI Pass included, on top of the plan''s own AI credits","API access: 75 API posts a month","Priority dispatch and the advanced MCP tools of Pro","Post a new video to all your networks in one click","One payment, one renewal date, one invoice"]',
   limits = '{"postsPerMonth":1000,"apiPostsPerMonth":75,"aiCredits":100,"apiAccess":1,"overagePostUsd":0.015,"overageAiPostUsd":0.045}'
   WHERE id = 'suite' AND is_public = 0 AND is_active = 0 AND coming_soon = 0 AND updated_at = created_at;
 

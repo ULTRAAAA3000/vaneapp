@@ -20,6 +20,7 @@ export const onRequestGet: PagesFunction<Env> = agentLogged('me', async ({ reque
     key: { name: auth.key.name, scope: auth.key.scope, mode: auth.key.mode },
     plan: usage.plan,
     apiAccess: usage.apiAccess,
+    features: usage.features,
   });
 });
 
