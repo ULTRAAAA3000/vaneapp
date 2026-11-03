@@ -88,3 +88,39 @@ export function codeMail(to: string, code: string, purpose: VerifyPurpose, minut
 
   return { to, subject: `${code} is your Vane code`, text, html };
 }
+
+/** The code that lets someone set a new password. Transactional: no unsubscribe link. */
+export function resetMail(to: string, code: string, minutes: number): Mail {
+  const lead = 'Use this code to set a new password for your Vane account.';
+  const why = "If you didn't ask for it, ignore this email: your password stays as it is and nobody can change it without this code.";
+  const text = `${lead}\n\n${code}\n\nThe code works for ${minutes} minutes.\n${why}\n\n-- Vane`;
+  const html =
+    '<!doctype html><html lang="en"><body style="margin:0;padding:0;background:#070708;">' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#070708;padding:32px 16px;"><tr><td align="center">' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:420px;background:#111114;border:1px solid #26262c;border-radius:20px;"><tr>' +
+    '<td style="padding:32px 28px;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif;color:#ffffff;">' +
+    '<div style="font-size:20px;font-weight:600;letter-spacing:-0.01em;">vane</div>' +
+    `<p style="margin:24px 0 0;font-size:15px;line-height:1.5;color:#d4d4d8;">${lead}</p>` +
+    `<div style="margin:20px 0 16px;padding:18px 0 18px 10px;background:#070708;border:1px solid #26262c;border-radius:14px;text-align:center;font-family:'SFMono-Regular',Menlo,Consolas,monospace;font-size:32px;font-weight:600;letter-spacing:10px;color:#ffffff;">${code}</div>` +
+    `<p style="margin:0;font-size:13px;line-height:1.5;color:#a1a1aa;">The code works for ${minutes} minutes.</p>` +
+    `<p style="margin:12px 0 0;font-size:13px;line-height:1.5;color:#71717a;">${why}</p>` +
+    '</td></tr></table></td></tr></table></body></html>';
+  return { to, subject: `${code} is your Vane password reset code`, text, html, unsubscribe: false };
+}
+
+/** Sent after the password was changed, so the owner notices if it was not them. */
+export function passwordChangedMail(to: string, origin: string): Mail {
+  const lead = 'The password of your Vane account was just changed, and every device was signed out.';
+  const why = `If this was you, nothing more to do. If it was not, reset your password again at ${origin}/reset and write to us.`;
+  const text = `${lead}\n\n${why}\n\n-- Vane`;
+  const html =
+    '<!doctype html><html lang="en"><body style="margin:0;padding:0;background:#070708;">' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#070708;padding:32px 16px;"><tr><td align="center">' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:420px;background:#111114;border:1px solid #26262c;border-radius:20px;"><tr>' +
+    '<td style="padding:32px 28px;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif;color:#ffffff;">' +
+    '<div style="font-size:20px;font-weight:600;letter-spacing:-0.01em;">vane</div>' +
+    `<p style="margin:24px 0 0;font-size:15px;line-height:1.5;color:#d4d4d8;">${lead}</p>` +
+    `<p style="margin:16px 0 0;font-size:13px;line-height:1.5;color:#a1a1aa;">${why}</p>` +
+    '</td></tr></table></td></tr></table></body></html>';
+  return { to, subject: 'Your Vane password was changed', text, html, unsubscribe: false };
+}

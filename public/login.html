@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/site.css?v=1bf1cb8686" />
+  <link rel="stylesheet" href="/assets/site.css?v=149d26588a" />
   <link rel="stylesheet" href="/assets/vane.css?v=aa1317ecc8" />
 </head>
 
@@ -89,7 +89,10 @@
               <div>
                 <div class="flex items-center justify-between">
                   <label for="password" class="lbl !mb-0">Password</label>
-                  <button type="button" id="togglePw" class="text-xs text-white/45 transition-colors hover:text-white" aria-controls="password">Show</button>
+                  <div class="flex items-center gap-3">
+                    <a id="forgotLink" href="/reset" class="hidden text-xs text-white/45 transition-colors hover:text-white">Forgot password?</a>
+                    <button type="button" id="togglePw" class="text-xs text-white/45 transition-colors hover:text-white" aria-controls="password">Show</button>
+                  </div>
                 </div>
                 <input id="password" name="password" type="password" autocomplete="current-password" required placeholder="••••••••" class="field mt-2" />
                 <div id="meter" class="mt-2.5 hidden">
@@ -169,7 +172,7 @@
   </div>
 
   <script src="/assets/vane.js?v=a2c867edc4"></script>
-  <script src="/assets/auth.js?v=dab1eea78b"></script>
+  <script src="/assets/auth.js?v=1c019a70c8"></script>
   <script src="/assets/track.js?v=a3d04e70d1" defer></script>
 </body>
 </html>

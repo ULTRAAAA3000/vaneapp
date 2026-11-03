@@ -80,7 +80,7 @@ console.log('\nthe Suite plan row: 75 API posts a month');
   db.prepare(`UPDATE plans SET is_active = 1, coming_soon = 0 WHERE id = 'suite'`).run();   // what the admin does to switch it on
   const row = db.prepare(`SELECT price_cents, yearly_price_cents, limits, features FROM plans WHERE id = 'suite'`).get();
   const limits = JSON.parse(row.limits);
-  check('the seed price is $40 a month', row.price_cents === 4000);
+  check('the seed price follows the live catalog ($39.99 a month)', row.price_cents === 3999);
   check('the limits say 75 API posts and live API access', limits.apiPostsPerMonth === 75 && limits.apiAccess === 1);
   check('the pricing card lists analytics, AI and the API', /analytics/i.test(row.features) && /AI Pass/i.test(row.features) && /75 API posts/i.test(row.features));
   await plans.refreshPlanSpecs(env);

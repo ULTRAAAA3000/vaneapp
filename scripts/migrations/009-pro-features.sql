@@ -1,8 +1,8 @@
 -- Run ONCE on an existing database:  npm run db:migrate:pro-features
--- Adds the two new Pro features (priority dispatch, advanced MCP tools) to the feature lists of the Pro Dashboard and the Suite cards.
--- A list is replaced ONLY while it is still the original text; if you edited it in /admin → Plans, change it there. Prices and limits
--- are not touched.
-UPDATE plans SET features = '["Full dashboard: composer, library, drafts and insights","Unlimited workspaces and channels","1,000 posts a month","Telegram Quick Connect with channel verification","Media library on Cloudflare R2","Vane AI Pass included","Priority dispatch: posts leave on the second you chose","Advanced MCP tools for Claude and Notion: results, best times, series","Extra posts: $0.015 each, $0.045 for AI posts"]', updated_at = unixepoch()
-  WHERE id = 'pro' AND features = '["Full dashboard: composer, library, drafts and insights","Unlimited workspaces and channels","1,000 posts a month","Telegram Quick Connect with channel verification","Media library on Cloudflare R2","Vane AI Pass included","Extra posts: $0.015 each, $0.045 for AI posts"]';
-UPDATE plans SET features = '["Everything in Vane Post Pro: 1,000 posts a month, unlimited channels","Everything in Vane Studio: video library and publishing","Analytics Pro: reports across all your networks","Vane AI Pass included, on top of the plan''s own AI credits","API access: 75 API posts a month","Priority dispatch and the advanced MCP tools of Pro","Post a new video to all your networks in one click","One payment, one renewal date, one invoice"]', updated_at = unixepoch()
-  WHERE id = 'suite' AND features = '["Everything in Vane Post Pro: 1,000 posts a month, unlimited channels","Everything in Vane Studio: video library and publishing","Analytics Pro: reports across all your networks","Vane AI Pass included, on top of the plan''s own AI credits","API access: 75 API posts a month","Post a new video to all your networks in one click","One payment, one renewal date, one invoice"]';
+-- Adds the new Pro features (priority dispatch, advanced MCP tools) to the feature lists of the Pro Dashboard and the Suite cards.
+-- A line is appended only if the card does not mention it yet, whatever else you changed in /admin → Plans, so it is safe to run
+-- twice. Prices, limits and the rest of the text are not touched.
+UPDATE plans SET features = json_insert(features, '$[#]', 'Priority dispatch: posts leave on the second you chose'), updated_at = unixepoch()
+  WHERE id IN ('pro', 'suite') AND json_valid(features) AND features NOT LIKE '%Priority dispatch%';
+UPDATE plans SET features = json_insert(features, '$[#]', 'Advanced MCP tools for Claude and Notion: results, best times, series'), updated_at = unixepoch()
+  WHERE id IN ('pro', 'suite') AND json_valid(features) AND features NOT LIKE '%Advanced MCP tools%' AND features NOT LIKE '%advanced MCP tools%';

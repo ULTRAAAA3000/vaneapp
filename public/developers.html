@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/site.css?v=1bf1cb8686" />
+  <link rel="stylesheet" href="/assets/site.css?v=149d26588a" />
   <link rel="stylesheet" href="/assets/vane.css?v=aa1317ecc8" />
   <style>
     html { scroll-behavior: smooth; scroll-padding-top: 5rem; }
@@ -185,6 +185,7 @@ curl -X POST https://vaneapp.dev/api/v1/posts \
             <li><code class="i">Vane-Delivery</code> is the same id on every retry: de-duplicate on it.</li>
             <li><code class="i">Vane-Signature</code> is <code class="i">t=&lt;unix&gt;,v1=&lt;hex&gt;</code>, an HMAC-SHA256 of <code class="i">"&lt;t&gt;.&lt;raw body&gt;"</code> with your <code class="i">whsec_…</code> secret, shown once when you create the webhook.</li>
             <li>Only public <code class="i">https</code> addresses on port 443 are accepted. Redirects are not followed.</li>
+            <li>Any 2xx counts as delivered. A <code class="i">429</code> or <code class="i">503</code> with a <code class="i">Retry-After</code> (in seconds) is retried after at least that long, up to one hour. Answer <code class="i">410 Gone</code> and Vane ends the subscription and drops everything still queued for it.</li>
           </ul>
         </div>
         <div class="glass-d overflow-hidden rounded-3xl">

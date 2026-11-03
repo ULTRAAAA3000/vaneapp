@@ -57,6 +57,16 @@
   $('prodStudio').addEventListener('click', function () { setProduct('studio'); });
 
   // ── mode switching
+  // "Forgot password?" is shown on the Sign in tab, and only when the server can send email (otherwise /reset could not work).
+  var emailOn = false;
+  function syncForgot() {
+    var link = $('forgotLink');
+    if (link) link.classList.toggle('hidden', !(emailOn && mode === 'login'));
+  }
+  $('forgotLink').addEventListener('click', function (e) {
+    var typed = ($('email').value || '').trim();
+    if (typed) { e.preventDefault(); location.assign('/reset?email=' + encodeURIComponent(typed)); }   // carry the address over
+  });
   function setMode(next) {
     mode = next;
     var reg = mode === 'register';
@@ -75,6 +85,7 @@
     $('birthRow').classList.toggle('hidden', !reg);
     password.setAttribute('autocomplete', reg ? 'new-password' : 'current-password');
     label.textContent = reg ? 'Create account' : 'Sign in';
+    syncForgot();
     hideError();
     syncUrl();
   }
@@ -167,6 +178,8 @@
   Vane.api('GET', '/api/auth/config', undefined, { noRedirect: true }).then(function (r) {
     if (!r.ok) { console.warn('[vane] could not read /api/auth/config:', r.error); return; }
     showOauth(r.data.oauth);
+    emailOn = !!(r.data.email && r.data.email.enabled);
+    syncForgot();
     if (!r.data.turnstileSiteKey) {
       // The check is OFF. Say why in the console (the page itself stays clean for real visitors).
       var st = r.data.turnstile || {};
