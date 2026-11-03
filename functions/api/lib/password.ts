@@ -10,6 +10,8 @@
  */
 import { fromB64Url, toB64Url } from './encoding';
 
+export const MIN_PASSWORD = 8;
+export const MAX_PASSWORD = 128; // also caps the CPU an attacker can make us spend hashing
 export const PBKDF2_ITERATIONS = 100_000;
 const SALT_LEN = 16;
 const HASH_BITS = 256;
