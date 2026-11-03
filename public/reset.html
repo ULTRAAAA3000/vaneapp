@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Reset your password — Vane</title>
+  <meta name="robots" content="noindex" />
+  <meta name="theme-color" content="#070708" />
+  <link rel="icon" href="/favicon.ico" sizes="32x32" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/assets/site.css?v=e386c5dd6e" />
+  <link rel="stylesheet" href="/assets/vane.css?v=aa1317ecc8" />
+</head>
+<body class="min-h-screen overflow-x-hidden bg-[#070708]">
+  <div class="fixed inset-0 bg-gradient-to-b from-indigo-950/30 via-[#070708] to-[#070708]" aria-hidden="true"></div>
+  <div class="relative z-10 flex min-h-screen flex-col">
+    <header class="flex items-center justify-between px-5 py-5 sm:px-8 sm:py-6 lg:px-12">
+      <a href="/" class="flex items-center gap-2" aria-label="Vane home">
+        <img src="/assets/logo.svg" alt="" width="33" height="32" />
+        <span class="text-lg font-semibold">vane</span>
+      </a>
+      <a href="/login" class="rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white/80 backdrop-blur-lg transition-colors hover:bg-white/15 hover:text-white">Back to sign in</a>
+    </header>
+
+    <main class="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 pb-16">
+      <div class="glass-d-strong rounded-3xl p-6 shadow-2xl sm:p-8">
+        <h1 id="title" class="text-2xl font-semibold tracking-tight">Forgot your password?</h1>
+        <p id="sub" class="mt-1.5 text-sm text-white/55">Enter your email and we will send you a 6-digit code.</p>
+
+        <form id="askForm" class="mt-6 space-y-4" novalidate>
+          <div>
+            <label for="email" class="lbl">Email</label>
+            <input id="email" name="email" type="email" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" required placeholder="you@company.com" class="field" />
+          </div>
+          <div id="askErr" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
+          <button id="askBtn" type="submit" class="btn btn-white w-full !py-3"><span id="askSpin" class="spinner spinner-dark hidden"></span><span id="askLabel">Send the code</span></button>
+        </form>
+
+        <form id="setForm" class="mt-6 hidden space-y-4" novalidate>
+          <div>
+            <label for="code" class="lbl">Code from the email</label>
+            <input id="code" name="code" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" maxlength="7" placeholder="123456" class="field text-center text-xl tracking-[0.4em]" />
+          </div>
+          <div>
+            <div class="flex items-center justify-between">
+              <label for="password" class="lbl !mb-0">New password</label>
+              <button type="button" id="togglePw" class="text-xs text-white/45 transition-colors hover:text-white" aria-controls="password">Show</button>
+            </div>
+            <input id="password" name="password" type="password" autocomplete="new-password" required placeholder="At least 8 characters" class="field mt-2" />
+          </div>
+          <div id="setErr" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
+          <button id="setBtn" type="submit" class="btn btn-white w-full !py-3"><span id="setSpin" class="spinner spinner-dark hidden"></span><span id="setLabel">Set the new password</span></button>
+          <p class="text-center text-xs text-white/45"><span id="sentTo"></span> <button type="button" id="resend" class="underline underline-offset-2 hover:text-white">Send a new code</button></p>
+        </form>
+
+        <div id="done" class="mt-6 hidden">
+          <div class="rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-3.5 py-3 text-sm text-emerald-200">Your password was changed and every device was signed out.</div>
+          <a href="/login" class="btn btn-white mt-4 w-full !py-3">Sign in</a>
+        </div>
+
+        <div id="off" class="mt-6 hidden rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-3 text-sm text-white/70">Password reset by email is not turned on yet. If you signed up with Google or GitHub, use that button on the <a href="/login" class="underline underline-offset-2">sign-in page</a>, or write to us from the <a href="/about#contact" class="underline underline-offset-2">contact form</a>.</div>
+      </div>
+    </main>
+  </div>
+  <script src="/assets/vane.js?v=a2c867edc4"></script>
+  <script src="/assets/reset.js?v=eb5caa1e99"></script>
+</body>
+</html>

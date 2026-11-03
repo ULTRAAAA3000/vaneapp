@@ -24,8 +24,9 @@ import { fail, failCode, isRecord, json, readJson, UUID_RE } from '../lib/http';
 import { ownMediaMissing } from '../lib/library';
 import { mediaKindFromUrl } from '../lib/media';
 import { postUnits } from '../lib/plans';
+import { getSettings } from '../lib/settings';
 import { graphemeLength, mastodonLength, threadsLength, utf8Length } from '../lib/text';
-import { countUiPosts } from '../lib/usage';
+import { countUiPosts, loadSubscription, nowSeconds, releaseUiPost, reserveUiPost, usageSummary, type UiReservation } from '../lib/usage';
 import { BLUESKY_TEXT_LIMIT, BLUESKY_TEXT_MAX_BYTES } from '../channels/bluesky';
 import { MASTODON_TEXT_LIMIT } from '../channels/mastodon';
 import { isValidMediaUrl, TELEGRAM_CAPTION_LIMIT } from '../channels/telegram';
@@ -215,6 +216,33 @@ export async function insertPostGroup(
   return { ok: true, groupId, posts };
 }
 
+/**
+ * The plan's dashboard quota for a post made in a dashboard (also used by "announce this video"). While the admin switch
+ * "enforce_limits" is on the post is stopped at the limit (402 quota_exceeded, or priced when the account has overage billing on);
+ * with it off posts are only counted (settleUiQuota). Taken BEFORE saving, so two parallel posts cannot both use the last unit.
+ */
+export async function takeUiQuota(env: Env, userId: string, units: number): Promise<{ ok: true; reservation: UiReservation | null } | { ok: false; response: Response }> {
+  if (!(await getSettings(env)).enforce_limits) return { ok: true, reservation: null };
+  const now = nowSeconds();
+  const sub = await loadSubscription(env, userId, now);
+  const reservation = await reserveUiPost(env, userId, sub, now, units);
+  if (reservation.ok) return { ok: true, reservation };
+  const usage = await usageSummary(env, userId, sub, now);
+  const message = sub.plan === 'free'
+    ? `You have used all ${usage.ui.limit} posts of the Free Trial. Choose a plan to keep posting.`
+    : `You have used all ${usage.ui.limit} dashboard posts of this period.` + (usage.period.resetsAt ? ' The quota resets on the 1st (UTC).' : '');
+  return { ok: false, response: failCode(402, 'quota_exceeded', message, { usage: { ui: usage.ui, resetsAt: usage.period.resetsAt, overage: usage.overage } }) };
+}
+
+/** After saving: a post that was not saved gives its unit back; with the limits off the saved post is just counted. */
+export async function settleUiQuota(env: Env, userId: string, reservation: UiReservation | null, units: number, saved: boolean): Promise<void> {
+  if (!saved) {
+    if (reservation?.ok && reservation.counted) await releaseUiPost(env, userId, reservation, units);
+    return;
+  }
+  if (!reservation) await countUiPosts(env, userId, units);
+}
+
 export const handleCreatePost: PagesFunction<Env> = async ({ request, env }) => {
   const auth = await requireUser(request, env);
   if (!auth.ok) return auth.response;
@@ -226,11 +254,13 @@ export const handleCreatePost: PagesFunction<Env> = async ({ request, env }) => 
   if (!checked.ok) return checked.response;
   const v = checked.v;
 
-  const saved = await insertPostGroup(env, auth.userId, v);
-  if (!saved.ok) return fail(500, 'Could not schedule the post. Please try again.');
+  const units = postUnits(v.channels.length);
+  const quota = await takeUiQuota(env, auth.userId, units);
+  if (!quota.ok) return quota.response;
 
-  // Dashboard posts are counted (the Free Trial total is shared with the API); blocking them is a later part.
-  await countUiPosts(env, auth.userId, postUnits(v.channels.length));
+  const saved = await insertPostGroup(env, auth.userId, v);
+  await settleUiQuota(env, auth.userId, quota.reservation, units, saved.ok);
+  if (!saved.ok) return fail(500, 'Could not schedule the post. Please try again.');
 
   return json({ ok: true, groupId: saved.groupId, scheduledAt: v.scheduledAt, posts: saved.posts }, 201);
 };

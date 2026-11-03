@@ -8,7 +8,7 @@ import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env, UserPublic } from '../../../types';
 import { issueCode } from '../lib/emailcode';
 import { emailConfigured } from '../lib/mail';
-import { hashPassword } from '../lib/password';
+import { hashPassword, MAX_PASSWORD, MIN_PASSWORD } from '../lib/password';
 import { createSession, SESSION_TTL_SECONDS, sessionCookie } from '../lib/session';
 import { bump, clientIp, retryAfter } from '../lib/throttle';
 import { crossOriginViolation, EMAIL_RE, fail, isRecord, json, methodNotAllowed, readJson } from '../lib/http';
@@ -20,8 +20,6 @@ import { getSettings } from '../lib/settings';
 import { createUser } from '../lib/users';
 import { ageOf, blockCookie, isBlockedMinor, MIN_AGE, NEED_BIRTH, parseBirth, recordAgeConfirmed, TOO_YOUNG } from '../lib/age';
 
-const MIN_PASSWORD = 8;
-const MAX_PASSWORD = 128; // also caps the CPU an attacker can make us spend hashing
 
 function validTimezone(tz: unknown): string {
   if (typeof tz !== 'string' || tz.length > 64) return 'UTC';
