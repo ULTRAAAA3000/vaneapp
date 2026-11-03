@@ -12,13 +12,18 @@ import { sweepOrders } from '../../functions/api/lib/billingcheck';
 import { runBotAlerts } from '../../functions/api/lib/analyticsbot';
 import { sendWeeklyReports } from '../../functions/api/lib/analyticsreport';
 import { collectFollowers, collectPostMetrics, purgeOldMetrics } from '../../functions/api/lib/metrics';
-import { runDuePosts } from './dispatch';
+import { runDueLanes } from './dispatch';
+import { runPriorityLane } from './priority';
 import { isRenewalMinute, renewExpiringTokens } from './tokens';
 
 export default {
   async scheduled(_controller: ScheduledController, env: CronEnv, ctx: ExecutionContext): Promise<void> {
+    // Paid plans: look ahead one minute and send each post on its own second (see priority.ts). A separate task, so its waiting never
+    // holds back the housekeeping below.
+    ctx.waitUntil(runPriorityLane(env).then(() => undefined).catch((err) => console.error('vane-cron: priority lane failed:', err instanceof Error ? err.message : 'unknown')));
     ctx.waitUntil(
-      runDuePosts(env)
+      // Both lanes, the priority one first: a paid post never waits behind a batch of free ones (see runDueLanes).
+      runDueLanes(env)
         .catch((err) => {
           // Don't rethrow: the next minute simply tries again.
           console.error('vane-cron: run failed:', err instanceof Error ? err.message : 'unknown');

@@ -11,6 +11,7 @@ import type { PagesFunction } from '@cloudflare/workers-types';
 import type { ApiKeyPublic, Env, KeyMode, KeyScope } from '../../../types';
 import { requireUser } from '../lib/auth';
 import { displayKey, generateApiKey, MAX_KEYS_PER_USER } from '../lib/apikeys';
+import { maxKeysFor } from '../lib/keylimit';
 import { INTEGRATION_IDS, isIntegrationId, isMissingSchema, type IntegrationId } from '../lib/integrations';
 import { fail, failCode, isRecord, json, methodNotAllowed, readJson } from '../lib/http';
 import { apiAllowed } from '../lib/plans';
@@ -43,7 +44,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   let results: KeyListRow[];
   try { results = (await list(true)).results; }
   catch (err) { if (!isMissingSchema(err)) throw err; results = (await list(false)).results; }   // before `npm run db:migrate:integrations`
-  return json({ ok: true, keys: results.map(toPublic), max: MAX_KEYS_PER_USER });
+  return json({ ok: true, keys: results.map(toPublic), max: await maxKeysFor(env, auth.userId) });
 };
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
@@ -81,8 +82,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     .prepare('SELECT COUNT(*) AS n FROM api_keys WHERE user_id = ?1 AND revoked_at IS NULL')
     .bind(auth.userId)
     .first<{ n: number }>();
-  if ((active?.n ?? 0) >= MAX_KEYS_PER_USER) {
-    return failCode(409, 'too_many_keys', `You can have up to ${MAX_KEYS_PER_USER} active keys. Revoke one you no longer use.`);
+  const maxKeys = await maxKeysFor(env, auth.userId);
+  if ((active?.n ?? 0) >= maxKeys) {
+    return failCode(409, 'too_many_keys', `You can have up to ${maxKeys} active keys on your plan.${maxKeys < MAX_KEYS_PER_USER ? ` Paid plans have up to ${MAX_KEYS_PER_USER}: one for each assistant and each environment.` : ''} Revoke one you no longer use.`);
   }
 
   await bump(env, rl, 3600);
