@@ -1,12 +1,14 @@
 # Vane for Claude (plugin)
 
-Adds the Vane connector and five commands that show up when you type `/`:
+Adds the Vane connector and seven commands that show up when you type `/`:
 
 - `/vane:post <text> [channels] [when]`
 - `/vane:draft <topic> [channels] [tone]`
 - `/vane:channels`
 - `/vane:upcoming`
 - `/vane:recent`
+- `/vane:analyze [days]` (paid plans): what works in your posts and what to try
+- `/vane:series <topic> [count] [channels]` (paid plans): a series in your voice on the best times, scheduled after you approve
 
 ## Claude Code
 
