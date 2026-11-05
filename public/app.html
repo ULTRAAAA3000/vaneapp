@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/assets/vane.css?v=aa1317ecc8" />
-  <link rel="stylesheet" href="/assets/app.css?v=7a8829e5f7" />
+  <link rel="stylesheet" href="/assets/app.css?v=98961d5912" />
 </head>
 
 <body class="min-h-screen overflow-x-hidden bg-[#070708]">
@@ -36,6 +36,9 @@
           <span id="avatar" class="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-sky-400 text-xs font-bold">·</span>
           <span id="userEmail" class="max-w-[14rem] truncate text-sm text-white/70"></span>
         </div>
+        <a id="balancePill" href="/topup" hidden class="glass-d inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-sm text-white/70 transition-colors hover:text-white" title="Your balance pays for extra use beyond your plan. Add funds.">
+          <span class="text-white/45">Balance</span><b id="balanceVal" class="font-semibold text-white">$0</b><span aria-hidden="true" class="flex h-5 w-5 items-center justify-center rounded-full bg-white/10 text-xs leading-none text-white">+</span>
+        </a>
         <a href="#api" class="btn btn-ghost btn-sm hidden sm:inline-flex">API</a>
         <button id="logoutBtn" type="button" class="btn btn-ghost btn-sm">Sign out</button>
       </div>
@@ -43,6 +46,12 @@
   </header>
 
   <main id="app" class="relative mx-auto max-w-none px-5 pb-24 pt-8 opacity-0 transition-opacity duration-500 sm:px-8 sm:pt-10 lg:px-12">
+
+    <!-- the hard stop: shown at the very top when the quota is used up (assets/dashboard.js renderLimit) -->
+    <section id="quotaStop" hidden class="fade-up sticky top-[4.5rem] z-30 mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-300/40 bg-[#2b2308]/95 px-5 py-4 shadow-xl shadow-black/40 backdrop-blur" role="status" aria-live="polite">
+      <p id="quotaStopText" class="min-w-0 flex-1 basis-80 text-sm leading-relaxed text-amber-100"></p>
+      <a id="quotaStopCta" href="/topup" class="btn btn-white btn-sm shrink-0">Add funds</a>
+    </section>
 
     <!-- greeting -->
     <section class="fade-up">
@@ -1079,8 +1088,8 @@
   <script src="/assets/vane.js?v=a2c867edc4"></script>
   <script src="/assets/media-picker.js?v=86dfab3b84"></script>
   <script src="/assets/insights.js?v=c81d5838ef"></script>
-  <script src="/assets/dashboard.js?v=8593001939"></script>
-  <script src="/assets/ai.js?v=c48c4cd734"></script>
+  <script src="/assets/dashboard.js?v=01f9d86af1"></script>
+  <script src="/assets/ai.js?v=c5ba9db347"></script>
   <script src="/assets/library.js?v=ea530acfbf"></script>
   <script src="/assets/library-picker.js?v=75266cc3f5"></script>
   <script src="/assets/snippets.js?v=2833a28950"></script>

@@ -40,12 +40,24 @@
     $('iYear').setAttribute('aria-pressed', String(S.interval === 'year'));
     var yr = S.interval === 'year' || p.interval === 'year';
     $('total').textContent = fmt(price(), p.currency);
-    $('totalNote').textContent = (yr ? 'For one year of ' : 'For one month of ') + p.name + '. No automatic renewal.';
+    if (p.id === 'balance' && $('payNote')) $('payNote').textContent = 'We never see or store your card details. A top-up is a one-off payment: nothing renews and no card is kept.';
+    $('totalNote').textContent = p.id === 'balance' ? 'One-off payment, added to your balance. Nothing renews.' : (yr ? 'For one year of ' : 'For one month of ') + p.name + '. No automatic renewal.';
     renderTerms(yr);
     updatePay();
   }
   // The terms of this purchase, in plain words, before anything is paid: what is bought, for how long, that it does not renew, how to stop, refunds.
   function renderTerms(yr) {
+    if (S.plan.id === 'balance') {
+      var top = [
+        'One payment of ' + fmt(price(), S.plan.currency) + ' that adds the same amount to your Vane balance.',
+        'The balance pays only for extra use beyond your plan\u2019s quota (extra posts, extra AI credits, extra Studio AI), and only when you switch paying for extra use on. Nothing else is charged to it.',
+        'No automatic charges: this is a one-off payment. There is no card on file and no subscription to cancel.',
+        'Money added to your balance is not refunded once it has been used. Where the law gives you a right to a refund, it applies. Details: Terms, \u201cCancelling and refunds\u201d.'
+      ];
+      $('purchaseTerms').innerHTML = top.map(function () { return '<li class="flex gap-2.5"><span class="mt-[0.4rem] h-1 w-1 shrink-0 rounded-full bg-white/40" aria-hidden="true"></span><span></span></li>'; }).join('');
+      Array.prototype.forEach.call($('purchaseTerms').children, function (li, i) { li.lastChild.textContent = top[i]; });
+      return;
+    }
     var end = new Date(); if (yr) end.setFullYear(end.getFullYear() + 1); else end.setMonth(end.getMonth() + 1);
     var until = end.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
     var items = [
@@ -105,7 +117,7 @@
     if (needsWaiver() && !$('fWaiver').checked) return err('Please confirm that you want the plan to start immediately.');
     S.busy = true; updatePay(); $('paySpin').classList.remove('hidden');
     var r = await Vane.api('POST', '/api/billing/checkout', {
-      planId: S.plan.id, interval: S.interval, method: S.method, asset: S.asset, accept: true, waiver: needsWaiver() ? true : undefined,
+      planId: S.plan.id, amountUsd: S.plan.id === 'balance' ? S.plan.priceCents / 100 : undefined, interval: S.interval, method: S.method, asset: S.asset, accept: true, waiver: needsWaiver() ? true : undefined,
       billing: { name: name, email: email, country: country, company: $('fCompany').value.trim(), vatId: $('fVat').value.trim() },
     }, { noRedirect: true });
     S.busy = false; $('paySpin').classList.add('hidden'); updatePay();
@@ -162,15 +174,16 @@
   function done() {
     stop();
     var id = S.order.planId;
-    $('doneText').textContent = S.order.planName + ' is now active on your account.';
+    var topUp = id === 'balance';
+    $('doneText').textContent = topUp ? fmt(S.order.amountCents, S.order.currency) + ' was added to your balance.' : S.order.planName + ' is now active on your account.';
     var studio = id === 'video', stats = id === 'analytics';
     $('doneLink').setAttribute('href', Vane.productUrl(stats ? 'analytics' : studio ? 'studio' : 'post'));
-    $('doneLink').textContent = stats ? 'Open Vane Analytics' : studio ? 'Open Vane Studio' : 'Open Vane Post';
+    $('doneLink').textContent = topUp ? 'Back to Vane Post' : stats ? 'Open Vane Analytics' : studio ? 'Open Vane Studio' : 'Open Vane Post';
     show('stepDone');
     history.replaceState(null, '', '/checkout?order=' + S.order.id);
   }
   function closed(title, text) { $('closedTitle').textContent = title; $('closedText').textContent = text; show('stepClosed'); }
-  $('again').addEventListener('click', function () { S.order = null; history.replaceState(null, '', '/checkout?plan=' + encodeURIComponent(S.plan.id)); show('stepForm'); });
+  $('again').addEventListener('click', function () { S.order = null; history.replaceState(null, '', '/checkout?plan=' + encodeURIComponent(S.plan.id) + (S.plan.id === 'balance' ? '&amount=' + S.plan.priceCents / 100 : '')); show('stepForm'); });
 
   // ── events
   $('iMonth').addEventListener('click', function () { S.interval = 'month'; renderPlan(); });
@@ -203,7 +216,7 @@
       var o = await Vane.api('GET', '/api/billing/order?id=' + encodeURIComponent(orderId), undefined, { noRedirect: true });
       if (!o.ok) return fatal('We could not find this order.');
       S.order = o.data.order;
-      var pr = await Vane.api('GET', '/api/billing/plan?id=' + encodeURIComponent(S.order.planId));
+      var pr = await Vane.api('GET', '/api/billing/plan?id=' + encodeURIComponent(S.order.planId) + (S.order.planId === 'balance' ? '&amount=' + S.order.amountCents / 100 : ''));
       if (pr.ok) { S.plan = pr.data.plan; S.interval = S.order.interval; }
       $('loading').classList.add('hidden'); $('main').classList.remove('hidden');
       if (S.plan) { renderPlan(); renderMethods(); }
@@ -221,7 +234,7 @@
       history.replaceState(null, '', '/checkout?plan=' + encodeURIComponent(id));
     }
     if (!id) return Vane.go('/pricing');
-    var r = await Vane.api('GET', '/api/billing/plan?id=' + encodeURIComponent(id));
+    var r = await Vane.api('GET', '/api/billing/plan?id=' + encodeURIComponent(id) + (id === 'balance' ? '&amount=' + encodeURIComponent(q.get('amount') || '') : ''));
     if (!r.ok) return fatal(r.error || 'This plan does not exist.');
     S.plan = r.data.plan;
     if (!S.cfg.methods.monobank && !S.cfg.methods.crypto) return fatal('Online payment is not open yet. Please check back soon.');

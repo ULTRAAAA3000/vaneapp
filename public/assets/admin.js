@@ -348,6 +348,10 @@
         '<form id="aiForm" class="mt-3 grid grid-cols-2 gap-3" data-id="' + esc(u.id) + '"><p class="col-span-2 text-xs text-white/55">' + (d.usage ? 'Plan: ' + (d.usage.ai.limit !== null ? num(d.usage.ai.used) + ' of ' + num(d.usage.ai.limit) + ' used' : num(d.usage.ai.used) + ' used') + ' · extra credits you gave: <b class="text-white">' + num(d.usage.ai.bonus) + '</b>' : '') + '</p>' +
           field('aCredits', 'Add credits', '', { ph: 'e.g. 100 (negative takes away)', type: 'number', attrs: 'step="1"' }) + field('aNote', 'Note (kept in Activity)', '', { ph: 'e.g. testing' }) +
           '<div class="col-span-2 flex items-center justify-between gap-3"><p class="text-xs text-white/40">Spent after the plan\'s own AI credits, before any billing. Works on any plan.</p><button class="btn btn-white btn-sm" type="submit">Add credits</button></div></form>' +
+        '<h3 class="mt-7 text-sm font-semibold">Balance</h3>' +
+        '<form id="balForm" class="mt-3 grid grid-cols-2 gap-3" data-id="' + esc(u.id) + '"><p class="col-span-2 text-xs text-white/55">Prepaid balance (pays for extra use beyond the plan): <b class="text-white">$' + (d.usage ? (Math.round(d.usage.balanceUsd * 1000) / 1000) : 0) + '</b>' + (d.plan.overageEnabled ? ' · paying for extra use is <b class="text-white">on</b>' : ' · paying for extra use is off') + '</p>' +
+          field('bAmount', 'Add (USD)', '', { ph: 'e.g. 10 (negative takes away)', type: 'number', attrs: 'step="0.01"' }) + field('bNote', 'Note (kept in Activity)', '', { ph: 'e.g. refund of order' }) +
+          '<div class="col-span-2 flex items-center justify-between gap-3"><p class="text-xs text-white/40">Never goes below zero. Each change is in the user\'s history and in Activity.</p><button class="btn btn-white btn-sm" type="submit">Change balance</button></div></form>' +
         '<h3 class="mt-7 text-sm font-semibold">Where they came from</h3><p class="mt-2 text-sm text-white/70">' + (a ? esc((a.ref_host || 'direct') + (a.utm_source ? ' · utm ' + a.utm_source : '') + ' · landed on ' + (a.landing_path || '?')) + ' · ' + flag(a.country) + ' ' + esc(a.country || '??') : 'Unknown.') + '</p>' +
         '<h3 class="mt-7 text-sm font-semibold">Channels (' + d.channels.length + ')</h3><div class="mt-2 flex flex-wrap gap-2">' + (d.channels.length ? d.channels.map(function (c) { return tag(c.type + ' · ' + c.name, c.is_active ? '' : 'warn'); }).join('') : '<span class="text-sm text-white/40">No channels.</span>') + '</div>' +
         '<h3 class="mt-7 text-sm font-semibold">Pages they open</h3>' + (d.pages.length ? d.pages.map(function (p) { return hbar(esc(p.path), p.views, d.pages[0].views, num(p.views) + ' views · ' + dur(p.avg_time) + ' avg'); }).join('') : '<p class="mt-2 text-sm text-white/40">No tracked visits.</p>') +
@@ -381,6 +385,14 @@
         if (!n || n % 1) { Vane.toast('err', 'Enter a whole number of credits, for example 100.'); return; }
         call('POST', '/api/admin/users', { action: 'ai_credits', userId: e.target.dataset.id, credits: n, note: $('aNote').value.trim() }).then(function (g) {
           if (g.ok) { Vane.toast('ok', 'Done. Extra AI credits now: ' + g.data.balance); openUser(id); } else Vane.toast('err', g.error);
+        });
+      });
+      $('balForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var usd = Number($('bAmount').value);
+        if (!usd) { Vane.toast('err', 'Enter an amount in dollars, for example 10.'); return; }
+        call('POST', '/api/admin/users', { action: 'balance', userId: e.target.dataset.id, amountUsd: usd, note: $('bNote').value.trim() }).then(function (g) {
+          if (g.ok) { Vane.toast('ok', 'Done. Balance now: $' + (Math.round(g.data.balanceUsd * 1000) / 1000)); openUser(id); } else Vane.toast('err', g.error);
         });
       });
       $('grantForm').addEventListener('submit', function (e) {
@@ -1034,7 +1046,8 @@
   };
 
   /**
-   * "Extra usage to bill": what each account used beyond its quota (extra posts, extra AI credits) in a month, and what that comes to.
+   * "Extra usage": what each account used beyond its quota (extra posts, extra AI credits) in a month, and what that came to. Each use was
+   * already taken from the account's prepaid balance, so nothing is owed.
    * Nothing charges this automatically; it is the list to invoice from. Studio's extra AI generations are listed below it.
    */
   function loadExtraUsage(seq) {
@@ -1042,19 +1055,19 @@
     call('GET', '/api/admin/extra-usage' + (month ? '?month=' + month : '')).then(function (r) {
       var el = $('extraUsage');
       if (!alive(seq) || !el) return;
-      if (!r.ok) { el.innerHTML = card('Extra usage to bill', empty(r.error)); return; }
+      if (!r.ok) { el.innerHTML = card('Extra usage (paid from balances)', empty(r.error)); return; }
       var d = r.data, usd = function (n) { return '$' + n.toFixed(2); };
       var y = Number(d.month.slice(0, 4)), m = Number(d.month.slice(5, 7));
       var prev = new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 7), next = new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 7);
       var chips = [[prev, '← ' + prev], [next, next + ' →']].map(function (c) {
         return '<button type="button" class="chip !px-3 !py-1.5 !text-xs" data-act="extra-month" data-m="' + c[0] + '">' + c[1] + '</button>';
       }).join('');
-      var body = '<p class="mb-3 text-xs leading-relaxed text-white/50">What accounts used beyond their quota in ' + esc(d.month) + ' (UTC), at the prices that applied. Nothing charges this automatically: invoice these amounts.</p>' +
+      var body = '<p class="mb-3 text-xs leading-relaxed text-white/50">What accounts used beyond their quota in ' + esc(d.month) + ' (UTC), at the prices that applied. It is already paid: each use was taken from the account\'s prepaid balance when it happened. Nothing is owed.</p>' +
         table([
           { h: 'Account', r: function (x) { return '<span class="font-medium">' + esc(x.email) + '</span>'; } },
           { h: 'Extra posts', r: function (x) { return x.posts ? num(x.posts) + '<div class="text-xs text-white/40">' + usd(x.postsUsd) + '</div>' : '<span class="text-white/30">–</span>'; } },
           { h: 'Extra AI credits', r: function (x) { return x.aiUses ? num(x.aiUses) + '<div class="text-xs text-white/40">' + usd(x.aiUsd) + '</div>' : '<span class="text-white/30">–</span>'; } },
-          { h: 'To bill', r: function (x) { return '<span class="font-semibold">' + usd(x.totalUsd) + '</span>'; } },
+          { h: 'Paid from balance', r: function (x) { return '<span class="font-semibold">' + usd(x.totalUsd) + '</span>'; } },
         ], d.rows, { empty: 'Nobody went over their quota this month.' }) +
         '<p class="mt-3 text-sm">Total for ' + esc(d.month) + ': <span class="font-semibold">' + usd(d.totalUsd) + '</span></p>' +
         (d.studio.length ? '<h3 class="mt-6 text-sm font-semibold">Vane Studio: extra AI generations</h3><p class="mt-1 text-xs text-white/45">They follow the video plan\'s own period, so they are not split by month.</p>' +
@@ -1062,9 +1075,9 @@
             { h: 'Account', r: function (x) { return esc(x.email); } },
             { h: 'Period', r: function (x) { return '<span class="text-xs text-white/55">' + esc(/^p\d+$/.test(x.period) ? 'until ' + new Date(Number(x.period.slice(1)) * 1000).toISOString().slice(0, 10) : x.period) + '</span>'; } },
             { h: 'Extra generations', r: function (x) { return num(x.uses); } },
-            { h: 'To bill', r: function (x) { return '<span class="font-semibold">' + usd(x.usd) + '</span>'; } },
+            { h: 'Paid from balance', r: function (x) { return '<span class="font-semibold">' + usd(x.usd) + '</span>'; } },
           ], d.studio, { empty: '' }) : '');
-      el.innerHTML = card('Extra usage to bill', body, '<div class="flex gap-1.5">' + chips + '</div>');
+      el.innerHTML = card('Extra usage (paid from balances)', body, '<div class="flex gap-1.5">' + chips + '</div>');
     });
   }
 

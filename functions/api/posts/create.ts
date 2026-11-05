@@ -25,7 +25,8 @@ import { ownMediaMissing } from '../lib/library';
 import { mediaKindFromUrl } from '../lib/media';
 import { postUnits } from '../lib/plans';
 import { graphemeLength, mastodonLength, threadsLength, utf8Length } from '../lib/text';
-import { countUiPosts } from '../lib/usage';
+import { gateUiPost } from '../lib/postgate';
+import { releaseApiPost } from '../lib/usage';
 import { BLUESKY_TEXT_LIMIT, BLUESKY_TEXT_MAX_BYTES } from '../channels/bluesky';
 import { MASTODON_TEXT_LIMIT } from '../channels/mastodon';
 import { isValidMediaUrl, TELEGRAM_CAPTION_LIMIT } from '../channels/telegram';
@@ -226,11 +227,16 @@ export const handleCreatePost: PagesFunction<Env> = async ({ request, env }) => 
   if (!checked.ok) return checked.response;
   const v = checked.v;
 
-  const saved = await insertPostGroup(env, auth.userId, v);
-  if (!saved.ok) return fail(500, 'Could not schedule the post. Please try again.');
+  // The quota is a hard stop: take it BEFORE the post exists, in one statement, so two parallel requests cannot both use the last unit.
+  const units = postUnits(v.channels.length);
+  const gate = await gateUiPost(env, auth.userId, v.now, units);
+  if (!gate.ok) return gate.response;
 
-  // Dashboard posts are counted (the Free Trial total is shared with the API); blocking them is a later part.
-  await countUiPosts(env, auth.userId, postUnits(v.channels.length));
+  const saved = await insertPostGroup(env, auth.userId, v);
+  if (!saved.ok) {
+    await releaseApiPost(env, auth.userId, gate.reservation, units);
+    return fail(500, 'Could not schedule the post. Please try again.');
+  }
 
   return json({ ok: true, groupId: saved.groupId, scheduledAt: v.scheduledAt, posts: saved.posts }, 201);
 };

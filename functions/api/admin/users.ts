@@ -5,6 +5,7 @@
  *        grant   { userId, planId, days?, addon?, overage?, note? }   give a plan by hand (same as `npm run plan:set`):
  *                                                   days empty = no end date, addon = Pro + API add-on; never counted as revenue
  *        ai_credits { userId, credits, note? }        add (or, negative, take away) AI credits for one account; they are spent after the plan's own credits
+ *        balance { userId, amountUsd, note? }       put money on the prepaid balance by hand (a gift, a refund paid outside the card), or take it away (negative); never below 0
  *        ai_pass { userId, enabled, days?, note? }   switch the AI Pass (monthly AI credits, any plan) on or off for one account
  *        access  { userId, product: 'studio'|'analytics', enabled, days?, note? }   switch Vane Studio or Vane Analytics Pro on or off alone, next to any plan
  *        api_addon { userId, enabled }               the API add-on on top of an active Pro plan
@@ -20,6 +21,7 @@ import { getPlan, listPlans } from '../lib/catalog';
 import { specOf } from '../lib/plans';
 import { loadSubscription, usageSummary } from '../lib/usage';
 import { loadAiPass } from '../lib/aipass';
+import { adjustBalance, centsToMicro, getBalanceMicro } from '../lib/balance';
 import { likeEscape } from '../lib/range';
 
 const PAGE = 25;
@@ -199,6 +201,29 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const row = await env.DB.prepare('SELECT credits FROM user_ai_bonus WHERE user_id = ?1').bind(b.userId).first<{ credits: number }>();
     await audit(env, request, 'user.ai_credits', user.email, { delta, balance: row?.credits ?? 0, note });
     return json({ ok: true, balance: row?.credits ?? 0 });
+  }
+
+  // The prepaid balance by hand: a gift, a refund paid outside the card, a correction. Never below zero. Every change is in the ledger and in Activity.
+  if (b.action === 'balance') {
+    if (typeof b.userId !== 'string' || !UUID_RE.test(b.userId)) return fail(400, 'userId is invalid.');
+    const usd = Number(b.amountUsd);
+    if (!Number.isFinite(usd) || usd === 0 || Math.abs(usd) > 1000 || Math.abs(Math.round(usd * 100) - usd * 100) > 1e-6) {
+      return fail(400, 'amountUsd must be a non-zero amount in dollars and cents, at most 1000 either way; negative takes money away.');
+    }
+    const user = await env.DB.prepare('SELECT email FROM users WHERE id = ?1').bind(b.userId).first<{ email: string }>();
+    if (!user) return fail(404, 'User not found.');
+    const note = typeof b.note === 'string' ? b.note.trim().slice(0, 200) : '';
+    let done: boolean;
+    try {
+      done = await adjustBalance(env, b.userId, centsToMicro(Math.round(usd * 100)), note, now);
+    } catch (err) {
+      if (/no such table/i.test(err instanceof Error ? err.message : '')) return fail(409, 'The database does not have the balance tables yet. Run npm run db:migrate:balance (or the whole schema.sql in the D1 Console).');
+      throw err;
+    }
+    if (!done) return fail(409, 'The balance is smaller than that: it cannot go below zero.');
+    const left = await getBalanceMicro(env, b.userId);
+    await audit(env, request, 'user.balance', user.email, { amountUsd: usd, balanceUsd: left / 1_000_000, note });
+    return json({ ok: true, balanceUsd: left / 1_000_000 });
   }
 
   if (b.action === 'ai_pass') {

@@ -3,8 +3,11 @@
  *
  * The "when the credits or the quota run out" switch of the dashboard:
  *   enabled = false → requests over the limit are refused (nothing is ever charged)
- *   enabled = true  → they go through and are billed at the plan's / AI Pass's per-use price
- * It only exists for accounts that have a price to bill: a plan with overage rates, or an AI Pass.
+ *   enabled = true  → they go through and the plan's / AI Pass's per-use price is taken from the prepaid balance (/topup); when the
+ *                     balance is too small they are refused too, so nothing is ever owed
+ * One switch for the account: it covers extra posts AND extra AI credits. Vane Studio's AI has its own (PATCH /api/video/ai), and
+ * spends from the same balance.
+ * It only exists for accounts that have a price: a plan with overage rates, or an AI Pass.
  */
 import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env } from '../../../types';
@@ -40,7 +43,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     .bind(auth.userId, enabled ? 1 : 0, now)
     .run();
   const usage = await usageSummary(env, auth.userId, await loadSubscription(env, auth.userId, now), now);
-  return json({ ok: true, ai: usage.ai, overage: usage.overage });
+  return json({ ok: true, ai: usage.ai, overage: usage.overage, balanceUsd: usage.balanceUsd, limit: usage.limit });
 };
 
 export const onRequest: PagesFunction<Env> = async () => methodNotAllowed('POST');

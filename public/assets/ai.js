@@ -42,6 +42,7 @@
 
   // The card under the editor: the AI Pass offer, or the credits and the "when they run out" switch.
   function money(n) { return '$' + (Math.round(n * 1000) / 1000); }
+  var TOPUP = (/^(post|studio)\.vaneapp\.dev$/i.test(location.hostname) ? 'https://vaneapp.dev' : '') + '/topup';
   function banner() {
     var ai = A.ai, bn = $('aiBanner');
     if (!ai || !bn) return;
@@ -71,7 +72,7 @@
           '<button type="button" class="chip" data-extra="0" aria-pressed="' + (!ai.extra.enabled) + '"><span>Stop</span></button>' +
           '<button type="button" class="chip" data-extra="1" aria-pressed="' + ai.extra.enabled + '"><span>Pay ' + money(ai.extra.rateUsd) + ' per credit</span></button></div></div>';
       }
-      html += '</div>' + (ai.extra.rateUsd !== null ? '<p class="mt-3 border-t border-white/10 pt-3 text-xs leading-relaxed text-white/45">' + (ai.extra.enabled ? 'Extra credits are billed per use at ' + money(ai.extra.rateUsd) + ' each' + (ai.extra.uses ? ' (' + ai.extra.uses + ' so far this period, ' + money(ai.extra.costUsd) + ')' : '') + '. The same switch applies to extra posts over your plan' + (ai.extra.postUsd !== null ? ' (' + money(ai.extra.postUsd) + ' each)' : '') + '.' : 'Nothing is charged: when your credits run out, AI requests are refused.') + '</p>' : '') + '</div>';
+      html += '</div>' + (ai.extra.rateUsd !== null ? '<p class="mt-3 border-t border-white/10 pt-3 text-xs leading-relaxed text-white/45">' + (ai.extra.enabled ? 'Extra credits are paid from your balance at ' + money(ai.extra.rateUsd) + ' each' + (ai.extra.uses ? ' (' + ai.extra.uses + ' so far this period, ' + money(ai.extra.costUsd) + ')' : '') + '. The same switch applies to extra posts over your plan' + (ai.extra.postUsd !== null ? ' (' + money(ai.extra.postUsd) + ' each)' : '') + '. When the balance is empty they stop. <a class="underline" href="' + TOPUP + '">Balance</a>' : 'Nothing is charged: when your credits run out, AI requests are refused. <a class="underline" href="' + TOPUP + '">Add funds</a> and switch this on to keep going.') + '</p>' : '') + '</div>';
     }
     bn.innerHTML = html;
     bn.classList.toggle('hidden', !html);
@@ -95,13 +96,13 @@
     var on = b.getAttribute('data-extra') === '1';
     if (on === A.ai.extra.enabled) return;
     // Say what will be billed BEFORE it is switched on: the switch is the account's, so it covers extra posts as well as credits.
-    if (on && !window.confirm('Every AI credit after your included ones will cost ' + money(A.ai.extra.rateUsd) + ' and be added to your bill.' +
+    if (on && !window.confirm('Every AI credit after your included ones will cost ' + money(A.ai.extra.rateUsd) + ' and be taken from your prepaid balance, never from a card.' +
         (A.ai.extra.postUsd !== null ? '\n\nThe same switch also bills posts over your plan, ' + money(A.ai.extra.postUsd) + ' each.' : '') +
         '\n\nYou can switch it off at any time. Turn it on?')) return;
     var r = await Vane.api('POST', '/api/usage/overage', { enabled: on });
     if (!r.ok) { Vane.toast('err', r.error); return; }
     A.ai = r.data.ai; credits();
-    Vane.toast('ok', on ? 'Extra credits will be billed per use.' : 'Stopped: nothing is charged over your limit.');
+    Vane.toast('ok', on ? 'Extra credits will be paid from your balance.' : 'Stopped: nothing is charged over your limit.');
   });
 
   // ───────────────────────── panel ─────────────────────────

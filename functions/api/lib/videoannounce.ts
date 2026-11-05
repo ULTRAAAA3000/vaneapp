@@ -17,7 +17,8 @@ import { insertPostGroup, validateCreatePost } from '../posts/create';
 import { toB64Url } from './encoding';
 import { fail, failCode, isRecord, json } from './http';
 import { postUnits } from './plans';
-import { countUiPosts } from './usage';
+import { gateUiPost } from './postgate';
+import { releaseApiPost } from './usage';
 import { requireVideoAccess } from './videoplans';
 import { getVideoRow, type VideoView } from './videos';
 
@@ -55,17 +56,22 @@ export async function announceVideo(env: Env, userId: string, id: string, body: 
   if (!checked.ok) return checked.response;
   const v = checked.v;
 
+  // Same hard stop as a dashboard post: the quota is taken before anything is created.
+  const units = postUnits(v.channels.length);
+  const gate = await gateUiPost(env, userId, v.now, units);
+  if (!gate.ok) return gate.response;
+
   const saved = await insertPostGroup(env, userId, v, () =>
     // A plain INSERT on purpose: if another request made a link for this video meanwhile, the unique video_id makes the
     // whole batch fail, and nothing is posted with an address that would not be the video's link.
     newToken ? [env.DB.prepare('INSERT INTO video_links (token, video_id) VALUES (?1, ?2)').bind(newToken, id)] : [],
   );
   if (!saved.ok) {
+    await releaseApiPost(env, userId, gate.reservation, units);
     return newToken
       ? failCode(409, 'link_changed', 'The video link changed while posting. Please try again.')
       : fail(500, 'Could not schedule the announcement. Please try again.');
   }
 
-  await countUiPosts(env, userId, postUnits(v.channels.length));
   return json({ ok: true, groupId: saved.groupId, channels: v.channels.length, text: content, url: wantsLink ? url : null, scheduledAt: v.scheduledAt }, 201);
 }

@@ -453,6 +453,19 @@ export interface UsageSummary {
   };
   /** may this account send live API requests? */
   apiAccess: boolean;
+  /** the prepaid balance, in USD (spent on anything beyond the quota, only when "pay for extra" is on) */
+  balanceUsd: number;
+  /** the dashboard's hard stop: `reached` = no post can be created right now (quota used and the balance cannot cover an extra one) */
+  limit: {
+    reached: boolean;
+    postsLeft: number;
+    /** unix seconds when the quota resets, null for the one-time Free Trial allowance */
+    resetsAt: number | null;
+    /** does this plan have a price for extra posts at all */
+    offersExtra: boolean;
+    extraOn: boolean;
+    extraPostUsd: number | null;
+  };
   overage: {
     enabled: boolean;
     /** price per post beyond the quota (USD), null when this plan is never billed for extras */

@@ -7,6 +7,7 @@ import type { Env } from '../../../types';
 import { getPlan, type Plan } from './catalog';
 import { requireAdmin } from './admin';
 import { emailConfigured, sendMail } from './mail';
+import { BALANCE_PLAN_ID, creditTopUp, getBalanceMicro, MICRO_PER_USD } from './balance';
 import { getSettings } from './settings';
 import { monobankEnabled } from './monobank';
 import { cryptoEnabled } from './solana';
@@ -118,6 +119,8 @@ async function grantAnalytics(env: Env, o: OrderRow, now: number): Promise<void>
 
 /** What a paid order switches on. 'video' = Vane Studio, 'ai-pass' = AI Pass, 'api-addon' = Pro's API add-on, 'suite' = Pro + Studio + Analytics Pro + AI Pass (its API posts come from the plan's own limits), anything else = that plan. */
 export async function activate(env: Env, o: OrderRow, now: number): Promise<void> {
+  // A top-up switches no plan on: it puts money on the balance, once per order (see creditTopUp).
+  if (o.plan_id === BALANCE_PLAN_ID) { await creditTopUp(env, o.user_id, o.id, o.amount_cents, now); return; }
   if (o.plan_id === 'video') return grantVideo(env, o, now);
   if (o.plan_id === 'ai-pass') return grantAiPass(env, o, now);
   if (o.plan_id === 'analytics') return grantAnalytics(env, o, now);
@@ -183,6 +186,19 @@ export async function sendReceipt(env: Env, o: OrderRow, now: number): Promise<v
   try { const b = JSON.parse(o.billing) as { email?: string; name?: string }; to = b.email ?? ''; name = b.name ?? ''; } catch { return; }
   if (!to) return;
   const amount = `${(o.amount_cents / 100).toFixed(2)} ${o.currency}`;
+  if (o.plan_id === BALANCE_PLAN_ID) {
+    const how = o.provider === 'crypto' ? 'Crypto (Solana)' : 'Card';
+    const balance = `$${((await getBalanceMicro(env, o.user_id)) / MICRO_PER_USD).toFixed(2)}`;
+    const rows = [`Added to your balance: ${amount}`, `Balance now: ${balance}`, `Paid with: ${how}`, `Order: ${o.id}`];
+    await sendMail(env, {
+      to,
+      optional: true,
+      subject: 'Your Vane receipt: balance top-up',
+      text: `${name ? `Hi ${name},\n\n` : ''}Thank you, your payment was received and ${amount} was added to your Vane balance.\n\n${rows.join('\n')}\n\nThe balance pays for extra posts and AI credits beyond your plan, only if you switch paying for extra use on. It is not a subscription: nothing renews or is charged again.\n`,
+      html: `<div style="font-family:-apple-system,Segoe UI,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#111"><h2 style="margin:0 0 12px">Payment received</h2><p style="margin:0 0 16px">${name ? `Hi ${escHtml(name)}, t` : 'T'}hank you. <b>${escHtml(amount)}</b> was added to your Vane balance.</p><table style="width:100%;border-collapse:collapse;font-size:14px">${rows.map((l) => { const i = l.indexOf(':'); return `<tr><td style="padding:6px 0;color:#666">${escHtml(l.slice(0, i))}</td><td style="padding:6px 0;text-align:right">${escHtml(l.slice(i + 1).trim())}</td></tr>`; }).join('')}</table><p style="margin:20px 0 0;font-size:12px;color:#777">The balance pays for extra posts and AI credits beyond your plan, only if you switch paying for extra use on. It is not a subscription: nothing renews or is charged again.</p></div>`,
+    });
+    return;
+  }
   const until = new Date((await periodEnd(env, o, now)) * 1000).toISOString().slice(0, 10);
   const how = o.provider === 'crypto' ? 'Crypto (Solana)' : 'Card';
   const lines = [`Plan: ${o.plan_name} (${o.interval === 'year' ? '1 year' : '1 month'})`, `Amount: ${amount}`, `Paid with: ${how}`, `Active until about: ${until}`, `Order: ${o.id}`];

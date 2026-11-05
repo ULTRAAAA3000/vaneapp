@@ -1204,7 +1204,11 @@
     S.submitting = false;
     $(btn + 'Spin').classList.add('hidden'); $(btn + 'Label').textContent = now ? 'Post now' : 'Schedule post';
 
-    if (!r.ok) { Vane.toast('err', r.error); validate(); return; }
+    if (!r.ok) {
+      Vane.toast('err', r.error); validate();
+      if (r.status === 402) refreshApiQuietly();   // the quota is used up: show the banner and the balance at once
+      return;
+    }
 
     var n = r.data.posts.length;
     Vane.toast('ok', now ? 'Sending' + (n > 1 ? ' to ' + n + ' channels' : '') + ' now. It goes out within about a minute.' : 'Scheduled for ' + fmtWhen.format(new Date(r.data.scheduledAt * 1000)) + (n > 1 ? ' on ' + n + ' channels.' : '.'));
@@ -1403,6 +1407,33 @@
     S.usage = rs[0].data.usage;
     S.keys = rs[1].data.keys;
     S.keyMax = rs[1].data.max || 10;
+    renderLimit();
+  }
+
+  // ── the balance pill and the hard-stop banner (backend: usage.limit and usage.balanceUsd, see functions/api/lib/usage.ts)
+  var TOPUP = (/^(post|studio)\.vaneapp\.dev$/i.test(location.hostname) ? 'https://vaneapp.dev' : '') + '/topup';
+  var balUsd = function (n) { return '$' + (Math.round(n * 1000) / 1000); };
+  var fmtResetDay = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  function renderLimit() {
+    var u = S.usage, pill = $('balancePill'), bar = $('quotaStop');
+    if (!u || !pill || !bar) return;
+    $('balanceVal').textContent = balUsd(u.balanceUsd);
+    pill.setAttribute('href', TOPUP); pill.hidden = false;
+    var l = u.limit;
+    if (!l || !l.reached) { bar.hidden = true; return; }
+    var when = l.resetsAt ? 'It resets on ' + fmtResetDay.format(new Date(l.resetsAt * 1000)) + '.' : 'It does not reset.';
+    var text, cta = 'Add funds', href = TOPUP;
+    if (l.offersExtra && l.extraOn) {
+      text = 'Your balance is too low for another extra post (' + balUsd(l.extraPostUsd) + ' each), so posting is paused. Add funds to continue. Or wait: your quota resets' + (l.resetsAt ? ' on ' + fmtResetDay.format(new Date(l.resetsAt * 1000)) : ' never') + '.';
+    } else if (l.offersExtra) {
+      text = 'You have reached your ' + u.plan.label + ' quota of posts, so posting is paused. ' + when + ' To continue now, add funds to your balance and switch on paying for extra use (' + balUsd(l.extraPostUsd) + ' per extra post).';
+    } else {
+      text = 'You have reached your ' + u.plan.label + ' quota of posts, so posting is paused. ' + when + ' Choose a plan to continue.';
+      cta = 'Choose a plan'; href = (/^(post|studio)\.vaneapp\.dev$/i.test(location.hostname) ? 'https://vaneapp.dev' : '') + '/pricing';
+    }
+    $('quotaStopText').textContent = text;
+    $('quotaStopCta').textContent = cta; $('quotaStopCta').setAttribute('href', href);
+    bar.hidden = false;
   }
   // Silent refresh (a post may have been sent through the API from another place, which changes the numbers).
   async function refreshApiQuietly() {
@@ -1456,7 +1487,7 @@
 
       var ov = u.overage, line;
       if (ov.enabled) {
-        line = 'Extra posts are billed at $' + ov.postUsd + ' each' + (ov.posts ? ' (' + ov.posts + ' so far, $' + ov.costUsd.toFixed(2) + ')' : '') + '.' +
+        line = 'Extra posts are paid from your balance at $' + ov.postUsd + ' each' + (ov.posts ? ' (' + ov.posts + ' so far, $' + ov.costUsd.toFixed(2) + ')' : '') + '.' +
           (ov.aiUses ? ' Extra AI credits so far this period: ' + ov.aiUses + ', $' + ov.aiCostUsd.toFixed(2) + '.' : '');
       } else if (u.plan.id === 'free') {
         line = 'When the allowance is used up, posting pauses. You are never charged.';

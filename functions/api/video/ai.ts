@@ -17,6 +17,7 @@ import { withAiContext } from '../lib/aimeter';
 import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env } from '../../../types';
 import { AiError, TONES, type Tone } from '../lib/ai';
+import { getBalanceMicro } from '../lib/balance';
 import { requireUser } from '../lib/auth';
 import { failCode, fail, isRecord, json, methodNotAllowed, readJson } from '../lib/http';
 import { bump, retryAfter } from '../lib/throttle';
@@ -91,14 +92,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   const now = nowSeconds();
   const charge = await reserveVideoAi(env, auth.userId, now);
-  if (!charge) {
+  if ('stop' in charge) {
     const ai = await videoAiUsage(env, auth.userId, now);
-    const renews = new Date(ai.resetsAt * 1000).toISOString().slice(0, 10);
-    return failCode(
-      402, 'ai_quota_exceeded',
-      `You have used the ${ai.limit} AI generations of this plan period. They renew on ${renews}. You can also keep going for $${ai.overage.priceUsd.toFixed(2)} per generation.`,
-      { ai },
-    );
+    const renews = new Date(ai.resetsAt * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+    const price = `$${ai.overage.priceUsd.toFixed(2)}`;
+    const balanceUsd = (await getBalanceMicro(env, auth.userId)) / 1_000_000;
+    const message = charge.stop === 'balance'
+      ? `Your balance is too low for another extra generation (${price} each). Add funds to continue. Or wait: your ${ai.limit} included generations renew on ${renews}.`
+      : `You have used the ${ai.limit} AI generations of this plan period. They renew on ${renews}. To continue now, add funds to your balance and switch on paying for extra generations (${price} each).`;
+    return failCode(402, 'ai_quota_exceeded', message, { ai, resetsAt: ai.resetsAt, topUpUrl: '/topup', balanceUsd });
   }
 
   const model = aiEnv(env);

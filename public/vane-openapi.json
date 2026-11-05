@@ -239,7 +239,7 @@
             "$ref": "#/components/responses/Unauthorized"
           },
           "402": {
-            "description": "The plan's quota is used up (`code: quota_exceeded`)",
+            "description": "The plan's quota is used up (`code: quota_exceeded`). The body also has `resetsAt`, `topUpUrl` and `balanceUsd`. With paying for extra use on, a request is refused only when the prepaid balance is too small.",
             "content": {
               "application/json": {
                 "schema": {

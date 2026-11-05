@@ -37,7 +37,7 @@ import { LANGUAGES, toolIdeas, toolRepurpose, toolReview, toolTranslate, toolWin
 import { fail, failCode, isRecord, json, methodNotAllowed, readJson } from '../lib/http';
 import { CONTENT_LIMIT } from '../posts/create';
 import { bump, retryAfter } from '../lib/throttle';
-import { aiLogStatement, loadSubscription, nowSeconds, releaseAiGeneration, reserveAiGeneration, usageSummary } from '../lib/usage';
+import { aiLogStatement, loadSubscription, nowSeconds, releaseAiGeneration, reserveAiGeneration, stopBody, usageSummary } from '../lib/usage';
 
 const FREE_PER_HOUR = 60;
 const PAID_PER_HOUR = 60;
@@ -101,16 +101,16 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     if (!reservation.ok) {
       const usage = await usageSummary(env, auth.userId, sub, now);
       const ai = usage.ai;
-      const message = reservation.code === 'ai_quota_exceeded'
-        ? ai.extra.rateUsd !== null
-          ? `You have used all your AI credits. Turn on "Pay for extra credits" under the editor to keep going at $${ai.extra.rateUsd} each, or wait for the next period.`
-          : 'You have used all your AI credits. They renew with your plan period.'
+      // Out of credits: say when they renew and what to do. 'balance' = paying for extra is on but the balance is too small.
+      const stop = reservation.code === 'ai_quota_exceeded' ? await stopBody(env, auth.userId, sub, now, 'ai', reservation.reason) : null;
+      const message = stop
+        ? String(stop.error)
         : ai.offer
           ? `AI Pass gives you ${ai.offer.credits} AI credits a month for $${ai.offer.priceUsd}. Make it clean and hashtags stay free.`
           : ai.perGenerationUsd
             ? `On your plan every AI Pass generation costs $${ai.perGenerationUsd}, and extra-usage billing is not switched on for your account yet, so it cannot run. Make it clean and hashtags are free.`
             : 'Your plan has no AI credits. The free tools (Make it clean, hashtags) still work; choose a plan with the AI Pass for the rest.';
-      return failCode(402, reservation.code, message, { ai });
+      return failCode(402, reservation.code, message, { ai, ...(stop ? { resetsAt: stop.resetsAt, topUpUrl: stop.topUpUrl, balanceUsd: stop.balanceUsd } : {}) });
     }
   }
 

@@ -253,21 +253,30 @@ Only a **successful** answer is remembered: a request that failed (400, 402, 5xx
 - The quota is taken by **one conditional upsert** on `usage_counters`, so parallel requests can never both take the last unit (the test fires 12 at 5 remaining: exactly 5 pass).
 - A request that fails validation costs nothing. If saving fails after the quota was taken, it is given back. Cancelling a post does not refund it.
 - A paid plan whose period ended (or that is not `active`) falls back to the Free Trial limits until it is renewed.
-- Overage billing is **off by default** (`subscriptions.overage_enabled = 0`): out of quota means `402`, never a surprise charge.
-- Dashboard posts are **counted** (they share the Free Trial total) but not blocked yet; that comes with the dashboard part.
+- **The quota is a hard stop, for the API and the dashboard alike.** Posts from the dashboard (also "Post now") and the "announce a video" post are taken from the same quota in one statement before anything is created (`gateUiPost`, `lib/postgate.ts`). Free Trial: one total of 30 for both. Pro and the others: the dashboard and the API are counted apart. A plan with no dashboard allowance of its own (Developer API) lets dashboard posts come out of its API allowance. Past the quota: `402 quota_exceeded` with the text, `resetsAt` (null for the one-time Free Trial allowance), `topUpUrl: "/topup"` and `balanceUsd`; the dashboard shows the same at the very top of the page.
+- Paying for extra use is **off by default** (`subscriptions.overage_enabled = 0`): out of quota means `402`, never a surprise charge.
 - All prices and limits live in `functions/api/lib/plans.ts`.
 
-### Extra usage (going over the quota): how it is counted, shown and billed
+### The prepaid balance ("Extra usage") and everything beyond the quota
 
-- **Three kinds, one rule: stop unless the account chose to pay.** Extra posts (API plan $0.03, Pro $0.015), extra AI credits in Vane Post ($0.09 on the API plan, $0.045 on Pro, $0.02 with the AI Pass: the cheapest price that applies) and extra AI generations in Vane Studio ($0.02, its own switch in the AI writer). Order of spending for AI: plan credits, then the AI Pass, then credits an admin gave, then paid extras.
-- **One switch in Vane Post** (`subscriptions.overage_enabled`, `POST /api/usage/overage`) covers extra posts **and** extra AI credits, so the dashboard asks for confirmation first and names both prices (`ai.extra.rateUsd` and `ai.extra.postUsd`). Studio has its own (`video_ai_settings`). Paying for a plan never changes the switch.
-- **Counted when it happens, in one statement** (so two parallel requests never both take the last free unit): `usage_counters.overage_posts` and `overage_micro_usd` (extra posts **and** extra AI credits together, in millionths of a dollar), `usage_logs` (`overage = 1` per paid use, written last, only after the request succeeded; a refunded request leaves nothing behind) and `video_ai_overage` for Studio. The usage API splits them: `overage.posts`/`costUsd` are extra posts, `overage.aiUses`/`aiCostUsd` are paid AI credits.
-- **Prices from /admin → Plans are checked** (`price()` in `plans.ts`): above $0 and at most $100. Empty, 0, negative or text means "no price", so the plan simply stops (a negative price would pay the user for going over, and 0 would make extras free without a limit). Quotas are whole numbers, never below 0 (a typo like -5 means none, never unlimited).
-- **Nothing charges extra usage automatically.** Checkout sells plans, not usage. The list to invoice from is **/admin → Orders → Extra usage to bill** (per account and month: extra posts, extra AI credits, the amount; Studio's extra generations listed below it because they follow the video plan's period). Open decisions are listed in the pull request.
-- Tests: `scripts/overage-unit.mjs`.
+**Model: prepaid, no debt, no card on file.** A user adds money from $5 to $500 (whole dollars) at **/topup** (button "Balance" in both dashboards): it is a normal checkout (`/checkout?plan=balance&amount=25`, card via Monobank or crypto, same billing details and Terms), the order's plan id is `balance` and it is not in the plans table (`topUpPlan()` in `lib/balance.ts`). When the order is paid (`activate` in `lib/billing.ts`) the amount is added to `user_balance` **exactly once** per order (`creditTopUp`: one batch, a UNIQUE ledger row per order, so a repeated payment report, even in parallel, adds nothing) and a receipt e-mail is sent.
 
+**What the balance pays for.** Only what is beyond a quota, and only while the account has switched "pay for extra use" on:
+- extra posts: API plan $0.03, Pro $0.015, for the API **and** the dashboard (one request = one post);
+- extra AI credits in Vane Post: $0.09 (API plan), $0.045 (Pro), $0.02 with the AI Pass (the cheapest price that applies);
+- extra AI generations in Vane Studio: $0.02 (its own switch in the AI writer, the same balance).
 
-### Giving an account a plan by hand (until payments do it)
+Order of spending for AI: plan credits, then the AI Pass, then credits an admin gave, then the balance. **One switch in Vane Post** (`subscriptions.overage_enabled`, `POST /api/usage/overage`, also on /topup) covers extra posts **and** extra AI credits, so every place that turns it on first names both prices. Paying for a plan never changes the switch.
+
+**Hard stop, never a debt.** Over the quota with the switch off, or on but with a balance too small for one more: `402` ("Your balance is too low for another extra post ($0.015 each). Add funds to continue. Or wait: your quota resets on ..."). Spending is ONE statement (`UPDATE user_balance SET micro_usd = micro_usd - ? WHERE micro_usd >= ?`), so parallel requests never spend the same money, and the table's `CHECK (micro_usd >= 0)` makes a negative balance impossible. If the request fails after the money was taken (the post could not be saved, the AI model failed) the money goes back (`refundBalance`). Cancelling a post does not refund it.
+
+**Where to look.** `user_balance` (the number that counts), `balance_ledger` (every top-up, spend, refund and adjustment; shown on /topup), `usage_counters.overage_posts` / `overage_micro_usd` (extra posts and extra AI credits together, in millionths of a dollar), `usage_logs` (`overage = 1` per paid use; the AI share is read from it, so `usage.overage.costUsd` is extra posts only and `aiUses` / `aiCostUsd` are paid AI credits), `video_ai_overage` (Studio). **/admin → Users → a user → Balance** adds or takes money by hand (never below zero, in Activity); **/admin → Orders** lists top-ups as "Balance top-up" and has the "Extra usage" report (per account and month, already paid from balances).
+
+**Prices from /admin → Plans are checked** (`price()` in `plans.ts`): above $0 and at most $100. Empty, 0, negative or text means "no price", so the plan simply stops (a negative price would pay the user for going over, 0 would make extras free without a limit). Quotas are whole numbers, never below 0 (a typo like -5 means none, never unlimited). The Free Trial has no extra price: it stops and sends the user to a plan (give the `free` catalog row an `overagePostUsd` in /admin → Plans if you want it to continue from a balance).
+
+Tests: `scripts/balance-unit.mjs` and `scripts/quota-unit.mjs` (the SQL on a real in-memory D1: parallel spends, exactly-once top-ups, refunds, hard stops, Studio), `scripts/overage-unit.mjs` (price rules), `scripts/balance-e2e.mjs` (`npm run test:balance`: over HTTP, with a real top-up order confirmed in the admin). Run `npm run db:migrate:balance` once on an existing database.
+
+## Giving an account a plan by hand (until payments do it)
 
 ```
 npm run plan:set -- me@example.com api                       # Developer API for 30 days

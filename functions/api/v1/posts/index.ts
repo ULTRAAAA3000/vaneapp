@@ -26,7 +26,7 @@ import { idemBegin, idemCompleteStatement, idemRelease, type IdemClaim } from '.
 import { postUnits } from '../../lib/plans';
 import { insertPostGroup, validateCreatePost } from '../../posts/create';
 import { listPostsForUser } from '../../posts/list';
-import { quotaHeaders, releaseApiPost, reserveApiPost, usageLogStatement, usageSummary } from '../../lib/usage';
+import { quotaHeaders, releaseApiPost, reserveApiPost, stopBody, usageLogStatement, usageSummary } from '../../lib/usage';
 
 export const onRequestGet: PagesFunction<Env> = agentLogged('posts.list', async ({ request, env }) => {
   const auth = await requireApiKey(request, env, 'post');
@@ -73,10 +73,11 @@ async function createPost(env: Env, auth: ApiKeyContext, data: unknown, claim: I
       return failCode(403, 'api_not_in_plan', 'Your plan does not include API access. Add the API Add-on, or use a test key.');
     }
     const usage = await usageSummary(env, auth.userId, auth.sub, v.now);
-    const message = auth.sub.plan === 'free'
-      ? `You have used all ${usage.api.limit} posts of the Free Trial. Choose a plan to keep posting.`
-      : `You have used all ${usage.api.limit} API posts of this period.` + (usage.period.resetsAt ? ' The quota resets on the 1st (UTC).' : '');
-    return failCode(402, 'quota_exceeded', message, { usage: { api: usage.api, resetsAt: usage.period.resetsAt, overage: usage.overage } }, quotaHeaders(usage));
+    const stop = await stopBody(env, auth.userId, auth.sub, v.now, 'posts', reservation.reason);
+    return failCode(402, 'quota_exceeded', String(stop.error), {
+      usage: { api: usage.api, resetsAt: usage.period.resetsAt, overage: usage.overage },
+      resetsAt: stop.resetsAt, topUpUrl: stop.topUpUrl, balanceUsd: stop.balanceUsd,
+    }, quotaHeaders(usage));
   }
 
   const usage = await usageSummary(env, auth.userId, auth.sub, v.now);

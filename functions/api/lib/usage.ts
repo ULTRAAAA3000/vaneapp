@@ -11,6 +11,7 @@ import {
   type PlanSpec, type Subscription, type SubscriptionRow,
 } from './plans';
 import { loadAiPass, passPeriod, type AiPassState } from './aipass';
+import { chargeBalance, getBalanceMicro, refundBalance } from './balance';
 
 export const nowSeconds = (): number => Math.floor(Date.now() / 1000);
 
@@ -118,8 +119,12 @@ export async function usageSummary(env: Env, userId: string, sub: Subscription, 
   const rates = overageRates(sub);
 
   const aiExtra = await loadAiExtra(env, userId, period, now);
+  const balanceMicro = await getBalanceMicro(env, userId);
   // Free Trial: UI and API posts draw from ONE total.
   const shared = lim.shared !== null ? bucket(lim.shared, c.api_posts + c.ui_posts) : null;
+  // What a new dashboard post would draw from (see reservePosts), and whether one more can be made right now
+  const postsLeft = shared ? shared.remaining : lim.ui > 0 ? Math.max(lim.ui - c.ui_posts, 0) : Math.max(lim.api - c.api_posts, 0);
+  const canPayExtra = rates !== null && balanceMicro >= rates.post;
   return {
     plan: {
       id: sub.plan, label: spec.label, status: sub.status, lapsed: sub.lapsed, apiAddon: sub.apiAddon,
@@ -131,6 +136,15 @@ export async function usageSummary(env: Env, userId: string, sub: Subscription, 
     shared,
     ai: aiBucket(spec, sub, c.ai_generations, await loadAiBonus(env, userId), await loadAiPass(env, userId, now), aiExtra),
     apiAccess: apiAllowed(sub),
+    balanceUsd: microToUsd(balanceMicro),
+    limit: {
+      reached: postsLeft <= 0 && !canPayExtra,
+      postsLeft,
+      resetsAt: periodResetsAt(sub.plan, now),
+      offersExtra: spec.overage !== null,
+      extraOn: sub.overageEnabled,
+      extraPostUsd: spec.overage ? microToUsd(spec.overage.post) : null,
+    },
     overage: {
       enabled: rates !== null,
       postUsd: spec.overage ? microToUsd(spec.overage.post) : null,
@@ -146,92 +160,138 @@ export async function usageSummary(env: Env, userId: string, sub: Subscription, 
 
 // ───────────────────────── the quota gate ─────────────────────────
 
-export type Reservation =
-  | { ok: true; overage: boolean; costMicro: number; period: string }
-  | { ok: false; code: 'api_not_in_plan' | 'quota_exceeded' };
+const usd = (n: number): string => '$' + String(Math.round(n * 1000) / 1000);
+const day = (unix: number): string => new Date(unix * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 
 /**
- * Takes `units` from the API quota, or says why it can't.
- * Within the quota          → counted, free.
- * Over it, overage enabled  → counted AND priced (overage_posts / overage_micro_usd), e.g. $0.03 on the Developer API.
- * Over it, overage disabled → { ok: false, code: 'quota_exceeded' }  (the caller answers 402).
+ * The words for a request that was stopped at the quota: what happened, when it resets, and what to do. The same text goes into the
+ * 402 of the API, the dashboard and Studio. `unit` = what ran out ("posts", "AI credits"), `priceUsd` = the price of one extra
+ * (null: this plan has none, so only a plan change helps).
  */
-export async function reserveApiPost(env: Env, userId: string, sub: Subscription, now: number, units: number): Promise<Reservation> {
-  if (!apiAllowed(sub)) return { ok: false, code: 'api_not_in_plan' };
+export function stopMessage(o: { label: string; unit: string; one: string; reason: StopReason; resetsAt: number | null; priceUsd: number | null }): string {
+  const when = o.resetsAt ? `It resets on ${day(o.resetsAt)}.` : 'It does not reset.';
+  if (o.reason === 'balance') {
+    return `Your balance is too low for another extra ${o.one} (${usd(o.priceUsd ?? 0)} each). Add funds to continue.` + (o.resetsAt ? ` Or wait: your quota resets on ${day(o.resetsAt)}.` : '');
+  }
+  if (o.priceUsd !== null) {
+    return `You have reached your ${o.label} quota of ${o.unit}. ${when} To continue now, add funds to your balance and switch on paying for extra use (${usd(o.priceUsd)} each).`;
+  }
+  return `You have reached your ${o.label} quota of ${o.unit}. ${when} Choose a plan to continue.`;
+}
 
+/** The 402 body for a stopped request: the message plus where to go and what is left. */
+export async function stopBody(env: Env, userId: string, sub: Subscription, now: number, what: 'posts' | 'ai', reason: StopReason): Promise<Record<string, unknown>> {
+  const spec = specOf(sub.plan);
+  const resetsAt = periodResetsAt(sub.plan, now);
+  const aiRate = what === 'ai' ? aiExtraRate(spec, (await loadAiPass(env, userId, now)).active) : null;
+  const price = what === 'posts' ? (spec.overage ? microToUsd(spec.overage.post) : null) : aiRate !== null ? microToUsd(aiRate) : null;
+  return {
+    ok: false,
+    code: 'quota_exceeded',
+    error: stopMessage({ label: spec.label, unit: what === 'posts' ? 'posts' : 'AI credits', one: what === 'posts' ? 'post' : 'AI credit', reason, resetsAt, priceUsd: price }),
+    resetsAt,
+    topUpUrl: '/topup',
+    balanceUsd: microToUsd(await getBalanceMicro(env, userId)),
+  };
+}
+
+/** Why a request over the quota was refused: 'off' = paying for extra use is not switched on (or this plan has no price for it); 'balance' = it is on but the balance is too small. */
+export type StopReason = 'off' | 'balance';
+type PostColumn = 'api_posts' | 'ui_posts';
+
+export type Reservation =
+  | { ok: true; overage: boolean; costMicro: number; period: string; column: PostColumn }
+  | { ok: false; code: 'api_not_in_plan' }
+  | { ok: false; code: 'quota_exceeded'; reason: StopReason };
+
+/**
+ * Takes `units` from the quota, or says why it can't. `where` is who is asking: the API or the dashboard (dashboard posts, Post now,
+ * and the "announce a video" post). The limit is hard: past it nothing is created.
+ * Within the quota          → counted, free.
+ * Over it, paying switched on and the balance covers it → the price is taken from the balance, then counted (overage_posts / overage_micro_usd).
+ * Otherwise                 → { ok: false, code: 'quota_exceeded', reason } and the caller answers 402. Nothing is ever owed.
+ *
+ * Which counter a request fills: Free Trial has ONE total for both (30 posts); Pro and the others keep the dashboard and the API apart;
+ * a plan with no dashboard allowance of its own (Developer API) lets dashboard posts come out of its API allowance.
+ */
+async function reservePosts(env: Env, userId: string, sub: Subscription, now: number, units: number, where: 'api' | 'ui'): Promise<Reservation> {
   const lim = limitsFor(sub);
   const period = periodKey(sub.plan, now);
-  const cap = lim.shared ?? lim.api;
-
-  // `used` is either the API counter or the shared total. Both fragments are constants (never user input).
-  const used = lim.shared !== null ? '(api_posts + ui_posts)' : 'api_posts';
+  // Constants, never user input: they are put into the SQL text.
+  let column: PostColumn; let cap: number; let used: string;
+  if (lim.shared !== null) { column = where === 'api' ? 'api_posts' : 'ui_posts'; cap = lim.shared; used = '(api_posts + ui_posts)'; }
+  else if (where === 'api') { column = 'api_posts'; cap = lim.api; used = 'api_posts'; }
+  else if (lim.ui > 0) { column = 'ui_posts'; cap = lim.ui; used = 'ui_posts'; }
+  else { column = 'api_posts'; cap = lim.api; used = 'api_posts'; }
 
   if (cap >= units) {
     // The WHERE on DO UPDATE makes this all-or-nothing: no row change means the quota was already full.
     const res = await env.DB
       .prepare(
-        `INSERT INTO usage_counters (user_id, period, api_posts, updated_at) VALUES (?1, ?2, ?5, ?3)
-         ON CONFLICT(user_id, period) DO UPDATE SET api_posts = api_posts + ?5, updated_at = ?3
+        `INSERT INTO usage_counters (user_id, period, ${column}, updated_at) VALUES (?1, ?2, ?5, ?3)
+         ON CONFLICT(user_id, period) DO UPDATE SET ${column} = ${column} + ?5, updated_at = ?3
          WHERE ${used} + ?5 <= ?4`,
       )
       .bind(userId, period, now, cap, units)
       .run();
-    if ((res.meta?.changes ?? 0) > 0) return { ok: true, overage: false, costMicro: 0, period };
+    if ((res.meta?.changes ?? 0) > 0) return { ok: true, overage: false, costMicro: 0, period, column };
   }
 
   const rates = overageRates(sub);
-  if (!rates) return { ok: false, code: 'quota_exceeded' };
+  if (!rates) return { ok: false, code: 'quota_exceeded', reason: 'off' };
 
   const costMicro = Math.round(rates.post * units);
-  await env.DB
-    .prepare(
-      `INSERT INTO usage_counters (user_id, period, api_posts, overage_posts, overage_micro_usd, updated_at) VALUES (?1, ?2, ?5, ?5, ?4, ?3)
-       ON CONFLICT(user_id, period) DO UPDATE SET
-         api_posts = api_posts + ?5, overage_posts = overage_posts + ?5, overage_micro_usd = overage_micro_usd + ?4, updated_at = ?3`,
-    )
-    .bind(userId, period, now, costMicro, units)
-    .run();
-  return { ok: true, overage: true, costMicro, period };
-}
-
-/** Gives a reservation back (the post could not be saved after all). */
-export async function releaseApiPost(env: Env, userId: string, r: Extract<Reservation, { ok: true }>, units: number): Promise<void> {
+  // The money first, in one statement that cannot overspend; the counters after. If they fail the money goes back.
+  if (!(await chargeBalance(env, userId, costMicro, 'post', now))) return { ok: false, code: 'quota_exceeded', reason: 'balance' };
   try {
     await env.DB
       .prepare(
+        `INSERT INTO usage_counters (user_id, period, ${column}, overage_posts, overage_micro_usd, updated_at) VALUES (?1, ?2, ?5, ?5, ?4, ?3)
+         ON CONFLICT(user_id, period) DO UPDATE SET
+           ${column} = ${column} + ?5, overage_posts = overage_posts + ?5, overage_micro_usd = overage_micro_usd + ?4, updated_at = ?3`,
+      )
+      .bind(userId, period, now, costMicro, units)
+      .run();
+  } catch (err) {
+    await refundBalance(env, userId, costMicro, 'post', now).catch(() => undefined);
+    throw err;
+  }
+  return { ok: true, overage: true, costMicro, period, column };
+}
+
+/** The API's gate (POST /api/v1/posts). */
+export async function reserveApiPost(env: Env, userId: string, sub: Subscription, now: number, units: number): Promise<Reservation> {
+  if (!apiAllowed(sub)) return { ok: false, code: 'api_not_in_plan' };
+  return reservePosts(env, userId, sub, now, units, 'api');
+}
+
+/** The dashboard's gate: creating a post (also "Post now") and announcing a video. Same rules, same counters. */
+export async function reserveUiPost(env: Env, userId: string, sub: Subscription, now: number, units: number): Promise<Reservation> {
+  return reservePosts(env, userId, sub, now, units, 'ui');
+}
+
+/** Gives a reservation back (the post could not be saved after all): the counter, and the money if it was paid for. */
+export async function releaseApiPost(env: Env, userId: string, r: Extract<Reservation, { ok: true }>, units: number): Promise<void> {
+  const now = nowSeconds();
+  try {
+    // r.column is one of two constants (see reservePosts)
+    await env.DB
+      .prepare(
         `UPDATE usage_counters SET
-           api_posts = MAX(api_posts - ?3, 0),
+           ${r.column} = MAX(${r.column} - ?3, 0),
            overage_posts = MAX(overage_posts - ?4, 0),
            overage_micro_usd = MAX(overage_micro_usd - ?5, 0),
            updated_at = ?6
          WHERE user_id = ?1 AND period = ?2`,
       )
-      .bind(userId, r.period, units, r.overage ? units : 0, r.costMicro, nowSeconds())
+      .bind(userId, r.period, units, r.overage ? units : 0, r.costMicro, now)
       .run();
   } catch (err) {
-    // Not fatal: the user is at worst charged one unit too many, and the failure is visible in the logs.
+    // Not fatal: the counter is at worst one unit too high, and the failure is visible in the logs.
     console.error('quota release failed', err instanceof Error ? err.message : 'unknown');
   }
-}
-
-/**
- * Dashboard posts are counted (the Free Trial total is shared with the API) but not blocked yet.
- * Deliberately tolerant: counting must never be the reason a post fails, e.g. while the usage tables are
- * not in the database yet (right after a deploy, before `npm run db:remote`).
- */
-export async function countUiPosts(env: Env, userId: string, units: number): Promise<void> {
-  try {
-    const now = nowSeconds();
-    const sub = await loadSubscription(env, userId, now);
-    await env.DB
-      .prepare(
-        `INSERT INTO usage_counters (user_id, period, ui_posts, updated_at) VALUES (?1, ?2, ?4, ?3)
-         ON CONFLICT(user_id, period) DO UPDATE SET ui_posts = ui_posts + ?4, updated_at = ?3`,
-      )
-      .bind(userId, periodKey(sub.plan, now), now, units)
-      .run();
-  } catch (err) {
-    console.error('ui usage count failed', err instanceof Error ? err.message : 'unknown');
+  if (r.overage && r.costMicro > 0) {
+    await refundBalance(env, userId, r.costMicro, 'post', now).catch((err: unknown) => console.error('balance refund failed', err instanceof Error ? err.message : 'unknown'));
   }
 }
 
@@ -263,15 +323,17 @@ export function quotaHeaders(u: UsageSummary): Record<string, string> {
 export type AiSource = 'plan' | 'pass' | 'bonus' | 'extra' | 'unlimited';
 export type AiReservation =
   | { ok: true; overage: boolean; costMicro: number; period: string; source: AiSource }
-  | { ok: false; code: 'ai_not_in_plan' | 'ai_quota_exceeded' };
+  | { ok: false; code: 'ai_not_in_plan' }
+  | { ok: false; code: 'ai_quota_exceeded'; reason: StopReason };
 
 /**
  * Takes one AI generation, or says why it can't. Same single-statement guard as reserveApiPost. Where a credit comes from, in this order:
  *   1. the plan's own credits (Free Trial 10 for life, Pro 250 a month)
  *   2. the AI Pass (monthly credits on top of any plan)
  *   3. credits an admin gave to the account
- *   4. an extra credit, paid per generation: only when the account switched "pay for extra" on (and the plan or the pass has a price)
- * Otherwise it is refused. A plan with no credit limit at all ('unlimited') is counted and never stopped.
+ *   4. an extra credit, paid per generation from the prepaid balance: only when the account switched "pay for extra" on, the plan or the
+ *      pass has a price, and the balance covers it
+ * Otherwise it is refused (and nothing is owed). A plan with no credit limit at all ('unlimited') is counted and never stopped.
  */
 export async function reserveAiGeneration(env: Env, userId: string, sub: Subscription, now: number): Promise<AiReservation> {
   const spec = specOf(sub.plan);
@@ -317,15 +379,22 @@ export async function reserveAiGeneration(env: Env, userId: string, sub: Subscri
   const rate = aiExtraRate(spec, pass.active);
   if (!sub.overageEnabled || rate === null) {
     const hadCredits = (mode.kind === 'credits' && mode.credits >= 1) || pass.active;
-    return { ok: false, code: hadCredits ? 'ai_quota_exceeded' : 'ai_not_in_plan' };
+    return hadCredits ? { ok: false, code: 'ai_quota_exceeded', reason: 'off' } : { ok: false, code: 'ai_not_in_plan' };
   }
-  await env.DB
-    .prepare(
-      `INSERT INTO usage_counters (user_id, period, ai_generations, overage_micro_usd, updated_at) VALUES (?1, ?2, 1, ?4, ?3)
-       ON CONFLICT(user_id, period) DO UPDATE SET ai_generations = ai_generations + 1, overage_micro_usd = overage_micro_usd + ?4, updated_at = ?3`,
-    )
-    .bind(userId, period, now, rate)
-    .run();
+  // The money first (one statement that cannot overspend), the counters after; if they fail the money goes back.
+  if (!(await chargeBalance(env, userId, rate, 'ai', now))) return { ok: false, code: 'ai_quota_exceeded', reason: 'balance' };
+  try {
+    await env.DB
+      .prepare(
+        `INSERT INTO usage_counters (user_id, period, ai_generations, overage_micro_usd, updated_at) VALUES (?1, ?2, 1, ?4, ?3)
+         ON CONFLICT(user_id, period) DO UPDATE SET ai_generations = ai_generations + 1, overage_micro_usd = overage_micro_usd + ?4, updated_at = ?3`,
+      )
+      .bind(userId, period, now, rate)
+      .run();
+  } catch (err) {
+    await refundBalance(env, userId, rate, 'ai', now).catch(() => undefined);
+    throw err;
+  }
   return { ok: true, overage: true, costMicro: rate, period, source: 'extra' };
 }
 
@@ -347,6 +416,9 @@ export async function releaseAiGeneration(env: Env, userId: string, r: Extract<A
     }
   } catch (err) {
     console.error('ai credit release failed', err instanceof Error ? err.message : 'unknown');
+  }
+  if (r.source === 'extra' && r.costMicro > 0) {
+    await refundBalance(env, userId, r.costMicro, 'ai', nowSeconds()).catch((err: unknown) => console.error('balance refund failed', err instanceof Error ? err.message : 'unknown'));
   }
 }
 

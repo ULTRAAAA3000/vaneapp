@@ -25,6 +25,11 @@
   X-Robots-Tag: noindex, nofollow
   Referrer-Policy: no-referrer
 
+/topup
+  Cache-Control: no-store
+  X-Robots-Tag: noindex, nofollow
+  Referrer-Policy: no-referrer
+
 /copy
   Cache-Control: no-store
   Referrer-Policy: no-referrer
