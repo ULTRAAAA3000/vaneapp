@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "dev": "wrangler pages dev ./public --d1=DB",
+    "dev": "wrangler pages dev ./public --d1=DB=9e560592-ec8e-451d-97d3-c2d8082c527e",
     "db:local": "wrangler d1 execute vane-db --local --file=./schema.sql",
     "db:remote": "wrangler d1 execute vane-db --remote --file=./schema.sql",
     "deploy": "wrangler pages deploy ./public --project-name=vaneapp",
@@ -18,6 +18,7 @@
     "plan:set": "node scripts/set-plan.mjs",
     "video:set": "node scripts/set-video.mjs",
     "test:api": "node scripts/api-e2e.mjs",
+    "test:webhooks": "node scripts/webhooks-e2e.mjs",
     "test:video": "node scripts/video-e2e.mjs",
     "test:hosts": "node scripts/hosts-e2e.mjs",
     "test:composer": "node scripts/composer-tools-test.mjs",
