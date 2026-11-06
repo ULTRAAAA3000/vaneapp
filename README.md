@@ -17,7 +17,7 @@ Cloudflare Pages (site + `/api`) · D1 (database) · R2 (images) · a cron Worke
 1. **R2 bucket** (must exist before the Pages deploy, because `wrangler.toml` binds it):
    `npx wrangler r2 bucket create vane-media`
    If the last Pages deployment failed, open Cloudflare → Workers & Pages → vaneapp → Deployments → **Retry**.
-2. **Database:** `npm run db:remote` (idempotent; re-run it after every update that touches `schema.sql`).
+2. **Database:** `npm run db:remote` creates what is missing (idempotent for tables and indexes). **It cannot add a column to a table that already exists**, and it stops at the first statement that needs one (an index on `usage_logs.refunded_at` before the column is there), so the statements after it do not run. On an existing database first run **`npm run db:check`**: it lists what is missing (tables, the columns the migrations add, channel types) and the migration file that fixes each; run those files (`scripts/migrations/`, `migrations/`), and only then `db:remote`. In the Cloudflare D1 Console paste `scripts/db-check.sql`, never the whole `schema.sql`.
 3. **Pages secrets** (generate each with `openssl rand -base64 32`):
    `npx wrangler pages secret put ENCRYPTION_KEY --project-name=vaneapp`
    `npx wrangler pages secret put JWT_SECRET --project-name=vaneapp`
