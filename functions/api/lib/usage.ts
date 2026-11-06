@@ -17,7 +17,7 @@ export const nowSeconds = (): number => Math.floor(Date.now() / 1000);
 export async function loadSubscription(env: Env, userId: string, now = nowSeconds()): Promise<Subscription> {
   await refreshPlanSpecs(env); // limits come from the plans table (admin → Plans)
   const row = await env.DB
-    .prepare('SELECT plan, api_addon, status, current_period_end, overage_enabled FROM subscriptions WHERE user_id = ?1')
+    .prepare('SELECT plan, api_addon, status, current_period_end, overage_enabled, overage_cap_micro_usd FROM subscriptions WHERE user_id = ?1')
     .bind(userId)
     .first<SubscriptionRow>();
   return resolveSubscription(row, now);
@@ -97,6 +97,7 @@ function aiBucket(spec: PlanSpec, sub: Subscription, used: number, bonus: number
       enabled: sub.overageEnabled, rateUsd: rate !== null ? microToUsd(rate) : null,
       postUsd: spec.overage ? microToUsd(spec.overage.post) : null,
       uses: extraNow.uses, costUsd: microToUsd(extraNow.micro),
+      capUsd: microToUsd(sub.overageCapMicro),
     },
   };
 }
@@ -134,6 +135,8 @@ export async function usageSummary(env: Env, userId: string, sub: Subscription, 
     features: { priorityDispatch: sub.plan !== 'free' && spec.ui > 0, advancedMcpTools: sub.plan !== 'free' && spec.ui > 0 },   // = isDashboardPlan() in paid.ts (not imported: it imports this file)
     overage: {
       enabled: rates !== null,
+      capUsd: microToUsd(sub.overageCapMicro),
+      spentUsd: microToUsd(c.overage_micro_usd),
       postUsd: spec.overage ? microToUsd(spec.overage.post) : null,
       aiPostUsd: spec.overage ? microToUsd(spec.overage.aiPost) : null,
       posts: c.overage_posts,
@@ -149,7 +152,7 @@ export async function usageSummary(env: Env, userId: string, sub: Subscription, 
 
 export type Reservation =
   | { ok: true; overage: boolean; costMicro: number; period: string }
-  | { ok: false; code: 'api_not_in_plan' | 'quota_exceeded' };
+  | { ok: false; code: 'api_not_in_plan' | 'quota_exceeded' | 'overage_cap_reached' };
 
 /**
  * Takes `units` from the API quota, or says why it can't.
@@ -184,14 +187,16 @@ export async function reserveApiPost(env: Env, userId: string, sub: Subscription
   if (!rates) return { ok: false, code: 'quota_exceeded' };
 
   const costMicro = Math.round(rates.post * units);
-  await env.DB
+  const res = await env.DB
     .prepare(
       `INSERT INTO usage_counters (user_id, period, api_posts, overage_posts, overage_micro_usd, updated_at) VALUES (?1, ?2, ?5, ?5, ?4, ?3)
        ON CONFLICT(user_id, period) DO UPDATE SET
-         api_posts = api_posts + ?5, overage_posts = overage_posts + ?5, overage_micro_usd = overage_micro_usd + ?4, updated_at = ?3`,
+         api_posts = api_posts + ?5, overage_posts = overage_posts + ?5, overage_micro_usd = overage_micro_usd + ?4, updated_at = ?3
+       WHERE overage_micro_usd + ?4 <= ?6`,
     )
-    .bind(userId, period, now, costMicro, units)
+    .bind(userId, period, now, costMicro, units, sub.overageCapMicro)
     .run();
+  if ((res.meta?.changes ?? 0) === 0) return { ok: false, code: 'overage_cap_reached' };
   return { ok: true, overage: true, costMicro, period };
 }
 
@@ -218,7 +223,7 @@ export async function releaseApiPost(env: Env, userId: string, r: Extract<Reserv
 export type UiReservation =
   | { ok: true; counted: true; overage: boolean; costMicro: number; period: string }
   | { ok: true; counted: false }
-  | { ok: false; code: 'quota_exceeded' };
+  | { ok: false; code: 'quota_exceeded' | 'overage_cap_reached' };
 
 /**
  * The dashboard's counterpart of reserveApiPost: takes `units` from the plan's dashboard quota (the Free Trial's ONE shared total,
@@ -259,14 +264,16 @@ export async function reserveUiPost(env: Env, userId: string, sub: Subscription,
     if (!rates) return { ok: false, code: 'quota_exceeded' };
 
     const costMicro = Math.round(rates.post * units);
-    await env.DB
+    const res = await env.DB
       .prepare(
         `INSERT INTO usage_counters (user_id, period, ui_posts, overage_posts, overage_micro_usd, updated_at) VALUES (?1, ?2, ?5, ?5, ?4, ?3)
          ON CONFLICT(user_id, period) DO UPDATE SET
-           ui_posts = ui_posts + ?5, overage_posts = overage_posts + ?5, overage_micro_usd = overage_micro_usd + ?4, updated_at = ?3`,
+           ui_posts = ui_posts + ?5, overage_posts = overage_posts + ?5, overage_micro_usd = overage_micro_usd + ?4, updated_at = ?3
+         WHERE overage_micro_usd + ?4 <= ?6`,
       )
-      .bind(userId, period, now, costMicro, units)
+      .bind(userId, period, now, costMicro, units, sub.overageCapMicro)
       .run();
+    if ((res.meta?.changes ?? 0) === 0) return { ok: false, code: 'overage_cap_reached' };
     return { ok: true, counted: true, overage: true, costMicro, period };
   } catch (err) {
     console.error('ui quota reserve failed', err instanceof Error ? err.message : 'unknown');
@@ -318,14 +325,14 @@ export async function countUiPosts(env: Env, userId: string, units: number): Pro
 /** One audit row per metered API call. Meant to be batched together with the rows it describes. */
 export function usageLogStatement(
   env: Env,
-  e: { userId: string; keyId: string | null; units: number; overage: boolean; costMicro: number; ref: string | null; now: number },
+  e: { userId: string; keyId: string | null; units: number; overage: boolean; costMicro: number; ref: string | null; now: number; source?: 'api' | 'ui' },
 ): D1PreparedStatement {
   return env.DB
     .prepare(
       `INSERT INTO usage_logs (user_id, api_key_id, source, kind, units, overage, cost_micro_usd, ref, created_at)
-       VALUES (?1, ?2, 'api', 'post', ?3, ?4, ?5, ?6, ?7)`,
+       VALUES (?1, ?2, ?8, 'post', ?3, ?4, ?5, ?6, ?7)`,
     )
-    .bind(e.userId, e.keyId, e.units, e.overage ? 1 : 0, e.costMicro, e.ref, e.now);
+    .bind(e.userId, e.keyId, e.units, e.overage ? 1 : 0, e.costMicro, e.ref, e.now, e.source ?? 'api');
 }
 
 /** Headers that let no-code tools (Make, Zapier) read the quota without parsing the body. */
@@ -343,7 +350,7 @@ export function quotaHeaders(u: UsageSummary): Record<string, string> {
 export type AiSource = 'plan' | 'pass' | 'bonus' | 'extra' | 'unlimited';
 export type AiReservation =
   | { ok: true; overage: boolean; costMicro: number; period: string; source: AiSource }
-  | { ok: false; code: 'ai_not_in_plan' | 'ai_quota_exceeded' };
+  | { ok: false; code: 'ai_not_in_plan' | 'ai_quota_exceeded' | 'overage_cap_reached' };
 
 /**
  * Takes one AI generation, or says why it can't. Same single-statement guard as reserveApiPost. Where a credit comes from, in this order:
@@ -399,13 +406,15 @@ export async function reserveAiGeneration(env: Env, userId: string, sub: Subscri
     const hadCredits = (mode.kind === 'credits' && mode.credits >= 1) || pass.active;
     return { ok: false, code: hadCredits ? 'ai_quota_exceeded' : 'ai_not_in_plan' };
   }
-  await env.DB
+  const res = await env.DB
     .prepare(
       `INSERT INTO usage_counters (user_id, period, ai_generations, overage_micro_usd, updated_at) VALUES (?1, ?2, 1, ?4, ?3)
-       ON CONFLICT(user_id, period) DO UPDATE SET ai_generations = ai_generations + 1, overage_micro_usd = overage_micro_usd + ?4, updated_at = ?3`,
+       ON CONFLICT(user_id, period) DO UPDATE SET ai_generations = ai_generations + 1, overage_micro_usd = overage_micro_usd + ?4, updated_at = ?3
+       WHERE overage_micro_usd + ?4 <= ?5`,
     )
-    .bind(userId, period, now, rate)
+    .bind(userId, period, now, rate, sub.overageCapMicro)
     .run();
+  if ((res.meta?.changes ?? 0) === 0) return { ok: false, code: 'overage_cap_reached' };
   return { ok: true, overage: true, costMicro: rate, period, source: 'extra' };
 }
 

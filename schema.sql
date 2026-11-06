@@ -170,6 +170,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   status              TEXT    NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'past_due', 'canceled')),
   current_period_end  INTEGER,                                                  -- NULL = no expiry (granted by hand)
   overage_enabled     INTEGER NOT NULL DEFAULT 0 CHECK (overage_enabled IN (0, 1)),  -- 0: over quota -> 402; 1: bill per post
+  overage_cap_micro_usd INTEGER NOT NULL DEFAULT 20000000,                   -- monthly ceiling for extra use ($20); at it extra use is refused
   provider            TEXT    NOT NULL DEFAULT 'manual',                        -- 'manual' | 'monobank' | 'crypto'
   provider_ref        TEXT,
   created_at          INTEGER NOT NULL DEFAULT (unixepoch()),
@@ -221,9 +222,11 @@ CREATE TABLE IF NOT EXISTS usage_logs (
   overage         INTEGER NOT NULL DEFAULT 0 CHECK (overage IN (0, 1)),
   cost_micro_usd  INTEGER NOT NULL DEFAULT 0,
   ref             TEXT,                                                         -- e.g. the post group id
-  created_at      INTEGER NOT NULL DEFAULT (unixepoch())
+  created_at      INTEGER NOT NULL DEFAULT (unixepoch()),
+  refunded_at     INTEGER                                                       -- set when an extra charge was given back (nothing was delivered)
 );
 CREATE INDEX IF NOT EXISTS idx_usage_logs_user ON usage_logs(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_usage_logs_open_overage ON usage_logs(created_at) WHERE kind = 'post' AND overage = 1 AND refunded_at IS NULL;
 
 -- ───────────────────────── Vane Studio / Video Engine (a separate product with its own dashboard) ─────────────────────────
 -- Vane Studio, ECONOMY_AND_FINANCE.md §2.5: $12.00 / month, sold and metered apart from Vane Post (Free / API / Pro).

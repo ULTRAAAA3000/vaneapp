@@ -251,7 +251,7 @@ Only a **successful** answer is remembered: a request that failed (400, 402, 5xx
 
 - **1 request = 1 post**, however many channels it targets. The unit rule is one function: `postUnits` in `functions/api/lib/plans.ts`.
 - The quota is taken by **one conditional upsert** on `usage_counters`, so parallel requests can never both take the last unit (the test fires 12 at 5 remaining: exactly 5 pass).
-- A request that fails validation costs nothing. If saving fails after the quota was taken, it is given back. Cancelling a post does not refund it.
+- A request that fails validation costs nothing. If saving fails after the quota was taken, it is given back. Cancelling a post does not refund a unit inside the quota, but an *extra* (billed) post is refunded in full when nothing was delivered, see below.
 - A paid plan whose period ended (or that is not `active`) falls back to the Free Trial limits until it is renewed.
 - Overage billing is **off by default** (`subscriptions.overage_enabled = 0`): out of quota means `402`, never a surprise charge.
 - Dashboard posts are **counted** (they share the Free Trial total) but not blocked yet; that comes with the dashboard part.
@@ -264,7 +264,9 @@ Only a **successful** answer is remembered: a request that failed (400, 402, 5xx
 - **Counted when it happens, in one statement** (so two parallel requests never both take the last free unit): `usage_counters.overage_posts` and `overage_micro_usd` (extra posts **and** extra AI credits together, in millionths of a dollar), `usage_logs` (`overage = 1` per paid use, written last, only after the request succeeded; a refunded request leaves nothing behind) and `video_ai_overage` for Studio. The usage API splits them: `overage.posts`/`costUsd` are extra posts, `overage.aiUses`/`aiCostUsd` are paid AI credits.
 - **Prices from /admin → Plans are checked** (`price()` in `plans.ts`): above $0 and at most $100. Empty, 0, negative or text means "no price", so the plan simply stops (a negative price would pay the user for going over, and 0 would make extras free without a limit). Quotas are whole numbers, never below 0 (a typo like -5 means none, never unlimited).
 - **Nothing charges extra usage automatically.** Checkout sells plans, not usage. The list to invoice from is **/admin → Orders → Extra usage to bill** (per account and month: extra posts, extra AI credits, the amount; Studio's extra generations listed below it because they follow the video plan's period). Open decisions are listed in the pull request.
-- Tests: `scripts/overage-unit.mjs`.
+- **Monthly ceiling**: `subscriptions.overage_cap_micro_usd` (default **$20**, set with `POST /api/usage/overage { capUsd }`, 1 to 1000). It covers extra posts and extra AI credits together and is checked in the same single statement that counts them, so parallel requests cannot pass it. At the ceiling the answer is `402 overage_cap_reached` (dashboard, API and AI alike); posts inside the plan quota are never stopped by it.
+- **Refund**: every extra post (API and dashboard) has a `usage_logs` row; when ALL posts of its request are `cancelled` or `failed`, the charge is given back (unit, `overage_posts`, `overage_micro_usd`) and the row gets `refunded_at`. It runs right after a cancel and every minute in the cron worker, only for charges of the current UTC month (a month already invoiced is never changed). A post that failed with "Delivery was interrupted and could not be confirmed" is **not** refunded (it may have been delivered), nor is one where any channel was delivered. Extra AI credits are not refunded (the model already ran).
+- Tests: `scripts/overage-unit.mjs`, `scripts/overagecap-unit.mjs`.
 
 
 ### Giving an account a plan by hand (until payments do it)

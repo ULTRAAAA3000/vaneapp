@@ -26,7 +26,7 @@ import { mediaKindFromUrl } from '../lib/media';
 import { postUnits } from '../lib/plans';
 import { getSettings } from '../lib/settings';
 import { graphemeLength, mastodonLength, threadsLength, utf8Length } from '../lib/text';
-import { countUiPosts, loadSubscription, nowSeconds, releaseUiPost, reserveUiPost, usageSummary, type UiReservation } from '../lib/usage';
+import { countUiPosts, loadSubscription, nowSeconds, releaseUiPost, reserveUiPost, usageLogStatement, usageSummary, type UiReservation } from '../lib/usage';
 import { BLUESKY_TEXT_LIMIT, BLUESKY_TEXT_MAX_BYTES } from '../channels/bluesky';
 import { MASTODON_TEXT_LIMIT } from '../channels/mastodon';
 import { isValidMediaUrl, TELEGRAM_CAPTION_LIMIT } from '../channels/telegram';
@@ -228,10 +228,21 @@ export async function takeUiQuota(env: Env, userId: string, units: number): Prom
   const reservation = await reserveUiPost(env, userId, sub, now, units);
   if (reservation.ok) return { ok: true, reservation };
   const usage = await usageSummary(env, userId, sub, now);
+  if (reservation.code === 'overage_cap_reached') {
+    return { ok: false, response: failCode(402, 'overage_cap_reached', `Your monthly extra-use limit of $${usage.overage.capUsd} is reached. Raise it in the dashboard (Usage), or wait for the 1st (UTC).`, { usage: { ui: usage.ui, resetsAt: usage.period.resetsAt, overage: usage.overage } }) };
+  }
   const message = sub.plan === 'free'
     ? `You have used all ${usage.ui.limit} posts of the Free Trial. Choose a plan to keep posting.`
     : `You have used all ${usage.ui.limit} dashboard posts of this period.` + (usage.period.resetsAt ? ' The quota resets on the 1st (UTC).' : '');
   return { ok: false, response: failCode(402, 'quota_exceeded', message, { usage: { ui: usage.ui, resetsAt: usage.period.resetsAt, overage: usage.overage } }) };
+}
+
+/** The audit row of an extra dashboard post (it is what a refund is looked up by); nothing for a post inside the quota. */
+export function uiChargeLog(env: Env, userId: string, reservation: UiReservation | null, units: number): (groupId: string) => D1PreparedStatement[] {
+  return (groupId) =>
+    reservation?.ok && reservation.counted && reservation.overage
+      ? [usageLogStatement(env, { userId, keyId: null, units, overage: true, costMicro: reservation.costMicro, ref: groupId, now: nowSeconds(), source: 'ui' })]
+      : [];
 }
 
 /** After saving: a post that was not saved gives its unit back; with the limits off the saved post is just counted. */
@@ -258,7 +269,7 @@ export const handleCreatePost: PagesFunction<Env> = async ({ request, env }) => 
   const quota = await takeUiQuota(env, auth.userId, units);
   if (!quota.ok) return quota.response;
 
-  const saved = await insertPostGroup(env, auth.userId, v);
+  const saved = await insertPostGroup(env, auth.userId, v, uiChargeLog(env, auth.userId, quota.reservation, units));
   await settleUiQuota(env, auth.userId, quota.reservation, units, saved.ok);
   if (!saved.ok) return fail(500, 'Could not schedule the post. Please try again.');
 

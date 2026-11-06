@@ -3,6 +3,7 @@ import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env } from '../../../types';
 import { requireUser } from '../lib/auth';
 import { fail, json, UUID_RE } from '../lib/http';
+import { refundIdleOverage } from '../lib/overagerefund';
 
 /**
  * Shared by the dashboard route and `DELETE /api/v1/posts/:id`.
@@ -24,7 +25,10 @@ export async function cancelPostForUser(env: Env, userId: string, id: string | u
     .prepare(`UPDATE posts SET status = 'cancelled', updated_at = ?3 WHERE id = ?1 AND user_id = ?2 AND status = 'scheduled'`)
     .bind(id, userId, now)
     .run();
-  if ((res.meta?.changes ?? 0) > 0) return json({ ok: true });
+  if ((res.meta?.changes ?? 0) > 0) {
+    try { await refundIdleOverage(env.DB, now, userId); } catch (err) { console.error('overage refund failed', err instanceof Error ? err.message : 'unknown'); }
+    return json({ ok: true });
+  }
 
   const row = await env.DB.prepare('SELECT status FROM posts WHERE id = ?1 AND user_id = ?2').bind(id, userId).first<{ status: string }>();
   if (!row) return fail(404, 'Post not found');

@@ -239,7 +239,7 @@
             "$ref": "#/components/responses/Unauthorized"
           },
           "402": {
-            "description": "The plan's quota is used up (`code: quota_exceeded`)",
+            "description": "The plan's quota is used up (`code: quota_exceeded`), or the monthly extra-use limit is reached (`code: overage_cap_reached`)",
             "content": {
               "application/json": {
                 "schema": {
