@@ -449,7 +449,7 @@ export interface UsageSummary {
      * "when credits run out": stop, or pay per extra credit. rateUsd = the price of one extra credit (null: nothing to pay for).
      * postUsd = the price of an extra POST on this plan: the same switch bills those too. uses / costUsd = paid credits this period.
      */
-    extra: { enabled: boolean; rateUsd: number | null; postUsd: number | null; uses: number; costUsd: number };
+    extra: { enabled: boolean; rateUsd: number | null; postUsd: number | null; uses: number; costUsd: number; capUsd: number };
   };
   /** may this account send live API requests? */
   apiAccess: boolean;
@@ -457,6 +457,9 @@ export interface UsageSummary {
   features: { priorityDispatch: boolean; advancedMcpTools: boolean };
   overage: {
     enabled: boolean;
+    /** monthly ceiling for everything billed as extra (posts + AI credits), and what is already used of it */
+    capUsd: number;
+    spentUsd: number;
     /** price per post beyond the quota (USD), null when this plan is never billed for extras */
     postUsd: number | null;
     aiPostUsd: number | null;

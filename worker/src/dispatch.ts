@@ -36,6 +36,7 @@ import { encryptToken } from '../../functions/api/lib/crypto';
 import { isValidMediaUrl, sendTelegramPost } from '../../functions/api/channels/telegram';
 import { enqueueWebhookEvent } from '../../functions/api/lib/webhooks';
 import { pausedNetworks } from '../../functions/api/lib/networks';
+import { refundIdleOverage } from '../../functions/api/lib/overagerefund';
 import { paidUsersSql } from '../../functions/api/lib/paidsql';
 
 export const BATCH_SIZE = 20;               // per run and lane: keeps us inside Workers' subrequest limits
@@ -140,6 +141,8 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
     summary.reaped = stuck.results.length;
     if (stuck.results.length) await env.DB.batch(stuck.results.map((p) => log(p, 'error', 'post.interrupted', 'Marked failed: stuck in processing')));
     for (const p of stuck.results) await enqueueWebhookEvent(env, p.user_id, p.id, 'post.failed', nowSec);
+
+    try { await refundIdleOverage(env.DB, nowSec); } catch (err) { console.error('overage refund failed', err instanceof Error ? err.message : 'unknown'); }
   }
 
   // ── 3) Claim due posts atomically (scheduled → processing) and read them back in one statement.

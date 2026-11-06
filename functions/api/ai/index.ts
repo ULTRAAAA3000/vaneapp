@@ -101,7 +101,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     if (!reservation.ok) {
       const usage = await usageSummary(env, auth.userId, sub, now);
       const ai = usage.ai;
-      const message = reservation.code === 'ai_quota_exceeded'
+      const message = reservation.code === 'overage_cap_reached'
+        ? `Your monthly extra-use limit of $${ai.extra.capUsd} is reached. Raise it in the dashboard (Usage), or wait for the next period.`
+        : reservation.code === 'ai_quota_exceeded'
         ? ai.extra.rateUsd !== null
           ? `You have used all your AI credits. Turn on "Pay for extra credits" under the editor to keep going at $${ai.extra.rateUsd} each, or wait for the next period.`
           : 'You have used all your AI credits. They renew with your plan period.'
