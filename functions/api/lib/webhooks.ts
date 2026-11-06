@@ -96,7 +96,13 @@ export const retryAfterSeconds = (header: string | null): number => {
 /** Sends what is due. Returns how many were delivered / will be retried / were given up. */
 export async function deliverDueWebhooks(env: OutboxEnv, nowSec: number): Promise<{ delivered: number; retried: number; failed: number }> {
   const out = { delivered: 0, retried: 0, failed: 0 };
-  if (!env.ENCRYPTION_KEY || env.ENCRYPTION_KEY.length < 32) return out;
+  if (!env.ENCRYPTION_KEY || env.ENCRYPTION_KEY.length < 32) {
+    // Without the key nothing can be signed, so nothing is sent. Say so in the log, but only when something is actually waiting
+    // (a worker with no webhooks queued must stay quiet every minute).
+    const waiting = await env.DB.prepare(`SELECT 1 AS x FROM webhook_deliveries WHERE status = 'pending' LIMIT 1`).first().catch(() => null);
+    if (waiting) console.error('webhooks: deliveries are waiting but ENCRYPTION_KEY is missing or shorter than 32 characters in this worker, so none can be sent (npm run cron:secret, the SAME value as on Pages)');
+    return out;
+  }
   let due: Due[];
   try {
     // Claim atomically (the lease pushes next_attempt_at forward, so an overlapping run skips these rows).
