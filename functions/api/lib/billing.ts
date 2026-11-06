@@ -17,10 +17,14 @@ export type Method = 'monobank' | 'crypto';
 export const PAY_WINDOW_SECONDS = 3600;
 export const LATE_PAYMENT_SECONDS = 24 * 3600;
 
-export const billingMethods = (env: Pick<Env, 'MONOBANK_TOKEN' | 'CRYPTO_WALLET'>): { monobank: boolean; crypto: boolean } =>
-  ({ monobank: monobankEnabled(env), crypto: cryptoEnabled(env) });
+type MethodEnv = Pick<Env, 'MONOBANK_TOKEN' | 'CRYPTO_WALLET' | 'PAYMENT_METHODS'>;
 
-export const billingEnabled = (env: Pick<Env, 'MONOBANK_TOKEN' | 'CRYPTO_WALLET'>): boolean => {
+export const billingMethods = (env: MethodEnv): { monobank: boolean; crypto: boolean } => {
+  const shown = (env.PAYMENT_METHODS ?? '').toLowerCase().split(',').map((m) => m.trim());
+  return { monobank: shown.includes('monobank') && monobankEnabled(env), crypto: shown.includes('crypto') && cryptoEnabled(env) };
+};
+
+export const billingEnabled = (env: MethodEnv): boolean => {
   const m = billingMethods(env);
   return m.monobank || m.crypto;
 };

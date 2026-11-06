@@ -30,6 +30,7 @@ export interface Env {
   JWT_SECRET?: string;          // signs/verifies API bearer tokens (>= 32 chars)
   STRIPE_SECRET_KEY?: string;
   MONOBANK_TOKEN?: string;          // Monobank Acquiring merchant token (secret): card / Apple Pay / Google Pay checkout is off without it
+  PAYMENT_METHODS?: string;         // plain var: comma list of the checkout methods shown to buyers (monobank, crypto). Unset = none; their code stays in place
   CRYPTO_WALLET?: string;           // plain var: the Solana address that receives USDT / USDC (crypto checkout is off without it)
   SOLANA_RPC_URL?: string;          // optional: a Solana RPC address (Helius, QuickNode); the public one is used when empty
   SYSTEM_BOT_TOKEN?: string;        // token of the shared Vane bot used by Quick Connect
