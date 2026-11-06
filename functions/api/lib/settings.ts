@@ -11,7 +11,7 @@ export interface Settings {
   auto_ban_hours: number;       // how long an automatic ban lasts
   registration_open: boolean;   // kill switch for new sign-ups
   track_visits: boolean;        // record page views for the Traffic tab
-  enforce_limits: boolean;      // apply the plan limits (channels / posts) to users
+  enforce_limits: boolean;      // apply the plan limits for connected channels and Library storage (the post quota is ALWAYS a hard stop, see lib/postgate.ts)
   checkout_preview: boolean;    // lets a browser signed into /admin open the checkout before any payment method is connected (nothing can be bought)
   ai_budget_usd: number;        // monthly budget for AI model calls, shown against the real spend in /admin → AI (0 = none)
 }

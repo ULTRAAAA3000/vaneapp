@@ -12,6 +12,10 @@
  *    MAX_ATTEMPTS. Permanent ones (bot kicked, bad image, text too long) fail at once.
  *  - NOTHING STALE. A post more than MAX_LATE_SECONDS overdue is failed, not posted hours late.
  *  - FAIL SAFE. If ENCRYPTION_KEY is missing this run touches nothing (posts stay scheduled).
+ *  - TWO LANES. Posts of accounts on a paid plan are claimed from their own PRIORITY lane, everyone else's from the STANDARD lane:
+ *    a crowd of Free Trial posts can never make a paid post wait for a free batch. Every minute the priority lane goes first, and
+ *    ./priority.ts also looks ahead and sends paid posts that are due within the next minute ON their second instead of at the
+ *    next whole minute (see runDueLanes and runPriorityLane).
  *
  * No schema change needed: backoff reuses `updated_at` (a requeued post becomes due again at
  * updated_at + backoff). `sent_at` is the "published at" timestamp, `external_id` the id of the post
@@ -32,8 +36,10 @@ import { encryptToken } from '../../functions/api/lib/crypto';
 import { isValidMediaUrl, sendTelegramPost } from '../../functions/api/channels/telegram';
 import { enqueueWebhookEvent } from '../../functions/api/lib/webhooks';
 import { pausedNetworks } from '../../functions/api/lib/networks';
+import { paidUsersSql } from '../../functions/api/lib/paidsql';
 
-export const BATCH_SIZE = 20;               // per run: keeps us inside Workers' subrequest limits
+export const BATCH_SIZE = 20;               // per run and lane: keeps us inside Workers' subrequest limits
+export const PRIORITY_BATCH_SIZE = 40;      // the priority lane is for paid accounts only, so it can afford a bigger batch
 export const MAX_ATTEMPTS = 5;
 export const STUCK_AFTER_SECONDS = 10 * 60;
 export const MAX_LATE_SECONDS = 2 * 60 * 60;
@@ -59,9 +65,19 @@ type ChannelInfo = Pick<ChannelRow, 'id' | 'type' | 'name' | 'credentials' | 'is
 type Outcome = 'sent' | 'retry' | 'failed';
 export interface RunSummary { skipped?: string; expired: number; reaped: number; claimed: number; sent: number; retried: number; failed: number }
 
+/** Which accounts a run takes posts from: 'priority' = paid plans, 'standard' = everyone else, 'all' = no distinction (old behaviour). */
+export type Lane = 'priority' | 'standard' | 'all';
+export interface RunOptions {
+  lane?: Lane;
+  /** Expire the overdue and reap the stuck. Once a minute is enough: the priority runs that wake up on a second skip it. Default true. */
+  housekeeping?: boolean;
+}
+
 const clip = (s: string, n = 300) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 
-export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date.now() / 1000)): Promise<RunSummary> {
+export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date.now() / 1000), opts: RunOptions = {}): Promise<RunSummary> {
+  const lane: Lane = opts.lane ?? 'all';
+  const housekeeping = opts.housekeeping ?? true;
   const summary: RunSummary = { expired: 0, reaped: 0, claimed: 0, sent: 0, retried: 0, failed: 0 };
 
   if (!env.ENCRYPTION_KEY || env.ENCRYPTION_KEY.length < 32) {
@@ -79,62 +95,68 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
   const inPaused = (from: number) => `SELECT id FROM channels WHERE type IN (${paused.map((_, i) => `?${from + i}`).join(',')})`;
   const notPaused = (from: number) => (paused.length ? ` AND channel_id NOT IN (${inPaused(from)})` : '');
 
-  // ── 1) Too late: don't publish content hours after the moment the user chose.
-  const late = await env.DB
-    .prepare(
-      `UPDATE posts SET status = 'failed', updated_at = ?1,
-              error = 'Missed its scheduled time by more than 2 hours (the scheduler was not running), so it was not published.'
-        WHERE status = 'scheduled' AND scheduled_at <= ?2${notPaused(3)}
-        RETURNING id, user_id, channel_id`,
-    )
-    .bind(nowSec, nowSec - MAX_LATE_SECONDS, ...paused)
-    .all<{ id: string; user_id: string; channel_id: string }>();
-  summary.expired = late.results.length;
-  if (late.results.length) await env.DB.batch(late.results.map((p) => log(p, 'error', 'post.expired', 'Not published: more than 2 hours overdue')));
-  for (const p of late.results) await enqueueWebhookEvent(env, p.user_id, p.id, 'post.failed', nowSec);
-
-  // ── 1b) A paused network that stayed off for more than 2 hours past the scheduled time: say so, honestly.
-  if (paused.length) {
-    const held = await env.DB
+  // Steps 1 to 2 are housekeeping for every lane at once: done by the first run of a minute, skipped by the priority runs that wake up on a second.
+  if (housekeeping) {
+    // ── 1) Too late: don't publish content hours after the moment the user chose.
+    const late = await env.DB
       .prepare(
         `UPDATE posts SET status = 'failed', updated_at = ?1,
-                error = 'This network was switched off for more than 2 hours after the scheduled time, so the post was not published. Schedule it again.'
-          WHERE status = 'scheduled' AND scheduled_at <= ?2 AND channel_id IN (${inPaused(3)})
+                error = 'Missed its scheduled time by more than 2 hours (the scheduler was not running), so it was not published.'
+          WHERE status = 'scheduled' AND scheduled_at <= ?2${notPaused(3)}
           RETURNING id, user_id, channel_id`,
       )
       .bind(nowSec, nowSec - MAX_LATE_SECONDS, ...paused)
       .all<{ id: string; user_id: string; channel_id: string }>();
-    summary.expired += held.results.length;
-    if (held.results.length) await env.DB.batch(held.results.map((p) => log(p, 'error', 'post.paused_expired', 'Not published: its network was switched off for more than 2 hours')));
-    for (const p of held.results) await enqueueWebhookEvent(env, p.user_id, p.id, 'post.failed', nowSec);
+    summary.expired = late.results.length;
+    if (late.results.length) await env.DB.batch(late.results.map((p) => log(p, 'error', 'post.expired', 'Not published: more than 2 hours overdue')));
+    for (const p of late.results) await enqueueWebhookEvent(env, p.user_id, p.id, 'post.failed', nowSec);
+
+    // ── 1b) A paused network that stayed off for more than 2 hours past the scheduled time: say so, honestly.
+    if (paused.length) {
+      const held = await env.DB
+        .prepare(
+          `UPDATE posts SET status = 'failed', updated_at = ?1,
+                  error = 'This network was switched off for more than 2 hours after the scheduled time, so the post was not published. Schedule it again.'
+            WHERE status = 'scheduled' AND scheduled_at <= ?2 AND channel_id IN (${inPaused(3)})
+            RETURNING id, user_id, channel_id`,
+        )
+        .bind(nowSec, nowSec - MAX_LATE_SECONDS, ...paused)
+        .all<{ id: string; user_id: string; channel_id: string }>();
+      summary.expired += held.results.length;
+      if (held.results.length) await env.DB.batch(held.results.map((p) => log(p, 'error', 'post.paused_expired', 'Not published: its network was switched off for more than 2 hours')));
+      for (const p of held.results) await enqueueWebhookEvent(env, p.user_id, p.id, 'post.failed', nowSec);
+    }
+
+    // ── 2) Orphans: 'processing' for too long means a previous run died mid-flight.
+    const stuck = await env.DB
+      .prepare(
+        `UPDATE posts SET status = 'failed', updated_at = ?1,
+                error = 'Delivery was interrupted and could not be confirmed. Check the channel; reschedule if the post is missing.'
+          WHERE status = 'processing' AND updated_at <= ?2
+          RETURNING id, user_id, channel_id`,
+      )
+      .bind(nowSec, nowSec - STUCK_AFTER_SECONDS)
+      .all<{ id: string; user_id: string; channel_id: string }>();
+    summary.reaped = stuck.results.length;
+    if (stuck.results.length) await env.DB.batch(stuck.results.map((p) => log(p, 'error', 'post.interrupted', 'Marked failed: stuck in processing')));
+    for (const p of stuck.results) await enqueueWebhookEvent(env, p.user_id, p.id, 'post.failed', nowSec);
   }
 
-  // ── 2) Orphans: 'processing' for too long means a previous run died mid-flight.
-  const stuck = await env.DB
-    .prepare(
-      `UPDATE posts SET status = 'failed', updated_at = ?1,
-              error = 'Delivery was interrupted and could not be confirmed. Check the channel; reschedule if the post is missing.'
-        WHERE status = 'processing' AND updated_at <= ?2
-        RETURNING id, user_id, channel_id`,
-    )
-    .bind(nowSec, nowSec - STUCK_AFTER_SECONDS)
-    .all<{ id: string; user_id: string; channel_id: string }>();
-  summary.reaped = stuck.results.length;
-  if (stuck.results.length) await env.DB.batch(stuck.results.map((p) => log(p, 'error', 'post.interrupted', 'Marked failed: stuck in processing')));
-  for (const p of stuck.results) await enqueueWebhookEvent(env, p.user_id, p.id, 'post.failed', nowSec);
-
   // ── 3) Claim due posts atomically (scheduled → processing) and read them back in one statement.
+  // The lane decides whose posts: paid accounts (priority) or everyone else (standard). The plan is read in the same statement, so a
+  // post can't be claimed by both lanes, and an account that upgrades or lapses changes lane on the very next run.
+  const laneSql = lane === 'priority' ? ` AND ${paidUsersSql('user_id', '?1')}` : lane === 'standard' ? ` AND NOT (${paidUsersSql('user_id', '?1')})` : '';
   const claimed = await env.DB
     .prepare(
       `UPDATE posts SET status = 'processing', attempts = attempts + 1, updated_at = ?1
         WHERE id IN (
           SELECT id FROM posts
            WHERE status = 'scheduled' AND scheduled_at <= ?1
-             AND (attempts = 0 OR updated_at + MIN(60 * (1 << attempts), 900) <= ?1)${notPaused(3)}
+             AND (attempts = 0 OR updated_at + MIN(60 * (1 << attempts), 900) <= ?1)${notPaused(3)}${laneSql}
            ORDER BY scheduled_at ASC LIMIT ?2)
         RETURNING id, user_id, channel_id, content, media_keys, scheduled_at, attempts`,
     )
-    .bind(nowSec, BATCH_SIZE, ...paused)
+    .bind(nowSec, lane === 'priority' ? PRIORITY_BATCH_SIZE : BATCH_SIZE, ...paused)
     .all<Claimed>();
   // RETURNING does not promise any row order, so restore it: oldest scheduled time first.
   const posts = [...claimed.results].sort((a, b) => a.scheduled_at - b.scheduled_at || a.id.localeCompare(b.id));
@@ -176,7 +198,7 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
       await env.DB.batch([
         env.DB.prepare(`UPDATE posts SET status = 'sent', sent_at = ?1, external_id = ?2, error = NULL, updated_at = ?1 WHERE id = ?3 AND status = 'processing'`)
           .bind(nowSec, extra.externalId ?? '', post.id),
-        log(base, 'info', 'post.sent', `Published to ${extra.network ?? 'Telegram'}`, { attempt: post.attempts, externalId: extra.externalId }),
+        log(base, 'info', 'post.sent', `Published to ${extra.network ?? 'Telegram'}`, { attempt: post.attempts, externalId: extra.externalId, lane, lateSeconds: Math.max(0, nowSec - post.scheduled_at) }),
       ]);
       await enqueueWebhookEvent(env, post.user_id, post.id, 'post.published', nowSec);
     } else if (outcome === 'retry') {
@@ -494,4 +516,18 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
   }
   console.log(`vane-cron: ${JSON.stringify(summary)}`);
   return summary;
+}
+
+const emptySummary = (): RunSummary => ({ expired: 0, reaped: 0, claimed: 0, sent: 0, retried: 0, failed: 0 });
+const add = (a: RunSummary, b: RunSummary): RunSummary => ({ skipped: a.skipped ?? b.skipped, expired: a.expired + b.expired, reaped: a.reaped + b.reaped, claimed: a.claimed + b.claimed, sent: a.sent + b.sent, retried: a.retried + b.retried, failed: a.failed + b.failed });
+
+/**
+ * The every-minute run: housekeeping and the PRIORITY lane first (paid plans), then the STANDARD lane. A paid post therefore never
+ * waits behind a free batch, however many Free Trial posts are due. Two separate claims, each atomic, so nothing is sent twice.
+ */
+export async function runDueLanes(env: CronEnv, nowSec: number = Math.floor(Date.now() / 1000), clock: () => number = () => Math.floor(Date.now() / 1000)): Promise<RunSummary> {
+  const first = await runDuePosts(env, nowSec, { lane: 'priority', housekeeping: true });
+  if (first.skipped) return first;                                       // no encryption key: nothing was touched, and nothing will be
+  const second = await runDuePosts(env, clock(), { lane: 'standard', housekeeping: false });   // the priority pass took some seconds: read the clock again
+  return add(add(emptySummary(), first), second);
 }

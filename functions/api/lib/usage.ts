@@ -145,6 +145,7 @@ export async function usageSummary(env: Env, userId: string, sub: Subscription, 
       extraOn: sub.overageEnabled,
       extraPostUsd: spec.overage ? microToUsd(spec.overage.post) : null,
     },
+    features: { priorityDispatch: sub.plan !== 'free' && spec.ui > 0, advancedMcpTools: sub.plan !== 'free' && spec.ui > 0 },   // = isDashboardPlan() in paid.ts (not imported: it imports this file)
     overage: {
       enabled: rates !== null,
       postUsd: spec.overage ? microToUsd(spec.overage.post) : null,
@@ -328,7 +329,7 @@ export type AiReservation =
 
 /**
  * Takes one AI generation, or says why it can't. Same single-statement guard as reserveApiPost. Where a credit comes from, in this order:
- *   1. the plan's own credits (Free Trial 10 for life, Pro 250 a month)
+ *   1. the plan's own credits (Free Trial 10 for life, Pro 30 a month)
  *   2. the AI Pass (monthly credits on top of any plan)
  *   3. credits an admin gave to the account
  *   4. an extra credit, paid per generation from the prepaid balance: only when the account switched "pay for extra" on, the plan or the

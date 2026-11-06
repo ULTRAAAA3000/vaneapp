@@ -3,7 +3,7 @@
  *
  * The two products have their own dashboards and their own API slices (studio. cannot call the posting endpoints), so the
  * hand-off happens HERE, on the server: Studio asks, and this module writes the post through the very same code the posting
- * dashboard uses (validateCreatePost + insertPostGroup + countUiPosts). The rules, limits, quota counting and delivery are
+ * dashboard uses (validateCreatePost + insertPostGroup + the plan quota). The rules, limits, quota counting and delivery are
  * therefore exactly those of a post made in Vane Post. The post goes out within a minute (the worker's next round).
  *
  *   GET  /api/video/announce                  my channels, to choose from (never their credentials)
@@ -13,12 +13,10 @@
  */
 import type { Env } from '../../../types';
 import { channelsForUser } from '../channels/index';
-import { insertPostGroup, validateCreatePost } from '../posts/create';
+import { insertPostGroup, settleUiQuota, takeUiQuota, validateCreatePost } from '../posts/create';
 import { toB64Url } from './encoding';
 import { fail, failCode, isRecord, json } from './http';
 import { postUnits } from './plans';
-import { gateUiPost } from './postgate';
-import { releaseApiPost } from './usage';
 import { requireVideoAccess } from './videoplans';
 import { getVideoRow, type VideoView } from './videos';
 
@@ -56,18 +54,18 @@ export async function announceVideo(env: Env, userId: string, id: string, body: 
   if (!checked.ok) return checked.response;
   const v = checked.v;
 
-  // Same hard stop as a dashboard post: the quota is taken before anything is created.
+  // The same plan quota as a post made in the dashboard (a video announcement IS a dashboard post).
   const units = postUnits(v.channels.length);
-  const gate = await gateUiPost(env, userId, v.now, units);
-  if (!gate.ok) return gate.response;
+  const quota = await takeUiQuota(env, userId, units);
+  if (!quota.ok) return quota.response;
 
   const saved = await insertPostGroup(env, userId, v, () =>
     // A plain INSERT on purpose: if another request made a link for this video meanwhile, the unique video_id makes the
     // whole batch fail, and nothing is posted with an address that would not be the video's link.
     newToken ? [env.DB.prepare('INSERT INTO video_links (token, video_id) VALUES (?1, ?2)').bind(newToken, id)] : [],
   );
+  await settleUiQuota(env, userId, quota.reservation, units, saved.ok);
   if (!saved.ok) {
-    await releaseApiPost(env, userId, gate.reservation, units);
     return newToken
       ? failCode(409, 'link_changed', 'The video link changed while posting. Please try again.')
       : fail(500, 'Could not schedule the announcement. Please try again.');

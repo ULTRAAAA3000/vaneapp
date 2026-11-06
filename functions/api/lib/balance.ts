@@ -44,10 +44,17 @@ export async function getBalanceMicro(env: Env, userId: string): Promise<number>
  */
 export async function chargeBalance(env: Env, userId: string, micro: number, what: SpendKind, now: number): Promise<boolean> {
   if (!(micro > 0)) return true;
-  const res = await env.DB
-    .prepare('UPDATE user_balance SET micro_usd = micro_usd - ?2, updated_at = ?3 WHERE user_id = ?1 AND micro_usd >= ?2')
-    .bind(userId, micro, now)
-    .run();
+  let res;
+  try {
+    res = await env.DB
+      .prepare('UPDATE user_balance SET micro_usd = micro_usd - ?2, updated_at = ?3 WHERE user_id = ?1 AND micro_usd >= ?2')
+      .bind(userId, micro, now)
+      .run();
+  } catch (err) {
+    // The balance tables are not in the database yet (right after a deploy, before `npm run db:migrate:balance`): there is no balance, so no extra use.
+    if (/no such table/i.test(err instanceof Error ? err.message : '')) return false;
+    throw err;
+  }
   if (!(res.meta?.changes ?? 0)) return false;
   // The audit row can fail without losing money: the balance above is the source of truth.
   await env.DB

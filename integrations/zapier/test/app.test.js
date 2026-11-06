@@ -119,3 +119,25 @@ test('the action points its Channels field at the hidden trigger', () => {
   assert.equal(f.dynamic, 'channels.id.name');
   assert.ok(appDef.triggers.channels.display.hidden);
 });
+
+test('time: typed formats are read in the chosen time zone', () => {
+  const { resolveTime, parseTime } = require('../lib');
+  assert.equal(resolveTime({ when: 'custom', scheduledAt: '2026-11-05 17:30', timezone: 'Europe/Kyiv' }), '2026-11-05T15:30:00.000Z');
+  assert.equal(resolveTime({ when: 'custom', scheduledAt: '05.11.2026 17:30', timezone: 'Europe/Kyiv' }), '2026-11-05T15:30:00.000Z');
+  assert.equal(resolveTime({ when: 'custom', scheduledAt: '2026-07-05T17:30:00', timezone: 'Europe/Kyiv' }), '2026-07-05T14:30:00.000Z');
+  assert.equal(resolveTime({ when: 'custom', scheduledAt: '2026-11-05T17:30:00+01:00', timezone: 'Europe/Kyiv' }), '2026-11-05T16:30:00.000Z');
+  assert.equal(parseTime('1790000000').toISOString(), '2026-09-21T14:13:20.000Z');
+  assert.equal(parseTime('5pm tomorrow'), null);
+});
+
+test('time: choices are exact and bad input fails with a clear message', () => {
+  const { resolveTime } = require('../lib');
+  const now = Date.parse('2026-11-02T22:30:00Z');
+  assert.equal(resolveTime({ when: 'now' }, now), '2026-11-02T22:31:00.000Z');
+  assert.equal(resolveTime({ when: 'in_1h' }, now), '2026-11-02T23:30:00.000Z');
+  assert.equal(resolveTime({ when: 'tomorrow_9', timezone: 'Europe/Kyiv' }, now), '2026-11-04T07:00:00.000Z');
+  assert.equal(resolveTime({ when: 'tomorrow_9', timezone: 'UTC' }, now), '2026-11-03T09:00:00.000Z');
+  assert.throws(() => resolveTime({ when: 'custom' }), /Custom date and time/);
+  assert.throws(() => resolveTime({ when: 'custom', scheduledAt: 'soon' }), /Could not read the time "soon"/);
+  assert.throws(() => resolveTime({ when: 'now', timezone: 'Mars/Base' }), /Unknown time zone/);
+});

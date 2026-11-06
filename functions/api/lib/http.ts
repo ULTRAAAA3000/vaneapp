@@ -6,6 +6,7 @@ export const json = (body: unknown, status = 200, extra: HeadersInit = {}): Resp
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
       'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',   // a JSON answer is never to be read as anything else
       ...extra,
     },
   });

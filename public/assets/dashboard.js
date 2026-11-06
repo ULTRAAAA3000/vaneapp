@@ -1536,9 +1536,9 @@
       return '<div class="flex items-center gap-3 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/5">' +
         '<div class="net-tile bg-white/[0.07] text-white/80">' + KEY_ICON + '</div>' +
         '<div class="min-w-0 flex-1">' +
-          '<div class="flex items-center gap-2"><span class="truncate text-sm font-medium">' + esc(k.name) + '</span>' +
+          '<div class="flex flex-wrap items-center gap-x-2 gap-y-0.5"><span class="max-w-full truncate text-sm font-medium">' + esc(k.name) + '</span>' +
             '<span class="badge ' + (k.mode === 'live' ? 'badge-sent' : 'badge-scheduled') + '">' + (k.mode === 'live' ? 'Live' : 'Test') + '</span>' +
-          (k.integration ? '<span class="truncate text-[11px] text-white/45">' + esc(INT_NAMES[k.integration] || k.integration) + '</span>' : '') + '</div>' +
+          (k.integration ? '<span class="max-w-full truncate text-[11px] text-white/45">' + esc(INT_NAMES[k.integration] || k.integration) + '</span>' : '') + '</div>' +
           '<div class="mt-0.5 truncate font-mono text-xs text-white/50">' + esc(k.display) + '</div>' +
           '<div class="mt-0.5 text-xs text-white/35">Created ' + esc(fmtDay(k.createdAt)) + ' · ' + esc(used) + '</div>' +
         '</div>' +

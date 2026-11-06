@@ -466,6 +466,8 @@ export interface UsageSummary {
     extraOn: boolean;
     extraPostUsd: number | null;
   };
+  /** what the paid plans add: posts leave on their second (priority lane), and the assistant gets the advanced MCP tools */
+  features: { priorityDispatch: boolean; advancedMcpTools: boolean };
   overage: {
     enabled: boolean;
     /** price per post beyond the quota (USD), null when this plan is never billed for extras */
