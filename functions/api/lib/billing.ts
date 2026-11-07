@@ -10,24 +10,22 @@ import { emailConfigured, sendMail } from './mail';
 import { getSettings } from './settings';
 import { monobankEnabled } from './monobank';
 import { cryptoEnabled } from './solana';
+import { paypalEnabled } from './paypal';
 
 export type Interval = 'month' | 'year';
-export type Method = 'monobank' | 'crypto';
+export type Method = 'monobank' | 'crypto' | 'paypal';
 
 export const PAY_WINDOW_SECONDS = 3600;
 export const LATE_PAYMENT_SECONDS = 24 * 3600;
 
-type MethodEnv = Pick<Env, 'MONOBANK_TOKEN' | 'CRYPTO_WALLET' | 'PAYMENT_METHODS'>;
+type MethodEnv = Pick<Env, 'MONOBANK_TOKEN' | 'CRYPTO_WALLET' | 'PAYMENT_METHODS' | 'PAYPAL_CLIENT_ID' | 'PAYPAL_CLIENT_SECRET'>;
 
-export const billingMethods = (env: MethodEnv): { monobank: boolean; crypto: boolean } => {
+export const billingMethods = (env: MethodEnv): { monobank: boolean; crypto: boolean; paypal: boolean } => {
   const shown = (env.PAYMENT_METHODS ?? '').toLowerCase().split(',').map((m) => m.trim());
-  return { monobank: shown.includes('monobank') && monobankEnabled(env), crypto: shown.includes('crypto') && cryptoEnabled(env) };
+  return { monobank: shown.includes('monobank') && monobankEnabled(env), crypto: shown.includes('crypto') && cryptoEnabled(env), paypal: paypalEnabled(env) };
 };
 
-export const billingEnabled = (env: MethodEnv): boolean => {
-  const m = billingMethods(env);
-  return m.monobank || m.crypto;
-};
+export const billingEnabled = (env: MethodEnv): boolean => Object.values(billingMethods(env)).some(Boolean);
 
 /** The admin's "Checkout preview" switch, and only for a browser signed into /admin: it shows the checkout without selling anything. */
 export async function previewActive(env: Env, request: Request): Promise<boolean> {
@@ -188,14 +186,15 @@ export async function sendReceipt(env: Env, o: OrderRow, now: number): Promise<v
   if (!to) return;
   const amount = `${(o.amount_cents / 100).toFixed(2)} ${o.currency}`;
   const until = new Date((await periodEnd(env, o, now)) * 1000).toISOString().slice(0, 10);
-  const how = o.provider === 'crypto' ? 'Crypto (Solana)' : 'Card';
+  const how = o.provider === 'crypto' ? 'Crypto (Solana)' : o.provider === 'paypal' ? 'PayPal' : 'Card';
+  const renews = o.provider === 'paypal';
   const lines = [`Plan: ${o.plan_name} (${o.interval === 'year' ? '1 year' : '1 month'})`, `Amount: ${amount}`, `Paid with: ${how}`, `Active until about: ${until}`, `Order: ${o.id}`];
   await sendMail(env, {
     to,
     optional: true,
     subject: `Your Vane receipt: ${o.plan_name}`,
-    text: `${name ? `Hi ${name},\n\n` : ''}Thank you, your payment was received and ${o.plan_name} is active.\n\n${lines.join('\n')}\n\nThe plan is not renewed automatically: pay again from vaneapp.dev/pricing when the period ends.\n`,
-    html: `<div style="font-family:-apple-system,Segoe UI,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#111"><h2 style="margin:0 0 12px">Payment received</h2><p style="margin:0 0 16px">${name ? `Hi ${escHtml(name)}, t` : 'T'}hank you. <b>${escHtml(o.plan_name)}</b> is active on your account.</p><table style="width:100%;border-collapse:collapse;font-size:14px">${lines.map((l) => { const i = l.indexOf(':'); return `<tr><td style="padding:6px 0;color:#666">${escHtml(l.slice(0, i))}</td><td style="padding:6px 0;text-align:right">${escHtml(l.slice(i + 1).trim())}</td></tr>`; }).join('')}</table><p style="margin:20px 0 0;font-size:12px;color:#777">The plan is not renewed automatically. Pay again from vaneapp.dev/pricing when the period ends.</p></div>`,
+    text: `${name ? `Hi ${name},\n\n` : ''}Thank you, your payment was received and ${o.plan_name} is active.\n\n${lines.join('\n')}\n\n${renews ? 'This plan renews automatically every ' + (o.interval === 'year' ? 'year' : 'month') + ' until you cancel. Cancel any time in your PayPal account under Settings, Payments, Manage automatic payments, or write to us.' : 'The plan is not renewed automatically: pay again from vaneapp.dev/pricing when the period ends.'}\n`,
+    html: `<div style="font-family:-apple-system,Segoe UI,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#111"><h2 style="margin:0 0 12px">Payment received</h2><p style="margin:0 0 16px">${name ? `Hi ${escHtml(name)}, t` : 'T'}hank you. <b>${escHtml(o.plan_name)}</b> is active on your account.</p><table style="width:100%;border-collapse:collapse;font-size:14px">${lines.map((l) => { const i = l.indexOf(':'); return `<tr><td style="padding:6px 0;color:#666">${escHtml(l.slice(0, i))}</td><td style="padding:6px 0;text-align:right">${escHtml(l.slice(i + 1).trim())}</td></tr>`; }).join('')}</table><p style="margin:20px 0 0;font-size:12px;color:#777">${renews ? 'This plan renews automatically every ' + (o.interval === 'year' ? 'year' : 'month') + ' until you cancel. Cancel any time in your PayPal account under Settings, Payments, Manage automatic payments, or write to us.' : 'The plan is not renewed automatically. Pay again from vaneapp.dev/pricing when the period ends.'}</p></div>`,
   });
 }
 
