@@ -6,9 +6,10 @@ import type { Env } from '../../../types';
 import { fulfillOrder, LATE_PAYMENT_SECONDS, ORDER_COLUMNS, PAY_WINDOW_SECONDS, type OrderRow } from './billing';
 import { getInvoiceStatus, monobankCcy, monobankEnabled } from './monobank';
 import { findCryptoPayments } from './solana';
+import { FAILED_STATUSES, PAID_STATUSES, REVERSED_STATUSES, csobEnabled, paymentStatus } from './csob';
 import { completedPayments, paypalEnabled, type PaypalPayment } from './paypal';
 
-type CheckEnv = Pick<Env, 'DB' | 'MONOBANK_TOKEN' | 'CRYPTO_WALLET' | 'SOLANA_RPC_URL' | 'PAYPAL_CLIENT_ID' | 'PAYPAL_CLIENT_SECRET' | 'PAYPAL_ENV' | 'PAYPAL_WEBHOOK_ID'>;
+type CheckEnv = Pick<Env, 'DB' | 'MONOBANK_TOKEN' | 'CRYPTO_WALLET' | 'SOLANA_RPC_URL' | 'PAYPAL_CLIENT_ID' | 'PAYPAL_CLIENT_SECRET' | 'PAYPAL_ENV' | 'PAYPAL_WEBHOOK_ID' | 'CSOB_MERCHANT_ID' | 'CSOB_PRIVATE_KEY' | 'CSOB_BANK_PUBLIC_KEY' | 'CSOB_ENV'>;
 
 /** Settles an order from a Monobank invoice status (the webhook and the poll share this). */
 export async function settleMonobank(env: Env, order: OrderRow, status: { status: string; amount?: number; ccy?: number }): Promise<void> {
@@ -77,6 +78,29 @@ export async function checkPaypalOrder(env: Env, order: OrderRow): Promise<void>
   await checkPaypalSubscription(env, order.provider_ref, order.created_at);
 }
 
+/** Asks the ČSOB gateway about one card order: paid, refused or cancelled by the buyer, or reversed afterwards. */
+export async function checkCsobOrder(env: Env, order: OrderRow): Promise<void> {
+  if (order.provider !== 'csob' || !order.provider_ref || (order.status !== 'pending' && order.status !== 'expired') || !csobEnabled(env)) return;
+  const st = await paymentStatus(env, order.provider_ref);
+  if (!st || st.resultCode !== 0 || st.status === null) return;
+  if (PAID_STATUSES.has(st.status)) await fulfillOrder(env, order.id, order.provider_ref, null);
+  else if (FAILED_STATUSES.has(st.status)) await env.DB.prepare(`UPDATE orders SET status = 'failed' WHERE id = ?1 AND status IN ('pending', 'expired')`).bind(order.id).run();
+}
+
+export async function noteCsobReversals(env: Env): Promise<void> {
+  if (!csobEnabled(env)) return;
+  const { results } = await env.DB
+    .prepare(`SELECT ${ORDER_COLUMNS} FROM orders WHERE provider = 'csob' AND status = 'paid' AND note IS NULL AND paid_at > ?1 ORDER BY paid_at DESC LIMIT 20`)
+    .bind(Math.floor(Date.now() / 1000) - 14 * 86400)
+    .all<OrderRow>();
+  for (const o of results) {
+    const st = o.provider_ref ? await paymentStatus(env, o.provider_ref) : null;
+    if (st?.status != null && REVERSED_STATUSES.has(st.status)) {
+      await env.DB.prepare(`UPDATE orders SET note = 'The bank reversed or refunded this payment. End the plan in /admin if the money was returned.' WHERE id = ?1 AND note IS NULL`).bind(o.id).run();
+    }
+  }
+}
+
 /** Asks Monobank about one pending card order. */
 export async function checkMonobankOrder(env: Env, order: OrderRow): Promise<void> {
   if (order.provider !== 'monobank' || !order.provider_ref || (order.status !== 'pending' && order.status !== 'failed') || !monobankEnabled(env)) return;
@@ -108,6 +132,14 @@ export async function checkCryptoOrders(env: Env & CheckEnv, only?: string): Pro
 export async function sweepOrders(env: Env & CheckEnv, now: number): Promise<void> {
   await env.DB.prepare(`UPDATE orders SET status = 'expired' WHERE status = 'pending' AND expires_at <= ?1`).bind(now).run();
   await checkCryptoOrders(env);
+  if (csobEnabled(env)) {
+    const waiting = await env.DB
+      .prepare(`SELECT ${ORDER_COLUMNS} FROM orders WHERE provider = 'csob' AND status IN ('pending', 'expired') AND created_at <= ?1 AND created_at > ?2 ORDER BY created_at LIMIT 20`)
+      .bind(now - 120, now - 2 * 86400)
+      .all<OrderRow>();
+    for (const o of waiting.results) await checkCsobOrder(env as Env, o).catch(() => undefined);
+    if (now % 3600 < 60) await noteCsobReversals(env as Env).catch(() => undefined);
+  }
   if (paypalEnabled(env)) {
     const waiting = await env.DB
       .prepare(`SELECT ${ORDER_COLUMNS} FROM orders WHERE provider = 'paypal' AND status IN ('pending', 'expired') AND created_at <= ?1 AND created_at > ?2 ORDER BY created_at LIMIT 20`)

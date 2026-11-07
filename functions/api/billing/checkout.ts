@@ -1,5 +1,5 @@
 /**
- * POST /api/billing/checkout  { planId, interval?: 'month'|'year', method: 'paypal'|'monobank'|'crypto', asset?: 'usdt'|'usdc',
+ * POST /api/billing/checkout  { planId, interval?: 'month'|'year', method: 'csob'|'paypal'|'monobank'|'crypto', asset?: 'usdt'|'usdc',
  *                               billing: { name, email, country, company?, vatId? }, accept: true, waiver?: true }   (waiver: required for EU / EEA / UK / CH buyers)
  *   → { ok, order: { id, status, planName, amountCents, … , payUrl? | crypto: { address, asset, mint, amount, solanaPayUrl } } }
  *
@@ -12,6 +12,7 @@ import { requireUser } from '../lib/auth';
 import { fail, isRecord, json, methodNotAllowed, readJson, EMAIL_RE } from '../lib/http';
 import { addonAllowed, billingEnabled, billingMethods, getPlan, previewActive, ORDER_COLUMNS, orderView, PAY_WINDOW_SECONDS, quote, type Interval, type Method, type OrderRow } from '../lib/billing';
 import { createInvoice, monobankCcy } from '../lib/monobank';
+import { CSOB_CURRENCIES, initPayment, processUrl, randomOrderNo } from '../lib/csob';
 import { billingPlanId, createSubscription, PAYPAL_CURRENCIES } from '../lib/paypal';
 import { SOLANA_ASSETS, type CryptoAsset } from '../lib/solana';
 import { bump, retryAfter } from '../lib/throttle';
@@ -29,7 +30,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!isRecord(b)) return fail(400, 'Send a JSON object.');
 
   const method = b.method as Method;
-  if (method !== 'monobank' && method !== 'crypto' && method !== 'paypal') return fail(400, 'Choose how to pay.');
+  if (method !== 'csob' && method !== 'monobank' && method !== 'crypto' && method !== 'paypal') return fail(400, 'Choose how to pay.');
   if (!billingEnabled(env) && (await previewActive(env, request))) return fail(503, 'Preview only: payment is not connected yet, so nothing can be bought. (PayPal is not configured, or the plan is not switched on.)');
   if (!billingMethods(env)[method]) return fail(503, 'This payment method is not available.');
   const asset = (b.asset === 'usdc' ? 'usdc' : 'usdt') as CryptoAsset;
@@ -52,6 +53,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!q.ok) return fail(409, q.error);
   const ccy = monobankCcy(plan.currency);
   if (method === 'monobank' && ccy === null) return fail(409, 'Card payment is not available for this price currency.');
+  if (method === 'csob' && !CSOB_CURRENCIES.has(plan.currency)) return fail(409, 'Card payment is not available for this price currency.');
   if (method === 'paypal' && !PAYPAL_CURRENCIES.has(plan.currency)) return fail(409, 'PayPal is not available for this price currency.');
   if (method === 'crypto' && plan.currency !== 'USD') return fail(409, 'Crypto payment is available for plans priced in USD only. Pay by card.');
   const now = Math.floor(Date.now() / 1000);
@@ -103,6 +105,18 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     }
     await env.DB.prepare('UPDATE orders SET provider_ref = ?2, pay_url = ?3 WHERE id = ?1').bind(id, made.invoice.invoiceId, made.invoice.pageUrl).run();
   }
+  if (method === 'csob') {
+    const origin = ((env.APP_URL ?? '').replace(/\/+$/, '') || new URL(request.url).origin);
+    const made = await initPayment(env, {
+      orderId: id, orderNo: randomOrderNo(), amountCents: q.amountCents, currency: plan.currency,
+      itemName: `Vane ${plan.name}`, description: `Vane ${plan.name}, one ${q.interval === 'year' ? 'year' : 'month'}`, returnUrl: `${origin}/api/billing/csob`,
+    });
+    if (!made.ok) {
+      await env.DB.prepare(`UPDATE orders SET status = 'failed', note = 'payment not created' WHERE id = ?1`).bind(id).run();
+      return fail(502, 'The bank did not accept the request. Please try again in a moment.');
+    }
+    await env.DB.prepare('UPDATE orders SET provider_ref = ?2 WHERE id = ?1').bind(id, made.payId).run();
+  }
   if (method === 'paypal') {
     const origin = ((env.APP_URL ?? '').replace(/\/+$/, '') || new URL(request.url).origin);
     const planId = await billingPlanId(env, `Vane ${plan.name} (${q.interval === 'year' ? 'yearly' : 'monthly'})`, q.amountCents, plan.currency, q.interval);
@@ -118,7 +132,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 };
 
 async function view(env: Env, o: OrderRow): Promise<Record<string, unknown>> {
-  return { ...orderView(o), payUrl: o.provider === 'monobank' || o.provider === 'paypal' ? o.pay_url : null, crypto: cryptoDetails(env, o) };
+  const open = o.status === 'pending';
+  const payUrl = o.provider === 'csob' ? (open && o.provider_ref ? await processUrl(env, o.provider_ref) : null) : o.provider === 'monobank' || o.provider === 'paypal' ? o.pay_url : null;
+  return { ...orderView(o), payUrl, crypto: cryptoDetails(env, o) };
 }
 
 export const onRequest: PagesFunction<Env> = async () => methodNotAllowed('POST');
