@@ -108,7 +108,7 @@ const WWW = { 'WWW-Authenticate': 'Bearer' };
 // so a deploy before the migration cannot take the whole API down.
 const KEY_SQL = (withIntegration: boolean, byId = false): string =>
   `SELECT k.id, k.user_id, k.name, k.scope, k.mode, k.last_used_at${withIntegration ? ', k.integration' : ''},
-          s.plan, s.api_addon, s.status, s.current_period_end, s.overage_enabled
+          s.plan, s.api_addon, s.status, s.current_period_end, s.overage_enabled, s.overage_cap_micro_usd
      FROM api_keys k LEFT JOIN subscriptions s ON s.user_id = k.user_id
     WHERE k.${byId ? 'id' : 'key_hash'} = ?1 AND k.revoked_at IS NULL`;
 let integrationColumnMissingUntil = 0;

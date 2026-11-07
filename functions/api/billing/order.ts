@@ -7,7 +7,7 @@ import type { Env } from '../../../types';
 import { requireUser } from '../lib/auth';
 import { fail, json, methodNotAllowed, UUID_RE } from '../lib/http';
 import { ORDER_COLUMNS, orderView, type OrderRow } from '../lib/billing';
-import { checkCryptoOrders, checkMonobankOrder } from '../lib/billingcheck';
+import { checkCryptoOrders, checkMonobankOrder, checkPaypalOrder } from '../lib/billingcheck';
 import { assetOfMint, cryptoWallet, formatMicro, SOLANA_ASSETS, solanaPayUrl } from '../lib/solana';
 import { bump, retryAfter } from '../lib/throttle';
 
@@ -32,12 +32,13 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (!order) return fail(404, 'Order not found.');
   const now = Math.floor(Date.now() / 1000);
 
-  if (order.status === 'pending' || (order.status === 'expired' && order.provider === 'crypto')) {
+  if (order.status === 'pending' || (order.status === 'expired' && (order.provider === 'crypto' || order.provider === 'paypal'))) {
     const key = `order-check:${id}`;
     if (!(await retryAfter(env, key, 1))) {
       await bump(env, key, 4);
       try {
         if (order.provider === 'crypto') await checkCryptoOrders(env, id);
+        else if (order.provider === 'paypal') await checkPaypalOrder(env, order);
         else if (now - order.created_at > 10) await checkMonobankOrder(env, order);
       } catch (err) {
         console.error('order check failed', err instanceof Error ? err.message : 'unknown');
@@ -46,7 +47,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     if (order.status === 'pending' && order.expires_at <= now) await env.DB.prepare(`UPDATE orders SET status = 'expired' WHERE id = ?1 AND status = 'pending'`).bind(id).run();
     order = (await env.DB.prepare(`SELECT ${ORDER_COLUMNS} FROM orders WHERE id = ?1`).bind(id).first<OrderRow>()) ?? order;
   }
-  const open = order.status === 'pending' || (order.status === 'expired' && order.provider === 'crypto');
-  return json({ ok: true, order: { ...orderView(order), payUrl: order.provider === 'monobank' && open ? order.pay_url : null, crypto: open ? cryptoDetails(env, order) : null } });
+  const open = order.status === 'pending' || (order.status === 'expired' && (order.provider === 'crypto' || order.provider === 'paypal'));
+  return json({ ok: true, order: { ...orderView(order), payUrl: (order.provider === 'monobank' || order.provider === 'paypal') && open ? order.pay_url : null, crypto: open ? cryptoDetails(env, order) : null } });
 };
 export const onRequest: PagesFunction<Env> = async () => methodNotAllowed('GET');

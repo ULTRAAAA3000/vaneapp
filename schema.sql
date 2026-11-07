@@ -170,6 +170,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   status              TEXT    NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'past_due', 'canceled')),
   current_period_end  INTEGER,                                                  -- NULL = no expiry (granted by hand)
   overage_enabled     INTEGER NOT NULL DEFAULT 0 CHECK (overage_enabled IN (0, 1)),  -- 0: over quota -> 402; 1: bill per post
+  overage_cap_micro_usd INTEGER NOT NULL DEFAULT 20000000,                   -- monthly ceiling for extra use ($20); at it extra use is refused
   provider            TEXT    NOT NULL DEFAULT 'manual',                        -- 'manual' | 'monobank' | 'crypto'
   provider_ref        TEXT,
   created_at          INTEGER NOT NULL DEFAULT (unixepoch()),
@@ -221,9 +222,11 @@ CREATE TABLE IF NOT EXISTS usage_logs (
   overage         INTEGER NOT NULL DEFAULT 0 CHECK (overage IN (0, 1)),
   cost_micro_usd  INTEGER NOT NULL DEFAULT 0,
   ref             TEXT,                                                         -- e.g. the post group id
-  created_at      INTEGER NOT NULL DEFAULT (unixepoch())
+  created_at      INTEGER NOT NULL DEFAULT (unixepoch()),
+  refunded_at     INTEGER                                                       -- set when an extra charge was given back (nothing was delivered)
 );
 CREATE INDEX IF NOT EXISTS idx_usage_logs_user ON usage_logs(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_usage_logs_open_overage ON usage_logs(created_at) WHERE kind = 'post' AND overage = 1 AND refunded_at IS NULL;
 
 -- ───────────────────────── Vane Studio / Video Engine (a separate product with its own dashboard) ─────────────────────────
 -- Vane Studio, ECONOMY_AND_FINANCE.md §2.5: $12.00 / month, sold and metered apart from Vane Post (Free / API / Pro).
@@ -843,7 +846,7 @@ CREATE TABLE IF NOT EXISTS orders (
   interval      TEXT    NOT NULL DEFAULT 'month' CHECK (interval IN ('month', 'year')),
   amount_cents  INTEGER NOT NULL CHECK (amount_cents >= 0),
   currency      TEXT    NOT NULL DEFAULT 'USD',
-  provider      TEXT    NOT NULL CHECK (provider IN ('monobank', 'crypto')),
+  provider      TEXT    NOT NULL CHECK (provider IN ('monobank', 'crypto', 'paypal')),
   provider_ref  TEXT,
   pay_url       TEXT,
   pay_micro     INTEGER,
@@ -858,6 +861,14 @@ CREATE TABLE IF NOT EXISTS orders (
 CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_pending ON orders(status, provider, expires_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_invoice ON orders(provider_ref) WHERE provider = 'monobank' AND provider_ref IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_orders_paypal ON orders(provider_ref) WHERE provider = 'paypal';
+
+-- PayPal subscriptions need a billing plan per price. Made on demand at checkout and remembered here: key = 'product' or '<currency>:<cents>:<interval>'.
+CREATE TABLE IF NOT EXISTS paypal_plans (
+  key            TEXT    PRIMARY KEY,
+  paypal_id      TEXT    NOT NULL,
+  created_at     INTEGER NOT NULL DEFAULT (unixepoch())
+);
 
 -- The Suite bundle (ONE plan, ONE payment, ECONOMY_AND_FINANCE.md §2.6): Post Pro + Vane Studio + Analytics Pro + the AI Pass, and
 -- 75 API posts a month (apiPostsPerMonth / apiAccess below). It shows on /pricing as "Coming soon" until you switch it on in

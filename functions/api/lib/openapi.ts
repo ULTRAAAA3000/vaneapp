@@ -41,7 +41,7 @@ export function openApiDocument(origin: string): Json {
         'Authentication: send your key as `Authorization: Bearer <key>`. Create keys in the dashboard (API access).\n' +
         '- `cpost_live_…` posts for real and counts toward your plan quota.\n' +
         '- `cpost_test_…` is simulated: requests are validated and answered with `"test": true`, but nothing is posted or counted.\n\n' +
-        'Quota: 1 request = 1 post, however many channels it targets. Out of quota the API answers 402 `quota_exceeded`.\n' +
+        'Quota: 1 request = 1 post, however many channels it targets. Out of quota the API answers 402 `quota_exceeded`; with extra-use billing on, 402 `overage_cap_reached` once the monthly limit ($20 unless changed) is used.\n' +
         'Retries: send an `Idempotency-Key` header on POST /posts so a retry never creates a second post.\n' +
         'Limits: 100 requests per minute per key (429 `rate_limited`).\n' +
         'Errors are `{ "ok": false, "error": "…", "code": "…" }`: branch on `code`.',
@@ -158,7 +158,7 @@ export function openApiDocument(origin: string): Json {
             }),
             '400': errorResponse('Invalid body: empty content, a past `scheduledAt`, a text too long for a channel, a bad `mediaUrl`, or a bad Idempotency-Key (`invalid_idempotency_key`).'),
             '401': errorResponse('Invalid key.'),
-            '402': errorResponse('Out of quota (`quota_exceeded`). The body has the usage.'),
+            '402': errorResponse('Out of quota (`quota_exceeded`) or at the monthly extra-use limit (`overage_cap_reached`). The body has the usage.'),
             '403': errorResponse('No API access on this plan (`api_not_in_plan`).'),
             '404': errorResponse('A channel was not found (the same answer for missing and foreign ids).'),
             '409': errorResponse('A request with this Idempotency-Key is still running (`idempotency_in_progress`). Retry shortly.'),

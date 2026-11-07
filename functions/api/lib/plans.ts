@@ -82,6 +82,7 @@ export interface SubscriptionRow {
   status: SubscriptionStatus | null;
   current_period_end: number | null;
   overage_enabled: number | null;
+  overage_cap_micro_usd?: number | null;
 }
 
 export interface Subscription {
@@ -89,14 +90,17 @@ export interface Subscription {
   plan: PlanId;
   apiAddon: boolean;
   overageEnabled: boolean;
+  overageCapMicro: number;
   status: SubscriptionStatus;
   currentPeriodEnd: number | null;
   /** a paid plan that stopped being active: we serve the Free Trial limits until a payment renews it */
   lapsed: boolean;
 }
 
+export const DEFAULT_OVERAGE_CAP_MICRO = 20 * USD;
+
 export const FREE_SUBSCRIPTION: Subscription = {
-  plan: 'free', apiAddon: false, overageEnabled: false, status: 'active', currentPeriodEnd: null, lapsed: false,
+  plan: 'free', apiAddon: false, overageEnabled: false, overageCapMicro: DEFAULT_OVERAGE_CAP_MICRO, status: 'active', currentPeriodEnd: null, lapsed: false,
 };
 
 /** Turns a stored row (or none) into the plan that applies at `now`. */
@@ -111,6 +115,7 @@ export function resolveSubscription(row: SubscriptionRow | null | undefined, now
     plan: row.plan,
     apiAddon: row.api_addon === 1,
     overageEnabled: row.overage_enabled === 1,
+    overageCapMicro: row.overage_cap_micro_usd ?? DEFAULT_OVERAGE_CAP_MICRO,
     status,
     currentPeriodEnd: row.current_period_end,
     lapsed: false,
