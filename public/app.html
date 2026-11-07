@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/assets/vane.css?v=aa1317ecc8" />
-  <link rel="stylesheet" href="/assets/app.css?v=7a8829e5f7" />
+  <link rel="stylesheet" href="/assets/app.css?v=e9df52336a" />
 </head>
 
 <body class="min-h-screen overflow-x-hidden bg-[#070708]">
@@ -247,7 +247,7 @@
         </button>
       </div>
 
-      <div class="mt-5 grid items-start gap-5 lg:grid-cols-[minmax(0,.9fr)_minmax(0,1.1fr)]">
+      <div class="mt-5 grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[minmax(0,.9fr)_minmax(0,1.1fr)]">
         <div id="apiQuota" class="rounded-2xl bg-white/[0.04] p-5 ring-1 ring-white/5" aria-live="polite"><div class="skeleton h-28"></div></div>
         <div id="apiKeys" class="space-y-2.5"><div class="skeleton h-16"></div></div>
       </div>
@@ -343,12 +343,14 @@
             <tr><td class="px-4 py-2.5 font-medium text-white">channels</td><td class="px-4 py-2.5">Lists the channels connected to Vane.</td></tr>
             <tr><td class="px-4 py-2.5 font-medium text-white">upcoming</td><td class="px-4 py-2.5">Shows what is scheduled.</td></tr>
             <tr><td class="px-4 py-2.5 font-medium text-white">recent</td><td class="px-4 py-2.5">Shows what went out lately and why anything failed.</td></tr>
+            <tr><td class="px-4 py-2.5 font-medium text-white">analyze <span class="ml-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/55">Pro</span></td><td class="px-4 py-2.5">Reads your results and tells you what works and what to try next. Free of AI credits.</td></tr>
+            <tr><td class="px-4 py-2.5 font-medium text-white">series <span class="ml-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/55">Pro</span></td><td class="px-4 py-2.5">Writes a run of posts (up to 14) in your voice, picks the best times, shows the plan and schedules it only after you approve.</td></tr>
           </tbody>
         </table>
       </div>
       <div class="mt-5 rounded-2xl border border-white/10 p-4">
         <h4 class="text-sm font-semibold">Commands in the <code>/</code> menu: the Vane plugin</h4>
-        <p class="mt-1 text-xs leading-relaxed text-white/50">The plugin brings the connector and the same five commands as <code>/vane:post</code>, <code>/vane:draft</code>, <code>/vane:channels</code>, <code>/vane:upcoming</code> and <code>/vane:recent</code>. Type <code>/</code> and they appear in the list.</p>
+        <p class="mt-1 text-xs leading-relaxed text-white/50">The plugin brings the connector and the same commands as <code>/vane:post</code>, <code>/vane:draft</code>, <code>/vane:channels</code>, <code>/vane:upcoming</code>, <code>/vane:recent</code>, <code>/vane:analyze</code> and <code>/vane:series</code>. The last two need a paid plan. Type <code>/</code> and they appear in the list.</p>
         <p class="mt-3 text-xs font-medium text-white/70">Claude Code</p>
         <div class="mt-1.5 flex items-center gap-2"><code id="claudePlug" class="min-w-0 flex-1 break-all rounded-xl bg-black/30 px-3 py-2 text-xs">/plugin marketplace add ULTRAAAA3000/vaneapp</code><button type="button" class="btn btn-white btn-sm" data-copy="claudePlug">Copy</button></div>
         <div class="mt-1.5 flex items-center gap-2"><code id="claudePlug2" class="min-w-0 flex-1 break-all rounded-xl bg-black/30 px-3 py-2 text-xs">/plugin install vane@vane</code><button type="button" class="btn btn-white btn-sm" data-copy="claudePlug2">Copy</button></div>
@@ -1079,7 +1081,7 @@
   <script src="/assets/vane.js?v=a2c867edc4"></script>
   <script src="/assets/media-picker.js?v=86dfab3b84"></script>
   <script src="/assets/insights.js?v=c81d5838ef"></script>
-  <script src="/assets/dashboard.js?v=8593001939"></script>
+  <script src="/assets/dashboard.js?v=e881e2fe53"></script>
   <script src="/assets/ai.js?v=c48c4cd734"></script>
   <script src="/assets/library.js?v=92e90abfac"></script>
   <script src="/assets/library-picker.js?v=75266cc3f5"></script>

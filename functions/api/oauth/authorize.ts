@@ -14,6 +14,7 @@ import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env } from '../../../types';
 import { requireUser } from '../lib/auth';
 import { generateApiKey, hashApiKey, MAX_KEYS_PER_USER, parseApiKey } from '../lib/apikeys';
+import { maxKeysFor } from '../lib/keylimit';
 import { fail, failCode, isRecord, json, methodNotAllowed, readJson, UUID_RE } from '../lib/http';
 import { isMissingSchema } from '../lib/integrations';
 import { CODE_TTL, connectorFor, hashSecret, loadClient, newCode, validChallenge, type OauthClient } from '../lib/oauth';
@@ -103,7 +104,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       keyId = prev.key_id;
     } else {
       const active = await env.DB.prepare('SELECT COUNT(*) AS n FROM api_keys WHERE user_id = ?1 AND revoked_at IS NULL').bind(auth.userId).first<{ n: number }>();
-      if ((active?.n ?? 0) >= MAX_KEYS_PER_USER) return failCode(409, 'too_many_keys', `You already have ${MAX_KEYS_PER_USER} API keys. Pick one of them in the list, or revoke one you no longer use.`);
+      const maxKeys = await maxKeysFor(env, auth.userId);
+      if ((active?.n ?? 0) >= maxKeys) return failCode(409, 'too_many_keys', `You already have ${active?.n} API keys, the most your plan allows (${maxKeys}${maxKeys < MAX_KEYS_PER_USER ? `; paid plans have up to ${MAX_KEYS_PER_USER}` : ''}). Pick one of them in the list, or revoke one you no longer use.`);
       const mode = apiAllowed(await loadSubscription(env, auth.userId)) ? 'live' : 'test';
       const key = await generateApiKey('post', mode);
       keyId = crypto.randomUUID();

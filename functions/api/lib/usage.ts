@@ -131,6 +131,7 @@ export async function usageSummary(env: Env, userId: string, sub: Subscription, 
     shared,
     ai: aiBucket(spec, sub, c.ai_generations, await loadAiBonus(env, userId), await loadAiPass(env, userId, now), aiExtra),
     apiAccess: apiAllowed(sub),
+    features: { priorityDispatch: sub.plan !== 'free' && spec.ui > 0, advancedMcpTools: sub.plan !== 'free' && spec.ui > 0 },   // = isDashboardPlan() in paid.ts (not imported: it imports this file)
     overage: {
       enabled: rates !== null,
       postUsd: spec.overage ? microToUsd(spec.overage.post) : null,
@@ -214,8 +215,87 @@ export async function releaseApiPost(env: Env, userId: string, r: Extract<Reserv
   }
 }
 
+export type UiReservation =
+  | { ok: true; counted: true; overage: boolean; costMicro: number; period: string }
+  | { ok: true; counted: false }
+  | { ok: false; code: 'quota_exceeded' };
+
 /**
- * Dashboard posts are counted (the Free Trial total is shared with the API) but not blocked yet.
+ * The dashboard's counterpart of reserveApiPost: takes `units` from the plan's dashboard quota (the Free Trial's ONE shared total,
+ * Pro's 1,000 a month), or says why it can't. Used only while the admin switch "enforce_limits" is on; with it off the posts are
+ * just counted (countUiPosts) as before.
+ *   Within the quota          -> counted, free.
+ *   Over it, overage enabled  -> counted AND priced, exactly like an API post.
+ *   Over it, overage disabled -> { ok: false, code: 'quota_exceeded' }  (the caller answers 402).
+ * A plan with no dashboard allowance at all (Developer API: ui 0, not shared) is never stopped here, only counted: it is the API
+ * quota that limits that plan. Tolerant like countUiPosts: if the usage tables are not there yet, the post is allowed.
+ */
+export async function reserveUiPost(env: Env, userId: string, sub: Subscription, now: number, units: number): Promise<UiReservation> {
+  try {
+    const lim = limitsFor(sub);
+    const period = periodKey(sub.plan, now);
+    if (lim.shared === null && lim.ui === 0) {
+      await countUiPosts(env, userId, units);
+      return { ok: true, counted: false };
+    }
+    const cap = lim.shared ?? lim.ui;
+    // `used` is either the dashboard counter or the shared total. Both fragments are constants (never user input).
+    const used = lim.shared !== null ? '(api_posts + ui_posts)' : 'ui_posts';
+
+    if (cap >= units) {
+      // The WHERE on DO UPDATE makes this all-or-nothing: no row change means the quota was already full.
+      const res = await env.DB
+        .prepare(
+          `INSERT INTO usage_counters (user_id, period, ui_posts, updated_at) VALUES (?1, ?2, ?5, ?3)
+           ON CONFLICT(user_id, period) DO UPDATE SET ui_posts = ui_posts + ?5, updated_at = ?3
+           WHERE ${used} + ?5 <= ?4`,
+        )
+        .bind(userId, period, now, cap, units)
+        .run();
+      if ((res.meta?.changes ?? 0) > 0) return { ok: true, counted: true, overage: false, costMicro: 0, period };
+    }
+
+    const rates = overageRates(sub);
+    if (!rates) return { ok: false, code: 'quota_exceeded' };
+
+    const costMicro = Math.round(rates.post * units);
+    await env.DB
+      .prepare(
+        `INSERT INTO usage_counters (user_id, period, ui_posts, overage_posts, overage_micro_usd, updated_at) VALUES (?1, ?2, ?5, ?5, ?4, ?3)
+         ON CONFLICT(user_id, period) DO UPDATE SET
+           ui_posts = ui_posts + ?5, overage_posts = overage_posts + ?5, overage_micro_usd = overage_micro_usd + ?4, updated_at = ?3`,
+      )
+      .bind(userId, period, now, costMicro, units)
+      .run();
+    return { ok: true, counted: true, overage: true, costMicro, period };
+  } catch (err) {
+    console.error('ui quota reserve failed', err instanceof Error ? err.message : 'unknown');
+    return { ok: true, counted: false };
+  }
+}
+
+/** Gives a dashboard reservation back (the post could not be saved after all). */
+export async function releaseUiPost(env: Env, userId: string, r: Extract<UiReservation, { counted: true }>, units: number): Promise<void> {
+  try {
+    await env.DB
+      .prepare(
+        `UPDATE usage_counters SET
+           ui_posts = MAX(ui_posts - ?3, 0),
+           overage_posts = MAX(overage_posts - ?4, 0),
+           overage_micro_usd = MAX(overage_micro_usd - ?5, 0),
+           updated_at = ?6
+         WHERE user_id = ?1 AND period = ?2`,
+      )
+      .bind(userId, r.period, units, r.overage ? units : 0, r.costMicro, nowSeconds())
+      .run();
+  } catch (err) {
+    console.error('ui quota release failed', err instanceof Error ? err.message : 'unknown');
+  }
+}
+
+/**
+ * Dashboard posts are counted (the Free Trial total is shared with the API). With "enforce_limits" on, handleCreatePost reserves
+ * them with reserveUiPost instead, which also stops them at the quota.
  * Deliberately tolerant: counting must never be the reason a post fails, e.g. while the usage tables are
  * not in the database yet (right after a deploy, before `npm run db:remote`).
  */
@@ -267,7 +347,7 @@ export type AiReservation =
 
 /**
  * Takes one AI generation, or says why it can't. Same single-statement guard as reserveApiPost. Where a credit comes from, in this order:
- *   1. the plan's own credits (Free Trial 10 for life, Pro 250 a month)
+ *   1. the plan's own credits (Free Trial 10 for life, Pro 30 a month)
  *   2. the AI Pass (monthly credits on top of any plan)
  *   3. credits an admin gave to the account
  *   4. an extra credit, paid per generation: only when the account switched "pay for extra" on (and the plan or the pass has a price)
