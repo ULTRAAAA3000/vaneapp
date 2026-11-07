@@ -18,7 +18,7 @@
     var btn = p.highlight ? 'bg-white text-[#010101] hover:opacity-90' : 'bg-white/10 text-white hover:bg-white/20';
     var cta = p.buyable ? '<a href="' + href + '" class="block w-full rounded-full px-6 py-3 text-center text-sm font-semibold transition ' + btn + '">' + esc(p.ctaLabel) + '</a>'
       : p.id === 'free' ? '<a href="/login" class="block w-full rounded-full bg-white/10 px-6 py-3 text-center text-sm font-semibold text-white transition hover:bg-white/20">Start free</a>'
-      : '<a href="/#join" class="block w-full rounded-full bg-white/10 px-6 py-3 text-center text-sm font-semibold text-white transition hover:bg-white/20">' + (p.comingSoon ? 'Get notified' : 'Join the waitlist') + '</a>';
+      : '<span class="block w-full cursor-default rounded-full bg-white/5 px-6 py-3 text-center text-sm font-semibold text-white/40">' + (p.comingSoon ? 'Coming soon' : 'Opens soon') + '</span>';
     return '<div class="glass-d card relative flex flex-col' + (p.highlight ? ' ring-1 ring-white/30' : '') + '">' + badge +
       '<div class="flex items-center justify-between gap-3"><p class="eyebrow">' + esc(p.name) + '</p>' + soon + '</div>' +
       '<div class="mt-4 flex items-end gap-2"><span class="pixel text-5xl leading-none">' + esc(fmt(cents, p.currency)) + '</span><span class="pb-1 text-sm text-white/50">' + per + '</span></div>' +
@@ -35,7 +35,7 @@
     Array.prototype.forEach.call(document.querySelectorAll('#pricingSeg button'), function (b) { var on = b.getAttribute('aria-pressed') === 'true'; b.style.background = on ? '#fff' : 'transparent'; b.style.color = on ? '#010101' : ''; });
     var any = list.some(function (p) { return p.buyable; });
     $('pricingNote').classList.toggle('hidden', any);
-    $('pricingNote').textContent = any ? '' : 'Online payment opens soon. Join the waitlist and we will write to you.';
+    $('pricingNote').textContent = any ? '' : 'Online payment opens soon.';
   }
   $('pMonth').addEventListener('click', function () { interval = 'month'; render(); });
   $('pYear').addEventListener('click', function () { interval = 'year'; render(); });

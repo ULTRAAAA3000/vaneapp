@@ -405,7 +405,7 @@
     ['overageAiPostUsd', 'Extra AI post price, USD', 'float', 'empty = same as an extra post'],
     ['seats', 'Team seats', 'int', 'stored, not enforced yet']
   ];
-  var PROVIDERS = [['paypal', 'PayPal'], ['monobank', 'Monobank Acquiring'], ['crypto', 'Crypto (Solana / USDT)'], ['stripe', 'Stripe']];
+  var PROVIDERS = [['csob', 'ČSOB (card, Apple Pay, Google Pay)'], ['paypal', 'PayPal'], ['monobank', 'Monobank Acquiring'], ['crypto', 'Crypto (Solana / USDT)'], ['stripe', 'Stripe']];
 
   function limitsSummary(l) {
     var out = [];
@@ -440,7 +440,7 @@
 
   function planForm(p) {
     var creating = !p;
-    p = p || { id: '', kind: 'plan', name: '', tagline: '', badge: '', priceCents: 0, comparePriceCents: null, yearlyPriceCents: null, currency: 'USD', interval: 'month', trialDays: 0, features: [], limits: {}, ctaLabel: 'Join the waitlist', highlight: false, comingSoon: false, isPublic: true, isActive: true, sort: 100, providerRefs: {} };
+    p = p || { id: '', kind: 'plan', name: '', tagline: '', badge: '', priceCents: 0, comparePriceCents: null, yearlyPriceCents: null, currency: 'USD', interval: 'month', trialDays: 0, features: [], limits: {}, ctaLabel: 'Get started', highlight: false, comingSoon: false, isPublic: true, isActive: true, sort: 100, providerRefs: {} };
     var dollars = function (c) { return c == null ? '' : (c / 100).toFixed(2); };
     openModal('<form id="planForm" novalidate data-creating="' + creating + '"><h3 class="text-xl font-semibold">' + (creating ? 'New plan' : 'Edit ' + esc(p.name)) + '</h3>' +
       '<div class="mt-5 grid gap-4 sm:grid-cols-2">' +

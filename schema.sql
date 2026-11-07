@@ -312,7 +312,7 @@ CREATE TABLE IF NOT EXISTS plans (
   trial_days           INTEGER NOT NULL DEFAULT 0 CHECK (trial_days >= 0),
   features             TEXT    NOT NULL DEFAULT '[]',
   limits               TEXT    NOT NULL DEFAULT '{}',
-  cta_label            TEXT    NOT NULL DEFAULT 'Join the waitlist',
+  cta_label            TEXT    NOT NULL DEFAULT 'Get started',
   highlight            INTEGER NOT NULL DEFAULT 0 CHECK (highlight IN (0, 1)),
   coming_soon          INTEGER NOT NULL DEFAULT 0 CHECK (coming_soon IN (0, 1)),
   is_public            INTEGER NOT NULL DEFAULT 1 CHECK (is_public IN (0, 1)),
@@ -340,7 +340,7 @@ INSERT OR IGNORE INTO plans (id, name, tagline, badge, price_cents, compare_pric
 INSERT OR IGNORE INTO plans (id, name, tagline, price_cents, features, limits, cta_label, coming_soon, is_active, sort) VALUES
   ('video', 'Video Engine', 'Video publishing, end to end.', 1499,
    '["YouTube Shorts, TikTok and Instagram Reels","YouTube long-form with custom thumbnails, playlists and tags","Resumable uploads on Cloudflare R2","AI hooks, scripts, descriptions, tags and timestamps"]',
-   '{"aiCredits":50,"overageAiPostUsd":0.02}', 'Get notified', 1, 0, 40);
+   '{"aiCredits":50,"overageAiPostUsd":0.02}', 'Coming soon', 1, 0, 40);
 INSERT OR IGNORE INTO plans (id, kind, name, tagline, price_cents, limits, is_active, sort) VALUES
   ('api-addon', 'addon', 'Need the dashboard and the API?', 'Add the API to Pro for {price} a month. It adds 180 API posts and keeps Pro’s low overage rates.', 499,
    '{"apiPostsPerMonth":180}', 0, 50);
@@ -846,7 +846,7 @@ CREATE TABLE IF NOT EXISTS orders (
   interval      TEXT    NOT NULL DEFAULT 'month' CHECK (interval IN ('month', 'year')),
   amount_cents  INTEGER NOT NULL CHECK (amount_cents >= 0),
   currency      TEXT    NOT NULL DEFAULT 'USD',
-  provider      TEXT    NOT NULL CHECK (provider IN ('monobank', 'crypto', 'paypal')),
+  provider      TEXT    NOT NULL CHECK (provider IN ('monobank', 'crypto', 'paypal', 'csob')),
   provider_ref  TEXT,
   pay_url       TEXT,
   pay_micro     INTEGER,
@@ -862,6 +862,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_pending ON orders(status, provider, expires_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_invoice ON orders(provider_ref) WHERE provider = 'monobank' AND provider_ref IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_orders_paypal ON orders(provider_ref) WHERE provider = 'paypal';
+CREATE INDEX IF NOT EXISTS idx_orders_csob ON orders(provider_ref) WHERE provider = 'csob';
 
 -- PayPal subscriptions need a billing plan per price. Made on demand at checkout and remembered here: key = 'product' or '<currency>:<cents>:<interval>'.
 CREATE TABLE IF NOT EXISTS paypal_plans (
