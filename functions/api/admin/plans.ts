@@ -62,7 +62,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     .bind(
       f.id, f.kind ?? 'plan', f.name, f.tagline ?? '', f.badge ?? '', f.priceCents, f.comparePriceCents ?? null, f.yearlyPriceCents ?? null,
       f.currency ?? 'USD', f.interval ?? 'month', f.trialDays ?? 0, JSON.stringify(f.features ?? []), JSON.stringify(f.limits ?? {}),
-      f.ctaLabel ?? 'Join the waitlist', f.highlight ? 1 : 0, f.comingSoon ? 1 : 0, f.isPublic === false ? 0 : 1, f.isActive === false ? 0 : 1,
+      f.ctaLabel ?? 'Get started', f.highlight ? 1 : 0, f.comingSoon ? 1 : 0, f.isPublic === false ? 0 : 1, f.isActive === false ? 0 : 1,
       f.sort ?? 100, JSON.stringify(f.providerRefs ?? {}),
     )
     .run();
