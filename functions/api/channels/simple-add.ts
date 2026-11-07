@@ -1,9 +1,11 @@
 /**
- * Connecting the networks that need nothing but a pasted address or key: Discord (a channel webhook) and Dev.to (an API key).
- * Called from ./index.ts handleAddChannel. The secret is checked with the network first, then stored encrypted.
+ * Connecting the networks that need nothing but a pasted address or key: Discord (a channel webhook), Dev.to (an API key) and
+ * the Webhook channel (the person's own https address). Called from ./index.ts handleAddChannel. The secret is checked with the
+ * network first, then stored encrypted.
  *
  *   discord   credentials { webhookUrl }
  *   devto     credentials { apiKey }
+ *   webhook   credentials { url }           answers 201 { ok, channel, webhook: { secret } }: the signing secret is shown only here
  */
 import type { ChannelPublic, ChannelType, Env } from '../../../types';
 import { encryptToken } from '../lib/crypto';
@@ -12,6 +14,7 @@ import { bump, retryAfter } from '../lib/throttle';
 import { checkChannelQuota } from '../lib/catalog';
 import { loadDiscordCreds, validateDiscordWebhook } from './discord';
 import { loadDevtoCreds, validateDevtoKey } from './devto';
+import { loadWebhookCreds, validateWebhookEndpoint } from './webhook';
 
 const ADD_ATTEMPTS_PER_HOUR = 10;
 
@@ -80,4 +83,22 @@ export async function handleAddDevto(env: Env, userId: string, name: string, cre
   if (saved instanceof Response) return saved;
   const channel: ChannelPublic = { id: saved.id, platform: 'devto', name, isActive: true, createdAt: saved.now };
   return json({ ok: true, channel, devto: { username: check.username } }, 201);
+}
+
+export async function handleAddWebhook(env: Env, userId: string, name: string, credentials: unknown): Promise<Response> {
+  const creds = await gate(env, userId, 'webhook', credentials, '{ url }');
+  if (creds instanceof Response) return creds;
+  const check = await validateWebhookEndpoint(creds.url, name);
+  if (!check.ok) return fail(check.code === 'network' ? 502 : 400, check.error);
+
+  const { results } = await env.DB.prepare(`SELECT name, credentials FROM channels WHERE user_id = ?1 AND type = 'webhook' LIMIT 200`).bind(userId).all<{ name: string; credentials: string }>();
+  for (const row of results) {
+    const c = await loadWebhookCreds(row.credentials, env.ENCRYPTION_KEY);
+    if (c && c.url === check.url) return fail(409, `This address is already connected as "${row.name}".`);
+  }
+
+  const saved = await save(env, userId, 'webhook', 'Webhook', name, { type: 'webhook', url: check.url, secret: check.secret });
+  if (saved instanceof Response) return saved;
+  const channel: ChannelPublic = { id: saved.id, platform: 'webhook', name, isActive: true, createdAt: saved.now };
+  return json({ ok: true, channel, webhook: { secret: check.secret } }, 201);
 }
