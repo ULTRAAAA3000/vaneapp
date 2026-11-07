@@ -86,10 +86,6 @@
 
               <h2 class="pt-3 text-base font-semibold">Payment method</h2>
               <div id="methods" class="space-y-3" role="radiogroup" aria-label="Payment method">
-                <button type="button" class="method" id="mPaypal" role="radio" aria-checked="false" data-method="paypal">
-                  <span class="dot"></span>
-                  <span class="min-w-0 flex-1"><span class="block text-sm font-semibold">PayPal</span><span class="block text-xs text-white/50">Pay with your PayPal balance, or with a card inside PayPal. Renews automatically until you cancel.</span></span>
-                </button>
                 <button type="button" class="method" id="mCard" role="radio" aria-checked="false" data-method="monobank">
                   <span class="dot"></span>
                   <span class="min-w-0 flex-1"><span class="block text-sm font-semibold">Card, Apple Pay or Google Pay</span><span id="mCardNote" class="block text-xs text-white/50">Visa and Mastercard from any country. You pay on a secure page of our bank.</span></span>
@@ -97,6 +93,10 @@
                 <button type="button" class="method" id="mCrypto" role="radio" aria-checked="false" data-method="crypto">
                   <span class="dot"></span>
                   <span class="min-w-0 flex-1"><span class="block text-sm font-semibold">Crypto: USDT or USDC</span><span class="block text-xs text-white/50">On the Solana network. Confirmed automatically in a few seconds.</span></span>
+                </button>
+                <button type="button" class="method" id="mPaypal" role="radio" aria-checked="false" data-method="paypal">
+                  <span class="dot"></span>
+                  <span class="min-w-0 flex-1"><span class="block text-sm font-semibold">PayPal</span><span class="block text-xs text-white/50">Pay with your PayPal balance, or with a card inside PayPal. Renews automatically until you cancel.</span></span>
                 </button>
               </div>
               <div id="assetBox" class="hidden"><span class="lbl">Token</span><div class="seg" role="group" aria-label="Token"><button type="button" data-asset="usdt" aria-pressed="true">USDT</button><button type="button" data-asset="usdc" aria-pressed="false">USDC</button></div></div>
@@ -158,6 +158,6 @@
 
   <script src="/assets/vane.js?v=a2c867edc4"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <script src="/assets/checkout.js?v=5704082a35"></script>
+  <script src="/assets/checkout.js?v=c3360d15fa"></script>
 </body>
 </html>

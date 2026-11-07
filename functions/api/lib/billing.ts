@@ -11,18 +11,19 @@ import { getSettings } from './settings';
 import { monobankEnabled } from './monobank';
 import { cryptoEnabled } from './solana';
 import { paypalEnabled } from './paypal';
+import { csobEnabled } from './csob';
 
 export type Interval = 'month' | 'year';
-export type Method = 'monobank' | 'crypto' | 'paypal';
+export type Method = 'csob' | 'monobank' | 'crypto' | 'paypal';
 
 export const PAY_WINDOW_SECONDS = 3600;
 export const LATE_PAYMENT_SECONDS = 24 * 3600;
 
-type MethodEnv = Pick<Env, 'MONOBANK_TOKEN' | 'CRYPTO_WALLET' | 'PAYMENT_METHODS' | 'PAYPAL_CLIENT_ID' | 'PAYPAL_CLIENT_SECRET'>;
+type MethodEnv = Pick<Env, 'MONOBANK_TOKEN' | 'CRYPTO_WALLET' | 'PAYMENT_METHODS' | 'PAYPAL_CLIENT_ID' | 'PAYPAL_CLIENT_SECRET' | 'CSOB_MERCHANT_ID' | 'CSOB_PRIVATE_KEY' | 'CSOB_BANK_PUBLIC_KEY'>;
 
-export const billingMethods = (env: MethodEnv): { monobank: boolean; crypto: boolean; paypal: boolean } => {
+export const billingMethods = (env: MethodEnv): { csob: boolean; monobank: boolean; crypto: boolean; paypal: boolean } => {
   const shown = (env.PAYMENT_METHODS ?? '').toLowerCase().split(',').map((m) => m.trim());
-  return { monobank: shown.includes('monobank') && monobankEnabled(env), crypto: shown.includes('crypto') && cryptoEnabled(env), paypal: paypalEnabled(env) };
+  return { csob: csobEnabled(env), monobank: shown.includes('monobank') && monobankEnabled(env), crypto: shown.includes('crypto') && cryptoEnabled(env), paypal: paypalEnabled(env) };
 };
 
 export const billingEnabled = (env: MethodEnv): boolean => Object.values(billingMethods(env)).some(Boolean);

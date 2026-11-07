@@ -34,6 +34,10 @@ export interface Env {
   PAYPAL_CLIENT_SECRET?: string;    // secret
   PAYPAL_WEBHOOK_ID?: string;       // the id PayPal shows for the webhook (URL: /api/billing/paypal); without it webhooks are refused and only the polling activates plans
   PAYPAL_ENV?: string;              // 'live' for real money; anything else is the PayPal sandbox
+  CSOB_MERCHANT_ID?: string;        // ČSOB payment gateway: the merchant id the bank gives. Card, Apple Pay and Google Pay checkout is on once the three CSOB values are set
+  CSOB_PRIVATE_KEY?: string;        // secret: the PEM private key made in the bank's key tool (the public half is uploaded there)
+  CSOB_BANK_PUBLIC_KEY?: string;    // the bank's PEM public key (the test and the live gateway have different ones)
+  CSOB_ENV?: string;                // 'live' for real money; anything else is the bank's test gateway
   PAYMENT_METHODS?: string;         // plain var: comma list of the checkout methods shown to buyers (monobank, crypto). Unset = none; their code stays in place
   CRYPTO_WALLET?: string;           // plain var: the Solana address that receives USDT / USDC (crypto checkout is off without it)
   SOLANA_RPC_URL?: string;          // optional: a Solana RPC address (Helius, QuickNode); the public one is used when empty
@@ -330,6 +334,10 @@ export interface CronEnv {
   LINKEDIN_CLIENT_SECRET?: string;
   LINKEDIN_VERSION?: string;       // the same optional value as on Pages
   MONOBANK_TOKEN?: string;         // the same secret as on Pages: lets the cron ask Monobank about card orders whose webhook never came
+  CSOB_MERCHANT_ID?: string;       // the same as on Pages: lets the cron ask the bank about card orders the buyer never came back from
+  CSOB_PRIVATE_KEY?: string;       // the same secret as on Pages
+  CSOB_BANK_PUBLIC_KEY?: string;   // the same as on Pages
+  CSOB_ENV?: string;               // the same as on Pages
   PAYPAL_CLIENT_ID?: string;       // the same as on Pages: lets the cron ask PayPal about subscriptions whose webhook never came
   PAYPAL_CLIENT_SECRET?: string;   // the same secret as on Pages
   PAYPAL_ENV?: string;             // the same as on Pages

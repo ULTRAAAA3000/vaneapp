@@ -846,7 +846,7 @@ CREATE TABLE IF NOT EXISTS orders (
   interval      TEXT    NOT NULL DEFAULT 'month' CHECK (interval IN ('month', 'year')),
   amount_cents  INTEGER NOT NULL CHECK (amount_cents >= 0),
   currency      TEXT    NOT NULL DEFAULT 'USD',
-  provider      TEXT    NOT NULL CHECK (provider IN ('monobank', 'crypto', 'paypal')),
+  provider      TEXT    NOT NULL CHECK (provider IN ('monobank', 'crypto', 'paypal', 'csob')),
   provider_ref  TEXT,
   pay_url       TEXT,
   pay_micro     INTEGER,
@@ -862,6 +862,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_pending ON orders(status, provider, expires_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_invoice ON orders(provider_ref) WHERE provider = 'monobank' AND provider_ref IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_orders_paypal ON orders(provider_ref) WHERE provider = 'paypal';
+CREATE INDEX IF NOT EXISTS idx_orders_csob ON orders(provider_ref) WHERE provider = 'csob';
 
 -- PayPal subscriptions need a billing plan per price. Made on demand at checkout and remembered here: key = 'product' or '<currency>:<cents>:<interval>'.
 CREATE TABLE IF NOT EXISTS paypal_plans (

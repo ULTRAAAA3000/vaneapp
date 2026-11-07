@@ -9,7 +9,7 @@ import type { Env } from '../../../types';
 import { audit, requireAdmin } from '../lib/admin';
 import { fail, isRecord, json, methodNotAllowed, readJson, UUID_RE } from '../lib/http';
 import { fulfillOrder, ORDER_COLUMNS, type OrderRow } from '../lib/billing';
-import { checkCryptoOrders, checkMonobankOrder, checkPaypalOrder } from '../lib/billingcheck';
+import { checkCryptoOrders, checkCsobOrder, checkMonobankOrder, checkPaypalOrder } from '../lib/billingcheck';
 
 const STATUSES = new Set(['pending', 'paid', 'expired', 'failed', 'canceled']);
 
@@ -72,6 +72,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (b.action === 'check') {
     if (order.provider === 'crypto') await checkCryptoOrders(env, order.id);
     else if (order.provider === 'paypal') await checkPaypalOrder(env, order);
+    else if (order.provider === 'csob') await checkCsobOrder(env, order);
     else await checkMonobankOrder(env, order);
     const after = await env.DB.prepare('SELECT status FROM orders WHERE id = ?1').bind(order.id).first<{ status: string }>();
     return json({ ok: true, status: after?.status ?? order.status });
