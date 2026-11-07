@@ -65,13 +65,18 @@ export async function storageUsage(env: Env, userId: string): Promise<{ usedByte
   return { usedBytes: r?.bytes ?? 0, count: r?.n ?? 0 };
 }
 
-/** The plan's storage allowance in bytes, or null when it is unlimited or the plan limits are not being enforced yet. */
-export async function storageLimit(env: Env, userId: string): Promise<{ bytes: number | null; label: string; mb: number | null }> {
-  const spec = specOf((await loadSubscription(env, userId)).plan);
+/**
+ * The plan's storage allowance in bytes, or null when it is unlimited or the plan limits are not being enforced yet.
+ * `upgrade` is true on the Free Trial: that is where "choose a plan" is an answer to a full library.
+ */
+export async function storageLimit(env: Env, userId: string): Promise<{ bytes: number | null; label: string; mb: number | null; upgrade: boolean }> {
+  const sub = await loadSubscription(env, userId);
+  const spec = specOf(sub.plan);
   const on = (await getSettings(env)).enforce_limits;
+  const upgrade = sub.plan === 'free';
   return typeof spec.storageMb === 'number' && on
-    ? { bytes: spec.storageMb * MB, label: spec.label, mb: spec.storageMb }
-    : { bytes: null, label: spec.label, mb: null };
+    ? { bytes: spec.storageMb * MB, label: spec.label, mb: spec.storageMb, upgrade }
+    : { bytes: null, label: spec.label, mb: null, upgrade };
 }
 
 /** 402 when the file does not fit in what the plan includes. Applies only while "enforce_limits" is on, like the channel limit. */
@@ -86,7 +91,7 @@ export async function checkStorageQuota(env: Env, userId: string, addBytes: numb
     throw err;
   }
   return used + addBytes > limit.bytes
-    ? fail(402, `Your ${limit.label} plan includes ${limit.mb} MB of library storage and this file does not fit. Delete files you no longer need in the Library, or upgrade.`)
+    ? fail(402, `Your ${limit.label} plan includes ${limit.mb} MB of library storage and this file does not fit. Delete files you no longer need in the Library${limit.upgrade ? ', or choose a paid plan for more room' : ''}.`)
     : null;
 }
 

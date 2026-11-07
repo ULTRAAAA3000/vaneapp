@@ -2,8 +2,9 @@
  * GET /api/library/assets?kind=image|video&q=<name>&cursor=<from nextCursor>
  *   → { ok, assets: [{ id, key, url, kind, name, size, width, height, contentType, createdAt, inUse }], nextCursor, usage }
  *
- * The files a person uploaded for their posts, newest first, 60 per page. `usage` is { usedBytes, count, limitBytes }; `limitBytes` is null
- * when the plan has no storage limit or limits are not being enforced. Until schema.sql has been applied the answer is 503.
+ * The files a person uploaded for their posts, newest first, 60 per page. `usage` is { usedBytes, count, limitBytes, upgrade }; `limitBytes` is null
+ * when the plan has no storage limit or limits are not being enforced, `upgrade` is true on the Free Trial (a paid plan has more room).
+ * Until schema.sql has been applied the answer is 503.
  */
 import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env } from '../../../../types';
@@ -28,7 +29,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       storageUsage(env, auth.userId),
       storageLimit(env, auth.userId),
     ]);
-    return json({ ok: true, assets: page.assets, nextCursor: page.nextCursor, usage: { usedBytes: usage.usedBytes, count: usage.count, limitBytes: limit.bytes } });
+    return json({ ok: true, assets: page.assets, nextCursor: page.nextCursor, usage: { usedBytes: usage.usedBytes, count: usage.count, limitBytes: limit.bytes, upgrade: limit.upgrade } });
   } catch (err) {
     if (isMissingTable(err)) return fail(503, 'The library is not set up yet.');
     throw err;
