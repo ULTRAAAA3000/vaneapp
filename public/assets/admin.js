@@ -405,7 +405,7 @@
     ['overageAiPostUsd', 'Extra AI post price, USD', 'float', 'empty = same as an extra post'],
     ['seats', 'Team seats', 'int', 'stored, not enforced yet']
   ];
-  var PROVIDERS = [['monobank', 'Monobank Acquiring'], ['crypto', 'Crypto (Solana / USDT)'], ['stripe', 'Stripe']];
+  var PROVIDERS = [['paypal', 'PayPal'], ['monobank', 'Monobank Acquiring'], ['crypto', 'Crypto (Solana / USDT)'], ['stripe', 'Stripe']];
 
   function limitsSummary(l) {
     var out = [];
