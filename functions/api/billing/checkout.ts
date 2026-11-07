@@ -30,7 +30,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const method = b.method as Method;
   if (method !== 'monobank' && method !== 'crypto') return fail(400, 'Choose how to pay: card or crypto.');
   if (!billingEnabled(env) && (await previewActive(env, request))) return fail(503, 'Preview only: payment is not connected yet, so nothing can be bought. (The Monobank token or the crypto wallet is missing, or the plan is not switched on.)');
-  if (!billingMethods(env)[method]) return fail(503, method === 'monobank' ? 'Card payment is not open yet. You can pay with crypto, or try again later.' : 'Crypto payment is not open yet.');
+  if (!billingMethods(env)[method]) return fail(503, 'This payment method is not available.');
   const asset = (b.asset === 'usdc' ? 'usdc' : 'usdt') as CryptoAsset;
   const interval: Interval = b.interval === 'year' ? 'year' : 'month';
 
