@@ -45,7 +45,7 @@ const mailto = '/about#contact';   // every "Tell us" / "Get in touch" button op
 
 const OG_IMAGE = `${SITE.origin}/assets/og.png`;
 const ldTag = (o) => `<script type="application/ld+json">${JSON.stringify(o).replace(/</g, '\\u003c')}</script>`;
-const ORGANIZATION = { '@type': 'Organization', '@id': `${SITE.origin}/#org`, name: 'Vane', url: SITE.origin, logo: `${SITE.origin}/assets/logo.svg`, parentOrganization: { '@type': 'Organization', name: 'WYSB', url: 'https://wysb.eu' } };
+const ORGANIZATION = { '@type': 'Organization', '@id': `${SITE.origin}/#org`, name: 'Vane', url: SITE.origin, logo: `${SITE.origin}/assets/logo.svg` };
 
 function layout({ slug, title, desc, body, crumbs = [], faq = [], ogTitle }) {
   const path = '/' + slug;
@@ -170,7 +170,7 @@ ${body}
       <div class="mx-auto max-w-6xl">
         <div class="grid grid-cols-2 gap-8 sm:grid-cols-4">${cols}</div>
         <div class="mt-10 flex flex-col items-center justify-between gap-3 border-t border-white/5 pt-6 text-xs text-white/35 sm:flex-row">
-          <p>© <span id="year"></span> Vane · vaneapp.dev · Powered by <a href="https://wysb.eu" target="_blank" rel="noopener" class="font-medium text-white/50 transition-colors hover:text-white">WYSB</a></p>
+          <p>© <span id="year"></span> Vane · vaneapp.dev · Built with <a href="https://wysb.eu" target="_blank" rel="noopener" class="font-medium text-white/50 transition-colors hover:text-white">WYSB</a></p>
           <p><a href="/privacy" class="hover:text-white">Privacy</a> · <a href="/terms" class="hover:text-white">Terms</a></p>
         </div>
         <div class="mt-6 flex justify-center"><div data-status-badge></div></div>
