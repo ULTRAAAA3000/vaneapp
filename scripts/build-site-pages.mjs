@@ -45,7 +45,7 @@ const mailto = '/about#contact';   // every "Tell us" / "Get in touch" button op
 
 const OG_IMAGE = `${SITE.origin}/assets/og.png`;
 const ldTag = (o) => `<script type="application/ld+json">${JSON.stringify(o).replace(/</g, '\\u003c')}</script>`;
-const ORGANIZATION = { '@type': 'Organization', '@id': `${SITE.origin}/#org`, name: 'Vane', url: SITE.origin, logo: `${SITE.origin}/assets/logo.svg` };
+const ORGANIZATION = { '@type': 'Organization', '@id': `${SITE.origin}/#org`, name: 'Vane', legalName: 'AKERR-SHY s.r.o.', identifier: '04346360', url: SITE.origin, logo: `${SITE.origin}/assets/logo.svg`, address: { '@type': 'PostalAddress', streetAddress: 'Solec 10', postalCode: '294 02', addressLocality: 'Kněžmost', addressCountry: 'CZ' } };
 
 /** The footer of every page: four columns of links, the legal line and the status badge. One definition, used by layout() and by the home page (see syncHomeFooter). */
 const footerHtml = (cols) => `<footer class="border-t border-white/5 px-5 py-12 sm:px-8">
@@ -294,7 +294,7 @@ function injectSeo(file, { path, title, desc, canonical, extra = [] }) {
 {
   const idx = readFileSync(join(root, 'public', 'index.html'), 'utf8');
   const faq = [...idx.matchAll(/<summary[^>]*>([\s\S]*?)<span class="faq-plus[\s\S]*?<\/summary>\s*<(?:p|div)[^>]*>([\s\S]*?)<\/(?:p|div)>\s*<\/details>/g)].map((m) => [strip(m[1]), strip(m[2])]).filter(([q, a]) => q && a);
-  const titleIdx = 'Vane — Schedule once. Post everywhere.';
+  const titleIdx = 'Vane — Publish everywhere. Schedule anything.';
   const descIdx = 'Schedule once and post to Telegram, LinkedIn, Threads, Bluesky, Mastodon, Discord, Dev.to and more, plus video with Vane Studio. Flat pricing, unlimited channels, built-in AI and a REST API. Start free, no card required.';
   injectSeo('index.html', { path: '/', title: titleIdx, desc: descIdx, canonical: true, extra: [
     { '@type': 'SoftwareApplication', '@id': `${SITE.origin}/#post`, name: 'Vane Post', url: SITE.origin, applicationCategory: 'BusinessApplication', operatingSystem: 'Web', description: 'Social media scheduler: write once, publish to many networks at the time you choose, with built-in AI and a REST API.', offers: { '@type': 'AggregateOffer', priceCurrency: 'USD', lowPrice: '0', highPrice: '9.99' }, publisher: { '@id': `${SITE.origin}/#org` } },
