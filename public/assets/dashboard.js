@@ -93,8 +93,13 @@
     tile: 'bg-rose-500/15 text-rose-300', limit: 900, bg: '#111111', hint: 'A pin needs a picture. The first line is the pin title (up to 100 characters), the rest is the description. The first https link becomes the pin\'s destination.',
     icon: { d: 'M12 3a9 9 0 0 0-3.3 17.4c-.1-.8-.2-2 0-2.9l1.1-4.6s-.3-.6-.3-1.4c0-1.3.8-2.3 1.7-2.3.8 0 1.2.6 1.2 1.3 0 .8-.5 2-.8 3.1-.2.9.5 1.7 1.4 1.7 1.7 0 3-1.8 3-4.4 0-2.3-1.6-3.9-4-3.9a4.1 4.1 0 0 0-4.3 4.1c0 .8.3 1.7.7 2.2M10 14l-1.300 5.300' }
   };
-  var NET_ORDER = ['telegram', 'linkedin', 'threads', 'facebook', 'reddit', 'pinterest', 'bluesky', 'mastodon', 'discord', 'devto'];
-  // channels of a network this dashboard has no entry for (for example "x" or "webhook") get the generic link icon
+  NET.webhook = {
+    name: 'Webhook', ready: true, blurb: 'Your own address', setup: 'Paste an https address that accepts a POST with JSON.',
+    tile: 'bg-emerald-500/15 text-emerald-300', limit: 10000, bg: '#0d1210', hint: 'Each post is sent to your address as signed JSON. Your server answers 2xx when it has it.',
+    icon: { d: 'M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7' }
+  };
+  var NET_ORDER = ['telegram', 'linkedin', 'threads', 'facebook', 'reddit', 'pinterest', 'bluesky', 'mastodon', 'discord', 'devto', 'webhook'];
+  // channels of a network this dashboard has no entry for (for example "x") get the generic link icon
   var NET_OTHER = { tile: 'bg-white/[0.08] text-white/70', icon: { d: 'M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7' } };
 
   function netIcon(key, cls) {
@@ -605,6 +610,29 @@
   bindPasted('dc', 'discord', 'Discord', 'webhookUrl', 'Paste the webhook link you copied in Discord.', function () { return 'Connected to Discord.'; });
   bindPasted('dv', 'devto', 'Dev.to', 'apiKey', 'Paste the API key you created on Dev.to.', function (d) { return 'Connected to Dev.to' + (d.devto && d.devto.username ? ' as @' + d.devto.username : '') + '.'; });
 
+  // ---- Webhook: the person's own https address; Vane sends a test call, then shows the signing secret once
+  $('whForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    hideErr($('whErr'));
+    var url = $('whUrl').value.trim();
+    var name = $('whName').value.trim() || 'Webhook';
+    if (!url) return showErr($('whErr'), $('whForm'), 'Paste the https address that should receive your posts.');
+    $('whSubmit').disabled = true; $('whSpin').classList.remove('hidden'); $('whLabel').textContent = 'Sending a test call…';
+    var r = await Vane.api('POST', '/api/channels/add', { platform: 'webhook', name: name, credentials: { url: url } });
+    $('whSubmit').disabled = false; $('whSpin').classList.add('hidden'); $('whLabel').textContent = 'Verify & connect';
+    if (!r.ok) return showErr($('whErr'), $('whForm'), r.error);
+    S.selected.add(r.data.channel.id);
+    $('whSecret').value = r.data.webhook && r.data.webhook.secret ? r.data.webhook.secret : '';
+    $('whSetup').classList.add('hidden'); $('whDone').classList.remove('hidden');
+    $('whSecret').focus(); $('whSecret').select();
+    await loadChannels();
+    renderAll();
+  });
+  $('whCopy').addEventListener('click', async function () {
+    try { await navigator.clipboard.writeText($('whSecret').value); Vane.toast('ok', 'Secret copied.'); } catch (err) { $('whSecret').select(); Vane.toast('err', 'Could not copy. Press Ctrl+C.'); }
+  });
+  $('whFinish').addEventListener('click', closeConnect);
+
   // ---- Mastodon: the server address, then the server's own "Authorize" page
   $('mForm').addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -675,7 +703,7 @@
   function openStep(step) {
     showStep(step);
     setTimeout(function () {
-      var first = step === 'telegram' ? ($('panelQuick').classList.contains('hidden') ? $('cName') : $('qChat')) : step === 'bluesky' ? $('bHandle') : step === 'mastodon' ? $('mInstance') : step === 'discord' ? $('dcUrl') : step === 'devto' ? $('dvKey') : step === 'linkedin' ? $('liName') : step === 'threads' ? $('thName') : step === 'reddit' ? $('rdSub') : step === 'pinterest' ? $('pnBoard') : step === 'facebook' ? $('fbName') : dlg.querySelector('.net-card:not(:disabled)');
+      var first = step === 'telegram' ? ($('panelQuick').classList.contains('hidden') ? $('cName') : $('qChat')) : step === 'bluesky' ? $('bHandle') : step === 'mastodon' ? $('mInstance') : step === 'discord' ? $('dcUrl') : step === 'devto' ? $('dvKey') : step === 'webhook' ? $('whUrl') : step === 'linkedin' ? $('liName') : step === 'threads' ? $('thName') : step === 'reddit' ? $('rdSub') : step === 'pinterest' ? $('pnBoard') : step === 'facebook' ? $('fbName') : dlg.querySelector('.net-card:not(:disabled)');
       if (first) first.focus();
     }, 60);
   }
@@ -692,6 +720,7 @@
     $('mForm').reset(); hideErr($('mErr')); $('mSubmit').disabled = false; $('mSpin').classList.add('hidden'); $('mLabel').textContent = 'Continue';
     $('dcForm').reset(); hideErr($('dcErr')); $('dcSubmit').disabled = false; $('dcSpin').classList.add('hidden'); $('dcLabel').textContent = 'Verify & connect';
     $('dvForm').reset(); hideErr($('dvErr')); $('dvKey').type = 'password'; $('dvKeyToggle').textContent = 'Show'; $('dvSubmit').disabled = false; $('dvSpin').classList.add('hidden'); $('dvLabel').textContent = 'Verify & connect';
+    $('whForm').reset(); hideErr($('whErr')); $('whSubmit').disabled = false; $('whSpin').classList.add('hidden'); $('whLabel').textContent = 'Verify & connect'; $('whSecret').value = ''; $('whSetup').classList.remove('hidden'); $('whDone').classList.add('hidden');
     $('bForm').reset(); hideErr($('bErr')); $('bPass').type = 'password'; $('bPassToggle').textContent = 'Show';
     [['li', 'LinkedIn'], ['th', 'Threads'], ['rd', 'Reddit'], ['fb', 'Facebook'], ['pn', 'Pinterest']].forEach(function (n) {
       $(n[0] + 'Form').reset(); hideErr($(n[0] + 'Err')); $(n[0] + 'Submit').disabled = false; $(n[0] + 'Spin').classList.add('hidden'); $(n[0] + 'Label').textContent = 'Continue with ' + n[1];
@@ -710,7 +739,7 @@
   }
   function closeConnect() {
     qStopTimers();
-    $('cToken').value = ''; $('bPass').value = ''; // don't leave the secrets sitting in the DOM
+    $('cToken').value = ''; $('bPass').value = ''; $('whSecret').value = ''; // don't leave the secrets sitting in the DOM
     if (typeof dlg.close === 'function') dlg.close(); else dlg.removeAttribute('open');
   }
   $('connectBtn').addEventListener('click', function () { openConnect(); });
@@ -720,6 +749,7 @@
   $('mCancel').addEventListener('click', closeConnect);
   $('dcCancel').addEventListener('click', closeConnect);
   $('dvCancel').addEventListener('click', closeConnect);
+  $('whCancel').addEventListener('click', closeConnect);
   dlg.addEventListener('click', function (e) { if (e.target === dlg) closeConnect(); });
   dlg.addEventListener('close', function () { $('cToken').value = ''; $('bPass').value = ''; qStopTimers(); });
 
@@ -1133,7 +1163,13 @@
         '<div class="mt-2.5 flex items-center gap-2 text-[11px] text-white/50">' + pvAvatar(20, c.name) + '<span>' + esc(c.name) + '</span></div>' +
       '</div></div></div>';
   }
-  var PV_VIEW = { reddit: viewReddit, pinterest: viewPinterest, facebook: viewFacebook, telegram: viewTelegram, linkedin: viewLinkedin, threads: viewThreads, bluesky: viewBluesky, mastodon: viewMastodon, discord: viewDiscord, devto: viewDevto };
+  function viewWebhook(c) {
+    var body = JSON.stringify({ type: 'post.publish', data: { post: { content: c.text || '', media: c.m ? [{ url: c.m.url, kind: c.m.kind }] : [] }, channel: { name: c.title } } }, null, 2);
+    return '<div class="p-3.5"><div class="overflow-hidden rounded-xl bg-[#0a0f0c] font-mono ring-1 ring-white/10">' +
+      '<div class="border-b border-white/10 px-3 py-2 text-[11px] text-white/50">POST · ' + esc(c.title) + '</div>' +
+      '<pre class="whitespace-pre-wrap break-words p-3 text-[11.5px] leading-snug text-emerald-200/80">' + esc(body) + '</pre></div></div>';
+  }
+  var PV_VIEW = { reddit: viewReddit, pinterest: viewPinterest, facebook: viewFacebook, telegram: viewTelegram, linkedin: viewLinkedin, threads: viewThreads, bluesky: viewBluesky, mastodon: viewMastodon, discord: viewDiscord, devto: viewDevto, webhook: viewWebhook };
 
   // tabs are built once, then only their pressed state changes (keeps keyboard focus)
   function syncPvTabs() {
