@@ -1012,6 +1012,49 @@
           </div>
         </form>
       </div>
+
+      <div data-step="webhook" class="hidden">
+        <div id="whSetup">
+          <ol class="mt-6 space-y-3 text-sm text-white/65">
+            <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>Make an address on your server, in Make, Zapier or n8n that accepts a <b class="font-semibold text-white">POST</b> with JSON and answers <b class="font-semibold text-white">2xx</b>.</span></li>
+            <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Paste the <b class="font-semibold text-white">https</b> address below. Vane sends a test call first, then every post you schedule to this channel.</span></li>
+          </ol>
+          <p class="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-xs leading-relaxed text-white/50">Every call is signed (<span class="font-mono">Vane-Signature</span>) with a secret that Vane shows once after connecting. Delete the address on your side, or disconnect the channel here, at any time to stop.</p>
+
+          <form id="whForm" class="mt-6 space-y-4" novalidate autocomplete="off">
+            <div>
+              <label for="whUrl" class="lbl">Webhook URL</label>
+              <input id="whUrl" type="text" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="https://example.com/hooks/vane" class="field font-mono !text-[13px]" />
+            </div>
+            <div>
+              <label for="whName" class="lbl">Display name</label>
+              <input id="whName" type="text" maxlength="80" placeholder="Shown only in Vane" class="field" />
+            </div>
+
+            <div id="whErr" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
+
+            <div class="flex items-center justify-end gap-3 pt-1">
+              <button type="button" id="whCancel" class="btn btn-ghost">Cancel</button>
+              <button type="submit" id="whSubmit" class="btn btn-white">
+                <span id="whSpin" class="spinner spinner-dark hidden"></span>
+                <span id="whLabel">Verify &amp; connect</span>
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div id="whDone" class="hidden">
+          <p class="mt-6 text-sm text-white/65">Connected. Put this <b class="font-semibold text-white">signing secret</b> into your receiver to check that a call really comes from Vane.</p>
+          <div class="mt-4 flex items-center gap-2">
+            <input id="whSecret" type="text" readonly spellcheck="false" autocomplete="off" class="field min-w-0 flex-1 font-mono !text-[13px]" />
+            <button type="button" id="whCopy" class="btn btn-ghost">Copy</button>
+          </div>
+          <p class="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-xs leading-relaxed text-white/50">Vane shows the secret only now and cannot show it again. Lost it? Disconnect the channel and connect it again to get a new one. The signature is <span class="font-mono">HMAC-SHA256</span> of <span class="font-mono">"&lt;t&gt;.&lt;raw body&gt;"</span>, see the Developers page.</p>
+          <div class="mt-6 flex items-center justify-end">
+            <button type="button" id="whFinish" class="btn btn-white">Done</button>
+          </div>
+        </div>
+      </div>
     </div>
   </dialog>
 
@@ -1090,7 +1133,7 @@
   <script src="/assets/vane.js?v=a2c867edc4"></script>
   <script src="/assets/media-picker.js?v=86dfab3b84"></script>
   <script src="/assets/insights.js?v=c81d5838ef"></script>
-  <script src="/assets/dashboard.js?v=4910b94050"></script>
+  <script src="/assets/dashboard.js?v=f47bca981b"></script>
   <script src="/assets/ai.js?v=9076d3d765"></script>
   <script src="/assets/library.js?v=92e90abfac"></script>
   <script src="/assets/library-picker.js?v=75266cc3f5"></script>

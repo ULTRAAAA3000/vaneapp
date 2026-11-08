@@ -27,6 +27,7 @@ import { loadBlueskyCreds, openBlueskySession, sendBlueskyPost, type BlueskySess
 import { loadMastodonCreds, sendMastodonPost } from '../../functions/api/channels/mastodon';
 import { loadDiscordCreds, sendDiscordPost } from '../../functions/api/channels/discord';
 import { loadDevtoCreds, sendDevtoPost } from '../../functions/api/channels/devto';
+import { loadWebhookCreds, sendWebhookPost } from '../../functions/api/channels/webhook';
 import { LINKEDIN_RENEW_BEFORE_SECONDS, linkedinBlob, loadLinkedinCreds, renewLinkedin, sendLinkedinPost, type LinkedinCreds } from '../../functions/api/channels/linkedin';
 import { loadRedditCreds, redditBlob, refreshRedditToken, sendRedditPost } from '../../functions/api/channels/reddit';
 import { loadFacebookCreds, sendFacebookPost } from '../../functions/api/channels/facebook';
@@ -232,6 +233,7 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
     if (ch.type === 'mastodon') return deliverMastodon(post, ch);
     if (ch.type === 'discord') return deliverDiscord(post, ch);
     if (ch.type === 'devto') return deliverDevto(post, ch);
+    if (ch.type === 'webhook') return deliverWebhook(post, ch);
     if (ch.type === 'linkedin') return deliverLinkedin(post, ch);
     if (ch.type === 'threads') return deliverThreads(post, ch);
     if (ch.type === 'reddit') return deliverReddit(post, ch);
@@ -346,6 +348,21 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
     if ('error' in media) return finish(post, 'failed', media.error);
     const res = await sendDiscordPost(creds, post.content, media.url);
     if (res.ok) return finish(post, 'sent', null, { externalId: res.url, network: 'Discord' });
+    if (res.retryable && post.attempts < MAX_ATTEMPTS) return finish(post, 'retry', res.error, { retryAfter: res.retryAfter });
+    return finish(post, 'failed', res.retryable ? `${res.error} (gave up after ${post.attempts} attempts)` : res.error);
+  }
+
+  async function deliverWebhook(post: Claimed, ch: ChannelInfo): Promise<void> {
+    const creds = await loadWebhookCreds(ch.credentials, env.ENCRYPTION_KEY);
+    if (!creds) {
+      console.error(`vane-cron: could not read credentials of channel ${ch.id} (wrong ENCRYPTION_KEY or corrupt data)`);
+      return finish(post, post.attempts < MAX_ATTEMPTS ? 'retry' : 'failed', CREDS_ERROR.unreadable);
+    }
+    const media = mediaOf(post);
+    if ('error' in media) return finish(post, 'failed', media.error);
+    // Vane-Delivery is the post id: a try that timed out after the receiver already handled the post is retried with the same id, so it can de-duplicate.
+    const res = await sendWebhookPost(creds, { id: post.id, content: post.content, mediaUrl: media.url, scheduledAt: post.scheduled_at, channelId: ch.id, channelName: ch.name });
+    if (res.ok) return finish(post, 'sent', null, { externalId: res.url, network: 'Webhook' });
     if (res.retryable && post.attempts < MAX_ATTEMPTS) return finish(post, 'retry', res.error, { retryAfter: res.retryAfter });
     return finish(post, 'failed', res.retryable ? `${res.error} (gave up after ${post.attempts} attempts)` : res.error);
   }

@@ -50,9 +50,9 @@ try {
   const by = (v, id) => v.integrations.find((i) => i.id === id);
 
   const v0 = await view();
-  check('the catalog lists Claude, ChatGPT, Make, Zapier, WordPress and Direct API', JSON.stringify(v0.integrations.map((i) => i.id)) === '["claude","chatgpt","make","zapier","wordpress","api"]');
+  check('the catalog lists Claude, Notion, ChatGPT, Make, Zapier, WordPress, Obsidian and Direct API', JSON.stringify(v0.integrations.map((i) => i.id)) === '["claude","notion","chatgpt","make","zapier","wordpress","obsidian","api"]');
   check('every integration has a setup (steps, auth, endpoints with this server\'s URL)', v0.integrations.every((i) => i.steps.length && i.auth && i.endpoints.length && i.endpoints.every((e) => e.value.startsWith(BASE))));
-  check('build states: Claude/ChatGPT/Direct live, Make/Zapier partial, WordPress planned', ['live', 'live', 'partial', 'partial', 'planned', 'live'].every((s, i) => v0.integrations[i].build === s));
+  check('build states: Claude/Notion/ChatGPT/Obsidian/Direct live, Make/Zapier partial, WordPress planned', ['live', 'live', 'live', 'partial', 'partial', 'planned', 'live', 'live'].every((s, i) => v0.integrations[i].build === s));
   check('30 days of series per integration, everything enabled, no tables missing', v0.needsDb === false && v0.days.length === 30 && v0.integrations.every((i) => i.usage.series.length === 30 && i.enabled === true));
 
   // ── a user on the Developer API plan, a channel, keys
