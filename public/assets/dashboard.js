@@ -1327,12 +1327,12 @@
           : '<span class="' + base + '">' + inner + '</span>';
       }).join('');
 
-      return '<article class="flex flex-wrap gap-x-4 gap-y-3 rounded-2xl bg-white/[0.04] p-4 ring-1 ring-white/5 transition-colors hover:bg-white/[0.06] sm:flex-nowrap">' +
+      return '<article class="pcard flex flex-wrap gap-x-4 gap-y-3 rounded-2xl bg-white/[0.04] p-4 ring-1 ring-white/5 transition-colors hover:bg-white/[0.06] sm:flex-nowrap">' +
         '<div class="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-xl bg-white/[0.06]">' +
           '<span class="text-[10px] uppercase tracking-widest text-white/40">' + esc(fmtMon.format(d)) + '</span>' +
           '<span class="pixel text-xl leading-none">' + pad(d.getDate()) + '</span>' +
         '</div>' +
-        '<div class="min-w-0 flex-1 basis-[12rem]">' +
+        '<div class="pcard-main min-w-0 flex-1 basis-[12rem]">' +
           '<div class="flex flex-wrap items-center gap-x-2.5 gap-y-1">' +
             '<span class="badge badge-' + st + '">' + st + '</span>' +
             '<span class="text-xs text-white/45">' + esc(fmtWhen.format(d)) + ' · ' + esc(rel(p.scheduledAt)) + '</span>' +
@@ -1347,13 +1347,13 @@
           }).join('') +
         '</div>' +
         (cancellable
-          ? '<div class="ml-[4.5rem] shrink-0 self-start sm:ml-0">' +
+          ? '<div class="pcard-actions ml-[4.5rem] shrink-0 self-start sm:ml-0">' +
               (armed
                 ? '<button type="button" data-act="cancel" data-group="' + esc(p.groupId) + '" class="btn btn-danger btn-sm">Cancel post?</button>'
                 : '<button type="button" data-act="cancel" data-group="' + esc(p.groupId) + '" class="btn btn-ghost btn-sm">Cancel</button>') +
             '</div>'
           : S.tab === 'history'
-            ? '<div class="ml-[4.5rem] flex shrink-0 flex-wrap items-center gap-1.5 self-start sm:ml-0">' +
+            ? '<div class="pcard-actions ml-[4.5rem] flex shrink-0 flex-wrap items-center gap-1.5 self-start sm:ml-0">' +
                 (g.some(function (x) { return x.status === 'sent'; })
                   ? (S.shares[p.groupId]
                       ? '<button type="button" data-act="sharecopy" data-group="' + esc(p.groupId) + '" class="btn btn-white btn-sm" title="Copy the public link">Copy link</button>' +
