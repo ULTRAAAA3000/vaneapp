@@ -94,6 +94,7 @@
 
 1. `https://vaneapp.dev/api/auth/me` (в залогиненном браузере): в `features` должны быть `"linkedin": true` и/или `"threads": true`.
    Если `false`, значит функция не видит одну из двух переменных (проверь, что `*_SECRET` добавлен именно в проект Pages и сайт передеплоен).
+   Админка → Networks показывает то же самое по каждой переменной отдельно: `Keys: ✓ THREADS_APP_ID · ✗ THREADS_APP_SECRET`. Если переменные «уже есть», а там `✗`, подсказка называет похожие по имени (`THREADS_CLIENT_ID` вместо `THREADS_APP_ID`): код читает ровно `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`, `THREADS_APP_ID`, `THREADS_APP_SECRET`. Значения переменных не показываются никогда. Новая переменная доходит до сайта только после передеплоя, а задавать её нужно там, где сайт реально запущен (Pages или Worker), в Production, а не в Preview.
 2. Connect → LinkedIn / Threads → Allow → в списке появился канал → запланировать пост «через 1 минуту» → в History он становится `sent`, плашка канала открывает пост.
 3. Если пост `failed`, причина написана на карточке поста и в Cloudflare → Workers → `vane-cron` → Logs.
 4. Воркеру `vane-cron` для LinkedIn ничего дополнительно не нужно (если Linkedin выдаёт refresh-токены: `LINKEDIN_CLIENT_ID` и `LINKEDIN_CLIENT_SECRET` как secret и в воркер).
