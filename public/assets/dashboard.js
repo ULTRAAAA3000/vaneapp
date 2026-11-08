@@ -1456,7 +1456,7 @@
     $('balanceVal').textContent = balUsd(u.balanceUsd);
     pill.setAttribute('href', TOPUP); pill.hidden = false;
     var l = u.limit;
-    if (!l || !l.reached) { bar.hidden = true; return; }
+    if (!l || !l.reached) { bar.hidden = true; bar.style.display = ''; return; }
     var when = l.resetsAt ? 'It resets on ' + fmtResetDay.format(new Date(l.resetsAt * 1000)) + '.' : 'It does not reset.';
     var text, cta = 'Add funds', href = TOPUP;
     if (l.offersExtra && l.extraOn) {
@@ -1469,7 +1469,7 @@
     }
     $('quotaStopText').textContent = text;
     $('quotaStopCta').textContent = cta; $('quotaStopCta').setAttribute('href', href);
-    bar.hidden = false;
+    bar.hidden = false; bar.style.display = 'flex';
   }
   // Silent refresh (a post may have been sent through the API from another place, which changes the numbers).
   async function refreshApiQuietly() {
