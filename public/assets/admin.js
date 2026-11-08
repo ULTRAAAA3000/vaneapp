@@ -785,7 +785,7 @@
       var section = function (product, heading, hint) {
         var rows = list.filter(function (n) { return n.product === product; });
         return card(heading, '<p class="mb-4 text-sm text-white/50">' + hint + '</p>' + table([
-          { h: 'Network', r: function (n) { return '<div class="font-medium">' + esc(n.name) + '</div><div class="text-[11px] text-white/40">' + esc(n.code) + '</div>' + (n.setup ? '<div class="mt-1 text-[11px] text-amber-300/90">' + esc(n.setup) + '</div>' : ''); } },
+          { h: 'Network', r: function (n) { return '<div class="font-medium">' + esc(n.name) + '</div><div class="text-[11px] text-white/40">' + esc(n.code) + '</div>' + (n.keys ? '<div class="mt-1 text-[11px] text-white/45">Keys: ' + n.keys.map(function (k) { return '<span class="' + (k.set ? 'text-emerald-300/90' : 'text-amber-300') + '">' + (k.set ? '✓ ' : '✗ ') + esc(k.name) + '</span>'; }).join(' · ') + '</div>' : '') + (n.setup ? '<div class="mt-1 text-[11px] text-amber-300/90">' + esc(n.setup) + '</div>' : ''); } },
           { h: 'Status', r: netStatus },
           { h: 'Channels', cls: 'text-right', r: function (n) { return n.stats ? num(n.stats.activeChannels) + (n.stats.channels !== n.stats.activeChannels ? ' <span class="text-white/35">/ ' + num(n.stats.channels) + '</span>' : '') : '<span class="text-white/30">—</span>'; } },
           { h: 'Scheduled', cls: 'text-right', r: function (n) { return n.stats ? num(n.stats.scheduled) : '—'; } },
