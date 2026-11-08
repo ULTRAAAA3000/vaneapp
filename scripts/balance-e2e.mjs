@@ -58,14 +58,14 @@ try {
   const chan = randomUUID();
   sql(`INSERT INTO channels (id, user_id, type, name, credentials) VALUES ('${chan}', '${free.id}', 'telegram', 'e2e channel', 'x')`);
   const b0 = await http('GET', '/api/balance', { cookie: free.cookie });
-  check('a new account has $0, the range is $5–$500', b0.json?.balanceUsd === 0 && b0.json?.min === 5 && b0.json?.max === 500 && b0.json?.presets?.length === 5);
+  check('a new account has $0, the range is $10–$500 with four presets, none of them $5', b0.json?.balanceUsd === 0 && b0.json?.min === 10 && b0.json?.max === 500 && JSON.stringify(b0.json?.presets) === '[10,25,50,100]');
   check('the Free Trial has no price for extra use, so there is nothing to switch on', b0.json?.extra?.available === false);
   check('/api/usage carries the balance and the hard-stop state', (await http('GET', '/api/usage', { cookie: free.cookie })).json?.usage?.limit?.reached === false);
 
   section('Top-up amounts are checked (plan lookup and checkout)');
   const p25 = await http('GET', '/api/billing/plan?id=balance&amount=25');
   check('a $25 top-up is offered as a one-off purchase', p25.status === 200 && p25.json?.plan?.priceCents === 2500 && p25.json?.plan?.interval === 'once');
-  for (const bad of ['4', '501', '12.5', 'abc', '']) check(`amount "${bad}" is refused`, (await http('GET', `/api/billing/plan?id=balance&amount=${bad}`)).status === 400);
+  for (const bad of ['5', '9', '501', '12.5', 'abc', '']) check(`amount "${bad}" is refused`, (await http('GET', `/api/billing/plan?id=balance&amount=${bad}`)).status === 400);
   const buy = (amountUsd, extra = {}) => http('POST', '/api/billing/checkout', { cookie: free.cookie, body: { planId: 'balance', amountUsd, method: 'crypto', billing: { name: 'E2E Buyer', email: free.email, country: 'UA' }, accept: true, ...extra } });
   for (const bad of [3, 12.5, 501, 'x', undefined]) check(`checkout refuses amountUsd=${bad}`, (await buy(bad)).status === 400);
   check('checkout still needs the Terms ticked', (await buy(10, { accept: false })).status === 400);
