@@ -1,5 +1,5 @@
 /**
- * POST /api/billing/checkout  { planId, amountUsd? (only for planId 'balance': a whole-dollar top-up, $5 to $500, never by PayPal), interval?: 'month'|'year', method: 'csob'|'paypal'|'monobank'|'crypto', asset?: 'usdt'|'usdc',
+ * POST /api/billing/checkout  { planId, amountUsd? (only for planId 'balance': a whole-dollar top-up, $10 to $500, never by PayPal), interval?: 'month'|'year', method: 'csob'|'paypal'|'monobank'|'crypto', asset?: 'usdt'|'usdc',
  *                               billing: { name, email, country, company?, vatId? }, accept: true, waiver?: true }   (waiver: required for EU / EEA / UK / CH buyers)
  *   → { ok, order: { id, status, planName, amountCents, … , payUrl? | crypto: { address, asset, mint, amount, solanaPayUrl } } }
  *
@@ -48,12 +48,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const waiver = WITHDRAWAL_COUNTRIES.has(billing.country);
   if (waiver && b.waiver !== true) return fail(400, 'Please confirm that you want the plan to start immediately.');
 
-  // A top-up is not a plan from the catalog: the amount comes from the buyer and is checked here ($5 to $500, whole dollars).
+  // A top-up is not a plan from the catalog: the amount comes from the buyer and is checked here ($10 to $500, whole dollars).
   let plan: Awaited<ReturnType<typeof getPlan>>;
   let q: ReturnType<typeof quote>;
   if (b.planId === BALANCE_PLAN_ID) {
     const cents = parseTopUpCents(b.amountUsd);
-    if (cents === null) return fail(400, 'Choose an amount in whole dollars, from $5 to $500.');
+    if (cents === null) return fail(400, 'Choose an amount in whole dollars, from $10 to $500.');
     plan = topUpPlan(cents);
     q = { ok: true, amountCents: cents, interval: 'month' };
   } else {

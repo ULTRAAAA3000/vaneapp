@@ -75,6 +75,8 @@ const reply = (obj) => {
   return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
 };
 let initFails = false;
+let payCounter = 0;
+let lastPayId = 'PAY123';
 globalThis.fetch = async (url, init) => {
   const u = String(url);
   calls.push(u);
@@ -83,9 +85,10 @@ globalThis.fetch = async (url, init) => {
     const v = createVerify('RSA-SHA256'); v.update(csob.initBase(b));
     if (!v.verify(merchant.publicKey, b.signature, 'base64')) return new Response('{}', { status: 400 });
     if (initFails) return reply({ payId: 'x', resultCode: 150, resultMessage: 'Invalid' });
-    return reply({ payId: 'PAY123', resultCode: 0, resultMessage: 'OK', paymentStatus: 1, merchantData: b.merchantData });
+    lastPayId = payCounter++ === 0 ? 'PAY123' : `PAY${123 + payCounter}`;
+    return reply({ payId: lastPayId, resultCode: 0, resultMessage: 'OK', paymentStatus: 1, merchantData: b.merchantData });
   }
-  if (u.includes('/payment/status/')) return reply({ payId: 'PAY123', resultCode: 0, resultMessage: 'OK', paymentStatus: bankStatus });
+  if (u.includes('/payment/status/')) return reply({ payId: u.split('/')[u.split('/').length - 3] || lastPayId, resultCode: 0, resultMessage: 'OK', paymentStatus: bankStatus });
   return new Response('{}', { status: 404 });
 };
 
@@ -181,6 +184,49 @@ async function buy(env, extra = {}) {
   none.env.CSOB_PRIVATE_KEY = '';
   const r2 = await buy(none.env);
   ok('without keys the method is unavailable', r2.status === 503, String(r2.status));
+}
+
+console.log('balance top-up through the card gateway');
+{
+  const { db, env } = setup();
+  const ledger = () => db.prepare(`SELECT kind, delta_micro, ref FROM balance_ledger WHERE kind = 'topup' ORDER BY id`).all();
+  const bal = () => Number(db.prepare(`SELECT COALESCE(SUM(delta_micro), 0) n FROM balance_ledger WHERE user_id = 'u1'`).get().n);
+  let sent = null;
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => { if (String(url).includes('/payment/init')) sent = JSON.parse(init.body); return realFetch(url, init); };
+  const t = await session.createSession(env, new Request('https://vaneapp.dev/'), 'u1');
+  const top = async (amountUsd) => {
+    const req = new Request('https://vaneapp.dev/api/billing/checkout', { method: 'POST', headers: hdr(t), body: JSON.stringify({ method: 'csob', planId: 'balance', amountUsd, accept: true, waiver: true, billing: { name: 'Ann Lee', email: 'a@example.com', country: 'CZ' } }) });
+    const res = await checkout.onRequestPost({ request: req, env, params: {}, waitUntil() {} });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  };
+  const payId = () => db.prepare(`SELECT provider_ref FROM orders ORDER BY created_at DESC, rowid DESC LIMIT 1`).get().provider_ref;
+  for (const [amount, cents] of [[10, 1000], [50, 5000]]) {
+    bankStatus = 1;
+    const r = await top(String(amount));
+    ok(`$${amount} top-up: order created`, r.status === 201 && r.data?.ok, JSON.stringify(r.data));
+    ok(`$${amount} top-up: the bank is asked for exactly ${cents} cents in USD`, sent?.totalAmount === cents && sent?.currency === 'USD', JSON.stringify(sent));
+    const row = db.prepare(`SELECT plan_id, amount_cents, status FROM orders ORDER BY created_at DESC, rowid DESC LIMIT 1`).get();
+    ok(`$${amount} top-up: saved as a pending balance order for ${cents} cents`, row.plan_id === 'balance' && row.amount_cents === cents && row.status === 'pending', JSON.stringify(row));
+    const before = bal();
+    bankStatus = 4;
+    const id = row && db.prepare(`SELECT id FROM orders ORDER BY created_at DESC, rowid DESC LIMIT 1`).get().id;
+    globalThis.fetch = async (url, init) => { if (String(url).includes('/payment/init')) sent = JSON.parse(init.body); const u = String(url); if (u.includes('/payment/status/')) return reply({ payId: payId(), resultCode: 0, resultMessage: 'OK', paymentStatus: bankStatus }); return realFetch(url, init); };
+    for (let i = 0; i < 3; i++) await back.onRequestGet({ request: new Request(`https://vaneapp.dev/api/billing/csob?payId=${payId()}`), env, params: {}, waitUntil() {} });
+    ok(`$${amount} top-up: paid at the bank, balance grows by exactly $${amount} once (3 returns)`, bal() - before === amount * 1_000_000, String(bal() - before));
+    ok(`$${amount} top-up: no plan was switched on`, !db.prepare(`SELECT 1 FROM subscriptions WHERE user_id = 'u1'`).get());
+    db.exec(`UPDATE orders SET created_at = created_at - 1`);
+    void id;
+  }
+  ok('both top-ups are in the ledger once each', ledger().length === 2);
+  ok('balance is $60 in total', bal() === 60_000_000, String(bal()));
+  for (const bad of ['5', '9', '501', '12.5', 'abc', '']) {
+    const r = await top(bad);
+    ok(`amount "${bad}" is refused`, r.status === 400, String(r.status));
+  }
+  const num = await top(10);
+  ok('a number is accepted the same as a string', num.status === 201);
+  globalThis.fetch = realFetch;
 }
 
 console.log(`\n${passed} passed, ${failed.length} failed`);
