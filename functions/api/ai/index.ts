@@ -103,7 +103,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       const ai = usage.ai;
       // Out of credits: say when they renew and what to do. 'balance' = paying for extra is on but the balance is too small.
       const stop = reservation.code === 'ai_quota_exceeded' ? await stopBody(env, auth.userId, sub, now, 'ai', reservation.reason) : null;
-      const message = stop
+      const message = reservation.code === 'overage_cap_reached'
+        ? `Your monthly extra-use limit of $${ai.extra.capUsd} is reached. Raise it in the dashboard (Usage), or wait for the next period.`
+        : stop
         ? String(stop.error)
         : ai.offer
           ? `AI Pass gives you ${ai.offer.credits} AI credits a month for $${ai.offer.priceUsd}. Make it clean and hashtags stay free.`

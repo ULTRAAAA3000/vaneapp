@@ -39,7 +39,7 @@ for (const id of ids) await db.prepare('INSERT INTO users (id, email) VALUES (?1
 
 const now = Math.floor(Date.UTC(2026, 10, 15) / 1000);
 const period = '2026-11';
-const sub = (plan, overage = false) => ({ plan, apiAddon: false, overageEnabled: overage, status: 'active', currentPeriodEnd: null, lapsed: false });
+const sub = (plan, overage = false) => ({ plan, apiAddon: false, overageEnabled: overage, overageCapMicro: 20_000_000, status: 'active', currentPeriodEnd: null, lapsed: false });
 const setCounters = (id, cols, per = period) => db.prepare(`INSERT INTO usage_counters (user_id, period, ${Object.keys(cols).join(', ')}) VALUES (?1, ?2, ${Object.keys(cols).map((_, i) => '?' + (i + 3)).join(', ')})
   ON CONFLICT(user_id, period) DO UPDATE SET ${Object.keys(cols).map((k, i) => `${k} = ?${i + 3}`).join(', ')}`).bind(id, per, ...Object.values(cols)).run();
 const counters = async (id) => db.prepare('SELECT * FROM usage_counters WHERE user_id = ?1 AND period = ?2').bind(id, period).first();

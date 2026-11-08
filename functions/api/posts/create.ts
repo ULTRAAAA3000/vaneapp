@@ -27,7 +27,7 @@ import { postUnits } from '../lib/plans';
 import { getSettings } from '../lib/settings';
 import { graphemeLength, mastodonLength, threadsLength, utf8Length } from '../lib/text';
 import { gateUiPost } from '../lib/postgate';
-import { nowSeconds, releaseApiPost, type Reservation } from '../lib/usage';
+import { nowSeconds, releaseApiPost, usageLogStatement, type Reservation } from '../lib/usage';
 import { BLUESKY_TEXT_LIMIT, BLUESKY_TEXT_MAX_BYTES } from '../channels/bluesky';
 import { MASTODON_TEXT_LIMIT } from '../channels/mastodon';
 import { isValidMediaUrl, TELEGRAM_CAPTION_LIMIT } from '../channels/telegram';
@@ -228,6 +228,14 @@ export async function takeUiQuota(env: Env, userId: string, units: number): Prom
   return gate.ok ? { ok: true, reservation: gate.reservation } : { ok: false, response: gate.response };
 }
 
+/** The audit row of an extra dashboard post (it is what a refund is looked up by); nothing for a post inside the quota. */
+export function uiChargeLog(env: Env, userId: string, reservation: Extract<Reservation, { ok: true }> | null, units: number): (groupId: string) => D1PreparedStatement[] {
+  return (groupId) =>
+    reservation && reservation.overage
+      ? [usageLogStatement(env, { userId, keyId: null, units, overage: true, costMicro: reservation.costMicro, ref: groupId, now: nowSeconds(), source: 'ui' })]
+      : [];
+}
+
 /** After saving: a post that was not saved gives its unit (and its money, if it was paid for) back. */
 export async function settleUiQuota(env: Env, userId: string, reservation: Extract<Reservation, { ok: true }> | null, units: number, saved: boolean): Promise<void> {
   if (!saved && reservation) await releaseApiPost(env, userId, reservation, units);
@@ -248,7 +256,7 @@ export const handleCreatePost: PagesFunction<Env> = async ({ request, env }) => 
   const quota = await takeUiQuota(env, auth.userId, units);
   if (!quota.ok) return quota.response;
 
-  const saved = await insertPostGroup(env, auth.userId, v);
+  const saved = await insertPostGroup(env, auth.userId, v, uiChargeLog(env, auth.userId, quota.reservation, units));
   await settleUiQuota(env, auth.userId, quota.reservation, units, saved.ok);
   if (!saved.ok) return fail(500, 'Could not schedule the post. Please try again.');
 

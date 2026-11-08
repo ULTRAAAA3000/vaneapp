@@ -180,11 +180,20 @@ console.log('\nsending and signing');
   check('nothing is sent twice: the next run finds nothing due', (await wh.deliverDueWebhooks(env, NOW + 5)).delivered === 0 && sent.length === 1);
 }
 {
-  const { db, env } = fresh();
-  addPost(db, 'p1');
+  const { db, env } = fresh(); const live = await addKey(db, 'k1', 'u1', 'live');
+  await subscribe(env, live, 'https://a.example.com/hook');
+  addPost(db, 'p1'); await wh.enqueueWebhookEvent(env, 'u1', 'p1', 'post.published', NOW);
   const noKey = { ...env, ENCRYPTION_KEY: 'short' };
   sent.length = 0;
-  check('without a proper ENCRYPTION_KEY nothing is sent', JSON.stringify(await wh.deliverDueWebhooks(noKey, NOW)) === JSON.stringify({ delivered: 0, retried: 0, failed: 0 }) && sent.length === 0);
+  const logged = []; const realErr = console.error; console.error = (...a) => logged.push(a.join(' '));
+  const r = await wh.deliverDueWebhooks(noKey, NOW);
+  check('without a proper ENCRYPTION_KEY nothing is sent', JSON.stringify(r) === JSON.stringify({ delivered: 0, retried: 0, failed: 0 }) && sent.length === 0);
+  check('…and the worker log says why, naming the fix (it used to be silent)', logged.length === 1 && /ENCRYPTION_KEY/.test(logged[0]) && /cron:secret/.test(logged[0]), JSON.stringify(logged));
+  check('…the queued delivery is left alone, so it goes out once the key is there', db.prepare(`SELECT status, attempts FROM webhook_deliveries`).get().status === 'pending' && db.prepare(`SELECT attempts FROM webhook_deliveries`).get().attempts === 0);
+  const { env: quietEnv } = fresh();
+  logged.length = 0; await wh.deliverDueWebhooks({ ...quietEnv, ENCRYPTION_KEY: undefined }, NOW);
+  console.error = realErr;
+  check('with nothing queued the worker stays quiet every minute', logged.length === 0);
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

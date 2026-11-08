@@ -13,7 +13,7 @@
  */
 import type { Env } from '../../../types';
 import { channelsForUser } from '../channels/index';
-import { insertPostGroup, settleUiQuota, takeUiQuota, validateCreatePost } from '../posts/create';
+import { insertPostGroup, settleUiQuota, takeUiQuota, uiChargeLog, validateCreatePost } from '../posts/create';
 import { toB64Url } from './encoding';
 import { fail, failCode, isRecord, json } from './http';
 import { postUnits } from './plans';
@@ -59,11 +59,12 @@ export async function announceVideo(env: Env, userId: string, id: string, body: 
   const quota = await takeUiQuota(env, userId, units);
   if (!quota.ok) return quota.response;
 
-  const saved = await insertPostGroup(env, userId, v, () =>
+  const saved = await insertPostGroup(env, userId, v, (groupId) => [
+    ...uiChargeLog(env, userId, quota.reservation, units)(groupId),
     // A plain INSERT on purpose: if another request made a link for this video meanwhile, the unique video_id makes the
     // whole batch fail, and nothing is posted with an address that would not be the video's link.
-    newToken ? [env.DB.prepare('INSERT INTO video_links (token, video_id) VALUES (?1, ?2)').bind(newToken, id)] : [],
-  );
+    ...(newToken ? [env.DB.prepare('INSERT INTO video_links (token, video_id) VALUES (?1, ?2)').bind(newToken, id)] : []),
+  ]);
   await settleUiQuota(env, userId, quota.reservation, units, saved.ok);
   if (!saved.ok) {
     return newToken

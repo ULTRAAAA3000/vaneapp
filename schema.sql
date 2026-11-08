@@ -170,6 +170,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   status              TEXT    NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'past_due', 'canceled')),
   current_period_end  INTEGER,                                                  -- NULL = no expiry (granted by hand)
   overage_enabled     INTEGER NOT NULL DEFAULT 0 CHECK (overage_enabled IN (0, 1)),  -- 0: over quota -> 402; 1: bill per post
+  overage_cap_micro_usd INTEGER NOT NULL DEFAULT 20000000,                   -- monthly ceiling for extra use ($20); at it extra use is refused
   provider            TEXT    NOT NULL DEFAULT 'manual',                        -- 'manual' | 'monobank' | 'crypto'
   provider_ref        TEXT,
   created_at          INTEGER NOT NULL DEFAULT (unixepoch()),
@@ -221,9 +222,11 @@ CREATE TABLE IF NOT EXISTS usage_logs (
   overage         INTEGER NOT NULL DEFAULT 0 CHECK (overage IN (0, 1)),
   cost_micro_usd  INTEGER NOT NULL DEFAULT 0,
   ref             TEXT,                                                         -- e.g. the post group id
-  created_at      INTEGER NOT NULL DEFAULT (unixepoch())
+  created_at      INTEGER NOT NULL DEFAULT (unixepoch()),
+  refunded_at     INTEGER                                                       -- set when an extra charge was given back (nothing was delivered)
 );
 CREATE INDEX IF NOT EXISTS idx_usage_logs_user ON usage_logs(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_usage_logs_open_overage ON usage_logs(created_at) WHERE kind = 'post' AND overage = 1 AND refunded_at IS NULL;
 
 -- ───────────────────────── Vane Studio / Video Engine (a separate product with its own dashboard) ─────────────────────────
 -- Vane Studio, ECONOMY_AND_FINANCE.md §2.5: $12.00 / month, sold and metered apart from Vane Post (Free / API / Pro).
@@ -309,7 +312,7 @@ CREATE TABLE IF NOT EXISTS plans (
   trial_days           INTEGER NOT NULL DEFAULT 0 CHECK (trial_days >= 0),
   features             TEXT    NOT NULL DEFAULT '[]',
   limits               TEXT    NOT NULL DEFAULT '{}',
-  cta_label            TEXT    NOT NULL DEFAULT 'Join the waitlist',
+  cta_label            TEXT    NOT NULL DEFAULT 'Get started',
   highlight            INTEGER NOT NULL DEFAULT 0 CHECK (highlight IN (0, 1)),
   coming_soon          INTEGER NOT NULL DEFAULT 0 CHECK (coming_soon IN (0, 1)),
   is_public            INTEGER NOT NULL DEFAULT 1 CHECK (is_public IN (0, 1)),
@@ -324,20 +327,20 @@ CREATE TABLE IF NOT EXISTS plans (
 -- overwrites what the admin has edited since.
 INSERT OR IGNORE INTO plans (id, name, tagline, price_cents, features, limits, sort) VALUES
   ('free', 'Free Trial', 'No card required.', 0,
-   '["30 posts in total","Up to 2 connected channels","10 free AI credits","Free AI utilities","Try the dashboard and the API"]',
-   '{"channels":2,"postsLifetime":30,"aiCredits":10,"apiAccess":1}', 10);
+   '["30 posts in total","Up to 2 connected channels","10 free AI credits","Free AI utilities","10 MB media library","Try the dashboard and the API"]',
+   '{"channels":2,"postsLifetime":30,"aiCredits":10,"storageMb":10,"apiAccess":1}', 10);
 INSERT OR IGNORE INTO plans (id, name, tagline, price_cents, features, limits, sort) VALUES
   ('api', 'Developer API', 'A headless gateway for scripts and bots.', 799,
    '["REST API with Bearer auth, webhooks and an OpenAPI spec","180 API posts a month (about 6 a day)","Claude and Notion (MCP) access today, Custom GPT when it launches","Extra posts: $0.03 each, $0.09 for AI posts"]',
-   '{"apiPostsPerMonth":180,"apiAccess":1,"overagePostUsd":0.03,"overageAiPostUsd":0.09}', 20);
+   '{"apiPostsPerMonth":180,"storageMb":100,"apiAccess":1,"overagePostUsd":0.03,"overageAiPostUsd":0.09}', 20);
 INSERT OR IGNORE INTO plans (id, name, tagline, badge, price_cents, compare_price_cents, yearly_price_cents, features, limits, highlight, sort) VALUES
   ('pro', 'Pro Dashboard', 'standard, or $120 a year.', 'Early Bird', 1199, 1499, 12000,
-   '["Full dashboard with calendar and Kanban","Unlimited workspaces and channels","1,000 posts a month","Telegram inline buttons, spoilers and polls","Media library on Cloudflare R2","Vane AI Pass included","Priority dispatch: posts leave on the second you chose","Advanced MCP tools for Claude and Notion: results, best times, series","Extra posts: $0.015 each, $0.045 for AI posts"]',
-   '{"postsPerMonth":1000,"aiCredits":30,"apiAccess":0,"overagePostUsd":0.015,"overageAiPostUsd":0.045}', 1, 30);
+   '["Full dashboard with calendar and Kanban","Unlimited workspaces and channels","1,000 posts a month","Telegram inline buttons, spoilers and polls","100 MB media library on Cloudflare R2","Vane AI Pass included","Priority dispatch: posts leave on the second you chose","Advanced MCP tools for Claude and Notion: results, best times, series","Extra posts: $0.015 each, $0.045 for AI posts"]',
+   '{"postsPerMonth":1000,"aiCredits":30,"storageMb":100,"apiAccess":0,"overagePostUsd":0.015,"overageAiPostUsd":0.045}', 1, 30);
 INSERT OR IGNORE INTO plans (id, name, tagline, price_cents, features, limits, cta_label, coming_soon, is_active, sort) VALUES
   ('video', 'Video Engine', 'Video publishing, end to end.', 1499,
    '["YouTube Shorts, TikTok and Instagram Reels","YouTube long-form with custom thumbnails, playlists and tags","Resumable uploads on Cloudflare R2","AI hooks, scripts, descriptions, tags and timestamps"]',
-   '{"aiCredits":50,"overageAiPostUsd":0.02}', 'Get notified', 1, 0, 40);
+   '{"aiCredits":50,"overageAiPostUsd":0.02}', 'Coming soon', 1, 0, 40);
 INSERT OR IGNORE INTO plans (id, kind, name, tagline, price_cents, limits, is_active, sort) VALUES
   ('api-addon', 'addon', 'Need the dashboard and the API?', 'Add the API to Pro for {price} a month. It adds 180 API posts and keeps Pro’s low overage rates.', 499,
    '{"apiPostsPerMonth":180}', 0, 50);
@@ -843,7 +846,7 @@ CREATE TABLE IF NOT EXISTS orders (
   interval      TEXT    NOT NULL DEFAULT 'month' CHECK (interval IN ('month', 'year')),
   amount_cents  INTEGER NOT NULL CHECK (amount_cents >= 0),
   currency      TEXT    NOT NULL DEFAULT 'USD',
-  provider      TEXT    NOT NULL CHECK (provider IN ('monobank', 'crypto')),
+  provider      TEXT    NOT NULL CHECK (provider IN ('monobank', 'crypto', 'paypal', 'csob')),
   provider_ref  TEXT,
   pay_url       TEXT,
   pay_micro     INTEGER,
@@ -858,19 +861,28 @@ CREATE TABLE IF NOT EXISTS orders (
 CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_pending ON orders(status, provider, expires_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_invoice ON orders(provider_ref) WHERE provider = 'monobank' AND provider_ref IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_orders_paypal ON orders(provider_ref) WHERE provider = 'paypal';
+CREATE INDEX IF NOT EXISTS idx_orders_csob ON orders(provider_ref) WHERE provider = 'csob';
+
+-- PayPal subscriptions need a billing plan per price. Made on demand at checkout and remembered here: key = 'product' or '<currency>:<cents>:<interval>'.
+CREATE TABLE IF NOT EXISTS paypal_plans (
+  key            TEXT    PRIMARY KEY,
+  paypal_id      TEXT    NOT NULL,
+  created_at     INTEGER NOT NULL DEFAULT (unixepoch())
+);
 
 -- The Suite bundle (ONE plan, ONE payment, ECONOMY_AND_FINANCE.md §2.6): Post Pro + Vane Studio + Analytics Pro + the AI Pass, and
 -- 75 API posts a month (apiPostsPerMonth / apiAccess below). It shows on /pricing as "Coming soon" until you switch it on in
 -- /admin → Plans (tick Active, untick Coming soon). Buying it switches all four on together (lib/billing.ts → activate).
 INSERT OR IGNORE INTO plans (id, name, tagline, badge, price_cents, yearly_price_cents, features, limits, cta_label, highlight, coming_soon, is_public, is_active, sort) VALUES
   ('suite', 'Vane Suite', 'Posting, video, analytics and AI in one plan.', 'Best value', 3999, NULL,
-   '["Everything in Vane Post Pro: 1,000 posts a month, unlimited channels","Everything in Vane Studio: video library and publishing","Analytics Pro: reports across all your networks","Vane AI Pass included, on top of the plan''s own AI credits","API access: 75 API posts a month","Priority dispatch and the advanced MCP tools of Pro","Post a new video to all your networks in one click","One payment, one renewal date, one invoice"]',
-   '{"postsPerMonth":1000,"apiPostsPerMonth":75,"aiCredits":100,"apiAccess":1,"overagePostUsd":0.015,"overageAiPostUsd":0.045}', 'Get Suite', 0, 1, 1, 0, 45);
+   '["Everything in Vane Post Pro: 1,000 posts a month, unlimited channels, 100 MB media library","Everything in Vane Studio: video library and publishing","Analytics Pro: reports across all your networks","Vane AI Pass included, on top of the plan''s own AI credits","API access: 75 API posts a month","Priority dispatch and the advanced MCP tools of Pro","Post a new video to all your networks in one click","One payment, one renewal date, one invoice"]',
+   '{"postsPerMonth":1000,"apiPostsPerMonth":75,"aiCredits":100,"storageMb":100,"apiAccess":1,"overagePostUsd":0.015,"overageAiPostUsd":0.045}', 'Get Suite', 0, 1, 1, 0, 45);
 -- A Suite row from an earlier run of this file (hidden, never edited) becomes the public "coming soon" card. An edited row is left alone
 -- (an existing database gets the new limits and text from scripts/migrations/004-suite-bundle.sql).
 UPDATE plans SET is_public = 1, coming_soon = 1, badge = 'Best value', price_cents = 3999, yearly_price_cents = NULL, tagline = 'Posting, video, analytics and AI in one plan.',
-  features = '["Everything in Vane Post Pro: 1,000 posts a month, unlimited channels","Everything in Vane Studio: video library and publishing","Analytics Pro: reports across all your networks","Vane AI Pass included, on top of the plan''s own AI credits","API access: 75 API posts a month","Priority dispatch and the advanced MCP tools of Pro","Post a new video to all your networks in one click","One payment, one renewal date, one invoice"]',
-  limits = '{"postsPerMonth":1000,"apiPostsPerMonth":75,"aiCredits":100,"apiAccess":1,"overagePostUsd":0.015,"overageAiPostUsd":0.045}'
+  features = '["Everything in Vane Post Pro: 1,000 posts a month, unlimited channels, 100 MB media library","Everything in Vane Studio: video library and publishing","Analytics Pro: reports across all your networks","Vane AI Pass included, on top of the plan''s own AI credits","API access: 75 API posts a month","Priority dispatch and the advanced MCP tools of Pro","Post a new video to all your networks in one click","One payment, one renewal date, one invoice"]',
+  limits = '{"postsPerMonth":1000,"apiPostsPerMonth":75,"aiCredits":100,"storageMb":100,"apiAccess":1,"overagePostUsd":0.015,"overageAiPostUsd":0.045}'
   WHERE id = 'suite' AND is_public = 0 AND is_active = 0 AND coming_soon = 0 AND updated_at = created_at;
 
 -- ═════════════════════ Admin: networks on/off and the AI token ledger ═════════════════════

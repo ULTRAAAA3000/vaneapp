@@ -136,8 +136,11 @@
     var files = u.count + (u.count === 1 ? ' file' : ' files');
     if (u.limitBytes) {
       var pct = Math.min(100, Math.round(u.usedBytes / u.limitBytes * 100));
+      var base = /^(post|studio)\.vaneapp\.dev$/i.test(location.hostname) ? 'https://vaneapp.dev' : '';
+      var hint = pct < 80 ? '' : '<p class="mt-2 text-xs text-white/55">' + (pct >= 100 ? 'The library is full. ' : 'Running low on room. ') + 'Delete files you no longer need' +
+        (u.upgrade ? ', or <a class="underline underline-offset-2 hover:text-white" href="' + base + '/pricing">see the plans with more space</a>' : '') + '.</p>';
       box.innerHTML = '<div class="flex items-baseline justify-between gap-3 text-xs"><span class="text-white/70">' + fmtSize(u.usedBytes) + ' of ' + fmtSize(u.limitBytes) + ' used</span><span class="text-white/45">' + files + '</span></div>' +
-        '<div class="meter mt-2"><i style="width:' + pct + '%;background:' + (pct >= 90 ? '#f87171' : '#fff') + '"></i></div>';
+        '<div class="meter mt-2"><i style="width:' + pct + '%;background:' + (pct >= 90 ? '#f87171' : '#fff') + '"></i></div>' + hint;
     } else {
       box.innerHTML = '<div class="text-xs text-white/55">' + fmtSize(u.usedBytes) + ' used · ' + files + '</div>';
     }

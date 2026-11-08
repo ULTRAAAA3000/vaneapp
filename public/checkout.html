@@ -89,24 +89,26 @@
                 <button type="button" class="method" id="mCard" role="radio" aria-checked="false" data-method="monobank">
                   <span class="dot"></span>
                   <span class="min-w-0 flex-1"><span class="block text-sm font-semibold">Card, Apple Pay or Google Pay</span><span id="mCardNote" class="block text-xs text-white/50">Visa and Mastercard from any country. You pay on a secure page of our bank.</span></span>
-                  <span id="mCardSoon" class="hidden rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/60">Soon</span>
                 </button>
                 <button type="button" class="method" id="mCrypto" role="radio" aria-checked="false" data-method="crypto">
                   <span class="dot"></span>
                   <span class="min-w-0 flex-1"><span class="block text-sm font-semibold">Crypto: USDT or USDC</span><span class="block text-xs text-white/50">On the Solana network. Confirmed automatically in a few seconds.</span></span>
-                  <span id="mCryptoSoon" class="hidden rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/60">Soon</span>
+                </button>
+                <button type="button" class="method" id="mPaypal" role="radio" aria-checked="false" data-method="paypal">
+                  <span class="dot"></span>
+                  <span class="min-w-0 flex-1"><span class="block text-sm font-semibold">PayPal</span><span class="block text-xs text-white/50">Pay with your PayPal balance, or with a card inside PayPal. Renews automatically until you cancel.</span></span>
                 </button>
               </div>
               <div id="assetBox" class="hidden"><span class="lbl">Token</span><div class="seg" role="group" aria-label="Token"><button type="button" data-asset="usdt" aria-pressed="true">USDT</button><button type="button" data-asset="usdc" aria-pressed="false">USDC</button></div></div>
 
               <div class="space-y-3 rounded-2xl bg-white/[0.04] p-4 text-xs leading-relaxed text-white/65 ring-1 ring-white/5">
-                <label class="flex cursor-pointer items-start gap-3"><input id="fAccept" type="checkbox" class="mt-0.5 h-4 w-4 shrink-0 accent-white" /><span>I have read and agree to the <a href="/terms" target="_blank" rel="noopener" class="underline underline-offset-2 hover:text-white">Terms</a> and the <a href="/privacy" target="_blank" rel="noopener" class="underline underline-offset-2 hover:text-white">Privacy Policy</a>, and to the purchase terms shown next to the plan: one payment for one period, no automatic renewal.</span></label>
+                <label class="flex cursor-pointer items-start gap-3"><input id="fAccept" type="checkbox" class="mt-0.5 h-4 w-4 shrink-0 accent-white" /><span>I have read and agree to the <a href="/terms" target="_blank" rel="noopener" class="underline underline-offset-2 hover:text-white">Terms</a> and the <a href="/privacy" target="_blank" rel="noopener" class="underline underline-offset-2 hover:text-white">Privacy Policy</a>, and to the purchase terms shown next to the plan: <span id="acceptTerms">one payment for one period, no automatic renewal.</span></span></label>
                 <label id="waiverRow" class="hidden cursor-pointer items-start gap-3"><input id="fWaiver" type="checkbox" class="mt-0.5 h-4 w-4 shrink-0 accent-white" /><span>I ask for my plan to start immediately. I understand that in the EU, EEA and UK I lose my 14-day right of withdrawal once the service has been fully provided, and in part for the portion already used.</span></label>
               </div>
 
               <div id="err" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
               <button type="submit" id="pay" class="btn btn-white w-full justify-center !py-3.5"><span id="paySpin" class="spinner spinner-dark hidden"></span><span id="payLabel">Pay</span></button>
-              <p id="payNote" class="text-center text-xs leading-relaxed text-white/40">We never see or store your card details. Plans are paid one period at a time and are not renewed automatically: pay again when the period ends.</p>
+              <p class="text-center text-xs leading-relaxed text-white/40"><span id="payNote">We never see or store your card details. Plans are paid one period at a time and are not renewed automatically: pay again when the period ends.</span></p>
             </form>
           </div>
 
@@ -132,7 +134,7 @@
           <!-- card: back from the bank / waiting -->
           <div id="stepWait" class="hidden text-center">
             <span class="spinner mx-auto"></span>
-            <h2 class="mt-4 text-base font-semibold">Waiting for the bank</h2>
+            <h2 id="waitTitle" class="mt-4 text-base font-semibold">Waiting for the bank</h2>
             <p class="mt-1 text-sm text-white/55">If you paid, this takes a few seconds.</p>
             <a id="wRetry" href="#" class="btn btn-ghost mt-5 hidden">Open the payment page again</a>
           </div>
@@ -156,6 +158,6 @@
 
   <script src="/assets/vane.js?v=a2c867edc4"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <script src="/assets/checkout.js?v=fbc9826b9e"></script>
+  <script src="/assets/checkout.js?v=bbc308d23b"></script>
 </body>
 </html>

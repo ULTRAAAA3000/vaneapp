@@ -7,8 +7,8 @@ import { SOLANA_ASSETS } from '../lib/solana';
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const real = billingMethods(env);
-  const preview = !real.monobank && !real.crypto && (await previewActive(env, request));
-  const methods = preview ? { monobank: true, crypto: true } : real;
+  const preview = !Object.values(real).some(Boolean) && (await previewActive(env, request));
+  const methods = preview ? { csob: true, monobank: true, crypto: true, paypal: true } : real;
   const cryptoAssets = methods.crypto ? Object.entries(SOLANA_ASSETS).map(([id, a]) => ({ id, label: a.label })) : [];
   return json({ ok: true, methods, cryptoAssets, preview }, 200, { 'Cache-Control': preview ? 'no-store' : 'public, max-age=30' });
 };

@@ -18,7 +18,7 @@ export const nowSeconds = (): number => Math.floor(Date.now() / 1000);
 export async function loadSubscription(env: Env, userId: string, now = nowSeconds()): Promise<Subscription> {
   await refreshPlanSpecs(env); // limits come from the plans table (admin → Plans)
   const row = await env.DB
-    .prepare('SELECT plan, api_addon, status, current_period_end, overage_enabled FROM subscriptions WHERE user_id = ?1')
+    .prepare('SELECT plan, api_addon, status, current_period_end, overage_enabled, overage_cap_micro_usd FROM subscriptions WHERE user_id = ?1')
     .bind(userId)
     .first<SubscriptionRow>();
   return resolveSubscription(row, now);
@@ -98,6 +98,7 @@ function aiBucket(spec: PlanSpec, sub: Subscription, used: number, bonus: number
       enabled: sub.overageEnabled, rateUsd: rate !== null ? microToUsd(rate) : null,
       postUsd: spec.overage ? microToUsd(spec.overage.post) : null,
       uses: extraNow.uses, costUsd: microToUsd(extraNow.micro),
+      capUsd: microToUsd(sub.overageCapMicro),
     },
   };
 }
@@ -148,6 +149,8 @@ export async function usageSummary(env: Env, userId: string, sub: Subscription, 
     features: { priorityDispatch: sub.plan !== 'free' && spec.ui > 0, advancedMcpTools: sub.plan !== 'free' && spec.ui > 0 },   // = isDashboardPlan() in paid.ts (not imported: it imports this file)
     overage: {
       enabled: rates !== null,
+      capUsd: microToUsd(sub.overageCapMicro),
+      spentUsd: microToUsd(c.overage_micro_usd),
       postUsd: spec.overage ? microToUsd(spec.overage.post) : null,
       aiPostUsd: spec.overage ? microToUsd(spec.overage.aiPost) : null,
       posts: c.overage_posts,
@@ -200,10 +203,21 @@ export async function stopBody(env: Env, userId: string, sub: Subscription, now:
 export type StopReason = 'off' | 'balance';
 type PostColumn = 'api_posts' | 'ui_posts';
 
+/**
+ * The monthly ceiling on extra use (subscriptions.overage_cap_micro_usd, $20 until the account sets its own): true while `costMicro`
+ * more still fits under it. A plain read, so a request the ceiling would stop never touches the balance. The counter upserts repeat the
+ * test in their WHERE, and that one is the atomic one. No counter row yet means nothing is spent.
+ */
+async function withinCeiling(env: Env, userId: string, period: string, costMicro: number, sub: Subscription): Promise<boolean> {
+  const row = await env.DB.prepare('SELECT overage_micro_usd AS spent FROM usage_counters WHERE user_id = ?1 AND period = ?2').bind(userId, period).first<{ spent: number }>();
+  return (row?.spent ?? 0) + costMicro <= sub.overageCapMicro;
+}
+
 export type Reservation =
   | { ok: true; overage: boolean; costMicro: number; period: string; column: PostColumn }
   | { ok: false; code: 'api_not_in_plan' }
-  | { ok: false; code: 'quota_exceeded'; reason: StopReason };
+  | { ok: false; code: 'quota_exceeded'; reason: StopReason }
+  | { ok: false; code: 'overage_cap_reached' };
 
 /**
  * Takes `units` from the quota, or says why it can't. `where` is who is asking: the API or the dashboard (dashboard posts, Post now,
@@ -242,17 +256,25 @@ async function reservePosts(env: Env, userId: string, sub: Subscription, now: nu
   if (!rates) return { ok: false, code: 'quota_exceeded', reason: 'off' };
 
   const costMicro = Math.round(rates.post * units);
-  // The money first, in one statement that cannot overspend; the counters after. If they fail the money goes back.
+  // The month's ceiling first (a read, so a request it stops never touches the balance), then the money in one statement that cannot
+  // overspend, then the counters. If they fail the money goes back.
+  if (!(await withinCeiling(env, userId, period, costMicro, sub))) return { ok: false, code: 'overage_cap_reached' };
   if (!(await chargeBalance(env, userId, costMicro, 'post', now))) return { ok: false, code: 'quota_exceeded', reason: 'balance' };
   try {
-    await env.DB
+    // The WHERE is the atomic ceiling: two parallel requests cannot both slip under it.
+    const res = await env.DB
       .prepare(
         `INSERT INTO usage_counters (user_id, period, ${column}, overage_posts, overage_micro_usd, updated_at) VALUES (?1, ?2, ?5, ?5, ?4, ?3)
          ON CONFLICT(user_id, period) DO UPDATE SET
-           ${column} = ${column} + ?5, overage_posts = overage_posts + ?5, overage_micro_usd = overage_micro_usd + ?4, updated_at = ?3`,
+           ${column} = ${column} + ?5, overage_posts = overage_posts + ?5, overage_micro_usd = overage_micro_usd + ?4, updated_at = ?3
+         WHERE overage_micro_usd + ?4 <= ?6`,
       )
-      .bind(userId, period, now, costMicro, units)
+      .bind(userId, period, now, costMicro, units, sub.overageCapMicro)
       .run();
+    if ((res.meta?.changes ?? 0) === 0) {
+      await refundBalance(env, userId, costMicro, 'post', now).catch(() => undefined);
+      return { ok: false, code: 'overage_cap_reached' };
+    }
   } catch (err) {
     await refundBalance(env, userId, costMicro, 'post', now).catch(() => undefined);
     throw err;
@@ -299,14 +321,14 @@ export async function releaseApiPost(env: Env, userId: string, r: Extract<Reserv
 /** One audit row per metered API call. Meant to be batched together with the rows it describes. */
 export function usageLogStatement(
   env: Env,
-  e: { userId: string; keyId: string | null; units: number; overage: boolean; costMicro: number; ref: string | null; now: number },
+  e: { userId: string; keyId: string | null; units: number; overage: boolean; costMicro: number; ref: string | null; now: number; source?: 'api' | 'ui' },
 ): D1PreparedStatement {
   return env.DB
     .prepare(
       `INSERT INTO usage_logs (user_id, api_key_id, source, kind, units, overage, cost_micro_usd, ref, created_at)
-       VALUES (?1, ?2, 'api', 'post', ?3, ?4, ?5, ?6, ?7)`,
+       VALUES (?1, ?2, ?8, 'post', ?3, ?4, ?5, ?6, ?7)`,
     )
-    .bind(e.userId, e.keyId, e.units, e.overage ? 1 : 0, e.costMicro, e.ref, e.now);
+    .bind(e.userId, e.keyId, e.units, e.overage ? 1 : 0, e.costMicro, e.ref, e.now, e.source ?? 'api');
 }
 
 /** Headers that let no-code tools (Make, Zapier) read the quota without parsing the body. */
@@ -325,7 +347,8 @@ export type AiSource = 'plan' | 'pass' | 'bonus' | 'extra' | 'unlimited';
 export type AiReservation =
   | { ok: true; overage: boolean; costMicro: number; period: string; source: AiSource }
   | { ok: false; code: 'ai_not_in_plan' }
-  | { ok: false; code: 'ai_quota_exceeded'; reason: StopReason };
+  | { ok: false; code: 'ai_quota_exceeded'; reason: StopReason }
+  | { ok: false; code: 'overage_cap_reached' };
 
 /**
  * Takes one AI generation, or says why it can't. Same single-statement guard as reserveApiPost. Where a credit comes from, in this order:
@@ -382,16 +405,22 @@ export async function reserveAiGeneration(env: Env, userId: string, sub: Subscri
     const hadCredits = (mode.kind === 'credits' && mode.credits >= 1) || pass.active;
     return hadCredits ? { ok: false, code: 'ai_quota_exceeded', reason: 'off' } : { ok: false, code: 'ai_not_in_plan' };
   }
-  // The money first (one statement that cannot overspend), the counters after; if they fail the money goes back.
+  // The month's ceiling first (a read), then the money (one statement that cannot overspend), then the counters; if they fail the money goes back.
+  if (!(await withinCeiling(env, userId, period, rate, sub))) return { ok: false, code: 'overage_cap_reached' };
   if (!(await chargeBalance(env, userId, rate, 'ai', now))) return { ok: false, code: 'ai_quota_exceeded', reason: 'balance' };
   try {
-    await env.DB
+    const res = await env.DB
       .prepare(
         `INSERT INTO usage_counters (user_id, period, ai_generations, overage_micro_usd, updated_at) VALUES (?1, ?2, 1, ?4, ?3)
-         ON CONFLICT(user_id, period) DO UPDATE SET ai_generations = ai_generations + 1, overage_micro_usd = overage_micro_usd + ?4, updated_at = ?3`,
+         ON CONFLICT(user_id, period) DO UPDATE SET ai_generations = ai_generations + 1, overage_micro_usd = overage_micro_usd + ?4, updated_at = ?3
+         WHERE overage_micro_usd + ?4 <= ?5`,
       )
-      .bind(userId, period, now, rate)
+      .bind(userId, period, now, rate, sub.overageCapMicro)
       .run();
+    if ((res.meta?.changes ?? 0) === 0) {
+      await refundBalance(env, userId, rate, 'ai', now).catch(() => undefined);
+      return { ok: false, code: 'overage_cap_reached' };
+    }
   } catch (err) {
     await refundBalance(env, userId, rate, 'ai', now).catch(() => undefined);
     throw err;

@@ -1,5 +1,5 @@
 /**
- * POST /api/billing/checkout  { planId, amountUsd? (only for planId 'balance': a whole-dollar top-up, $5 to $500), interval?: 'month'|'year', method: 'monobank'|'crypto', asset?: 'usdt'|'usdc',
+ * POST /api/billing/checkout  { planId, amountUsd? (only for planId 'balance': a whole-dollar top-up, $5 to $500, never by PayPal), interval?: 'month'|'year', method: 'csob'|'paypal'|'monobank'|'crypto', asset?: 'usdt'|'usdc',
  *                               billing: { name, email, country, company?, vatId? }, accept: true, waiver?: true }   (waiver: required for EU / EEA / UK / CH buyers)
  *   → { ok, order: { id, status, planName, amountCents, … , payUrl? | crypto: { address, asset, mint, amount, solanaPayUrl } } }
  *
@@ -13,6 +13,8 @@ import { fail, isRecord, json, methodNotAllowed, readJson, EMAIL_RE } from '../l
 import { addonAllowed, billingEnabled, billingMethods, getPlan, previewActive, ORDER_COLUMNS, orderView, PAY_WINDOW_SECONDS, quote, type Interval, type Method, type OrderRow } from '../lib/billing';
 import { BALANCE_PLAN_ID, parseTopUpCents, topUpPlan } from '../lib/balance';
 import { createInvoice, monobankCcy } from '../lib/monobank';
+import { CSOB_CURRENCIES, initPayment, processUrl, randomOrderNo } from '../lib/csob';
+import { billingPlanId, createSubscription, PAYPAL_CURRENCIES } from '../lib/paypal';
 import { SOLANA_ASSETS, type CryptoAsset } from '../lib/solana';
 import { bump, retryAfter } from '../lib/throttle';
 import { cryptoDetails } from './order';
@@ -29,9 +31,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!isRecord(b)) return fail(400, 'Send a JSON object.');
 
   const method = b.method as Method;
-  if (method !== 'monobank' && method !== 'crypto') return fail(400, 'Choose how to pay: card or crypto.');
-  if (!billingEnabled(env) && (await previewActive(env, request))) return fail(503, 'Preview only: payment is not connected yet, so nothing can be bought. (The Monobank token or the crypto wallet is missing, or the plan is not switched on.)');
-  if (!billingMethods(env)[method]) return fail(503, method === 'monobank' ? 'Card payment is not open yet. You can pay with crypto, or try again later.' : 'Crypto payment is not open yet.');
+  if (method !== 'csob' && method !== 'monobank' && method !== 'crypto' && method !== 'paypal') return fail(400, 'Choose how to pay.');
+  if (!billingEnabled(env) && (await previewActive(env, request))) return fail(503, 'Preview only: payment is not connected yet, so nothing can be bought. (PayPal is not configured, or the plan is not switched on.)');
+  if (!billingMethods(env)[method]) return fail(503, 'This payment method is not available.');
   const asset = (b.asset === 'usdc' ? 'usdc' : 'usdt') as CryptoAsset;
   const interval: Interval = b.interval === 'year' ? 'year' : 'month';
 
@@ -63,6 +65,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!q.ok) return fail(409, q.error);
   const ccy = monobankCcy(plan.currency);
   if (method === 'monobank' && ccy === null) return fail(409, 'Card payment is not available for this price currency.');
+  if (method === 'csob' && !CSOB_CURRENCIES.has(plan.currency)) return fail(409, 'Card payment is not available for this price currency.');
+  // PayPal here is a subscription that renews by itself; a top-up is a single payment, and a renewal would put the same money on the balance again.
+  if (method === 'paypal' && plan.id === BALANCE_PLAN_ID) return fail(409, 'A balance top-up is a single payment. Pay by card or crypto.');
+  if (method === 'paypal' && !PAYPAL_CURRENCIES.has(plan.currency)) return fail(409, 'PayPal is not available for this price currency.');
   if (method === 'crypto' && plan.currency !== 'USD') return fail(409, 'Crypto payment is available for plans priced in USD only. Pay by card.');
   const now = Math.floor(Date.now() / 1000);
   if (plan.id === 'api-addon' && !(await addonAllowed(env, auth.userId, now))) return fail(409, 'The API add-on goes on top of an active Pro plan. Get Pro first.');
@@ -72,7 +78,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (wait) return fail(429, 'Too many checkouts. Try again later.', { 'Retry-After': String(wait) });
   await bump(env, key, 3600);
 
-  const record = { ...billing, consent: { terms: true, noAutoRenewal: true, immediateStart: waiver ? true : null, at: now } };
+  const record = { ...billing, consent: { terms: true, ...(method === 'paypal' ? { autoRenewal: true } : { noAutoRenewal: true }), immediateStart: waiver ? true : null, at: now } };
   const mint = method === 'crypto' ? SOLANA_ASSETS[asset].mint : null;
   const open = await env.DB
     .prepare(`SELECT ${ORDER_COLUMNS} FROM orders WHERE user_id = ?1 AND plan_id = ?2 AND interval = ?3 AND provider = ?4 AND status = 'pending' AND expires_at > ?5 AND amount_cents = ?6 AND currency = ?8 AND COALESCE(provider_ref, '') ${method === 'crypto' ? '= ?7' : "<> '' AND ?7 IS NULL"} ORDER BY created_at DESC LIMIT 1`)
@@ -113,12 +119,36 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     }
     await env.DB.prepare('UPDATE orders SET provider_ref = ?2, pay_url = ?3 WHERE id = ?1').bind(id, made.invoice.invoiceId, made.invoice.pageUrl).run();
   }
+  if (method === 'csob') {
+    const origin = ((env.APP_URL ?? '').replace(/\/+$/, '') || new URL(request.url).origin);
+    const made = await initPayment(env, {
+      orderId: id, orderNo: randomOrderNo(), amountCents: q.amountCents, currency: plan.currency,
+      itemName: `Vane ${plan.name}`, description: plan.id === BALANCE_PLAN_ID ? `Vane balance top-up $${q.amountCents / 100}` : `Vane ${plan.name}, one ${q.interval === 'year' ? 'year' : 'month'}`, returnUrl: `${origin}/api/billing/csob`,
+    });
+    if (!made.ok) {
+      await env.DB.prepare(`UPDATE orders SET status = 'failed', note = 'payment not created' WHERE id = ?1`).bind(id).run();
+      return fail(502, 'The bank did not accept the request. Please try again in a moment.');
+    }
+    await env.DB.prepare('UPDATE orders SET provider_ref = ?2 WHERE id = ?1').bind(id, made.payId).run();
+  }
+  if (method === 'paypal') {
+    const origin = ((env.APP_URL ?? '').replace(/\/+$/, '') || new URL(request.url).origin);
+    const planId = await billingPlanId(env, `Vane ${plan.name} (${q.interval === 'year' ? 'yearly' : 'monthly'})`, q.amountCents, plan.currency, q.interval);
+    const made = planId ? await createSubscription(env, { planId, orderId: id, email: billing.email, returnUrl: `${origin}/checkout?order=${id}`, cancelUrl: `${origin}/checkout?plan=${plan.id}` }) : null;
+    if (!made?.ok) {
+      await env.DB.prepare(`UPDATE orders SET status = 'failed', note = 'subscription not created' WHERE id = ?1`).bind(id).run();
+      return fail(502, 'PayPal did not accept the request. Please try again in a moment.');
+    }
+    await env.DB.prepare('UPDATE orders SET provider_ref = ?2, pay_url = ?3 WHERE id = ?1').bind(id, made.id, made.approveUrl).run();
+  }
   const row = await env.DB.prepare(`SELECT ${ORDER_COLUMNS} FROM orders WHERE id = ?1`).bind(id).first<OrderRow>();
   return json({ ok: true, order: await view(env, row as OrderRow) }, 201);
 };
 
 async function view(env: Env, o: OrderRow): Promise<Record<string, unknown>> {
-  return { ...orderView(o), payUrl: o.provider === 'monobank' ? o.pay_url : null, crypto: cryptoDetails(env, o) };
+  const open = o.status === 'pending';
+  const payUrl = o.provider === 'csob' ? (open && o.provider_ref ? await processUrl(env, o.provider_ref) : null) : o.provider === 'monobank' || o.provider === 'paypal' ? o.pay_url : null;
+  return { ...orderView(o), payUrl, crypto: cryptoDetails(env, o) };
 }
 
 export const onRequest: PagesFunction<Env> = async () => methodNotAllowed('POST');

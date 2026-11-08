@@ -73,6 +73,9 @@ async function createPost(env: Env, auth: ApiKeyContext, data: unknown, claim: I
       return failCode(403, 'api_not_in_plan', 'Your plan does not include API access. Add the API Add-on, or use a test key.');
     }
     const usage = await usageSummary(env, auth.userId, auth.sub, v.now);
+    if (reservation.code === 'overage_cap_reached') {
+      return failCode(402, 'overage_cap_reached', `Your monthly extra-use limit of $${usage.overage.capUsd} is reached. Raise it in the dashboard (Usage), or wait for the 1st (UTC).`, { usage: { api: usage.api, resetsAt: usage.period.resetsAt, overage: usage.overage } }, quotaHeaders(usage));
+    }
     const stop = await stopBody(env, auth.userId, auth.sub, v.now, 'posts', reservation.reason);
     return failCode(402, 'quota_exceeded', String(stop.error), {
       usage: { api: usage.api, resetsAt: usage.period.resetsAt, overage: usage.overage },

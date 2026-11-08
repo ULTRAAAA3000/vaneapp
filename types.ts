@@ -30,6 +30,15 @@ export interface Env {
   JWT_SECRET?: string;          // signs/verifies API bearer tokens (>= 32 chars)
   STRIPE_SECRET_KEY?: string;
   MONOBANK_TOKEN?: string;          // Monobank Acquiring merchant token (secret): card / Apple Pay / Google Pay checkout is off without it
+  PAYPAL_CLIENT_ID?: string;        // PayPal REST app of the company's business account: PayPal checkout is off without it and the secret
+  PAYPAL_CLIENT_SECRET?: string;    // secret
+  PAYPAL_WEBHOOK_ID?: string;       // the id PayPal shows for the webhook (URL: /api/billing/paypal); without it webhooks are refused and only the polling activates plans
+  PAYPAL_ENV?: string;              // 'live' for real money; anything else is the PayPal sandbox
+  CSOB_MERCHANT_ID?: string;        // ČSOB payment gateway: the merchant id the bank gives. Card, Apple Pay and Google Pay checkout is on once the three CSOB values are set
+  CSOB_PRIVATE_KEY?: string;        // secret: the PEM private key made in the bank's key tool (the public half is uploaded there)
+  CSOB_BANK_PUBLIC_KEY?: string;    // the bank's PEM public key (the test and the live gateway have different ones)
+  CSOB_ENV?: string;                // 'live' for real money; anything else is the bank's test gateway
+  PAYMENT_METHODS?: string;         // plain var: comma list of the checkout methods shown to buyers (monobank, crypto). Unset = none; their code stays in place
   CRYPTO_WALLET?: string;           // plain var: the Solana address that receives USDT / USDC (crypto checkout is off without it)
   SOLANA_RPC_URL?: string;          // optional: a Solana RPC address (Helius, QuickNode); the public one is used when empty
   SYSTEM_BOT_TOKEN?: string;        // token of the shared Vane bot used by Quick Connect
@@ -325,6 +334,13 @@ export interface CronEnv {
   LINKEDIN_CLIENT_SECRET?: string;
   LINKEDIN_VERSION?: string;       // the same optional value as on Pages
   MONOBANK_TOKEN?: string;         // the same secret as on Pages: lets the cron ask Monobank about card orders whose webhook never came
+  CSOB_MERCHANT_ID?: string;       // the same as on Pages: lets the cron ask the bank about card orders the buyer never came back from
+  CSOB_PRIVATE_KEY?: string;       // the same secret as on Pages
+  CSOB_BANK_PUBLIC_KEY?: string;   // the same as on Pages
+  CSOB_ENV?: string;               // the same as on Pages
+  PAYPAL_CLIENT_ID?: string;       // the same as on Pages: lets the cron ask PayPal about subscriptions whose webhook never came
+  PAYPAL_CLIENT_SECRET?: string;   // the same secret as on Pages
+  PAYPAL_ENV?: string;             // the same as on Pages
   RESEND_API_KEY?: string;         // the same secret as on Pages: lets the cron send the weekly Analytics report
   EMAIL_FROM?: string;             // the same variable as on Pages
   JWT_SECRET?: string;             // the same secret as on Pages: signs the unsubscribe link in that email
@@ -449,7 +465,7 @@ export interface UsageSummary {
      * "when credits run out": stop, or pay per extra credit. rateUsd = the price of one extra credit (null: nothing to pay for).
      * postUsd = the price of an extra POST on this plan: the same switch bills those too. uses / costUsd = paid credits this period.
      */
-    extra: { enabled: boolean; rateUsd: number | null; postUsd: number | null; uses: number; costUsd: number };
+    extra: { enabled: boolean; rateUsd: number | null; postUsd: number | null; uses: number; costUsd: number; capUsd: number };
   };
   /** may this account send live API requests? */
   apiAccess: boolean;
@@ -470,6 +486,9 @@ export interface UsageSummary {
   features: { priorityDispatch: boolean; advancedMcpTools: boolean };
   overage: {
     enabled: boolean;
+    /** monthly ceiling for everything billed as extra (posts + AI credits), and what is already used of it */
+    capUsd: number;
+    spentUsd: number;
     /** price per post beyond the quota (USD), null when this plan is never billed for extras */
     postUsd: number | null;
     aiPostUsd: number | null;
