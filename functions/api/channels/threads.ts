@@ -28,7 +28,7 @@ export const THREADS_TEXT_LIMIT = 500;
 /** Renew a token that has less than this left */
 export const THREADS_RENEW_BEFORE_SECONDS = 20 * 24 * 3600;
 
-const AUTHORIZE = 'https://threads.net/oauth/authorize';
+const AUTHORIZE = 'https://threads.com/oauth/authorize';   // Meta's current host: the old threads.net address redirects here and the redirect drops client_id (error 4476002)
 const API = 'https://graph.threads.net';
 const CONTAINER_POLLS = 8;
 const CONTAINER_POLL_MS = 2000;
