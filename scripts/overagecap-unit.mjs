@@ -38,7 +38,7 @@ async function fresh(opts = {}) {
   await settings.saveSettings(f.env, { enforce_limits: opts.enforce ?? true });
   return f;
 }
-function build_({ plan = 'free', enforce = true, overage: ov = 0, used = {}, cap = null } = {}) {
+function build_({ plan = 'free', enforce = true, overage: ov = 0, used = {}, cap = null, balance = 100_000_000 } = {}) {
   const db = new DatabaseSync(':memory:');
   db.exec(readFileSync('schema.sql', 'utf8'));
   const mk = (sql) => {
@@ -56,6 +56,8 @@ function build_({ plan = 'free', enforce = true, overage: ov = 0, used = {}, cap
     try { const out = []; for (const s of stmts) out.push(await s.run()); db.exec('COMMIT'); return out; } catch (e) { db.exec('ROLLBACK'); throw e; }
   } } };
   db.exec(`INSERT INTO users (id, email) VALUES ('u1', 'a@example.com')`);
+  // extra use is paid from the prepaid balance: $100 unless a scenario says otherwise
+  if (balance > 0) db.prepare(`INSERT INTO user_balance (user_id, micro_usd) VALUES ('u1', ?)`).run(balance);
   db.prepare(`INSERT INTO subscriptions (user_id, plan, overage_enabled, overage_cap_micro_usd) VALUES ('u1', ?, ?, COALESCE(?, 20000000))`).run(plan, ov, cap);
   db.exec(`INSERT INTO channels (id, user_id, type, name, credentials) VALUES ('${CH}', 'u1', 'telegram', 'VaneNews', 'x')`);
   const period = plan === 'free' ? 'lifetime' : new Date().toISOString().slice(0, 7);
@@ -80,6 +82,8 @@ async function post(env, n = 1) {
 
 const rows = (db) => db.prepare(`SELECT source, units, overage, cost_micro_usd c, refunded_at r FROM usage_logs WHERE user_id = 'u1' AND kind = 'post'`).all();
 const NOW = () => Math.floor(Date.now() / 1000);
+const bal = (db) => db.prepare(`SELECT micro_usd v FROM user_balance WHERE user_id = 'u1'`).get()?.v ?? 0;
+const ledger = (db) => Object.fromEntries(['charge', 'refund'].map((k) => [k, db.prepare(`SELECT COUNT(*) n FROM balance_ledger WHERE user_id = 'u1' AND kind = ?`).get(k).n]));
 
 console.log('\nThe ceiling: $0.03 left of it on Pro at $0.015 an extra post');
 {
@@ -90,6 +94,13 @@ console.log('\nThe ceiling: $0.03 left of it on Pro at $0.015 an extra post');
   check('the message names the limit', /\$0\.03/.test(c.data.error), c.data?.error);
   check('the refused post was not saved or counted', db.prepare('SELECT COUNT(*) n FROM posts').get().n === 2 && counters(db).u === 1002 && counters(db).om === 30000, JSON.stringify(counters(db)));
   check('the answer carries the ceiling', c.data.usage?.overage?.capUsd === 0.03 && c.data.usage.overage.spentUsd === 0.03, JSON.stringify(c.data.usage?.overage));
+  check('the ceiling holds with $99.97 still on the balance, and the refused post touched no money', bal(db) === 100_000_000 - 30000 && ledger(db).charge === 2 && ledger(db).refund === 0, JSON.stringify([bal(db), ledger(db)]));
+}
+{
+  // The balance and the ceiling are two separate stops: here the ceiling has room and the balance is empty.
+  const { db, env } = await fresh({ plan: 'pro', overage: 1, used: { ui: 1000 }, balance: 0 });
+  const r = await post(env, 1);
+  check('room under the ceiling but no balance: 402 quota_exceeded, nothing saved or counted', r.status === 402 && r.data.code === 'quota_exceeded' && db.prepare('SELECT COUNT(*) n FROM posts').get().n === 0 && counters(db).om === 0, JSON.stringify(r));
 }
 {
   const { db, env } = await fresh({ plan: 'pro', overage: 1, used: { ui: 1000 }, cap: 15000 });
@@ -132,19 +143,20 @@ async function extraPost(env, n) { const r = await post(env, n); return r.data.p
   const c = counters(db);
   check('and the charge is given back (unit, count and money)', c.u === 1000 && c.op === 0 && c.om === 0, JSON.stringify(c));
   check('the audit row is marked refunded', rows(db)[0].r > 0);
+  check('and the price is back on the balance', bal(db) === 100_000_000 && ledger(db).charge === 1 && ledger(db).refund === 1, JSON.stringify([bal(db), ledger(db)]));
   check('a second sweep gives nothing back twice', (await refund.refundIdleOverage(env.DB, NOW())) === 0 && counters(db).u === 1000);
 }
 {
   const { db, env } = await fresh({ plan: 'pro', overage: 1, used: { ui: 1000 } });
   const id = await extraPost(env, 1);
   db.prepare(`UPDATE posts SET status = 'failed', error = 'The channel is disabled.' WHERE id = ?`).run(id);
-  check('failed (nothing delivered): refunded by the sweep', (await refund.refundIdleOverage(env.DB, NOW())) === 1 && counters(db).om === 0 && counters(db).u === 1000);
+  check('failed (nothing delivered): refunded by the sweep, money included', (await refund.refundIdleOverage(env.DB, NOW())) === 1 && counters(db).om === 0 && counters(db).u === 1000 && bal(db) === 100_000_000);
 }
 {
   const { db, env } = await fresh({ plan: 'pro', overage: 1, used: { ui: 1000 } });
   const id = await extraPost(env, 1);
   db.prepare(`UPDATE posts SET status = 'failed', error = 'Delivery was interrupted and could not be confirmed. Check the channel; reschedule if the post is missing.' WHERE id = ?`).run(id);
-  check('"delivery was interrupted" may have been delivered: NOT refunded', (await refund.refundIdleOverage(env.DB, NOW())) === 0 && counters(db).om === 15000);
+  check('"delivery was interrupted" may have been delivered: NOT refunded', (await refund.refundIdleOverage(env.DB, NOW())) === 0 && counters(db).om === 15000 && bal(db) === 100_000_000 - 15000);
 }
 {
   const { db, env } = await fresh({ plan: 'pro', overage: 1, used: { ui: 1000 } });

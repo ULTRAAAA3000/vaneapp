@@ -2,8 +2,8 @@
  * GET /api/admin/extra-usage?month=YYYY-MM   (default: this month, UTC)
  *   → { ok, month, rows: [{ userId, email, posts, postsUsd, aiUses, aiUsd, totalUsd }], totalUsd, studio: [{ email, period, uses, usd }] }
  *
- * The list to invoice from: what each account used beyond its quota and what that comes to at the prices that applied. Extra use is
- * counted and priced when it happens but nothing charges it automatically; see lib/extrausage.ts. Vane Studio's extra AI
+ * What each account used beyond its quota and what that came to at the prices that applied. Each use was taken from the account's
+ * prepaid balance when it happened (lib/balance.ts), so this is a report, not a list of debts: nothing is owed. Vane Studio's extra AI
  * generations follow the video plan's own period, so they are listed on their own, newest first.
  */
 import type { PagesFunction } from '@cloudflare/workers-types';

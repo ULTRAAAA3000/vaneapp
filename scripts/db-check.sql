@@ -83,7 +83,10 @@ WITH expected(name, fix) AS (VALUES
   ('ai_voice', 'its CREATE TABLE in schema.sql'),
   ('agent_events', 'scripts/migrations/008-agent-log.sql'),
   ('onboarding_progress', 'scripts/migrations/007-onboarding.sql'),
-  ('password_resets', 'scripts/migrations/009-password-reset.sql')
+  ('password_resets', 'scripts/migrations/009-password-reset.sql'),
+  ('user_balance', 'scripts/migrations/009-balance.sql'),
+  ('balance_ledger', 'scripts/migrations/009-balance.sql'),
+  ('paypal_plans', 'scripts/migrations/012-paypal.sql')
 ),
 problems(problem, what, fix) AS (
   SELECT 'missing table', name, fix FROM expected WHERE name NOT IN (SELECT name FROM sqlite_master WHERE type = 'table')

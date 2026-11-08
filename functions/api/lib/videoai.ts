@@ -4,7 +4,9 @@
  */
 import type { Env } from '../../../types';
 import { AiError, ask, cleanAnswer, COMMON, listAnswer, TONE_BRIEF, wrap, type Tone } from './ai';
+import { chargeBalance, refundBalance } from './balance';
 import { getPlan } from './catalog';
+import { price } from './plans';
 import { loadVideoSubscription } from './videoplans';
 
 export const VIDEO_TOOLS = ['script', 'metadata', 'chapters'] as const;
@@ -53,7 +55,9 @@ export async function videoAiTerms(env: Env): Promise<VideoAiTerms> {
   try {
     const limits = (await getPlan(env, 'video'))?.limits as { aiCredits?: unknown; overageAiPostUsd?: unknown } | undefined;
     if (typeof limits?.aiCredits === 'number' && Number.isInteger(limits.aiCredits) && limits.aiCredits >= 0 && limits.aiCredits <= 100_000) included = limits.aiCredits;
-    if (typeof limits?.overageAiPostUsd === 'number' && limits.overageAiPostUsd >= 0 && limits.overageAiPostUsd <= 100) priceUsd = limits.overageAiPostUsd;
+    // above $0 and at most $100 (price() in plans.ts): 0 or a negative number would make extra generations free or pay the user, so it keeps the default
+    const catalogPrice = price(limits?.overageAiPostUsd);
+    if (catalogPrice !== null) priceUsd = catalogPrice;
   } catch { /* no catalog yet: the defaults */ }
   return { included, priceMicro: Math.round(priceUsd * USD) };
 }
@@ -132,11 +136,14 @@ export async function videoAiUsage(env: Env, userId: string, now: number): Promi
 /** What a reservation took, so a failed generation can give back exactly that. */
 export interface VideoAiCharge { kind: 'included' | 'bonus' | 'overage'; period: string; costMicro: number }
 
+/** Why a generation was refused: 'off' = keeping going is not switched on; 'balance' = it is on but the prepaid balance is too small. */
+export type VideoAiStop = { stop: 'off' | 'balance' };
+
 /**
- * Takes one generation: an included one, else a bonus credit, else (only when the user chose to keep going) a billed one.
- * Each step is ONE statement, so two parallel requests can never both take the last unit. null = nothing left and the user chose to stop.
+ * Takes one generation: an included one, else a bonus credit, else (only when the user chose to keep going, and the prepaid balance
+ * covers it) a paid one. Each step is ONE statement, so two parallel requests can never both take the last unit or spend the same money.
  */
-export async function reserveVideoAi(env: Env, userId: string, now: number): Promise<VideoAiCharge | null> {
+export async function reserveVideoAi(env: Env, userId: string, now: number): Promise<VideoAiCharge | VideoAiStop> {
   const sub = await loadVideoSubscription(env, userId, now);
   const period = videoAiPeriod(sub.currentPeriodEnd, now).key;
   const terms = await videoAiTerms(env);
@@ -154,11 +161,17 @@ export async function reserveVideoAi(env: Env, userId: string, now: number): Pro
     if ((b.meta?.changes ?? 0) > 0) return { kind: 'bonus', period, costMicro: 0 };
   } catch { /* no bonus table yet: no bonus */ }
 
-  if (!(await loadVideoAiOverage(env, userId))) return null;
-  await env.DB
-    .prepare(`INSERT INTO video_ai_overage (user_id, period, uses, micro_usd) VALUES (?1, ?2, 1, ?3) ON CONFLICT(user_id, period) DO UPDATE SET uses = uses + 1, micro_usd = micro_usd + ?3`)
-    .bind(userId, period, terms.priceMicro)
-    .run();
+  if (!(await loadVideoAiOverage(env, userId))) return { stop: 'off' };
+  if (!(await chargeBalance(env, userId, terms.priceMicro, 'video_ai', now))) return { stop: 'balance' };
+  try {
+    await env.DB
+      .prepare(`INSERT INTO video_ai_overage (user_id, period, uses, micro_usd) VALUES (?1, ?2, 1, ?3) ON CONFLICT(user_id, period) DO UPDATE SET uses = uses + 1, micro_usd = micro_usd + ?3`)
+      .bind(userId, period, terms.priceMicro)
+      .run();
+  } catch (err) {
+    await refundBalance(env, userId, terms.priceMicro, 'video_ai', now).catch(() => undefined);
+    throw err;
+  }
   return { kind: 'overage', period, costMicro: terms.priceMicro };
 }
 
@@ -170,6 +183,9 @@ export async function releaseVideoAi(env: Env, userId: string, charge: VideoAiCh
     else await env.DB.prepare('UPDATE video_ai_overage SET uses = MAX(uses - 1, 0), micro_usd = MAX(micro_usd - ?3, 0) WHERE user_id = ?1 AND period = ?2').bind(userId, charge.period, charge.costMicro).run();
   } catch (err) {
     console.error('video ai release failed', err instanceof Error ? err.message : 'unknown');
+  }
+  if (charge.kind === 'overage' && charge.costMicro > 0) {
+    await refundBalance(env, userId, charge.costMicro, 'video_ai', Math.floor(Date.now() / 1000)).catch((err: unknown) => console.error('balance refund failed', err instanceof Error ? err.message : 'unknown'));
   }
 }
 

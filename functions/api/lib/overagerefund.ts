@@ -1,4 +1,6 @@
 import type { D1Database } from '@cloudflare/workers-types';
+import type { Env } from '../../../types';
+import { refundBalance } from './balance';
 
 const INTERRUPTED = 'Delivery was interrupted%';
 
@@ -49,6 +51,10 @@ export async function refundIdleOverage(db: D1Database, now: number, userId?: st
       )
       .bind(c.user_id, period, c.units, c.cost_micro_usd, now)
       .run();
+    // The price was taken from the prepaid balance when the post was accepted, so it goes back there. (An unmigrated database has no
+    // balance, and then nothing was ever charged: the counters above are all there is to give back.)
+    await refundBalance({ DB: db } as unknown as Env, c.user_id, c.cost_micro_usd, 'post', now)
+      .catch((err: unknown) => console.error('balance refund failed', err instanceof Error ? err.message : 'unknown'));
     refunded++;
   }
   return refunded;

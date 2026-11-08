@@ -182,13 +182,31 @@ try {
   check('the counter ends at exactly 180 (never over-counts)', sql(`SELECT api_posts AS n FROM usage_counters WHERE user_id = '${u.id}' AND period = '${period()}'`)[0].n === 180);
 
   // ───────────────────────────────────────────────────────────────
-  section('Overage: pay per extra post instead of 402');
+  section('Over the quota: a hard stop, unless the prepaid balance pays');
+  // 1) quota full, paying for extra use is OFF → 402, and the answer says when it resets and where to add funds
+  const stopped = await post(live, chan);
+  check('quota used, extra use off → 402 quota_exceeded', stopped.status === 402 && stopped.json?.code === 'quota_exceeded');
+  check('…the answer says when the quota resets and where to add funds', typeof stopped.json?.resetsAt === 'number' && stopped.json?.topUpUrl === '/topup' && /resets on/i.test(stopped.json?.error ?? ''), stopped.json?.error);
+  // 2) switched on, but the balance is empty → still 402 (nothing is ever owed), and it says the balance is too low
   setPlan(u.email, 'api', '--overage');
+  const broke = await post(live, chan);
+  check('extra use on but balance empty → 402', broke.status === 402 && broke.json?.code === 'quota_exceeded');
+  check('…it says the balance is too low', /balance is too low/i.test(broke.json?.error ?? ''), broke.json?.error);
+  check('…and nothing was counted or charged', sql(`SELECT COUNT(*) AS n FROM usage_logs WHERE user_id = '${u.id}' AND overage = 1`)[0].n === 0);
+  // 3) money on the balance → the extra post goes through and the price ($0.03) comes out of it
+  sql(`INSERT INTO user_balance (user_id, micro_usd) VALUES ('${u.id}', 100000) ON CONFLICT(user_id) DO UPDATE SET micro_usd = 100000`);
   const extra = await post(live, chan);
-  check('over the quota with overage on → 201, flagged overage', extra.status === 201 && extra.json?.overage === true);
+  check('extra use on and balance $0.10 → 201, flagged overage', extra.status === 201 && extra.json?.overage === true);
   usage = (await http('GET', '/api/v1/usage', { key: live })).json?.usage;
   check('priced at $0.03 on the Developer API', usage?.overage?.posts === 1 && usage?.overage?.costUsd === 0.03);
   check('the audit log has the overage row', sql(`SELECT cost_micro_usd AS c FROM usage_logs WHERE user_id = '${u.id}' AND overage = 1`)[0]?.c === 30000);
+  check('the price came out of the balance ($0.10 → $0.07)', sql(`SELECT micro_usd AS m FROM user_balance WHERE user_id = '${u.id}'`)[0].m === 70000);
+  check('the ledger has the spend', sql(`SELECT delta_micro AS d FROM balance_ledger WHERE user_id = '${u.id}' AND kind = 'charge'`)[0]?.d === -30000);
+  // 4) parallel extra posts can never spend the same money: $0.07 buys exactly two more at $0.03
+  const rush = await Promise.all(Array.from({ length: 8 }, () => post(live, chan)));
+  const through = rush.filter((r) => r.status === 201).length;
+  check('8 parallel extra posts with $0.07: exactly 2 go through, 6 refused', through === 2 && rush.filter((r) => r.status === 402).length === 6, `through=${through}`);
+  check('the balance ends at $0.01, never negative', sql(`SELECT micro_usd AS m FROM user_balance WHERE user_id = '${u.id}'`)[0].m === 10000);
 
   // ───────────────────────────────────────────────────────────────
   section('Pro Dashboard: API only with the Add-on');

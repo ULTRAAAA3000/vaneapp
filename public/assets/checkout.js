@@ -43,6 +43,17 @@
   }
   // The terms of this purchase, in plain words, before anything is paid: what is bought, for how long, that it does not renew, how to stop, refunds.
   function renderTerms(yr) {
+    if (S.plan.id === 'balance') {
+      var top = [
+        'One payment of ' + fmt(price(), S.plan.currency) + ' that adds the same amount to your Vane balance.',
+        'The balance pays only for extra use beyond your plan\u2019s quota (extra posts, extra AI credits, extra Studio AI), and only when you switch paying for extra use on. Nothing else is charged to it.',
+        'No automatic charges: this is a one-off payment. There is no card on file and no subscription to cancel.',
+        'Money added to your balance is not refunded once it has been used. Where the law gives you a right to a refund, it applies. Details: Terms, \u201cCancelling and refunds\u201d.'
+      ];
+      $('purchaseTerms').innerHTML = top.map(function () { return '<li class="flex gap-2.5"><span class="mt-[0.4rem] h-1 w-1 shrink-0 rounded-full bg-white/40" aria-hidden="true"></span><span></span></li>'; }).join('');
+      Array.prototype.forEach.call($('purchaseTerms').children, function (li, i) { li.lastChild.textContent = top[i]; });
+      return;
+    }
     var end = new Date(); if (yr) end.setFullYear(end.getFullYear() + 1); else end.setMonth(end.getMonth() + 1);
     var until = end.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
     var renews = S.method === 'paypal';
@@ -82,18 +93,22 @@
     [['mCard', !!(m.csob || m.monobank)], ['mCrypto', !!m.crypto], ['mPaypal', !!m.paypal]].forEach(function (x) {
       $(x[0]).classList.toggle('hidden', !x[1]);
     });
-    if (!S.method || !(S.method === 'crypto' ? m.crypto : S.method === 'paypal' ? m.paypal : m[S.method])) S.method = m.csob ? 'csob' : m.monobank ? 'monobank' : m.crypto ? 'crypto' : m.paypal ? 'paypal' : null;
+    if (!S.method || !(S.method === 'crypto' ? m.crypto : S.method === 'paypal' ? m.paypal : m[S.method])) S.method = m.csob ? 'csob' : m.monobank ? 'monobank' : m.crypto ? 'crypto' : m.paypal && !(S.plan && S.plan.id === 'balance') ? 'paypal' : null;
     paintMethod();
   }
   function paintMethod() {
+    var topUp = !!S.plan && S.plan.id === 'balance';
+    // PayPal here is a subscription that renews by itself; a top-up is a single payment, so it is never offered for one.
+    if (topUp && S.method === 'paypal') S.method = S.card || (S.cfg && S.cfg.methods && S.cfg.methods.crypto ? 'crypto' : null);
+    if (S.cfg && S.cfg.methods) $('mPaypal').classList.toggle('hidden', !S.cfg.methods.paypal || topUp);
     $('mPaypal').setAttribute('aria-checked', String(S.method === 'paypal'));
     $('mCard').setAttribute('aria-checked', String(S.method === 'monobank' || S.method === 'csob'));
     $('mCrypto').setAttribute('aria-checked', String(S.method === 'crypto'));
     $('assetBox').classList.toggle('hidden', S.method !== 'crypto');
     var renews = S.method === 'paypal';
-    $('acceptTerms').textContent = renews ? 'a subscription that renews automatically every ' + (S.interval === 'year' || (S.plan && S.plan.interval === 'year') ? 'year' : 'month') + ' until I cancel it.' : 'one payment for one period, no automatic renewal.';
-    $('payNote').textContent = renews ? 'You pay on PayPal\'s own page; we never see your card or PayPal login. You can cancel any time in your PayPal account.' : 'We never see or store your card details. Plans are paid one period at a time and are not renewed automatically: pay again when the period ends.';
-    if (S.plan) { renderTerms(S.interval === 'year' || S.plan.interval === 'year'); $('totalNote').textContent = (S.interval === 'year' || S.plan.interval === 'year' ? 'Every year' : 'Every month') + (renews ? ' for ' : ', one period of ') + S.plan.name + (renews ? ', until you cancel.' : '. No automatic renewal.'); }
+    $('acceptTerms').textContent = topUp ? 'one payment that is added to my balance, no automatic charges.' : renews ? 'a subscription that renews automatically every ' + (S.interval === 'year' || (S.plan && S.plan.interval === 'year') ? 'year' : 'month') + ' until I cancel it.' : 'one payment for one period, no automatic renewal.';
+    $('payNote').textContent = topUp ? 'We never see or store your card details. A top-up is a one-off payment: nothing renews and no card is kept.' : renews ? 'You pay on PayPal\'s own page; we never see your card or PayPal login. You can cancel any time in your PayPal account.' : 'We never see or store your card details. Plans are paid one period at a time and are not renewed automatically: pay again when the period ends.';
+    if (S.plan) { renderTerms(S.interval === 'year' || S.plan.interval === 'year'); $('totalNote').textContent = topUp ? 'One-off payment, added to your balance. Nothing renews.' : (S.interval === 'year' || S.plan.interval === 'year' ? 'Every year' : 'Every month') + (renews ? ' for ' : ', one period of ') + S.plan.name + (renews ? ', until you cancel.' : '. No automatic renewal.'); }
     Array.prototype.forEach.call(document.querySelectorAll('[data-asset]'), function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-asset') === S.asset)); });
     updatePay();
   }
@@ -113,7 +128,7 @@
     if (needsWaiver() && !$('fWaiver').checked) return err('Please confirm that you want the plan to start immediately.');
     S.busy = true; updatePay(); $('paySpin').classList.remove('hidden');
     var r = await Vane.api('POST', '/api/billing/checkout', {
-      planId: S.plan.id, interval: S.interval, method: S.method, asset: S.asset, accept: true, waiver: needsWaiver() ? true : undefined,
+      planId: S.plan.id, amountUsd: S.plan.id === 'balance' ? S.plan.priceCents / 100 : undefined, interval: S.interval, method: S.method, asset: S.asset, accept: true, waiver: needsWaiver() ? true : undefined,
       billing: { name: name, email: email, country: country, company: $('fCompany').value.trim(), vatId: $('fVat').value.trim() },
     }, { noRedirect: true });
     S.busy = false; $('paySpin').classList.add('hidden'); updatePay();
@@ -171,15 +186,16 @@
   function done() {
     stop();
     var id = S.order.planId;
-    $('doneText').textContent = S.order.planName + ' is now active on your account.' + (S.order.method === 'paypal' ? ' It renews automatically until you cancel it in your PayPal account.' : '');
+    var topUp = id === 'balance';
+    $('doneText').textContent = topUp ? fmt(S.order.amountCents, S.order.currency) + ' was added to your balance.' : S.order.planName + ' is now active on your account.' + (S.order.method === 'paypal' ? ' It renews automatically until you cancel it in your PayPal account.' : '');
     var studio = id === 'video', stats = id === 'analytics';
     $('doneLink').setAttribute('href', Vane.productUrl(stats ? 'analytics' : studio ? 'studio' : 'post'));
-    $('doneLink').textContent = stats ? 'Open Vane Analytics' : studio ? 'Open Vane Studio' : 'Open Vane Post';
+    $('doneLink').textContent = topUp ? 'Back to Vane Post' : stats ? 'Open Vane Analytics' : studio ? 'Open Vane Studio' : 'Open Vane Post';
     show('stepDone');
     history.replaceState(null, '', '/checkout?order=' + S.order.id);
   }
   function closed(title, text) { $('closedTitle').textContent = title; $('closedText').textContent = text; show('stepClosed'); }
-  $('again').addEventListener('click', function () { S.order = null; history.replaceState(null, '', '/checkout?plan=' + encodeURIComponent(S.plan.id)); show('stepForm'); });
+  $('again').addEventListener('click', function () { S.order = null; history.replaceState(null, '', '/checkout?plan=' + encodeURIComponent(S.plan.id) + (S.plan.id === 'balance' ? '&amount=' + S.plan.priceCents / 100 : '')); show('stepForm'); });
 
   // ── events
   $('iMonth').addEventListener('click', function () { S.interval = 'month'; renderPlan(); });
@@ -213,7 +229,7 @@
       var o = await Vane.api('GET', '/api/billing/order?id=' + encodeURIComponent(orderId), undefined, { noRedirect: true });
       if (!o.ok) return fatal('We could not find this order.');
       S.order = o.data.order;
-      var pr = await Vane.api('GET', '/api/billing/plan?id=' + encodeURIComponent(S.order.planId));
+      var pr = await Vane.api('GET', '/api/billing/plan?id=' + encodeURIComponent(S.order.planId) + (S.order.planId === 'balance' ? '&amount=' + S.order.amountCents / 100 : ''));
       if (pr.ok) { S.plan = pr.data.plan; S.interval = S.order.interval; }
       $('loading').classList.add('hidden'); $('main').classList.remove('hidden');
       if (S.plan) { renderPlan(); renderMethods(); }
@@ -231,7 +247,7 @@
       history.replaceState(null, '', '/checkout?plan=' + encodeURIComponent(id));
     }
     if (!id) return Vane.go('/pricing');
-    var r = await Vane.api('GET', '/api/billing/plan?id=' + encodeURIComponent(id));
+    var r = await Vane.api('GET', '/api/billing/plan?id=' + encodeURIComponent(id) + (id === 'balance' ? '&amount=' + encodeURIComponent(q.get('amount') || '') : ''));
     if (!r.ok) return fatal(r.error || 'This plan does not exist.');
     S.plan = r.data.plan;
     var anyMethod = S.cfg.methods.csob || S.cfg.methods.paypal || S.cfg.methods.monobank || S.cfg.methods.crypto;

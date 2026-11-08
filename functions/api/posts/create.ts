@@ -26,7 +26,8 @@ import { mediaKindFromUrl } from '../lib/media';
 import { postUnits } from '../lib/plans';
 import { getSettings } from '../lib/settings';
 import { graphemeLength, mastodonLength, threadsLength, utf8Length } from '../lib/text';
-import { countUiPosts, loadSubscription, nowSeconds, releaseUiPost, reserveUiPost, usageLogStatement, usageSummary, type UiReservation } from '../lib/usage';
+import { gateUiPost } from '../lib/postgate';
+import { nowSeconds, releaseApiPost, usageLogStatement, type Reservation } from '../lib/usage';
 import { BLUESKY_TEXT_LIMIT, BLUESKY_TEXT_MAX_BYTES } from '../channels/bluesky';
 import { MASTODON_TEXT_LIMIT } from '../channels/mastodon';
 import { isValidMediaUrl, TELEGRAM_CAPTION_LIMIT } from '../channels/telegram';
@@ -217,41 +218,27 @@ export async function insertPostGroup(
 }
 
 /**
- * The plan's dashboard quota for a post made in a dashboard (also used by "announce this video"). While the admin switch
- * "enforce_limits" is on the post is stopped at the limit (402 quota_exceeded, or priced when the account has overage billing on);
- * with it off posts are only counted (settleUiQuota). Taken BEFORE saving, so two parallel posts cannot both use the last unit.
+ * The plan's dashboard quota for a post made in a dashboard (also used by "announce this video"): a HARD stop. Past the quota nothing is
+ * created: 402 quota_exceeded with the reset date and where to add funds; or, when the account switched paying for extra use on and
+ * the prepaid balance covers the price, the price is taken from the balance. Taken BEFORE saving, in one statement, so two parallel
+ * posts cannot both use the last unit or spend the same money. The rules and the SQL are in lib/usage.ts (reservePosts) and lib/postgate.ts.
  */
-export async function takeUiQuota(env: Env, userId: string, units: number): Promise<{ ok: true; reservation: UiReservation | null } | { ok: false; response: Response }> {
-  if (!(await getSettings(env)).enforce_limits) return { ok: true, reservation: null };
-  const now = nowSeconds();
-  const sub = await loadSubscription(env, userId, now);
-  const reservation = await reserveUiPost(env, userId, sub, now, units);
-  if (reservation.ok) return { ok: true, reservation };
-  const usage = await usageSummary(env, userId, sub, now);
-  if (reservation.code === 'overage_cap_reached') {
-    return { ok: false, response: failCode(402, 'overage_cap_reached', `Your monthly extra-use limit of $${usage.overage.capUsd} is reached. Raise it in the dashboard (Usage), or wait for the 1st (UTC).`, { usage: { ui: usage.ui, resetsAt: usage.period.resetsAt, overage: usage.overage } }) };
-  }
-  const message = sub.plan === 'free'
-    ? `You have used all ${usage.ui.limit} posts of the Free Trial. Choose a plan to keep posting.`
-    : `You have used all ${usage.ui.limit} dashboard posts of this period.` + (usage.period.resetsAt ? ' The quota resets on the 1st (UTC).' : '');
-  return { ok: false, response: failCode(402, 'quota_exceeded', message, { usage: { ui: usage.ui, resetsAt: usage.period.resetsAt, overage: usage.overage } }) };
+export async function takeUiQuota(env: Env, userId: string, units: number): Promise<{ ok: true; reservation: Extract<Reservation, { ok: true }> | null } | { ok: false; response: Response }> {
+  const gate = await gateUiPost(env, userId, nowSeconds(), units);
+  return gate.ok ? { ok: true, reservation: gate.reservation } : { ok: false, response: gate.response };
 }
 
 /** The audit row of an extra dashboard post (it is what a refund is looked up by); nothing for a post inside the quota. */
-export function uiChargeLog(env: Env, userId: string, reservation: UiReservation | null, units: number): (groupId: string) => D1PreparedStatement[] {
+export function uiChargeLog(env: Env, userId: string, reservation: Extract<Reservation, { ok: true }> | null, units: number): (groupId: string) => D1PreparedStatement[] {
   return (groupId) =>
-    reservation?.ok && reservation.counted && reservation.overage
+    reservation && reservation.overage
       ? [usageLogStatement(env, { userId, keyId: null, units, overage: true, costMicro: reservation.costMicro, ref: groupId, now: nowSeconds(), source: 'ui' })]
       : [];
 }
 
-/** After saving: a post that was not saved gives its unit back; with the limits off the saved post is just counted. */
-export async function settleUiQuota(env: Env, userId: string, reservation: UiReservation | null, units: number, saved: boolean): Promise<void> {
-  if (!saved) {
-    if (reservation?.ok && reservation.counted) await releaseUiPost(env, userId, reservation, units);
-    return;
-  }
-  if (!reservation) await countUiPosts(env, userId, units);
+/** After saving: a post that was not saved gives its unit (and its money, if it was paid for) back. */
+export async function settleUiQuota(env: Env, userId: string, reservation: Extract<Reservation, { ok: true }> | null, units: number, saved: boolean): Promise<void> {
+  if (!saved && reservation) await releaseApiPost(env, userId, reservation, units);
 }
 
 export const handleCreatePost: PagesFunction<Env> = async ({ request, env }) => {

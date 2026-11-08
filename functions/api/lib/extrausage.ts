@@ -1,6 +1,6 @@
 /**
- * "What do I bill for going over the quota?": the extra posts and extra AI credits an account used in one month, in one row per account.
- * Nothing in Vane charges these automatically yet (checkout sells plans, not usage), so this is the list to invoice from.
+ * "What did going over the quota cost?": the extra posts and extra AI credits an account used in one month, in one row per account.
+ * Each use was already paid from the account's prepaid balance when it happened (lib/balance.ts); this is a report, not a list of debts.
  *
  * usage_counters.overage_micro_usd adds extra POSTS and extra AI credits into one number; the AI share is read from the usage log
  * (kind 'ai_post', overage = 1), so posts = counter - AI. Money is in micro-USD (millionths of a dollar) until it is shown.

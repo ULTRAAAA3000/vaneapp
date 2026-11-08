@@ -1,5 +1,5 @@
 /**
- * POST /api/billing/checkout  { planId, interval?: 'month'|'year', method: 'csob'|'paypal'|'monobank'|'crypto', asset?: 'usdt'|'usdc',
+ * POST /api/billing/checkout  { planId, amountUsd? (only for planId 'balance': a whole-dollar top-up, $5 to $500, never by PayPal), interval?: 'month'|'year', method: 'csob'|'paypal'|'monobank'|'crypto', asset?: 'usdt'|'usdc',
  *                               billing: { name, email, country, company?, vatId? }, accept: true, waiver?: true }   (waiver: required for EU / EEA / UK / CH buyers)
  *   → { ok, order: { id, status, planName, amountCents, … , payUrl? | crypto: { address, asset, mint, amount, solanaPayUrl } } }
  *
@@ -11,6 +11,7 @@ import type { Env } from '../../../types';
 import { requireUser } from '../lib/auth';
 import { fail, isRecord, json, methodNotAllowed, readJson, EMAIL_RE } from '../lib/http';
 import { addonAllowed, billingEnabled, billingMethods, getPlan, previewActive, ORDER_COLUMNS, orderView, PAY_WINDOW_SECONDS, quote, type Interval, type Method, type OrderRow } from '../lib/billing';
+import { BALANCE_PLAN_ID, parseTopUpCents, topUpPlan } from '../lib/balance';
 import { createInvoice, monobankCcy } from '../lib/monobank';
 import { CSOB_CURRENCIES, initPayment, processUrl, randomOrderNo } from '../lib/csob';
 import { billingPlanId, createSubscription, PAYPAL_CURRENCIES } from '../lib/paypal';
@@ -47,13 +48,26 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const waiver = WITHDRAWAL_COUNTRIES.has(billing.country);
   if (waiver && b.waiver !== true) return fail(400, 'Please confirm that you want the plan to start immediately.');
 
-  const plan = typeof b.planId === 'string' ? await getPlan(env, b.planId) : null;
+  // A top-up is not a plan from the catalog: the amount comes from the buyer and is checked here ($5 to $500, whole dollars).
+  let plan: Awaited<ReturnType<typeof getPlan>>;
+  let q: ReturnType<typeof quote>;
+  if (b.planId === BALANCE_PLAN_ID) {
+    const cents = parseTopUpCents(b.amountUsd);
+    if (cents === null) return fail(400, 'Choose an amount in whole dollars, from $5 to $500.');
+    plan = topUpPlan(cents);
+    q = { ok: true, amountCents: cents, interval: 'month' };
+  } else {
+    plan = typeof b.planId === 'string' ? await getPlan(env, b.planId) : null;
+    if (!plan) return fail(404, 'Plan not found.');
+    q = quote(plan, interval);
+  }
   if (!plan) return fail(404, 'Plan not found.');
-  const q = quote(plan, interval);
   if (!q.ok) return fail(409, q.error);
   const ccy = monobankCcy(plan.currency);
   if (method === 'monobank' && ccy === null) return fail(409, 'Card payment is not available for this price currency.');
   if (method === 'csob' && !CSOB_CURRENCIES.has(plan.currency)) return fail(409, 'Card payment is not available for this price currency.');
+  // PayPal here is a subscription that renews by itself; a top-up is a single payment, and a renewal would put the same money on the balance again.
+  if (method === 'paypal' && plan.id === BALANCE_PLAN_ID) return fail(409, 'A balance top-up is a single payment. Pay by card or crypto.');
   if (method === 'paypal' && !PAYPAL_CURRENCIES.has(plan.currency)) return fail(409, 'PayPal is not available for this price currency.');
   if (method === 'crypto' && plan.currency !== 'USD') return fail(409, 'Crypto payment is available for plans priced in USD only. Pay by card.');
   const now = Math.floor(Date.now() / 1000);
@@ -96,7 +110,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (method === 'monobank') {
     const origin = ((env.APP_URL ?? '').replace(/\/+$/, '') || new URL(request.url).origin);
     const made = await createInvoice(env, {
-      orderId: id, amountCents: q.amountCents, ccy: ccy as number, title: `Vane ${plan.name}${q.interval === 'year' ? ' (1 year)' : ' (1 month)'}`, email: billing.email, planId: plan.id,
+      orderId: id, amountCents: q.amountCents, ccy: ccy as number, title: plan.id === BALANCE_PLAN_ID ? `Vane balance top-up $${q.amountCents / 100}` : `Vane ${plan.name}${q.interval === 'year' ? ' (1 year)' : ' (1 month)'}`, email: billing.email, planId: plan.id,
       redirectUrl: `${origin}/checkout?order=${id}`, webHookUrl: `${origin}/api/billing/monobank`, validitySeconds: PAY_WINDOW_SECONDS,
     });
     if (!made.ok) {
@@ -109,7 +123,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const origin = ((env.APP_URL ?? '').replace(/\/+$/, '') || new URL(request.url).origin);
     const made = await initPayment(env, {
       orderId: id, orderNo: randomOrderNo(), amountCents: q.amountCents, currency: plan.currency,
-      itemName: `Vane ${plan.name}`, description: `Vane ${plan.name}, one ${q.interval === 'year' ? 'year' : 'month'}`, returnUrl: `${origin}/api/billing/csob`,
+      itemName: `Vane ${plan.name}`, description: plan.id === BALANCE_PLAN_ID ? `Vane balance top-up $${q.amountCents / 100}` : `Vane ${plan.name}, one ${q.interval === 'year' ? 'year' : 'month'}`, returnUrl: `${origin}/api/billing/csob`,
     });
     if (!made.ok) {
       await env.DB.prepare(`UPDATE orders SET status = 'failed', note = 'payment not created' WHERE id = ?1`).bind(id).run();

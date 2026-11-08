@@ -35,7 +35,7 @@
     $('aiLeft').textContent = 'Renews ' + day(ai.resetsAt);
     $('aiPlanLine').textContent = ai.used + ' of ' + ai.limit + ' generations used this plan period' + (ai.bonus ? ' · +' + ai.bonus + ' bonus' : '');
     var sub;
-    if (ov.enabled) sub = 'Keeping going: every generation after the ' + ai.limit + ' costs ' + usd(ov.priceUsd) + ' and is added to your bill.' + (ov.uses ? ' This period: ' + ov.uses + ' extra, ' + usd(ov.costUsd) + '.' : '') + ' The count starts over on ' + day(ai.resetsAt) + '.';
+    if (ov.enabled) sub = 'Keeping going: every generation after the ' + ai.limit + ' costs ' + usd(ov.priceUsd) + ' and is taken from your balance.' + (ov.uses ? ' This period: ' + ov.uses + ' extra, ' + usd(ov.costUsd) + '.' : '') + ' The count starts over on ' + day(ai.resetsAt) + '.';
     else if (ai.remaining > 0) sub = ai.remaining + ' left. The count starts over on ' + day(ai.resetsAt) + '. When they run out the AI stops, unless you switch on “keep going”.';
     else sub = 'All used. The count starts over on ' + day(ai.resetsAt) + '. Switch on “keep going” to continue for ' + usd(ov.priceUsd) + ' per generation.';
     $('aiPlanSub').textContent = sub;
@@ -49,7 +49,7 @@
 
   /** Turns "keep going" on or off. Switching it on is a billing decision, so it asks first. Resolves to whether it is on now. */
   async function setOverage(on) {
-    if (on && lastAi && !window.confirm('Every generation after your ' + lastAi.limit + ' included ones will cost ' + usd(lastAi.overage.priceUsd) + ' and be added to your bill. You can switch this off at any time. Turn it on?')) return false;
+    if (on && lastAi && !window.confirm('Every generation after your ' + lastAi.limit + ' included ones will cost ' + usd(lastAi.overage.priceUsd) + ' and be taken from your prepaid balance, never from a card. When the balance is empty it stops. You can switch this off at any time. Turn it on?')) return false;
     var r = await Vane.api('PATCH', '/api/video/ai', { overage: on });
     if (!r.ok) { Vane.toast('err', r.error); return !on; }
     left(r.data.ai);

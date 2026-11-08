@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * Dashboard post quota (the part that used to be "counted, not blocked"), on the REAL handler POST /api/posts and the REAL schema.sql
- * (in-memory SQLite): the Free Trial's one shared total of 30, Pro's 1,000 a month and what happens over it, atomic reserving,
- * the "enforce_limits" switch, and that nothing changes while that switch is off.   npm run test:unit
+ * (in-memory SQLite): the Free Trial's one shared total of 30, Pro's 1,000 a month and what happens over it (a hard stop, or the
+ * price taken from the prepaid balance), atomic reserving, and that the old "enforce_limits" switch no longer loosens it.   npm run test:unit
  */
 import { build } from 'esbuild';
 import { DatabaseSync } from 'node:sqlite';
@@ -36,7 +36,7 @@ async function fresh(opts = {}) {
   await settings.saveSettings(f.env, { enforce_limits: opts.enforce ?? true });
   return f;
 }
-function build_({ plan = 'free', enforce = true, overage = 0, used = {} } = {}) {
+function build_({ plan = 'free', enforce = true, overage = 0, balance = 0, used = {} } = {}) {
   const db = new DatabaseSync(':memory:');
   db.exec(readFileSync('schema.sql', 'utf8'));
   const mk = (sql) => {
@@ -55,11 +55,13 @@ function build_({ plan = 'free', enforce = true, overage = 0, used = {} } = {}) 
   } } };
   db.exec(`INSERT INTO users (id, email) VALUES ('u1', 'a@example.com')`);
   db.prepare(`INSERT INTO subscriptions (user_id, plan, overage_enabled) VALUES ('u1', ?, ?)`).run(plan, overage);
+  if (balance) db.prepare(`INSERT INTO user_balance (user_id, micro_usd) VALUES ('u1', ?)`).run(balance);
   db.exec(`INSERT INTO channels (id, user_id, type, name, credentials) VALUES ('${CH}', 'u1', 'telegram', 'VaneNews', 'x')`);
   const period = plan === 'free' ? 'lifetime' : new Date().toISOString().slice(0, 7);
   if (used.api || used.ui) db.prepare(`INSERT INTO usage_counters (user_id, period, api_posts, ui_posts) VALUES ('u1', ?, ?, ?)`).run(period, used.api ?? 0, used.ui ?? 0);
   return { db, env, period };
 }
+const balanceOf = (db) => db.prepare(`SELECT micro_usd m FROM user_balance WHERE user_id = 'u1'`).get()?.m ?? 0;
 const counters = (db) => db.prepare(`SELECT api_posts a, ui_posts u, overage_posts op, overage_micro_usd om FROM usage_counters WHERE user_id = 'u1'`).get() ?? { a: 0, u: 0, op: 0, om: 0 };
 
 let token;
@@ -84,8 +86,8 @@ console.log('\nFree Trial: one total of 30 posts, shared with the API');
   check('and is counted', counters(db).u === 20 && counters(db).a === 10);
   const b = await post(env, 2);
   check('the 31st is refused with 402 quota_exceeded', b.status === 402 && b.data.code === 'quota_exceeded', JSON.stringify(b));
-  check('the message names the Free Trial and the limit', /Free Trial/.test(b.data.error) && /30/.test(b.data.error), b.data?.error);
-  check('the answer carries the usage', b.data.usage?.ui?.limit === 30 && b.data.usage.ui.remaining === 0, JSON.stringify(b.data.usage));
+  check('the message names the Free Trial and says to choose a plan', /Free Trial/.test(b.data.error) && /Choose a plan/.test(b.data.error), b.data?.error);
+  check('the answer says it never resets and where to add funds', b.data.resetsAt === null && b.data.topUpUrl === '/topup' && b.data.balanceUsd === 0, JSON.stringify(b.data));
   check('nothing was saved and nothing was counted for the refused post', db.prepare(`SELECT COUNT(*) n FROM posts`).get().n === 1 && counters(db).u === 20);
 }
 {
@@ -103,14 +105,20 @@ console.log('\nPro: 1,000 dashboard posts a month');
 {
   const { db, env } = await fresh({ plan: 'pro', overage: 0, used: { ui: 1000 } });
   const r = await post(env);
-  check('over the quota with overage billing OFF: 402', r.status === 402 && r.data.code === 'quota_exceeded' && /dashboard posts/.test(r.data.error), JSON.stringify(r));
+  check('over the quota with paying for extra use OFF: 402 that says when it resets and how to continue', r.status === 402 && r.data.code === 'quota_exceeded' && /resets on/.test(r.data.error) && /add funds/i.test(r.data.error) && /switch on/i.test(r.data.error), JSON.stringify(r));
 }
 {
   const { db, env } = await fresh({ plan: 'pro', overage: 1, used: { ui: 1000 } });
   const r = await post(env);
-  check('over the quota with overage billing ON: the post goes through', r.status === 201, JSON.stringify(r));
+  check('switched on but the balance is empty: 402 "balance is too low", nothing created', r.status === 402 && /balance is too low/i.test(r.data.error) && db.prepare(`SELECT COUNT(*) n FROM posts`).get().n === 0, JSON.stringify(r));
+}
+{
+  const { db, env } = await fresh({ plan: 'pro', overage: 1, balance: 100000, used: { ui: 1000 } });
+  const r = await post(env);
+  check('switched on and the balance covers it: the post goes through', r.status === 201, JSON.stringify(r));
   const c = counters(db);
-  check('and is priced at the plan rate ($0.015) like an API post', c.u === 1001 && c.op === 1 && c.om === 15000, JSON.stringify(c));
+  check('priced at the plan rate ($0.015) like an API post', c.u === 1001 && c.op === 1 && c.om === 15000, JSON.stringify(c));
+  check('and the price came out of the balance ($0.10 → $0.085)', balanceOf(db) === 85000, String(balanceOf(db)));
 }
 {
   const { db, env } = await fresh({ plan: 'pro', used: { ui: 5 } });
@@ -118,19 +126,24 @@ console.log('\nPro: 1,000 dashboard posts a month');
   check('within the quota nothing is priced', r.status === 201 && counters(db).u === 6 && counters(db).op === 0 && counters(db).om === 0);
 }
 
-console.log('\nA plan with no dashboard allowance (Developer API) is never stopped here');
+console.log('\nA plan with no dashboard allowance (Developer API): dashboard posts come out of the API allowance');
 {
   const { db, env } = await fresh({ plan: 'api', used: { api: 50 } });
   const r = await post(env);
-  check('the post goes through and is counted', r.status === 201 && counters(db).u === 1 && counters(db).a === 50, JSON.stringify([r.status, counters(db)]));
+  check('the post goes through and is counted in the API allowance', r.status === 201 && counters(db).u === 0 && counters(db).a === 51, JSON.stringify([r.status, counters(db)]));
+}
+{
+  const { db, env } = await fresh({ plan: 'api', used: { api: 180 } });
+  const r = await post(env);
+  check('with all 180 used the dashboard is stopped too', r.status === 402 && r.data.code === 'quota_exceeded', JSON.stringify(r));
 }
 
-console.log('\nThe "enforce_limits" switch');
+console.log('\nThe old "enforce_limits" switch no longer loosens the post quota (it now only governs channels and storage)');
 {
   const { db, env } = await fresh({ plan: 'free', enforce: false, used: { ui: 30 } });
   const r = await post(env);
-  check('OFF (the default): nothing changes, a Free Trial account over 30 still posts', r.status === 201, JSON.stringify(r));
-  check('and the post is still counted, as before', counters(db).u === 31);
+  check('switch OFF: a Free Trial account over 30 is still stopped', r.status === 402 && r.data.code === 'quota_exceeded', JSON.stringify(r));
+  check('and nothing was counted or saved', counters(db).u === 30 && db.prepare(`SELECT COUNT(*) n FROM posts`).get().n === 0);
 }
 
 console.log('\nWhen saving fails after the quota was taken');
@@ -155,7 +168,7 @@ console.log('\nThe helper every dashboard-side poster uses (the dashboard and "a
 {
   const { db, env } = await fresh({ plan: 'free', used: { ui: 29 } });
   const q1 = await create.takeUiQuota(env, 'u1', 1);
-  check('the last unit is taken', q1.ok === true && q1.reservation?.counted === true && counters(db).u === 30);
+  check('the last unit is taken', q1.ok === true && q1.reservation?.ok === true && counters(db).u === 30);
   const q2 = await create.takeUiQuota(env, 'u1', 1);
   check('the next one is refused with a ready 402 answer', q2.ok === false && q2.response.status === 402 && (await q2.response.json()).code === 'quota_exceeded');
   await create.settleUiQuota(env, 'u1', q1.reservation, 1, false);
@@ -165,14 +178,11 @@ console.log('\nThe helper every dashboard-side poster uses (the dashboard and "a
   check('a saved post keeps it, and nothing is counted twice', counters(db).u === 30);
 }
 {
-  const { db, env } = await fresh({ plan: 'free', enforce: false, used: { ui: 5 } });
+  const { db, env } = await fresh({ plan: 'pro', overage: 1, balance: 100000, used: { ui: 1000 } });
   const q = await create.takeUiQuota(env, 'u1', 1);
-  check('with the limits off nothing is reserved…', q.ok && q.reservation === null && counters(db).u === 5);
-  await create.settleUiQuota(env, 'u1', q.reservation, 1, true);
-  check('…the saved post is just counted', counters(db).u === 6);
-  const q2 = await create.takeUiQuota(env, 'u1', 1);
-  await create.settleUiQuota(env, 'u1', q2.reservation, 1, false);
-  check('…and an unsaved one is not counted', counters(db).u === 6);
+  check('an extra post takes its price from the balance', q.ok && q.reservation?.overage === true && balanceOf(db) === 85000, JSON.stringify(q));
+  await create.settleUiQuota(env, 'u1', q.reservation, 1, false);
+  check('…and a post that could not be saved gives the money back too', balanceOf(db) === 100000 && counters(db).u === 1000 && counters(db).om === 0, JSON.stringify([balanceOf(db), counters(db)]));
 }
 
 console.log('\nNo way around the quota (source check)');
