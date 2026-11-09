@@ -11,6 +11,8 @@ export const MODULES: ModuleDef[] = [
   { id: 'snippets', name: 'Snippets', group: 'Dashboard', about: 'Saved pieces of text.', api: ['/api/snippets'] },
   { id: 'drafts', name: 'Drafts', group: 'Dashboard', about: 'Unfinished posts.', api: ['/api/drafts'] },
   { id: 'agents', name: 'Agents log', group: 'Dashboard', about: 'The live log of what connected tools did.', api: ['/api/agent-log'] },
+  { id: 'feeds', name: 'Feeds (RSS)', group: 'Dashboard', about: 'Auto-posting from RSS/Atom feeds. Off: the cron stops posting from feeds too.', api: ['/api/feeds'] },
+  { id: 'shortcuts', name: 'Apple Shortcuts tab', group: 'Integration tabs', about: 'Only hides the setup page. To stop requests, use Integrations.', api: [] },
   { id: 'claude', name: 'Claude connector tab', group: 'Integration tabs', about: 'Only hides the setup page. To stop requests, use Integrations.', api: [] },
   { id: 'notion', name: 'Notion tab', group: 'Integration tabs', about: 'Only hides the setup page. To stop requests, use Integrations.', api: [] },
   { id: 'wordpress', name: 'WordPress tab', group: 'Integration tabs', about: 'Only hides the setup page. To stop requests, use Integrations.', api: [] },

@@ -98,15 +98,10 @@ async function createPost(env: Env, auth: ApiKeyContext, data: unknown, claim: I
   return json(created(saved.groupId, v.scheduledAt, saved.posts, reservation.overage, usage), 201, quotaHeaders(usage));
 }
 
-export const onRequestPost: PagesFunction<Env> = agentLogged('posts.create', async ({ request, env }) => {
-  const auth = await requireApiKey(request, env, 'post');
-  if (!auth.ok) return auth.response;
-
-  const parsed = await readJson(request);
-  if (!parsed.ok) return parsed.response;
-
+/** The create flow shared by POST /posts and POST /share: Idempotency-Key handling around createPost. `idemData` is what a retry is compared by (the request as the client sent it). */
+export async function createWithIdempotency(env: Env, request: Request, auth: ApiKeyContext, data: unknown, idemData: unknown = data): Promise<Response> {
   const now = Math.floor(Date.now() / 1000);
-  const idem = await idemBegin(env, request, auth.userId, auth.key.mode, parsed.data, now);
+  const idem = await idemBegin(env, request, auth.userId, auth.key.mode, idemData, now);
   if (idem.kind === 'refuse') return idem.response;
 
   if (idem.kind === 'replay') {
@@ -125,10 +120,19 @@ export const onRequestPost: PagesFunction<Env> = agentLogged('posts.create', asy
   }
 
   const claim = idem.kind === 'claimed' ? idem.claim : null;
-  const res = await createPost(env, auth, parsed.data, claim);
+  const res = await createPost(env, auth, data, claim);
   // Only a success is remembered (it was stored together with the post). Anything else frees the key for the retry.
   if (claim && res.status !== 201) await idemRelease(env, claim);
   return res;
+}
+
+export const onRequestPost: PagesFunction<Env> = agentLogged('posts.create', async ({ request, env }) => {
+  const auth = await requireApiKey(request, env, 'post');
+  if (!auth.ok) return auth.response;
+
+  const parsed = await readJson(request);
+  if (!parsed.ok) return parsed.response;
+  return createWithIdempotency(env, request, auth, parsed.data);
 });
 
 export const onRequest: PagesFunction<Env> = async () => methodNotAllowed('GET, POST');

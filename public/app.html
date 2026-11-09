@@ -150,6 +150,8 @@
       <a href="#automation" data-tab="automation" data-module="automation" class="dtab">Make &amp; Zapier</a>
       <a href="#notion" data-tab="notion" data-module="notion" class="dtab">Notion</a>
       <a href="#obsidian" data-tab="obsidian" data-module="obsidian" class="dtab">Obsidian</a>
+      <a href="#feeds" data-tab="feeds" data-module="feeds" class="dtab">Feeds</a>
+      <a href="#shortcuts" data-tab="shortcuts" data-module="shortcuts" class="dtab">Shortcuts</a>
       <a href="#agents" data-tab="agents" data-module="agents" class="dtab">Agents</a>
     </nav>
 
@@ -465,6 +467,59 @@
         <li>The agent only sees your channel names and your posts, never your passwords or channel credentials.</li>
         <li>To disconnect, revoke the key “Notion connector” under <a href="#api" class="underline underline-offset-2">API keys</a>, or remove the connection in Notion.</li>
       </ul>
+    </section>
+
+    <section id="viewFeeds" data-view="feeds" hidden class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" aria-labelledby="feedsTitle">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 id="feedsTitle" class="text-lg font-semibold tracking-tight">Feeds</h2>
+          <p class="mt-1 text-xs text-white/45">Follow a blog, a podcast or a news site (RSS or Atom). Each new item becomes a scheduled post on the channels you choose, a few minutes after it appears, so you can still cancel it. Items that are already in the feed are never posted. <span id="feedCount"></span></p>
+        </div>
+        <button id="feedNew" type="button" class="btn btn-white btn-sm">Follow a feed</button>
+      </div>
+      <form id="feedForm" class="mt-5 hidden space-y-3 rounded-2xl border border-white/10 p-4" autocomplete="off">
+        <input id="feedUrl" class="field w-full" type="url" placeholder="https://example.com/feed.xml" aria-label="Feed address" required />
+        <div><span class="lbl">Post to</span><div id="feedChannels" class="mt-1 flex flex-wrap gap-2"></div></div>
+        <div><span class="lbl">Text of the post</span>
+          <textarea id="feedTemplate" class="field mt-1 w-full" rows="3" maxlength="500" aria-label="Post template"></textarea>
+          <p class="mt-1 text-xs text-white/40">Use <code>{title}</code>, <code>{summary}</code> and <code>{link}</code>. Too long for a network? The summary is shortened for you.</p></div>
+        <div><span class="lbl">Wait before posting (minutes)</span><input id="feedDelay" class="field mt-1 w-28" type="number" min="1" max="1440" value="30" /></div>
+        <div class="flex gap-2"><button type="submit" class="btn btn-white btn-sm">Follow</button><button id="feedCancel" type="button" class="btn btn-ghost btn-sm">Cancel</button></div>
+      </form>
+      <div id="feedList" class="mt-5 space-y-3" aria-live="polite"></div>
+      <p class="mt-4 text-xs leading-relaxed text-white/40">The feed is checked every 30 minutes. At most 3 new items are posted per check, and items older than 3 days are skipped, so a blog that was offline never floods your channels. The Free Trial follows 1 feed, paid plans up to 10. Posts count against your plan like any post made here.</p>
+    </section>
+
+    <section id="viewShortcuts" data-view="shortcuts" hidden class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" aria-labelledby="shortcutsTitle">
+      <h2 id="shortcutsTitle" class="text-lg font-semibold tracking-tight">Apple Shortcuts</h2>
+      <p class="mt-1 text-xs text-white/45">Share a link, a selection or a note from any app on your iPhone, iPad or Mac to Vane. It becomes a scheduled post a few minutes ahead, so you can still cancel it.</p>
+      <div class="mt-5 rounded-2xl bg-white/[0.04] p-4 ring-1 ring-white/5">
+        <span class="lbl">Share address</span>
+        <div class="mt-1 flex flex-wrap items-center gap-2">
+          <code id="shortcutUrl" class="min-w-0 flex-1 break-all rounded-xl bg-black/30 px-3 py-2 text-sm">https://vaneapp.dev/api/v1/share</code>
+          <button type="button" class="btn btn-white btn-sm" data-copy="shortcutUrl">Copy</button>
+        </div>
+      </div>
+      <ol class="mt-6 space-y-4 text-sm leading-relaxed text-white/70">
+        <li><b class="text-white">1. Make a key.</b> Under <a href="#api" class="underline underline-offset-2">API keys</a> create one and pick <b>Apple Shortcuts</b> in “Used with”. A test key (cpost_test_…) checks everything and posts nothing. A live key needs a plan with API access.</li>
+        <li><b class="text-white">2. New shortcut.</b> Open the Shortcuts app, press +, open the shortcut’s settings and turn on <b>Show in Share Sheet</b> (accept Text and URLs).</li>
+        <li><b class="text-white">3. Add “Get Contents of URL”.</b> URL: the share address above. Show More → Method <b>POST</b>. Headers: <code>Authorization</code> = <code>Bearer </code> + your key. Request Body: <b>JSON</b>, add a Text field <code>text</code> and put <b>Shortcut Input</b> in it.</li>
+        <li><b class="text-white">4. Pick the channel.</b> With one channel you can leave it out. With several, add a Text field <code>channels</code> with the channel’s name (for example <code>Vane News</code>) or the platform (<code>telegram</code>). Optional: <code>delayMinutes</code> (default 5).</li>
+        <li><b class="text-white">5. Share.</b> In any app press Share and choose your shortcut. Vane answers with the time it is scheduled for. To undo, cancel the post under Upcoming.</li>
+      </ol>
+      <h3 class="mt-7 text-sm font-semibold">What you can send</h3>
+      <div class="mt-3 overflow-x-auto rounded-2xl border border-white/10">
+        <table class="w-full min-w-[30rem] text-left text-sm">
+          <thead><tr class="text-[11px] uppercase tracking-wider text-white/40"><th class="px-4 py-2.5 font-medium">Field</th><th class="px-4 py-2.5 font-medium">Meaning</th></tr></thead>
+          <tbody class="divide-y divide-white/[0.06] text-white/70">
+            <tr><td class="px-4 py-2.5 font-medium text-white">text, url, title</td><td class="px-4 py-2.5">Joined into one post. A link already inside the text is not added twice.</td></tr>
+            <tr><td class="px-4 py-2.5 font-medium text-white">channels</td><td class="px-4 py-2.5">Names, platforms or ids, as a list or separated by commas. Needed when you have several channels; the error lists them.</td></tr>
+            <tr><td class="px-4 py-2.5 font-medium text-white">delayMinutes</td><td class="px-4 py-2.5">1 to 1440, default 5. Or send <code>scheduledAt</code> with a time.</td></tr>
+            <tr><td class="px-4 py-2.5 font-medium text-white">mediaUrl</td><td class="px-4 py-2.5">A public picture link.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="mt-4 text-xs leading-relaxed text-white/40">Prefer no JSON? Send the text as the plain request body and put the rest in the address: <code>…/share?channels=Vane%20News&amp;delay=10</code>.</p>
     </section>
 
     <section id="viewObsidian" data-view="obsidian" hidden class="fade-up glass-d mt-5 rounded-3xl p-5 sm:p-7" aria-labelledby="obsidianTitle">
@@ -1095,6 +1150,7 @@
             <option value="zapier">Zapier</option>
             <option value="wordpress">WordPress plugin</option>
             <option value="obsidian">Obsidian plugin</option>
+            <option value="shortcuts">Apple Shortcuts</option>
             <option value="api">My own script or another tool</option>
           </select>
         </div>
@@ -1138,18 +1194,19 @@
   <script src="/assets/vane.js?v=a2c867edc4"></script>
   <script src="/assets/media-picker.js?v=86dfab3b84"></script>
   <script src="/assets/insights.js?v=c81d5838ef"></script>
-  <script src="/assets/dashboard.js?v=d8ecf6cccd"></script>
+  <script src="/assets/dashboard.js?v=5fde246e8c"></script>
   <script src="/assets/ai.js?v=9076d3d765"></script>
-  <script src="/assets/library.js?v=92e90abfac"></script>
+  <script src="/assets/library.js?v=ebe5e2177b"></script>
   <script src="/assets/library-picker.js?v=75266cc3f5"></script>
   <script src="/assets/snippets.js?v=2833a28950"></script>
+  <script src="/assets/feeds.js?v=4562864d9f"></script>
   <script src="/assets/drafts.js?v=9ce82a983a"></script>
   <script src="/assets/aistudio.js?v=e134a0e708"></script>
   <script src="/assets/aihistory.js?v=72fff6ab0e"></script>
   <script src="/assets/onboarding.js?v=76d0855c09"></script>
   <script src="/assets/feedback.js?v=dd3f717a61" defer></script>
   <script src="/assets/modules.js?v=1f1ada1053"></script>
-  <script src="/assets/agentlog.js?v=34106d693e"></script>
+  <script src="/assets/agentlog.js?v=5d3a036e56"></script>
   <script src="/assets/composer-tools.js?v=0c636c4c2b"></script>
   <script src="/assets/track.js?v=a3d04e70d1" data-path="/app" defer></script>
 </body>

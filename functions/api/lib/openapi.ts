@@ -167,6 +167,45 @@ export function openApiDocument(origin: string): Json {
           },
         },
       },
+      '/share': {
+        post: {
+          operationId: 'sharePost',
+          tags: ['Posts'],
+          summary: 'Share to Vane',
+          description: 'For Apple Shortcuts and other share sheets: text and/or a link become one scheduled post, 5 minutes ahead by default. `channels` may be names, platforms or ids; left out, it is your only channel. JSON, form fields or a plain-text body (options in the query string). Counts as one API post.',
+          parameters: [
+            { name: 'Idempotency-Key', in: 'header', required: false, description: 'Same as for POST /posts.', schema: { type: 'string', minLength: 1, maxLength: 255 } },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    text: { type: 'string' },
+                    url: { type: 'string', description: 'A link, added after the text.' },
+                    title: { type: 'string' },
+                    channels: { type: 'array', items: { type: 'string' }, description: 'Channel names, platform names or ids.' },
+                    delayMinutes: { type: 'integer', minimum: 1, maximum: 1440, default: 5 },
+                    scheduledAt: { type: 'string', description: 'ISO-8601 with timezone; used instead of delayMinutes.' },
+                    mediaUrl: { type: 'string' },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            '201': ok('Scheduled (or, with a test key, simulated).', ref('CreatePostResponse'), quotaHeaders),
+            '400': errorResponse('Nothing to post (`empty_share`), several channels and none named (`channel_required`, the answer lists them), an ambiguous name (`channel_ambiguous`), a bad delay (`bad_delay`), or any error of POST /posts.'),
+            '401': errorResponse('Invalid key.'),
+            '402': errorResponse('Out of quota (`quota_exceeded`).'),
+            '404': errorResponse('No channel with that name (`channel_not_found`).'),
+            '415': errorResponse('Send JSON, form fields or plain text.'),
+            '429': errorResponse('Rate limited.'),
+          },
+        },
+      },
       '/posts/{id}': {
         get: {
           operationId: 'getPost',
