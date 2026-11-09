@@ -131,7 +131,9 @@
   }
 
   function renderUsage() {
-    var u = S.usage, box = $('libUsage');
+    var u = S.usage, box = $('libUsage'), count = $('libCount');
+    count.textContent = u ? Vane.libraryUsage.short(u) : '';
+    count.classList.toggle('hidden', !u);
     if (!u) { box.classList.add('hidden'); return; }
     box.innerHTML = Vane.libraryUsage.html(u);        // assets/usage-meter.js: the same line as in the editor's upload box and the library dialog
     box.classList.remove('hidden');
