@@ -11,11 +11,12 @@ export const NETWORK_PAGES = [
     lead: 'Write the post once, pick the time, and Vane sends it to your Telegram channel or group when it is due: text, images and video.',
     publishes: ['Text, with line breaks and links', 'One image or video per post', 'Channels and groups where the bot is an admin'],
     limits: [['Text', '4,096 characters'], ['Caption under an image or video', '1,024 characters'], ['Video', 'Supported'], ['Formatting', 'Plain text, as you wrote it']],
-    connect: ['Open Channels in Vane Post and choose Telegram.', 'Quick Connect: add the Vane bot to your channel as an admin with permission to post, then paste the channel name. Or use your own bot: paste its token and the chat.', 'Vane checks it can post and saves the channel. The bot token is stored encrypted.'],
+    connect: ['Open Channels in Vane Post, choose Telegram and then Quick Connect.', 'Add @VanePublishBot to your channel as an administrator with “Post messages” on (channel name → Edit → Administrators → Add administrator). For a group, make the bot an administrator too.', 'Type your channel (its @username or a t.me link; for a private channel its numeric id, which starts with -100) and press Check access.', 'Post the one-time code Vane shows in your channel within 15 minutes, then press Connect channel. Only an admin can post it, so it proves the channel is yours.', 'Prefer your own bot? Choose Custom bot instead: create it in @BotFather with /newbot, add it to the channel as an administrator, and paste its token and the channel.'],
     faq: [
       ['Do I need my own Telegram bot?', 'No. Quick Connect uses the shared Vane bot: you only add it to your channel as an admin. If you prefer, you can connect your own bot with its token.'],
       ['What happens if my caption is too long?', 'Under an image or video Telegram allows 1,024 characters. Vane shows the limit next to the channel and refuses to schedule a post Telegram would reject.'],
       ['Can I schedule to several Telegram channels at once?', 'Yes. Each channel is a separate destination and there is no per-channel fee on any plan.'],
+      ['It does not connect. What should I check?', 'Check that the bot is an administrator with “Post messages” on, that the channel is typed exactly (a private channel needs its numeric id), and that the code was posted in the same channel within 15 minutes. Vane shows the exact reason under the button.'],
     ],
   },
   {
@@ -24,11 +25,12 @@ export const NETWORK_PAGES = [
     lead: 'Vane posts to Bluesky for you at the time you choose, with clickable links and hashtags, and counts characters the way Bluesky does.',
     publishes: ['Text with links and hashtags as real links and tags', 'One image (up to 1 MB)'],
     limits: [['Text', '300 characters, counted as visible characters (an emoji is one)'], ['Image', 'One, up to 1 MB, JPEG or PNG'], ['Video', 'Not supported yet']],
-    connect: ['Open Channels in Vane Post and choose Bluesky.', 'In Bluesky go to Settings → Privacy and security → App passwords and create one for Vane.', 'Paste your handle and the app password. It can post, but it never opens your main account, and you can delete it in Bluesky at any time.'],
+    connect: ['Open Channels in Vane Post and choose Bluesky.', 'In Bluesky open Settings → Privacy and security → App passwords, press “Add App Password”, name it “Vane” and create it. Copy it at once: Bluesky shows it only one time.', 'Paste your handle (for example alice.bsky.social, without @) and the app password, then press Verify & connect. It can post, but it never opens your main account, and you can delete it in Bluesky at any time.'],
     faq: [
       ['Is my Bluesky password safe?', 'Vane asks for an app password, not your main password. It is stored encrypted and can be revoked in Bluesky settings whenever you like.'],
       ['How does Vane count Bluesky characters?', 'Bluesky counts what a person sees, so an emoji counts as one. Vane counts the same way and shows the number next to the channel.'],
       ['Can I post a video to Bluesky?', 'Not yet. Attach an image or post text only.'],
+      ['It says the password is wrong. What now?', 'Use an app password (xxxx-xxxx-xxxx-xxxx), not your normal password, and your full handle without @. If in doubt, create a new app password in Bluesky and paste that one.'],
     ],
   },
   {
@@ -37,7 +39,7 @@ export const NETWORK_PAGES = [
     lead: 'Connect your account on any Mastodon server and schedule posts with pictures. Vane counts links the way Mastodon does.',
     publishes: ['Text and links', 'Pictures'],
     limits: [['Text', '500 characters; every link counts as 23'], ['Pictures', 'Supported'], ['Video', 'Not supported yet']],
-    connect: ['Open Channels in Vane Post and choose Mastodon.', 'Type the address of your server, for example mastodon.social.', 'Your server asks you to authorize Vane. Vane may only post and upload pictures for you; you can remove it in Preferences → Account → Authorized apps.'],
+    connect: ['Open Channels in Vane Post and choose Mastodon.', 'Type the address of your server, for example mastodon.social. It is the part after the second @ in your full name (@you@mastodon.social).', 'Your server opens: sign in there if it asks and press Authorize. You come back to Vane with the account connected. Vane may only post and upload pictures for you; you can remove it in Preferences → Account → Authorized apps.'],
     faq: [
       ['Does it work on every Mastodon server?', 'Yes. You enter your own server and authorize Vane there.'],
       ['How are links counted?', 'Mastodon counts every link as 23 characters, however long it is. Vane does the same, so what you see is what Mastodon will accept.'],
@@ -50,11 +52,12 @@ export const NETWORK_PAGES = [
     lead: 'Post to a channel on your Discord server at a set time. You paste a webhook link, so Vane never needs access to your server.',
     publishes: ['Text messages', 'One image'],
     limits: [['Text', '2,000 characters'], ['Mentions', 'Turned off, so @everyone and @here never ping people'], ['Video', 'Not supported yet']],
-    connect: ['In Discord open the channel settings → Integrations → Webhooks and create a webhook.', 'Copy the webhook URL.', 'In Vane Post choose Discord and paste the link. Vane checks it and saves it encrypted.'],
+    connect: ['You need the “Manage Webhooks” permission on the server. If you do not have it, ask a server admin.', 'In Discord open Server settings → Integrations → Webhooks (on a phone: server name → Settings → Integrations → Webhooks) and press “New Webhook”.', 'Choose the channel Vane should post to and press “Copy Webhook URL”. It starts with https://discord.com/api/webhooks/.', 'In Vane Post choose Discord, paste the link and press Verify & connect. Vane checks it and saves it encrypted.'],
     faq: [
       ['Why a webhook and not a login?', 'A webhook can only post to one channel. Vane gets no access to your account or the rest of the server.'],
       ['Can a scheduled post ping everyone?', 'No. Mentions are disabled on posts sent through Vane.'],
       ['How do I stop Vane posting?', 'Delete the webhook in Discord, or disconnect the channel in Vane.'],
+      ['Vane says it does not know the webhook.', 'The webhook was probably deleted, or only part of the link was copied. Create a new webhook in Discord, press “Copy Webhook URL” and paste the whole link.'],
     ],
   },
   {
@@ -63,7 +66,7 @@ export const NETWORK_PAGES = [
     lead: 'Each Vane post becomes a Dev.to article: the first line is the title, the rest is the body, and your hashtags become tags.',
     publishes: ['An article: the first line is the title, the rest is Markdown', 'A cover image', 'Up to 4 tags from your #hashtags'],
     limits: [['Text', '10,000 characters'], ['Tags', 'Up to 4, taken from #hashtags'], ['Video', 'Not supported yet']],
-    connect: ['In Dev.to open Settings → Extensions and generate an API key.', 'In Vane Post choose Dev.to and paste the key.', 'Vane verifies it and shows your username. The key is stored encrypted.'],
+    connect: ['In Dev.to open dev.to/settings/extensions. Under “DEV Community API Keys” type “Vane” as the description and press “Generate API Key”.', 'Copy the key.', 'In Vane Post choose Dev.to, paste the key and press Verify & connect. Vane shows your username. The key is stored encrypted.'],
     faq: [
       ['Does Vane publish drafts or live articles?', 'Articles are published at the scheduled time.'],
       ['How are tags chosen?', 'Your #hashtags become Dev.to tags, up to four, which is Dev.to’s limit.'],
@@ -76,11 +79,12 @@ export const NETWORK_PAGES = [
     lead: 'Schedule a message to a channel in your Slack workspace. You paste an incoming webhook link, so Vane never needs access to your workspace.',
     publishes: ['Text messages', 'One image'],
     limits: [['Text', '3,000 characters'], ['Pings', 'Turned off, so @channel and @here never notify people'], ['Video', 'Not supported yet']],
-    connect: ['Open api.slack.com/apps, create an app and switch on Incoming Webhooks.', 'Add a webhook to your workspace, pick the channel and copy its URL.', 'In Vane Post choose Slack and paste the link. Vane checks it and saves it encrypted.'],
+    connect: ['Open api.slack.com/apps, sign in to your workspace, press “Create New App” → “From scratch”, name it “Vane”, choose your workspace and press “Create App”.', 'In the left menu open “Incoming Webhooks” and switch it on.', 'Press “Add New Webhook to Workspace”, choose the channel and press “Allow”. Copy the new Webhook URL (it starts with https://hooks.slack.com/services/).', 'In Vane Post choose Slack, paste the link and press Verify & connect. Vane checks it and saves it encrypted. If Slack says you cannot add apps, ask a workspace admin to approve it.'],
     faq: [
       ['Why a webhook and not a login?', 'A webhook can only post to one channel. Vane gets no access to your account or other channels.'],
       ['Can a scheduled post ping everyone?', 'No. Special mentions are escaped in posts sent through Vane.'],
       ['How do I stop Vane posting?', 'Remove the app or its webhook in Slack, or disconnect the channel in Vane.'],
+      ['Slack does not accept the webhook.', 'The webhook may have been deleted or its channel archived. Add a new webhook to the workspace in your Slack app, copy the new URL and paste the whole link.'],
     ],
   },
   {
@@ -89,11 +93,12 @@ export const NETWORK_PAGES = [
     lead: 'Each Vane post becomes an article on your Hashnode blog: the first line is the title and the rest is the Markdown body.',
     publishes: ['An article: the first line is the title, the rest is Markdown', 'A cover image'],
     limits: [['Text', '10,000 characters'], ['Title', 'Up to 150 characters'], ['Video', 'Not supported yet']],
-    connect: ['In Hashnode open Account settings → Developer and generate a token.', 'In Vane Post choose Hashnode and paste the token. Add your blog address if you have several blogs.', 'Vane verifies it and finds your blog. The token is stored encrypted.'],
+    connect: ['On Hashnode open hashnode.com/settings/developer (profile picture → Account settings → Developer) and press “Generate New Token”. Copy it.', 'In Vane Post choose Hashnode and paste the token.', 'If you have several blogs, type the address of the one to post to, for example yourname.hashnode.dev. With one blog leave the field empty.', 'Press Verify & connect. Vane finds your blog; the token is stored encrypted.'],
     faq: [
       ['Which blog does Vane publish to?', 'The one you name when connecting. With a single blog Vane picks it automatically.'],
       ['Is the token safe?', 'It is stored encrypted and you can revoke it in Hashnode settings at any time.'],
       ['Does Vane publish drafts or live articles?', 'Articles are published at the scheduled time.'],
+      ['It says I have several blogs.', 'Type the address of the blog to post to (for example yourname.hashnode.dev) in the Blog address field, or connect each blog as its own channel.'],
     ],
   },
   {
@@ -102,7 +107,7 @@ export const NETWORK_PAGES = [
     lead: 'Plan LinkedIn posts ahead and let Vane publish them for you, with clickable hashtags and an image.',
     publishes: ['Text with clickable hashtags', 'One image'],
     limits: [['Text', '3,000 characters'], ['Image', 'One'], ['Video', 'Not supported yet'], ['Where', 'Your personal profile (company pages later)']],
-    connect: ['Open Channels in Vane Post and choose LinkedIn.', 'Press Continue with LinkedIn and Allow Vane to post for you.', 'You come back to Vane with the profile connected. A LinkedIn sign-in lasts 60 days; Vane shows Reconnect before it runs out.'],
+    connect: ['Open Channels in Vane Post and choose LinkedIn.', 'Press Continue with LinkedIn. LinkedIn asks you to sign in if needed and to press “Allow”.', 'You come back to Vane with your profile connected. Posts go to your personal profile, not to a company page. A LinkedIn sign-in lasts 60 days; Vane shows Reconnect before it runs out.'],
     faq: [
       ['What can Vane do on my LinkedIn?', 'Only create posts on your profile and read your name to show it in Vane. It cannot read your feed, messages or connections.'],
       ['Can I post to a company page?', 'Not yet. Profiles first; company pages follow later.'],
@@ -115,7 +120,7 @@ export const NETWORK_PAGES = [
     lead: 'Write once and let Vane publish to Threads at the time you pick: text, an image or a video.',
     publishes: ['Text', 'One image or one video'],
     limits: [['Text', '500 characters (emoji count by size)'], ['Image or video', 'One per post']],
-    connect: ['Open Channels in Vane Post and choose Threads.', 'Press Continue with Threads and Allow Vane to publish.', 'The sign-in renews itself, and you can remove access in Threads settings (Account → Website permissions).'],
+    connect: ['Open Channels in Vane Post and choose Threads.', 'Press Continue with Threads. Threads asks you to sign in if needed and to press “Allow”.', 'You come back to Vane with your profile connected. The sign-in renews itself, and you can remove access in Threads settings (Account → Website permissions).'],
     faq: [
       ['How are Threads characters counted?', 'Threads counts an emoji by the space it takes, so Vane counts the same way and warns you before you hit the limit.'],
       ['Does the connection expire?', 'Vane renews the Threads sign-in automatically before it runs out.'],
@@ -128,7 +133,7 @@ export const NETWORK_PAGES = [
     lead: 'Prepare a Reddit post in advance and let Vane submit it to your subreddit at the right time. The first line becomes the title.',
     publishes: ['A text post: the first line is the title, the rest is the text', 'Links to your pictures inside the text'],
     limits: [['Title', 'Up to 300 characters (the first line)'], ['Text', 'Up to 10,000 characters'], ['Where', 'One subreddit per channel; add a channel for each one']],
-    connect: ['Open Channels in Vane Post and choose Reddit.', 'Type the subreddit, for example r/webdev, then Continue with Reddit and Allow Vane.', 'Vane may only submit posts and read your username. It cannot read messages, vote or comment.'],
+    connect: ['Open Channels in Vane Post and choose Reddit.', 'Type the subreddit, for example r/webdev. Check its rules first: many subreddits ban self-promotion or require a flair. Use an account that is allowed to post there.', 'Press Continue with Reddit, sign in if needed and press “Allow”. You come back to Vane. You can remove access at reddit.com/prefs/apps.'],
     faq: [
       ['Can I post to several subreddits?', 'Yes. Connect one channel per subreddit; the same Reddit account can have several.'],
       ['Why was my post refused?', 'Many subreddits ban self-promotion or require a flair. Reddit’s reason is shown in the post history, so you can fix it and retry.'],
@@ -141,7 +146,7 @@ export const NETWORK_PAGES = [
     lead: 'Plan posts for the Facebook Pages you manage. Every Page you allow becomes its own channel in Vane.',
     publishes: ['Text posts', 'Photo posts with your text as the caption', 'Video posts'],
     limits: [['Where', 'Pages you manage (personal profiles cannot be posted to by apps)'], ['Text', 'Up to 5,000 characters in the editor']],
-    connect: ['Open Channels in Vane Post and choose Facebook Pages.', 'Press Continue with Facebook and choose the Pages Vane may post to.', 'Each Page you allow is added as a channel. You can remove access in Facebook: Settings → Business integrations.'],
+    connect: ['Open Channels in Vane Post and choose Facebook Pages.', 'You must manage the Page (as an admin or editor). A personal profile cannot be used.', 'Press Continue with Facebook, sign in if needed and tick every Page Vane may post to.', 'Each Page you allow is added as a channel. You can remove access in Facebook: Settings → Business integrations.'],
     faq: [
       ['Can Vane post to my personal profile?', 'No. Facebook only lets apps publish to Pages, not personal profiles.'],
       ['I manage several Pages. Do I connect them one by one?', 'No. Choose them all in one step and each becomes its own channel.'],
@@ -154,7 +159,7 @@ export const NETWORK_PAGES = [
     lead: 'Upload a video once to your Studio library and publish it to your YouTube channel with a title, description, tags, category and your own cover.',
     publishes: ['The video, uploaded in chunks so large files work', 'Title, description, tags and category', 'Your cover as the thumbnail'],
     limits: [['Visibility', 'Private, unlisted or public (YouTube may keep videos private until Google approves Vane)'], ['Made for kids', 'You answer it for every video, as YouTube requires'], ['Permission', 'Upload only: Vane cannot read your videos or analytics']],
-    connect: ['Open Channels in Vane Studio and choose YouTube.', 'Sign in with Google and allow Vane to upload videos.', 'Your channel appears in the list; publish any library video with Publish.'],
+    connect: ['Open Channels in Vane Studio and choose YouTube.', 'Sign in with Google and pick the YouTube channel to use (with several channels or a brand account, choose the right one in Google’s account picker). Allow Vane to upload videos.', 'Your channel appears in the list; publish any library video with Publish.'],
     faq: [
       ['Why is my video private?', 'Until Google approves Vane’s API access, YouTube forces uploads from unverified apps to private. Vane tells you what YouTube did with each video.'],
       ['What can Vane see on my channel?', 'Nothing. It only has the permission to upload a video you chose.'],
@@ -167,7 +172,7 @@ export const NETWORK_PAGES = [
     lead: 'Publish a video from your Studio library as an Instagram Reel on a Business or Creator account, with a caption and your own cover.',
     publishes: ['A Reel with your caption', 'Your cover image (JPEG)', 'An option to also show it in your profile feed'],
     limits: [['Accounts', 'Business and Creator'], ['Visibility', 'Always public; Instagram has no private Reels'], ['File', 'MP4 or MOV up to 300 MB, 3 seconds to 15 minutes'], ['Daily limit', 'About 25 API publications per account']],
-    connect: ['Open Channels in Vane Studio and choose Instagram Reels.', 'Sign in with Instagram and allow Vane to publish.', 'Publish any library video with Publish; Instagram fetches it from a temporary link that Vane removes afterwards.'],
+    connect: ['Switch your Instagram to a Business or Creator account first: in Instagram open Settings and privacy → Account type and tools → Switch to professional account.', 'Open Channels in Vane Studio and choose Instagram Reels.', 'Sign in with Instagram and press “Allow” so Vane can publish.', 'Publish any library video with Publish; Instagram fetches it from a temporary link that Vane removes afterwards.'],
     faq: [
       ['Does it work with a personal Instagram account?', 'No. Instagram only lets apps publish for Business and Creator accounts.'],
       ['Can I schedule a private Reel?', 'No. Instagram Reels are always public, so Vane requires Public for them.'],

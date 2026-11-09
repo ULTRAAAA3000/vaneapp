@@ -692,7 +692,7 @@
       <!-- ───── STEP 1: PICK A NETWORK ───── -->
       <div data-step="pick" class="mt-6">
         <div id="netGrid" class="grid gap-2.5 sm:grid-cols-2"></div>
-        <p class="mt-5 text-center text-xs text-white/30">More networks are on the way.</p>
+        <p class="mt-5 text-center text-xs leading-relaxed text-white/30">Networks marked “Soon” are not open yet. Each one opens as soon as the network approves Vane, and this list always shows what is open for you. More networks are on the way.</p>
       </div>
 
       <!-- ───── STEP 2: SET UP THE NETWORK (one block per network, shown by data-step) ───── -->
@@ -719,7 +719,7 @@
               <span class="pixel mt-0.5 w-4 shrink-0 text-white/90">1</span>
               <div class="min-w-0 flex-1">
                 <p>Add <button type="button" id="qBotCopy" class="rounded-md bg-white/10 px-1.5 py-0.5 font-mono text-xs text-white transition-colors hover:bg-white/15" title="Click to copy"><span id="qBot">@VanePublishBot</span></button> to your channel as an <b class="font-semibold text-white">administrator</b> with the <b class="font-semibold text-white">Post messages</b> permission.</p>
-                <p class="mt-1 text-xs text-white/40">Channel settings → Administrators → Add administrator.</p>
+                <p class="mt-1 text-xs text-white/40">In Telegram: open the channel, tap its name → Edit → Administrators → Add administrator → pick the bot → keep “Post messages” on → Save. For a group, make the bot an administrator too.</p>
               </div>
             </li>
 
@@ -733,13 +733,14 @@
                     <button id="qCheck" type="submit" class="btn btn-white shrink-0"><span id="qCheckSpin" class="spinner spinner-dark hidden"></span><span id="qCheckLabel">Check access</span></button>
                   </div>
                 </form>
+                <p class="mt-2 text-xs text-white/35">Public channel: its @username or a t.me link. Private channel: its numeric id, which starts with -100 (open the channel at web.telegram.org/a and copy the number after # in the address). Then press “Check access”.</p>
               </div>
             </li>
 
             <li id="qS3" class="hidden gap-3">
               <span class="pixel mt-0.5 w-4 shrink-0 text-white/90">3</span>
               <div class="min-w-0 flex-1">
-                <p>Post this code as a message in <b id="qChatTitle" class="font-semibold text-white"></b> to prove the channel is yours. You can delete the message afterwards.</p>
+                <p>Post this code as a message in <b id="qChatTitle" class="font-semibold text-white"></b>. Only an admin can, so this proves the channel is yours. The code works for 15 minutes. You can delete the message afterwards.</p>
                 <div class="mt-3 flex items-center gap-3 rounded-2xl bg-black/35 p-3 ring-1 ring-white/10">
                   <code id="qCode" class="pixel min-w-0 flex-1 select-all truncate text-lg tracking-wider text-white sm:text-xl"></code>
                   <button id="qCodeCopy" type="button" class="btn btn-ghost btn-sm shrink-0">Copy</button>
@@ -764,6 +765,7 @@
                   <input id="qName" type="text" maxlength="80" class="field min-w-0 flex-1" />
                   <button id="qConnect" type="button" class="btn btn-white shrink-0"><span id="qConnectSpin" class="spinner spinner-dark hidden"></span><span id="qConnectLabel">Connect channel</span></button>
                 </div>
+                <p class="mt-2 text-xs text-white/35">This name is only shown in Vane. Finish within 30 minutes after the code is received.</p>
               </div>
             </li>
           </ol>
@@ -775,9 +777,9 @@
         <section id="panelCustom" role="tabpanel" aria-labelledby="tabCustom" class="mt-6 hidden">
           <p class="text-sm leading-relaxed text-white/55">For advanced users: posts go out through a bot you created yourself.</p>
           <ol class="mt-5 space-y-3 text-sm text-white/65">
-            <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>In Telegram, open <b class="font-semibold text-white">@BotFather</b>, send <code class="rounded bg-white/10 px-1.5 py-0.5 text-xs">/newbot</code> and copy the bot token.</span></li>
-            <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Add the bot to your channel as an <b class="font-semibold text-white">administrator</b> with the <b class="font-semibold text-white">Post messages</b> permission.</span></li>
-            <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">3</span><span>Paste the token and the channel below. We check access before saving.</span></li>
+            <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>In Telegram open <b class="font-semibold text-white">@BotFather</b>, send <code class="rounded bg-white/10 px-1.5 py-0.5 text-xs">/newbot</code>, choose a name and a username that ends in “bot”. BotFather replies with a token that looks like <code class="rounded bg-white/10 px-1.5 py-0.5 text-xs">123456789:AAH…</code>. Copy it.</span></li>
+            <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Add your bot to the channel as an <b class="font-semibold text-white">administrator</b> with <b class="font-semibold text-white">Post messages</b> on (channel name → Edit → Administrators → Add administrator). For a group, add it as a member.</span></li>
+            <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">3</span><span>Paste the token and the channel below and press <b class="font-semibold text-white">Verify &amp; connect</b>. Vane checks that the bot can post before it saves anything.</span></li>
           </ol>
 
           <form id="connectForm" class="mt-6 space-y-4" novalidate autocomplete="off">
@@ -795,7 +797,7 @@
             <div>
               <label for="cChat" class="lbl">Channel</label>
               <input id="cChat" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="@mychannel or -1001234567890" class="field font-mono !text-[13px]" />
-              <p class="mt-2 text-xs text-white/35">Public channel: its @username. Private channel: its numeric id (starts with -100).</p>
+              <p class="mt-2 text-xs text-white/35">Public channel: its @username. Private channel: its numeric id, which starts with -100 (open the channel at web.telegram.org/a and copy the number after # in the address).</p>
             </div>
 
             <div id="cErr" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
@@ -815,8 +817,8 @@
 
       <div data-step="linkedin" class="hidden">
         <ol class="mt-6 space-y-3 text-sm text-white/65">
-          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>Press <b class="font-semibold text-white">Continue with LinkedIn</b>. LinkedIn asks you to sign in (if you are not already) and to <b class="font-semibold text-white">Allow</b> Vane.</span></li>
-          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>You come straight back here, and your profile is connected.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>Press <b class="font-semibold text-white">Continue with LinkedIn</b>. LinkedIn asks you to sign in if needed and to press <b class="font-semibold text-white">Allow</b>.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>You come back here and your profile is connected. Posts go to your personal profile, not to a company page.</span></li>
         </ol>
         <p class="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-xs leading-relaxed text-white/50">Vane may only create posts on your profile and read your name to show it here. It cannot read your feed, messages or connections. A LinkedIn sign-in lasts 60 days: Vane shows <b class="font-semibold text-white/70">Reconnect</b> before it runs out, and you can remove the access any time in LinkedIn’s settings.</p>
 
@@ -841,8 +843,8 @@
 
       <div data-step="threads" class="hidden">
         <ol class="mt-6 space-y-3 text-sm text-white/65">
-          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>Press <b class="font-semibold text-white">Continue with Threads</b>. Threads asks you to sign in (if you are not already) and to <b class="font-semibold text-white">Allow</b> Vane.</span></li>
-          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>You come straight back here, and your profile is connected.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>Press <b class="font-semibold text-white">Continue with Threads</b>. Threads asks you to sign in if needed and to press <b class="font-semibold text-white">Allow</b>.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>You come back here and your profile is connected.</span></li>
         </ol>
         <p class="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-xs leading-relaxed text-white/50">Vane may only publish posts for you and read your username to show it here. It cannot read your messages or follow anyone. Vane keeps your sign-in fresh by itself; you can remove the access any time in Threads settings (Account → Website permissions).</p>
 
@@ -867,8 +869,8 @@
 
       <div data-step="reddit" class="hidden">
         <ol class="mt-6 space-y-3 text-sm text-white/65">
-          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>Type the subreddit to post to, for example <code class="rounded bg-white/10 px-1.5 py-0.5 text-xs">r/webdev</code>. Read its rules first: many subreddits ban promotion or need a flair.</span></li>
-          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Press <b class="font-semibold text-white">Continue with Reddit</b> and <b class="font-semibold text-white">Allow</b> Vane. You come straight back here.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>Type the subreddit to post to, for example <code class="rounded bg-white/10 px-1.5 py-0.5 text-xs">r/webdev</code>. Check its rules first: many subreddits ban self-promotion or require a flair. Use an account that is allowed to post there.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Press <b class="font-semibold text-white">Continue with Reddit</b>, sign in if needed and press <b class="font-semibold text-white">Allow</b>. You come back here.</span></li>
         </ol>
         <p class="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-xs leading-relaxed text-white/50">Vane may only submit posts for you and read your username. It cannot read your messages, vote or comment. The first line of each post is the title. You can remove the access any time at reddit.com/prefs/apps (“connected apps”).</p>
 
@@ -897,8 +899,8 @@
 
       <div data-step="pinterest" class="hidden">
         <ol class="mt-6 space-y-3 text-sm text-white/65">
-          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>Type the name of the board to pin to. It must already exist on your Pinterest account; each channel pins to one board.</span></li>
-          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Press <b class="font-semibold text-white">Continue with Pinterest</b> and <b class="font-semibold text-white">Give access</b>. You come straight back here.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>Type the exact name of a board that already exists on your account (capital letters do not matter). Each channel pins to one board: connect again for another board.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Press <b class="font-semibold text-white">Continue with Pinterest</b>, sign in if needed and press <b class="font-semibold text-white">Give access</b>. You come back here.</span></li>
         </ol>
         <p class="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-xs leading-relaxed text-white/50">Vane may only read your boards and username and create pins. Every pin needs a picture; the first line is the title and the first link becomes its destination.</p>
 
@@ -927,8 +929,9 @@
 
       <div data-step="facebook" class="hidden">
         <ol class="mt-6 space-y-3 text-sm text-white/65">
-          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>Press <b class="font-semibold text-white">Continue with Facebook</b>. Facebook asks you to sign in and to choose the <b class="font-semibold text-white">Pages</b> Vane may post to.</span></li>
-          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Every Page you allow becomes its own channel here.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>You must manage the Facebook Page (as an admin or editor). A personal profile cannot be used.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Press <b class="font-semibold text-white">Continue with Facebook</b>, sign in if needed and tick every <b class="font-semibold text-white">Page</b> Vane may post to.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">3</span><span>Every Page you allow becomes its own channel here.</span></li>
         </ol>
         <p class="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-xs leading-relaxed text-white/50">Vane may only publish posts on the Pages you choose and read their names. It cannot read messages, comments or your personal profile. You can remove the access any time in Facebook: Settings → Business integrations.</p>
 
@@ -953,8 +956,9 @@
 
       <div data-step="mastodon" class="hidden">
         <ol class="mt-6 space-y-3 text-sm text-white/65">
-          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>Type the address of the server your account is on, for example <code class="rounded bg-white/10 px-1.5 py-0.5 text-xs">mastodon.social</code>.</span></li>
-          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Your server opens and asks you to <b class="font-semibold text-white">Authorize</b> Vane. Sign in there if it asks.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>Type the address of the server your account is on, for example <code class="rounded bg-white/10 px-1.5 py-0.5 text-xs">mastodon.social</code>. It is the part after the second @ in your full name (@you@mastodon.social).</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Press <b class="font-semibold text-white">Continue</b>. Your server opens: sign in there if it asks, then press <b class="font-semibold text-white">Authorize</b>.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">3</span><span>You come back to Vane and the account is connected.</span></li>
         </ol>
         <p class="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-xs leading-relaxed text-white/50">Vane may only post and upload pictures for you and read which account this is. It cannot read your timeline, follow or block anyone. You can take the access away any time in your server's <b class="font-semibold text-white/70">Preferences → Account → Authorized apps</b>.</p>
 
@@ -982,8 +986,9 @@
 
       <div data-step="bluesky" class="hidden">
         <ol class="mt-6 space-y-3 text-sm text-white/65">
-          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>In Bluesky open <b class="font-semibold text-white">Settings → Privacy and security → App passwords</b> and add a new one (for example “Vane”).</span></li>
-          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Paste your handle and that password below. It looks like <code class="rounded bg-white/10 px-1.5 py-0.5 text-xs">xxxx-xxxx-xxxx-xxxx</code>.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>In Bluesky open <b class="font-semibold text-white">Settings → Privacy and security → App passwords</b> and press <b class="font-semibold text-white">Add App Password</b>. Name it “Vane” and create it.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Copy the password at once: Bluesky shows it only one time. It looks like <code class="rounded bg-white/10 px-1.5 py-0.5 text-xs">xxxx-xxxx-xxxx-xxxx</code>.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">3</span><span>Paste your handle (for example <code class="rounded bg-white/10 px-1.5 py-0.5 text-xs">alice.bsky.social</code>, without @) and that password below.</span></li>
         </ol>
         <p class="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-xs leading-relaxed text-white/50">Never enter your normal password. An app password can only post for you, can't change your account, and you can delete it in Bluesky at any time to disconnect Vane.</p>
 
@@ -1018,8 +1023,9 @@
 
       <div data-step="discord" class="hidden">
         <ol class="mt-6 space-y-3 text-sm text-white/65">
-          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>In Discord open <b class="font-semibold text-white">Server settings → Integrations → Webhooks</b> and press <b class="font-semibold text-white">New Webhook</b>.</span></li>
-          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Pick the channel Vane should post to, press <b class="font-semibold text-white">Copy Webhook URL</b> and paste it below.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>You need the <b class="font-semibold text-white">Manage Webhooks</b> permission on the server. If you do not see the menu below, ask a server admin.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>In Discord open <b class="font-semibold text-white">Server settings → Integrations → Webhooks</b> (on a phone: server name → Settings → Integrations → Webhooks) and press <b class="font-semibold text-white">New Webhook</b>.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">3</span><span>Choose the channel Vane should post to, press <b class="font-semibold text-white">Copy Webhook URL</b> and paste it below. It starts with <code class="rounded bg-white/10 px-1.5 py-0.5 text-xs">https://discord.com/api/webhooks/</code>.</span></li>
         </ol>
         <p class="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-xs leading-relaxed text-white/50">Anyone who has this link can post to that channel, so keep it private. Delete the webhook in Discord at any time to disconnect Vane.</p>
 
@@ -1047,10 +1053,11 @@
 
       <div data-step="slack" class="hidden">
         <ol class="mt-6 space-y-3 text-sm text-white/65">
-          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>Open <b class="font-semibold text-white">api.slack.com/apps</b>, create an app for your workspace and switch on <b class="font-semibold text-white">Incoming Webhooks</b>.</span></li>
-          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Press <b class="font-semibold text-white">Add New Webhook to Workspace</b>, pick the channel, copy the URL and paste it below.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>Open <b class="font-semibold text-white">api.slack.com/apps</b> and sign in to your workspace. Press <b class="font-semibold text-white">Create New App</b> → <b class="font-semibold text-white">From scratch</b>, name it “Vane”, choose your workspace and press <b class="font-semibold text-white">Create App</b>.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>In the left menu open <b class="font-semibold text-white">Incoming Webhooks</b> and switch it on.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">3</span><span>Press <b class="font-semibold text-white">Add New Webhook to Workspace</b>, choose the channel and press <b class="font-semibold text-white">Allow</b>. Copy the new Webhook URL (it starts with <code class="rounded bg-white/10 px-1.5 py-0.5 text-xs">https://hooks.slack.com/services/</code>) and paste it below.</span></li>
         </ol>
-        <p class="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-xs leading-relaxed text-white/50">Anyone who has this link can post to that channel, so keep it private. Remove the app in Slack at any time to disconnect Vane.</p>
+        <p class="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-xs leading-relaxed text-white/50">Anyone who has this link can post to that channel, so keep it private. Remove the app in Slack at any time to disconnect Vane. If Slack says you cannot add apps, ask a workspace admin to approve it.</p>
 
         <form id="skForm" class="mt-6 space-y-4" novalidate autocomplete="off">
           <div>
@@ -1077,8 +1084,9 @@
 
       <div data-step="hashnode" class="hidden">
         <ol class="mt-6 space-y-3 text-sm text-white/65">
-          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>On Hashnode open <b class="font-semibold text-white">Account settings → Developer</b> and press <b class="font-semibold text-white">Generate New Token</b>.</span></li>
-          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Paste the token below. If you have several blogs, add the address of the one to use. Every post is published as an article.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>On Hashnode open <b class="font-semibold text-white">hashnode.com/settings/developer</b> (profile picture → Account settings → Developer) and press <b class="font-semibold text-white">Generate New Token</b>.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Copy the token and paste it below.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">3</span><span><b class="font-semibold text-white">Blog address</b> is only needed if you have several blogs: enter the one to post to, for example <code class="rounded bg-white/10 px-1.5 py-0.5 text-xs">yourname.hashnode.dev</code>. With one blog leave it empty. Every post is published as an article.</span></li>
         </ol>
         <p class="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-xs leading-relaxed text-white/50">The token can publish articles for you. Remove it on Hashnode at any time to disconnect Vane.</p>
 
@@ -1113,8 +1121,8 @@
 
       <div data-step="devto" class="hidden">
         <ol class="mt-6 space-y-3 text-sm text-white/65">
-          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>On Dev.to open <b class="font-semibold text-white">Settings → Extensions</b> and, under <b class="font-semibold text-white">DEV Community API Keys</b>, generate a key (for example “Vane”).</span></li>
-          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Paste the key below. Every post you schedule is published as an article.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>On Dev.to open <b class="font-semibold text-white">dev.to/settings/extensions</b>. Under <b class="font-semibold text-white">DEV Community API Keys</b> type “Vane” as the description and press <b class="font-semibold text-white">Generate API Key</b>.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Copy the key and paste it below. Every post you schedule is published as an article.</span></li>
         </ol>
         <p class="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-xs leading-relaxed text-white/50">The key can publish articles for you. Remove it on Dev.to at any time to disconnect Vane.</p>
 
@@ -1146,8 +1154,8 @@
       <div data-step="webhook" class="hidden">
         <div id="whSetup">
           <ol class="mt-6 space-y-3 text-sm text-white/65">
-            <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>Make an address on your server, in Make, Zapier or n8n that accepts a <b class="font-semibold text-white">POST</b> with JSON and answers <b class="font-semibold text-white">2xx</b>.</span></li>
-            <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Paste the <b class="font-semibold text-white">https</b> address below. Vane sends a test call first, then every post you schedule to this channel.</span></li>
+            <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>You need an <b class="font-semibold text-white">https</b> address that accepts a <b class="font-semibold text-white">POST</b> with JSON and answers <b class="font-semibold text-white">2xx</b>. The quickest way is a ready-made one: in <b class="font-semibold text-white">Make</b> add the “Custom webhook” module, in <b class="font-semibold text-white">Zapier</b> the “Catch Hook” trigger (Webhooks by Zapier), in <b class="font-semibold text-white">n8n</b> a “Webhook” node set to POST (use its Production URL). Copy the address.</span></li>
+            <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Paste the address below. Vane sends one test call first, then every post you schedule to this channel.</span></li>
           </ol>
           <p class="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-xs leading-relaxed text-white/50">Every call is signed (<span class="font-mono">Vane-Signature</span>) with a secret that Vane shows once after connecting. Delete the address on your side, or disconnect the channel here, at any time to stop.</p>
 
@@ -1265,7 +1273,7 @@
   <script src="/assets/usage-meter.js?v=6e7b0ef6a9"></script>
   <script src="/assets/media-picker.js?v=4c4df7c965"></script>
   <script src="/assets/insights.js?v=c81d5838ef"></script>
-  <script src="/assets/dashboard.js?v=a11fbe3d46"></script>
+  <script src="/assets/dashboard.js?v=716a2d2798"></script>
   <script src="/assets/ai.js?v=9076d3d765"></script>
   <script src="/assets/library.js?v=192f4ed619"></script>
   <script src="/assets/library-picker.js?v=e0ff84c690"></script>

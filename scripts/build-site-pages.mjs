@@ -229,7 +229,7 @@ for (const n of NETWORK_PAGES) {
           <a href="/login?mode=register&amp;product=${n.product === 'Vane Studio' ? 'studio' : 'post'}" class="btn-grad rounded-full px-6 py-3 text-sm font-medium text-white hover:opacity-90">Start free</a>
           <a href="/pricing" class="rounded-full bg-white/10 px-6 py-3 text-sm font-medium text-white/85 hover:bg-white/15">See pricing</a>
         </div>
-        ${n.status === 'next' ? '<p class="copy mt-5">This network is built and is switched on as soon as it approves Vane. The Channels screen always shows whether it is open for you.</p>' : ''}
+        ${n.status === 'next' ? '<p class="copy mt-5">This network is built and is switched on as soon as it approves Vane. Until then it shows as “Soon” in Channels and cannot be selected; the steps below are what you will do once it is open. The Channels screen always shows whether it is open for you.</p>' : ''}
       </section>
 
       <section class="reveal mt-14 grid gap-5 md:grid-cols-2">
