@@ -6,10 +6,12 @@
   var NS = 'http://www.w3.org/2000/svg';
   var COLORS = ['#7dd3fc', '#86efac', '#fcd34d', '#f9a8d4', '#c4b5fd', '#fdba74'];
   var LABEL = { bluesky: 'Bluesky', mastodon: 'Mastodon', telegram: 'Telegram', devto: 'Dev.to', x: 'X', linkedin: 'LinkedIn', threads: 'Threads', discord: 'Discord', reddit: 'Reddit', pinterest: 'Pinterest', facebook: 'Facebook', webhook: 'Webhook' };
-  var TABS = [['overview', 'Overview'], ['posts', 'Posts'], ['followers', 'Followers'], ['compare', 'Compare', true], ['times', 'Best times', true], ['bot', 'Telegram bot'], ['plans', 'Free and Pro']];
+  var TABS = [['overview', 'Overview'], ['activity', 'Activity'], ['posts', 'Posts'], ['followers', 'Followers'], ['compare', 'Compare', true], ['times', 'Best times', true], ['formats', 'Formats', true], ['bot', 'Telegram bot'], ['plans', 'Free and Pro']];
+  var STAGES = { 1: '1 hour', 2: '24 hours', 3: '7 days', 4: '30 days' };
+  var MILESTONES = [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000];
   var SORTS = [['new', 'Newest first'], ['old', 'Oldest first'], ['reactions', 'Most reactions'], ['likes', 'Most likes'], ['replies', 'Most replies'], ['reposts', 'Most reposts'], ['views', 'Most views']];
   var DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  var S = { tab: 'overview', days: 30, sel: null, sort: 'new', q: '', page: 1, d: null, ins: null, insKey: '' };
+  var S = { tab: 'overview', days: 30, sel: null, sort: 'new', q: '', page: 1, d: null, ins: null, insKey: '', act: null, actKey: '', actSel: null };
 
   function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem('vane.analytics.' + k)); localStorage.setItem('vane.analytics.' + k, JSON.stringify(v)); } catch (e) { return null; } }
   var checkoutUrl = function () { return (/^analytics\.vaneapp\.dev$/i.test(location.hostname) ? 'https://vaneapp.dev' : '') + '/checkout?plan=analytics'; };
@@ -22,13 +24,19 @@
     ['Bluesky, Mastodon, Dev.to results · followers on Bluesky, Mastodon, Telegram', true, true],
     ['Filter by network, period and sort', true, true],
     ['Reactions per day chart and best posts', true, true],
+    ['Comparison with the previous period', true, true],
+    ['Activity of every network: sent, failed, queue, streak', true, true],
     ['Followers now and change', true, true],
     ['History', '30 days', '12 months'],
     ['Posts list', '10 latest', 'All, with search and pages'],
     ['Followers growth charts by network', false, true],
     ['Compare your networks', false, true],
     ['Best day and time to publish', false, true],
-    ['CSV export', false, true],
+    ['Formats: what works better (media, length, link, hashtags, question)', false, true],
+    ['Growth of one post from 1 hour to 30 days', false, true],
+    ['Followers forecast to the next milestone', false, true],
+    ['Activity: when you publish, why posts fail, how punctual Vane is', false, true],
+    ['CSV export: posts, followers, activity', false, true],
     ['Weekly report by email', false, true],
     ['Telegram bot: commands, post results, follower milestones', true, true],
     ['Telegram bot: daily follower changes, hot post alerts, digests', false, true]
@@ -104,7 +112,21 @@
   }
 
   // ── parts
-  function stat(label, value, sub) { var c = el('div', 'glass-d rounded-2xl p-4'); c.appendChild(el('p', 'text-xs text-white/50', label)); c.appendChild(el('p', 'mt-1 text-2xl font-semibold tabular-nums', fmt(value))); if (sub) c.appendChild(el('p', 'mt-0.5 text-xs text-white/40', sub)); return c; }
+  function stat(label, value, sub, dl) {
+    var c = el('div', 'glass-d rounded-2xl p-4'); c.appendChild(el('p', 'text-xs text-white/50', label)); c.appendChild(el('p', 'mt-1 text-2xl font-semibold tabular-nums', fmt(value)));
+    if (sub) c.appendChild(el('p', 'mt-0.5 text-xs text-white/40', sub));
+    if (dl) { var p = el('p', 'mt-0.5 text-xs tabular-nums text-white/40'); p.appendChild(el('span', dl.cls, dl.text)); p.appendChild(document.createTextNode(' vs previous period')); c.appendChild(p); }
+    return c;
+  }
+  // Change against the period just before: a percentage, "new" when there was nothing before, nothing at all when both are empty. `invert`: down is good (failed posts).
+  function delta(now, prev, invert) {
+    if (prev === undefined || prev === null) return null;
+    if (!prev) return now ? { text: 'new', cls: 'text-white/55' } : null;
+    var pct = Math.round(((now - prev) / prev) * 100);
+    if (!pct) return { text: '0%', cls: 'text-white/45' };
+    return { text: (pct > 0 ? '+' : '') + pct + '%', cls: (invert ? pct < 0 : pct > 0) ? 'text-emerald-300' : 'text-rose-300' };
+  }
+  var avgOf = function (t) { return t && t.posts ? Math.round(((t.likes + t.replies + t.reposts) / t.posts) * 10) / 10 : 0; };
   function colorOf(id) { var i = S.d.channels.findIndex(function (c) { return c.id === id; }); return COLORS[(i < 0 ? 0 : i) % COLORS.length]; }
   function netTag(p) { var t = el('span', 'inline-flex items-center gap-1.5 text-xs text-white/55'); var d = el('span', 'h-2 w-2 rounded-full'); d.style.background = colorOf(p.channel_id); t.appendChild(d); t.appendChild(document.createTextNode((LABEL[p.type] || p.type) + ' · ' + p.channel)); return t; }
   function postRow(p) {
@@ -116,7 +138,30 @@
     left.appendChild(meta); r.appendChild(left);
     var nums = el('div', 'flex gap-4 text-sm tabular-nums text-white/75');
     [['views', p.views], ['likes', p.likes], ['replies', p.replies], ['reposts', p.reposts]].forEach(function (x) { var c = el('div', 'text-center'); c.appendChild(el('p', 'font-medium', fmt(x[1]))); c.appendChild(el('p', 'text-[10px] uppercase tracking-wide text-white/40', x[0])); nums.appendChild(c); });
-    r.appendChild(nums); return r;
+    r.appendChild(nums);
+    if (S.d && S.d.pro && p.stage !== null) {
+      var g = el('button', 'btn btn-ghost btn-sm', 'Growth'); g.type = 'button'; var panel = null;
+      g.addEventListener('click', function () {
+        if (panel) { panel.remove(); panel = null; g.textContent = 'Growth'; return; }
+        panel = el('div', 'basis-full w-full border-t border-white/10 pt-3 text-sm text-white/50', 'Loading…'); r.appendChild(panel); g.textContent = 'Hide';
+        fetch('/api/analytics/post?id=' + encodeURIComponent(p.id), { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then(function (x) { return x.json(); }).then(function (j) { if (panel) growthPanel(panel, j); }).catch(function () { if (panel) panel.textContent = 'Could not load the growth of this post.'; });
+      });
+      r.appendChild(g);
+    }
+    return r;
+  }
+  function growthPanel(panel, j) {
+    panel.textContent = '';
+    if (!j || !j.ok || !j.stages.length) { panel.textContent = 'Not enough snapshots yet. They are taken 1 hour, 24 hours, 7 days and 30 days after publishing.'; return; }
+    var max = 1; j.stages.forEach(function (x) { max = Math.max(max, (x.likes || 0) + (x.replies || 0) + (x.reposts || 0)); });
+    panel.appendChild(el('p', 'mb-2 text-xs uppercase tracking-wide text-white/40', 'Reactions after…'));
+    j.stages.forEach(function (x) {
+      var total = (x.likes || 0) + (x.replies || 0) + (x.reposts || 0), row = el('div', 'mb-1.5 flex items-center gap-3 text-xs tabular-nums');
+      row.appendChild(el('span', 'w-16 shrink-0 text-white/55', STAGES[x.stage] || ('stage ' + x.stage)));
+      var bar = el('div', 'h-2 flex-1 overflow-hidden rounded-full bg-white/10'), fill = el('div', 'h-full rounded-full bg-sky-300/80'); fill.style.width = Math.max(total / max * 100, total ? 3 : 0) + '%'; bar.appendChild(fill); row.appendChild(bar);
+      row.appendChild(el('span', 'w-44 shrink-0 text-right text-white/65', fmt(x.likes) + ' likes · ' + fmt(x.replies) + ' replies · ' + fmt(x.reposts) + ' reposts' + (x.views ? ' · ' + fmt(x.views) + ' views' : '')));
+      panel.appendChild(row);
+    });
   }
   function empty(text) { return el('div', 'glass-d rounded-2xl p-6 text-center text-sm text-white/55', text); }
   function section(title, hint) { var h = el('div', 'flex items-baseline justify-between gap-3'); h.appendChild(el('h2', 'text-sm font-semibold uppercase tracking-wide text-white/50', title)); if (hint) h.appendChild(el('span', 'text-xs text-white/35', hint)); return h; }
@@ -124,9 +169,13 @@
   // ── tabs
   function renderOverview() {
     var d = S.d, root = $('tab-overview'); root.textContent = '';
-    if (!d.selected.length) { root.appendChild(empty('Pick at least one network above to see its numbers.')); return; }
-    var t = d.totals, avg = t.posts ? Math.round(((t.likes + t.replies + t.reposts) / t.posts) * 10) / 10 : null;
-    var g = el('div', 'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6'); [['Posts', t.posts], ['Views', t.views], ['Likes', t.likes], ['Replies', t.replies], ['Reposts', t.reposts], ['Per post', avg]].forEach(function (x) { g.appendChild(stat(x[0], x[1], x[0] === 'Per post' ? 'average reactions' : null)); });
+    if (!d.selected.length) {
+      var none = empty(d.channels.length ? 'None of your networks gives numbers back yet (results: Bluesky, Mastodon, Dev.to). ' : 'Pick at least one network above to see its numbers.');
+      if (d.channels.length) { var go = el('a', 'text-white underline underline-offset-4', 'See what Vane did for them in Activity →'); go.href = '#activity'; none.appendChild(go); }
+      root.appendChild(none); return;
+    }
+    var t = d.totals, pv = d.prev, avg = t.posts ? avgOf(t) : null;
+    var g = el('div', 'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6'); [['Posts', t.posts, pv && pv.posts], ['Views', t.views, pv && pv.views], ['Likes', t.likes, pv && pv.likes], ['Replies', t.replies, pv && pv.replies], ['Reposts', t.reposts, pv && pv.reposts], ['Per post', avg, pv && pv.posts ? avgOf(pv) : 0]].forEach(function (x) { g.appendChild(stat(x[0], x[1], x[0] === 'Per post' ? 'average reactions' : null, pv ? delta(x[1] || 0, x[2]) : null)); });
     root.appendChild(g);
     var c = el('div', 'glass-d rounded-2xl p-4 sm:p-5'); var h = el('div', 'mb-3 flex flex-wrap items-center justify-between gap-2'); h.appendChild(el('p', 'text-sm font-medium', 'Reactions' + (d.days > 90 ? ' per week' : ' per day'))); h.appendChild(legend()); c.appendChild(h);
     if (t.posts) c.appendChild(barChart(d.daily, d.days)); else c.appendChild(el('p', 'py-8 text-center text-sm text-white/50', 'No published posts here in the last ' + d.days + ' days yet. Results show up an hour after a post goes out.'));
@@ -160,6 +209,18 @@
     }
   }
 
+  // Pace over the period on screen and the next round number; a straight line, said as such ("~"), never a promise.
+  function forecast(pts) {
+    var p = el('p', 'mt-2 text-xs text-white/55'), a = pts[0], b = pts[pts.length - 1], span = (Date.parse(b.day) - Date.parse(a.day)) / 86400000, next = null;
+    if (span < 3) { p.textContent = 'A forecast appears after a few more days of numbers.'; return p; }
+    for (var i = 0; i < MILESTONES.length; i++) if (MILESTONES[i] > b.followers) { next = MILESTONES[i]; break; }
+    if (!next) return p;
+    var pace = (b.followers - a.followers) / span;
+    if (pace <= 0) { p.textContent = 'No growth in this period, so no forecast for ' + next.toLocaleString() + '.'; return p; }
+    var eta = Math.ceil((next - b.followers) / pace);
+    p.textContent = '+' + (Math.round(pace * 10) / 10) + ' per day · ' + (eta > 730 ? 'more than 2 years to ' + next.toLocaleString() : '~' + eta + ' days to ' + next.toLocaleString() + ' (' + new Date(Date.now() + eta * 86400000).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) + ')');
+    return p;
+  }
   function renderFollowers() {
     var d = S.d, root = $('tab-followers'); root.textContent = '';
     var chans = d.channels.filter(function (c) { return d.selected.indexOf(c.id) >= 0 && c.followers; });
@@ -169,10 +230,11 @@
       var c = el('div', 'glass-d rounded-2xl p-4'), top = el('div', 'flex items-center gap-2'); var dot = el('span', 'h-2.5 w-2.5 rounded-full'); dot.style.background = colorOf(n.id); top.appendChild(dot); top.appendChild(el('p', 'min-w-0 flex-1 truncate text-sm font-medium', n.name)); top.appendChild(el('span', 'text-xs text-white/45', LABEL[n.type] || n.type)); c.appendChild(top);
       if (n.now === null) { c.appendChild(el('p', 'mt-3 text-sm text-white/50', 'The first number appears after the next daily check.')); grid.appendChild(c); return; }
       var delta = n.first === null ? 0 : n.now - n.first, row = el('div', 'mt-3 flex items-baseline gap-2'); row.appendChild(el('p', 'text-3xl font-semibold tabular-nums', fmt(n.now))); row.appendChild(el('p', 'text-sm tabular-nums ' + (delta > 0 ? 'text-emerald-300' : delta < 0 ? 'text-rose-300' : 'text-white/45'), (delta > 0 ? '+' : '') + delta + ' in ' + d.days + ' days')); c.appendChild(row);
-      if (d.pro) { var pts = d.series.filter(function (p) { return p.channel_id === n.id; }); if (pts.length > 1) { var w = el('div', 'mt-3'); w.appendChild(line(pts, colorOf(n.id))); var ax = el('div', 'flex justify-between text-[11px] text-white/35'); ax.appendChild(el('span', '', pts[0].day)); ax.appendChild(el('span', '', pts[pts.length - 1].day)); w.appendChild(ax); c.appendChild(w); } else c.appendChild(el('p', 'mt-3 text-xs text-white/45', 'The chart appears after two daily checks.')); }
+      if (d.pro) { var pts = d.series.filter(function (p) { return p.channel_id === n.id; }); if (pts.length > 1) { var w = el('div', 'mt-3'); w.appendChild(line(pts, colorOf(n.id))); var ax = el('div', 'flex justify-between text-[11px] text-white/35'); ax.appendChild(el('span', '', pts[0].day)); ax.appendChild(el('span', '', pts[pts.length - 1].day)); w.appendChild(ax); c.appendChild(w); c.appendChild(forecast(pts)); } else c.appendChild(el('p', 'mt-3 text-xs text-white/45', 'The chart appears after two daily checks.')); }
       grid.appendChild(c);
     });
     root.appendChild(grid);
+    if (d.pro) { var fx = el('a', 'btn btn-ghost btn-sm inline-flex', 'Export CSV'); fx.href = '/api/analytics/export?kind=followers&days=' + d.days + '&channels=' + encodeURIComponent(d.selected.join(',')); fx.setAttribute('download', 'vane-followers.csv'); root.appendChild(fx); }
     if (!d.pro) root.appendChild(lock('Followers growth charts are part of Analytics Pro', 'See how each network grows day by day, with up to 12 months of history.'));
   }
 
@@ -219,6 +281,141 @@
     });
   }
   var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+
+  // ── Activity: what Vane published for you, on EVERY network (no numbers from the networks needed)
+  function needActivity(cb) {
+    var key = S.days + '|' + (S.actSel ? S.actSel.join(',') : 'all');
+    if (S.actKey === key && S.act) return cb(S.act);
+    fetch('/api/analytics/activity?days=' + S.days + (S.actSel ? '&channels=' + encodeURIComponent(S.actSel.join(',')) : ''), { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then(function (r) { return r.json(); }).then(function (j) { if (j && j.ok) { S.act = j; S.actKey = key; cb(j); } else cb(null); }).catch(function () { cb(null); });
+  }
+  function legendOf(pairs) {
+    var l = el('div', 'flex flex-wrap gap-4 text-xs text-white/55');
+    pairs.forEach(function (c) { var i = el('span', 'inline-flex items-center gap-1.5'); var d = el('span', 'h-2.5 w-2.5 rounded-sm'); d.style.background = c[1]; i.appendChild(d); i.appendChild(document.createTextNode(c[0])); l.appendChild(i); });
+    return l;
+  }
+  var RED = '#fca5a5';
+  function activityBars(daily, days) {
+    var byDay = {}; daily.forEach(function (r) { byDay[r.day] = r; });
+    var today = Math.floor(Date.now() / 86400000), step = days > 90 ? 7 : 1, rows = [], max = 1;
+    for (var i = days - 1; i >= 0; i -= step) {
+      var agg = { label: '', sent: 0, failed: 0 };
+      for (var k = 0; k < step && i - k >= 0; k++) { var day = new Date((today - (i - k)) * 86400000).toISOString().slice(0, 10); if (k === 0) agg.label = day; var r = byDay[day]; if (r) { agg.sent += r.sent; agg.failed += r.failed; } }
+      rows.push(agg); max = Math.max(max, agg.sent + agg.failed);
+    }
+    var W = 640, H = 150, P = 6, s = svg('svg', { viewBox: '0 0 ' + W + ' ' + (H + 18), class: 'w-full', role: 'img', 'aria-label': 'Posts per day' });
+    s.appendChild(svg('line', { x1: 0, x2: W, y1: H, y2: H, stroke: 'rgba(255,255,255,.12)' }));
+    var bw = (W - P * 2) / rows.length;
+    rows.forEach(function (r, i) {
+      var x = P + i * bw, y = H;
+      [['sent', COLORS[1]], ['failed', RED]].forEach(function (c) {
+        var h = (r[c[0]] / max) * (H - 14); if (h <= 0) return; y -= h;
+        var rect = svg('rect', { x: x + bw * 0.15, y: y, width: Math.max(bw * 0.7, 1), height: h, fill: c[1], rx: 1.5 }); rect.appendChild(svg('title')).textContent = r.label + ': ' + r.sent + ' published, ' + r.failed + ' failed'; s.appendChild(rect);
+      });
+    });
+    [[0, 'start', rows[0].label], [W, 'end', rows[rows.length - 1].label]].forEach(function (t) { var n = svg('text', { x: t[0], y: H + 14, fill: 'rgba(255,255,255,.4)', 'font-size': 9, 'text-anchor': t[1] }); n.textContent = t[2]; s.appendChild(n); });
+    var m = svg('text', { x: 0, y: 11, fill: 'rgba(255,255,255,.4)', 'font-size': 9 }); m.textContent = 'max ' + max; s.appendChild(m);
+    return s;
+  }
+  function barRows(title, items) {
+    var box = el('div', 'glass-d space-y-4 rounded-2xl p-4 sm:p-5'); box.appendChild(el('p', 'text-sm font-medium', title));
+    var best = 0; items.forEach(function (x) { best = Math.max(best, x.value); });
+    items.forEach(function (x) {
+      var r = el('div'), top = el('div', 'flex items-baseline justify-between gap-3 text-sm'); top.appendChild(el('span', 'min-w-0 truncate', x.label)); top.appendChild(el('span', 'tabular-nums text-white/75', x.text)); r.appendChild(top);
+      var bar = el('div', 'mt-1.5 h-2.5 overflow-hidden rounded-full bg-white/10'), fill = el('div', 'h-full rounded-full'); fill.style.width = (best ? Math.max(x.value / best * 100, x.value ? 2 : 0) : 0) + '%'; fill.style.background = x.color; bar.appendChild(fill); r.appendChild(bar);
+      if (x.sub) r.appendChild(el('p', 'mt-1 text-xs text-white/40', x.sub)); box.appendChild(r);
+    });
+    return box;
+  }
+  function habitHeat(grid, tz) {
+    var max = 0, sum = 0; grid.forEach(function (r) { r.forEach(function (v) { max = Math.max(max, v); sum += v; }); });
+    var c = el('div', 'glass-d rounded-2xl p-4 sm:p-5'); c.appendChild(el('p', 'text-sm font-medium', 'When you publish')); c.appendChild(el('p', 'mb-3 text-xs text-white/40', 'Number of posts by weekday and hour. Time zone: ' + tz + '. This is about your habits; Best times shows what works.'));
+    if (!sum) { c.appendChild(el('p', 'py-6 text-center text-sm text-white/50', 'No published posts in this period.')); return c; }
+    var scroll = el('div', 'overflow-x-auto'), g = el('div', 'grid min-w-[420px] gap-1'); g.style.gridTemplateColumns = '2.5rem repeat(8, minmax(0, 1fr))';
+    g.appendChild(el('div')); for (var h = 0; h < 8; h++) g.appendChild(el('div', 'text-center text-[10px] text-white/40', pad(h * 3)));
+    DAYS.forEach(function (name, di) {
+      g.appendChild(el('div', 'flex items-center text-xs text-white/50', name));
+      for (var si = 0; si < 8; si++) { var n = grid[di][si], b = el('div', 'flex h-9 items-center justify-center rounded-md text-[11px] tabular-nums'); if (n) { b.style.background = 'rgba(134,239,172,' + (0.12 + 0.75 * n / max).toFixed(2) + ')'; b.style.color = n / max > 0.55 ? '#04170c' : 'rgba(255,255,255,.8)'; b.textContent = String(n); b.title = DAYS[di] + ' ' + pad(si * 3) + '–' + pad(si * 3 + 3) + ': ' + n + ' posts'; } else b.style.background = 'rgba(255,255,255,.04)'; g.appendChild(b); }
+    });
+    scroll.appendChild(g); c.appendChild(scroll); return c;
+  }
+  var human = function (sec) { return sec < 60 ? sec + ' s' : sec < 3600 ? Math.round(sec / 60) + ' min' : (Math.round(sec / 360) / 10) + ' h'; };
+  function reliability(a) {
+    var c = el('div', 'glass-d rounded-2xl p-4 sm:p-5'), pu = a.punctuality; c.appendChild(el('p', 'text-sm font-medium', 'Reliability'));
+    c.appendChild(el('p', 'mt-1 text-sm text-white/65', pu.n ? pu.onTimePct + '% of posts went out within 2 minutes of the scheduled time. The slowest 5% waited ' + human(pu.p95Sec) + '.' : 'No published posts in this period.'));
+    if (!a.failures.length) { c.appendChild(el('p', 'mt-3 text-sm text-emerald-300', 'No failed posts in this period.')); return c; }
+    c.appendChild(el('p', 'mb-1 mt-4 text-xs uppercase tracking-wide text-white/40', 'Why posts failed'));
+    var ul = el('ul', 'space-y-1.5 text-sm text-white/70');
+    a.failures.forEach(function (f) { var li = el('li', 'flex items-baseline gap-3'); li.appendChild(el('span', 'w-8 shrink-0 text-right tabular-nums text-rose-300', f.count + '×')); li.appendChild(el('span', 'min-w-0 break-words', f.reason)); ul.appendChild(li); });
+    c.appendChild(ul); return c;
+  }
+  function renderActivity() {
+    var root = $('tab-activity'); root.textContent = '';
+    if (!S.d.channels.length) { root.appendChild(empty('No networks connected yet. Connect one in Vane Post and what Vane publishes for you shows up here.')); return; }
+    root.appendChild(el('p', 'text-sm text-white/45', 'Loading…'));
+    needActivity(function (a) {
+      if (S.tab !== 'activity') return;
+      root.textContent = '';
+      if (!a) { root.appendChild(empty('Could not load the activity. Try again in a moment.')); return; }
+      var t = a.totals, pv = a.prev, total = t.sent + t.failed, rate = total ? Math.round(t.sent / total * 100) : null;
+      root.appendChild(el('p', 'text-sm text-white/45', 'What Vane published for you on every network, including the ones that give no numbers back.'));
+      var g = el('div', 'grid grid-cols-2 gap-3 lg:grid-cols-4');
+      g.appendChild(stat('Published', t.sent, null, delta(t.sent, pv.sent)));
+      g.appendChild(stat('Failed', t.failed, rate === null ? null : rate + '% went through', delta(t.failed, pv.failed, true)));
+      g.appendChild(stat('In the queue', a.upcoming, 'waiting to go out'));
+      g.appendChild(stat('Streak', a.streak.current, 'days in a row · best ' + a.streak.longest + ' · ' + a.streak.activeDays + ' active days'));
+      root.appendChild(g);
+      var c = el('div', 'glass-d rounded-2xl p-4 sm:p-5'), h = el('div', 'mb-3 flex flex-wrap items-center justify-between gap-2'); h.appendChild(el('p', 'text-sm font-medium', 'Posts' + (a.days > 90 ? ' per week' : ' per day'))); h.appendChild(legendOf([['Published', COLORS[1]], ['Failed', RED]])); c.appendChild(h);
+      if (total) c.appendChild(activityBars(a.daily, a.days)); else c.appendChild(el('p', 'py-8 text-center text-sm text-white/50', 'Nothing was published on these networks in the last ' + a.days + ' days.'));
+      root.appendChild(c);
+      if (a.byNetwork.length) root.appendChild(barRows('By network', a.byNetwork.map(function (n) { return { label: LABEL[n.type] || n.type, value: n.sent, text: n.sent + ' published' + (n.failed ? ' · ' + n.failed + ' failed' : ''), color: COLORS[(Object.keys(LABEL).indexOf(n.type) + COLORS.length) % COLORS.length] }; })));
+      if (!a.pro) { root.appendChild(lock('When you publish, why posts fail, how punctual Vane is', 'See your posting habits by weekday and hour, the most common reasons posts fail, how close to the scheduled minute they go out, and every channel side by side. Up to 12 months of history.')); return; }
+      root.appendChild(habitHeat(a.habits, a.timeZone));
+      root.appendChild(reliability(a));
+      if (a.byChannel.length) root.appendChild(barRows('By channel', a.byChannel.map(function (n) { return { label: (LABEL[n.type] || n.type) + ' · ' + n.name, value: n.sent, text: n.sent + ' published' + (n.failed ? ' · ' + n.failed + ' failed' : ''), sub: n.sent ? Math.round(n.media / n.sent * 100) + '% with media' : '', color: colorOf(n.channel_id) }; })));
+      var ex = el('a', 'btn btn-ghost btn-sm inline-flex', 'Export CSV'); ex.href = '/api/analytics/export?kind=activity&days=' + a.days + '&channels=' + encodeURIComponent(a.selected.join(',')); ex.setAttribute('download', 'vane-activity.csv'); root.appendChild(ex);
+    });
+  }
+  function actChips(box, chip) {
+    var d = S.d, all = d.channels.map(function (c) { return c.id; }), cur = (S.actSel || all).filter(function (id) { return all.indexOf(id) >= 0; });
+    if (!cur.length) cur = all;
+    if (d.channels.length > 1) box.appendChild(chip('All', cur.length === all.length, function () { S.actSel = null; refreshAct(); }));
+    d.channels.forEach(function (c) {
+      var on = cur.indexOf(c.id) >= 0;
+      var b = chip((LABEL[c.type] || c.type) + ' · ' + c.name, on, function () { var x = cur.slice(), i = x.indexOf(c.id); if (i >= 0) { if (x.length === 1) return; x.splice(i, 1); } else x.push(c.id); S.actSel = x.length === all.length ? null : x; refreshAct(); }, false);
+      if (on) { var dot = el('span', 'mr-1.5 inline-block h-2 w-2 rounded-full align-middle'); dot.style.background = colorOf(c.id); b.insertBefore(dot, b.firstChild); }
+      box.appendChild(b);
+    });
+  }
+  function refreshAct() { renderChips(); renderTab(); }
+
+  // ── Formats: which traits of your own posts go with more reactions
+  function renderFormats() {
+    var root = $('tab-formats'); root.textContent = '';
+    if (!S.d.pro) { root.appendChild(lock('What works better in your posts', 'Compare posts with and without media, short and long ones, with a link, with hashtags or a question, by the reactions they get.')); return; }
+    if (!S.d.selected.length) { root.appendChild(empty('Pick at least one network above.')); return; }
+    root.appendChild(el('p', 'text-sm text-white/45', 'Loading…'));
+    needInsights(function (j) {
+      root.textContent = '';
+      var f = j && j.formats;
+      if (!f || f.n < 5) { root.appendChild(empty('Not enough posts with results yet. Formats need at least 5 posts that already have their numbers (' + (f ? f.n : 0) + ' so far).')); return; }
+      root.appendChild(el('p', 'text-sm text-white/45', 'Average reactions per post, last ' + j.days + ' days, ' + f.n + ' posts with numbers. This shows what happened with your own posts, not why: a trait with only a few posts proves little.'));
+      var grid = el('div', 'grid gap-3 sm:grid-cols-2');
+      f.groups.forEach(function (gr) {
+        var best = 0; gr.rows.forEach(function (r) { if (r.n >= 3) best = Math.max(best, r.avg); });
+        var card = el('div', 'glass-d space-y-3 rounded-2xl p-4'); card.appendChild(el('p', 'text-sm font-medium', gr.title));
+        var top = 0; gr.rows.forEach(function (r) { top = Math.max(top, r.avg); });
+        gr.rows.forEach(function (r) {
+          var few = r.n < 3, row = el('div', few ? 'opacity-60' : ''), head = el('div', 'flex items-baseline justify-between gap-3 text-sm'), l = el('span', 'min-w-0 truncate', r.label);
+          if (!few && best && r.avg === best && gr.rows.length > 1) l.appendChild(el('span', 'ml-2 rounded bg-emerald-400/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-emerald-300', 'Best'));
+          head.appendChild(l); head.appendChild(el('span', 'tabular-nums text-white/75', r.avg + ' per post')); row.appendChild(head);
+          var bar = el('div', 'mt-1.5 h-2 overflow-hidden rounded-full bg-white/10'), fill = el('div', 'h-full rounded-full bg-sky-300/80'); fill.style.width = (top ? Math.max(r.avg / top * 100, r.avg ? 2 : 0) : 0) + '%'; bar.appendChild(fill); row.appendChild(bar);
+          row.appendChild(el('p', 'mt-1 text-xs text-white/40', r.n + (r.n === 1 ? ' post' : ' posts') + (few ? ' · too few to tell' : ''))); card.appendChild(row);
+        });
+        grid.appendChild(card);
+      });
+      root.appendChild(grid);
+    });
+  }
 
 
   // ── Telegram bot
@@ -304,17 +501,20 @@
       var b = el('button', 'max-w-full truncate rounded-full border px-3 py-1.5 text-[13px] transition sm:text-sm ' + (on ? 'border-white/40 bg-white/15 text-white' : 'border-white/10 text-white/55 hover:border-white/25 hover:text-white') + (disabled ? ' cursor-not-allowed opacity-40' : ''), text);
       b.type = 'button'; b.setAttribute('aria-pressed', on ? 'true' : 'false'); if (title) b.title = title; if (disabled) b.disabled = true; else b.addEventListener('click', handler); return b;
     }
+    if (S.tab === 'activity') actChips(box, chip);
+    else {
     if (usable.length > 1) box.appendChild(chip('All', d.selected.length === usable.length, function () { S.sel = usable.map(function (c) { return c.id; }); store('sel', S.sel); S.page = 1; load(); }));
     d.channels.forEach(function (c) {
       var ok = c.results || c.followers, on = d.selected.indexOf(c.id) >= 0;
       var b = chip((LABEL[c.type] || c.type) + ' · ' + c.name, on, function () {
         var cur = d.selected.slice(), i = cur.indexOf(c.id); if (i >= 0) { if (cur.length === 1) return; cur.splice(i, 1); } else cur.push(c.id);
         S.sel = cur; store('sel', cur); S.page = 1; load();
-      }, !ok, ok ? '' : 'Results for this network are coming');
+      }, !ok, ok ? '' : 'No numbers from this network yet. What Vane published there is in Activity.');
       if (on) { var dot = el('span', 'mr-1.5 inline-block h-2 w-2 rounded-full align-middle'); dot.style.background = colorOf(c.id); b.insertBefore(dot, b.firstChild); }
       box.appendChild(b);
     });
-    if (!d.channels.length) box.appendChild(el('p', 'text-sm text-white/55', 'No networks connected yet. Connect Bluesky, Mastodon, Dev.to or Telegram in Vane Post.'));
+    }
+    if (!d.channels.length) box.appendChild(el('p', 'text-sm text-white/55', 'No networks connected yet. Connect a network in Vane Post.'));
     var sel = $('range'); sel.textContent = '';
     (d.pro ? [[7, '7 days'], [30, '30 days'], [90, '90 days'], [365, '12 months']] : [[7, '7 days'], [30, '30 days']]).forEach(function (n) { var o = el('option', '', 'Last ' + n[1]); if (n[0] === 365) o.textContent = 'Last 12 months'; o.value = n[0]; if (n[0] === d.days) o.selected = true; sel.appendChild(o); });
   }
@@ -329,7 +529,7 @@
     TABS.forEach(function (t) { $('tab-' + t[0]).classList.toggle('hidden', S.tab !== t[0]); });
     $('filters').classList.toggle('hidden', S.tab === 'plans' || S.tab === 'bot');
   }
-  function renderTab() { ({ overview: renderOverview, posts: renderPosts, followers: renderFollowers, compare: renderCompare, times: renderTimes, bot: renderBot, plans: renderPlans })[S.tab](); }
+  function renderTab() { ({ overview: renderOverview, activity: renderActivity, posts: renderPosts, followers: renderFollowers, compare: renderCompare, times: renderTimes, formats: renderFormats, bot: renderBot, plans: renderPlans })[S.tab](); }
   function render() {
     var d = S.d;
     $('gate').classList.add('hidden'); $('gate').classList.remove('flex'); $('dash').classList.remove('hidden');
@@ -337,7 +537,7 @@
     $('upgradeTop').href = checkoutUrl();
     renderChips(); renderTabs(); renderTab();
   }
-  function route() { var h = location.hash.slice(1); S.tab = TABS.some(function (t) { return t[0] === h; }) ? h : 'overview'; if (S.d) { renderTabs(); renderTab(); } }
+  function route() { var h = location.hash.slice(1); S.tab = TABS.some(function (t) { return t[0] === h; }) ? h : 'overview'; if (S.d) { renderChips(); renderTabs(); renderTab(); } }
 
   async function load(soft) {
     var qs = '?days=' + S.days + '&sort=' + S.sort + '&page=' + S.page + (S.sel ? '&channels=' + encodeURIComponent(S.sel.join(',')) : '') + (S.q ? '&q=' + encodeURIComponent(S.q) : '');

@@ -90,3 +90,25 @@ Vane Analytics показывает результат постов и виде�
 - **Alerts:** Free: post results after 24 hours, follower milestones. Pro: daily follower changes, hot post (threshold chosen on the site), daily or weekly digest (about 9:00 in the user's time zone, weekly on Monday).
 - **Setup (once):** create the bot in @BotFather; on the Pages project add `ANALYTICS_BOT_TOKEN`, `ANALYTICS_BOT_SECRET` (any long random string) and `ANALYTICS_BOT_USERNAME`; add `ANALYTICS_BOT_TOKEN` to the cron worker; deploy; run the whole `schema.sql`; then in /admin → Settings press "Connect webhook" under "Analytics Telegram bot".
 - **Code:** `functions/api/lib/analyticsbot.ts` (commands, settings, alerts), `botlang.ts` (the four languages), `functions/api/telegram/analytics.ts` (webhook), `functions/api/analytics/bot.ts` (site settings API), `functions/api/admin/analytics-bot.ts` (webhook setup).
+
+## 12. Dashboard v3: Activity, Formats, growth of a post (built)
+
+**Why.** Results come back from three networks only (Bluesky, Mastodon, Dev.to) and followers from three (Bluesky, Mastodon, Telegram). A person who publishes to LinkedIn, Threads, Discord, Reddit, Facebook, Pinterest or a Webhook saw nothing at all (their chips were disabled). Everything in v3 is built from Vane's **own rows** (`posts`, `channels`, `post_metrics`, `channel_followers`): no new network call, no new table, **no migration**, so it is safe to deploy at once.
+
+| | Free | Pro |
+|---|---|---|
+| **Activity** tab, every network: published / failed / in the queue, % that went through, streak, posts per day, by network | 30 days | 12 months |
+| Activity: when you publish (weekday × 3 hours, in the user's time zone), why posts fail, punctuality, per-channel table | locked | yes |
+| **Previous period** under every Overview card and in Activity (+12 %, "new" when there was nothing before) | yes | yes |
+| **Formats** tab: average reactions by media, length, link, hashtags, question | locked | yes |
+| **Growth** button on a post: the 1 h / 24 h / 7 d / 30 d snapshots that were already stored | latest numbers only | yes |
+| Followers: pace per day and a straight-line forecast to the next round number | locked | yes |
+| CSV: `kind=posts` (as before), `kind=followers`, `kind=activity` | locked | yes |
+
+- **API (all `GET`, session cookie):** `/api/analytics/activity` (`days`, `channels`; with no `channels` every channel counts, unlike the results tabs), `/api/analytics/post?id=` (Pro, 402 `pro_required` for Free), `/api/analytics/insights` now also returns `formats` (Pro), `/api/analytics/overview` now also returns `prev` (the window of the same length right before), `/api/analytics/export?kind=posts|followers|activity` (Pro).
+- **Meaning of "when":** a sent post counts on its `sent_at`, a failed one on its `scheduled_at` (it has no `sent_at`). Cancelled posts and drafts are not counted; waiting posts are shown only as "in the queue".
+- **Failure reasons** are `posts.error` with links, ids and long numbers folded away (`reasonOf`), so equal causes add up; at most 5 are shown.
+- **Punctuality** = `sent_at - scheduled_at`: share sent within 2 minutes and the slowest 5 %.
+- **Formats** read only posts that already have a metrics snapshot; a trait with fewer than 3 posts is greyed out and never marked *Best*. It says what happened with the user's posts, not why.
+- **Code:** `functions/api/lib/analyticsactivity.ts` (all Activity queries), `analyticsquery.ts` (`Filter.until`, `queryFormats`, `formatTraits`), `functions/api/analytics/activity.ts`, `post.ts`; UI in `public/assets/analytics.js` (Activity, Formats, `delta`, `forecast`, `growthPanel`). Test: `scripts/analytics-unit.mjs` (`npm run test:unit`).
+- **Still not covered, needs the networks' own APIs (next wave):** Reddit (score, comments), Pinterest (pin analytics), Threads / Facebook Pages (need the Meta app review for insights), YouTube statistics. Until then those networks appear in Activity only.

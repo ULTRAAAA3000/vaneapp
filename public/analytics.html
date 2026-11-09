@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/assets/vane.css?v=79e5d10f4c" />
-  <link rel="stylesheet" href="/assets/app.css?v=afb7ed8188" />
+  <link rel="stylesheet" href="/assets/app.css?v=a802013347" />
   <noscript><style>#gate{display:flex!important}</style></noscript>
 </head>
 
@@ -34,9 +34,10 @@
         <h1 class="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">Vane Analytics</h1>
         <p class="mt-3 text-base leading-relaxed text-white/60">See what every post and video actually achieved, on every network, in one place. No more opening five apps to find out what worked.</p>
         <ul class="check mt-6 space-y-2 text-sm text-white/75">
+          <li>What Vane published for you on every network: sent, failed, queue, streak</li>
           <li>Followers and their growth by network</li>
           <li>The result of each post you published through Vane: views, likes, replies, reposts</li>
-          <li>Your best posts, formats and times to publish</li>
+          <li>Your best posts, formats and times to publish, compared with the previous period</li>
           <li>One weekly report by email</li>
         </ul>
         <p class="mt-5 text-xs leading-relaxed text-white/40">Vane reads the numbers of the posts it published for you. It does not read your feed, messages or follower lists.</p>
@@ -70,18 +71,20 @@
       <div class="mt-4 flex gap-1 overflow-x-auto pb-1" id="tabs" role="tablist" aria-label="Analytics sections"></div>
       <div id="busy" class="mt-4 transition-opacity">
         <section id="tab-overview" class="space-y-5"></section>
+        <section id="tab-activity" class="hidden space-y-5"></section>
         <section id="tab-posts" class="hidden space-y-3"></section>
         <section id="tab-followers" class="hidden space-y-3"></section>
         <section id="tab-compare" class="hidden space-y-3"></section>
         <section id="tab-times" class="hidden space-y-3"></section>
+        <section id="tab-formats" class="hidden space-y-3"></section>
         <section id="tab-bot" class="hidden space-y-4"></section>
         <section id="tab-plans" class="hidden"></section>
       </div>
-      <p class="mt-8 text-xs leading-relaxed text-white/40">Vane reads the numbers of the posts it published for you. It does not read your feed, messages or follower lists. Results: Bluesky, Mastodon, Dev.to. Followers: Bluesky, Mastodon, Telegram. More networks are coming.</p>
+      <p class="mt-8 text-xs leading-relaxed text-white/40">Vane reads the numbers of the posts it published for you. It does not read your feed, messages or follower lists. Results: Bluesky, Mastodon, Dev.to. Followers: Bluesky, Mastodon, Telegram. Activity: every network. More networks are coming.</p>
     </main>
   </div>
   <script src="/assets/vane.js?v=a2c867edc4"></script>
   <script src="/assets/modules.js?v=1f1ada1053"></script>
-  <script src="/assets/analytics.js?v=1f5638e39a"></script>
+  <script src="/assets/analytics.js?v=8f9dde65fa"></script>
 </body>
 </html>

@@ -72,3 +72,16 @@ export async function followerSeries(env: Env, userId: string, sinceDay: string)
     .all<{ channel_id: string; day: string; followers: number }>();
   return results;
 }
+
+/** Rows for the followers CSV: one line per channel and day, only for the chosen channels. */
+export async function followerRows(env: Env, userId: string, sinceDay: string, channels: string[]): Promise<{ type: string; name: string; day: string; followers: number }[]> {
+  if (!channels.length) return [];
+  const { results } = await env.DB
+    .prepare(
+      `SELECT c.type, c.name, f.day, f.followers FROM channel_followers f JOIN channels c ON c.id = f.channel_id
+        WHERE c.user_id = ?1 AND f.day >= ?2 AND f.channel_id IN (${channels.map((_, i) => `?${i + 3}`).join(',')}) ORDER BY f.day, c.name`,
+    )
+    .bind(userId, sinceDay, ...channels)
+    .all<{ type: string; name: string; day: string; followers: number }>();
+  return results;
+}
