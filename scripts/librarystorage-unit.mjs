@@ -184,5 +184,21 @@ console.log('\nUploads at the same moment (the database answers with a delay, li
   check('and storage holds exactly the two that were kept', env.MEDIA.map.size === 2 && t.n === 2);
 }
 
+console.log('\nA limit set for one account');
+{
+  const { env, db } = await fresh({ plan: 'free' });
+  db.prepare(`INSERT INTO user_storage_limits (user_id, storage_mb) VALUES ('u1', 3)`).run();
+  const u = (await onlyUsage(env)).data.usage;
+  check('the account allowance replaces the plan limit (3 MB instead of 10)', u.limitBytes === 3 * MB && u.enforced === true, JSON.stringify(u));
+  check('a 2 MB file fits', (await put(env, png(2 * MB))).status === 201);
+  check('a second 2 MB file does not (402)', (await put(env, png(2 * MB))).status === 402);
+  db.prepare(`UPDATE user_storage_limits SET storage_mb = 50`).run();
+  check('a bigger allowance than the plan is possible', (await put(env, png(2 * MB))).status === 201 && (await onlyUsage(env)).data.usage.limitBytes === 50 * MB);
+  db.prepare(`DELETE FROM user_storage_limits`).run();
+  check('without a row the plan limit applies again', (await onlyUsage(env)).data.usage.limitBytes === 10 * MB);
+  db.exec('DROP TABLE user_storage_limits');
+  check('before the migration the plan limit is used, nothing breaks', (await onlyUsage(env)).data.usage.limitBytes === 10 * MB);
+}
+
 console.log(`\n${passed} passed, ${failed.length} failed`);
 if (failed.length) process.exit(1);

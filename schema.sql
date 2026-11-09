@@ -163,6 +163,13 @@ CREATE TABLE IF NOT EXISTS user_activity (
 -- One row per user: what they pay for. No row = the Free Trial. (An existing database still has the old
 -- CHECK on `plan`: run scripts/migrations/001-subscriptions-any-plan.sql once to allow custom plans.)
 -- A paid row whose period has ended (or that is not 'active') is treated as the Free Trial until a payment renews it.
+-- A library allowance set by hand for one account (MB); no row = the plan's own storage limit applies
+CREATE TABLE IF NOT EXISTS user_storage_limits (
+  user_id     TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  storage_mb  INTEGER NOT NULL CHECK (storage_mb >= 0),
+  updated_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
 CREATE TABLE IF NOT EXISTS subscriptions (
   user_id             TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   plan                TEXT    NOT NULL DEFAULT 'free',                                  -- a plans.id (free / api / pro / any plan made in /admin)

@@ -88,7 +88,8 @@ WITH expected(name, fix) AS (VALUES
   ('balance_ledger', 'scripts/migrations/009-balance.sql'),
   ('paypal_plans', 'scripts/migrations/012-paypal.sql'),
   ('feeds', 'scripts/migrations/015-feeds.sql'),
-  ('feed_items', 'scripts/migrations/015-feeds.sql')
+  ('feed_items', 'scripts/migrations/015-feeds.sql'),
+  ('user_storage_limits', 'scripts/migrations/016-user-storage-limit.sql')
 ),
 problems(problem, what, fix) AS (
   SELECT 'missing table', name, fix FROM expected WHERE name NOT IN (SELECT name FROM sqlite_master WHERE type = 'table')

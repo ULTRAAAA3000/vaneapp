@@ -13,6 +13,7 @@
       return r;
     });
   }
+  function fmtMb(b) { b = Number(b) || 0; return b >= 1048576 ? Number((b / 1048576).toFixed(1)) + ' MB' : Math.round(b / 1024) + ' KB'; }
   function num(x) { return Number(x || 0).toLocaleString('en-US'); }
   function money(c, cur) {
     try { return new Intl.NumberFormat('en-US', { style: 'currency', currency: cur || 'USD' }).format((c || 0) / 100); }
@@ -348,6 +349,10 @@
         '<form id="aiForm" class="mt-3 grid grid-cols-2 gap-3" data-id="' + esc(u.id) + '"><p class="col-span-2 text-xs text-white/55">' + (d.usage ? 'Plan: ' + (d.usage.ai.limit !== null ? num(d.usage.ai.used) + ' of ' + num(d.usage.ai.limit) + ' used' : num(d.usage.ai.used) + ' used') + ' · extra credits you gave: <b class="text-white">' + num(d.usage.ai.bonus) + '</b>' : '') + '</p>' +
           field('aCredits', 'Add credits', '', { ph: 'e.g. 100 (negative takes away)', type: 'number', attrs: 'step="1"' }) + field('aNote', 'Note (kept in Activity)', '', { ph: 'e.g. testing' }) +
           '<div class="col-span-2 flex items-center justify-between gap-3"><p class="text-xs text-white/40">Spent after the plan\'s own AI credits, before any billing. Works on any plan.</p><button class="btn btn-white btn-sm" type="submit">Add credits</button></div></form>' +
+        '<h3 class="mt-7 text-sm font-semibold">Library storage</h3>' +
+        '<form id="stForm" class="mt-3 grid grid-cols-2 gap-3" data-id="' + esc(u.id) + '"><p class="col-span-2 text-xs text-white/55">Used: <b class="text-white">' + esc(fmtMb(d.storage.usedBytes)) + '</b> in ' + num(d.storage.count) + ' files. Allowed: <b class="text-white">' + (d.storage.limitBytes ? esc(fmtMb(d.storage.limitBytes)) : 'unlimited') + '</b> (' + (d.storage.ownMb !== null ? 'set for this account' : d.storage.planMb !== null ? 'from the plan' : 'the plan has no limit') + ').</p>' +
+          field('sMb', 'Allowance (MB)', d.storage.ownMb !== null ? String(d.storage.ownMb) : '', { ph: 'empty = follow the plan', type: 'number', attrs: 'min="0" step="1"' }) + field('sNote', 'Note (kept in Activity)', '', { ph: 'e.g. agreed with the customer' }) +
+          '<div class="col-span-2 flex items-center justify-between gap-3"><p class="text-xs text-white/40">Applies to this account only, on any plan. Uploads are refused over it while "Enforce limits" is on.</p><button class="btn btn-white btn-sm" type="submit">Save</button></div></form>' +
         '<h3 class="mt-7 text-sm font-semibold">Balance</h3>' +
         '<form id="balForm" class="mt-3 grid grid-cols-2 gap-3" data-id="' + esc(u.id) + '"><p class="col-span-2 text-xs text-white/55">Prepaid balance (pays for extra use beyond the plan): <b class="text-white">$' + (d.usage ? (Math.round(d.usage.balanceUsd * 1000) / 1000) : 0) + '</b>' + (d.plan.overageEnabled ? ' · paying for extra use is <b class="text-white">on</b>' : ' · paying for extra use is off') + '</p>' +
           field('bAmount', 'Add (USD)', '', { ph: 'e.g. 10 (negative takes away)', type: 'number', attrs: 'step="0.01"' }) + field('bNote', 'Note (kept in Activity)', '', { ph: 'e.g. refund of order' }) +
@@ -387,6 +392,14 @@
           if (g.ok) { Vane.toast('ok', 'Done. Extra AI credits now: ' + g.data.balance); openUser(id); } else Vane.toast('err', g.error);
         });
       });
+      $('stForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var v = $('sMb').value.trim();
+        if (v && (Number(v) < 0 || Number(v) % 1)) { Vane.toast('err', 'Enter a whole number of MB, for example 500, or leave it empty.'); return; }
+        call('POST', '/api/admin/users', { action: 'storage', userId: e.target.dataset.id, mb: v === '' ? null : Number(v), note: $('sNote').value.trim() }).then(function (g) {
+          if (g.ok) { Vane.toast('ok', v === '' ? 'Back to the plan limit.' : 'Allowance saved.'); openUser(id); } else Vane.toast('err', g.error);
+        });
+      });
       $('balForm').addEventListener('submit', function (e) {
         e.preventDefault();
         var usd = Number($('bAmount').value);
@@ -412,6 +425,7 @@
     ['postsLifetime', 'Posts in total (trial style)', 'int', 'empty = not a trial'],
     ['channels', 'Connected channels', 'int', 'empty = unlimited'],
     ['aiCredits', 'AI credits', 'int', 'empty = unlimited'],
+    ['storageMb', 'Library storage, MB', 'int', 'empty = unlimited'],
     ['apiAccess', 'API access (1 yes, 0 no)', 'int', 'empty = yes if it has API posts'],
     ['overagePostUsd', 'Extra post price, USD', 'float', 'empty = the plan just stops'],
     ['overageAiPostUsd', 'Extra AI post price, USD', 'float', 'empty = same as an extra post'],
