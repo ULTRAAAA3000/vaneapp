@@ -15,7 +15,8 @@
  */
 import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env } from '../types';
-import { fail } from './api/lib/http';
+import { fail, failCode } from './api/lib/http';
+import { disabledModules, moduleOfPath } from './api/lib/modules';
 import { productUrl, siteOf } from './api/lib/hosts';
 import { clientOf } from './api/lib/guard';
 import { adminHidden, isAdminPath } from './api/lib/admin';
@@ -95,6 +96,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       // The shield (functions/api/lib/shield.ts): cheap refusals before any route code runs.
       const refused = await shieldBefore(context.env, context.request, url.pathname, client);
       if (refused) return withApiHeaders(refused);
+      const module = moduleOfPath(url.pathname);
+      if (module && (await disabledModules(context.env)).includes(module)) {
+        return withApiHeaders(failCode(503, 'module_disabled', 'This module is not available right now. Please check back later.', { module }));
+      }
     }
     const res = await route(context);
     if (!isApi) return res;

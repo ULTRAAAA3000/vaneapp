@@ -1,6 +1,7 @@
 import type { Env } from '../../../types';
 import { isValidMediaUrl } from '../channels/telegram';
 import { insertPostGroup, settleUiQuota, takeUiQuota, uiChargeLog, validateCreatePost, CONTENT_LIMIT } from '../posts/create';
+import { disabledModules } from './modules';
 import { postUnits } from './plans';
 import { graphemeLength, mastodonLength, threadsLength } from './text';
 import { publicHttpsUrl } from './netsafe';
@@ -292,6 +293,7 @@ export async function pollFeed(env: Env, feed: FeedRow, now: number, doFetch?: F
 }
 
 export async function runFeeds(env: Env, now: number, doFetch?: FetchFn): Promise<number> {
+  if ((await disabledModules(env)).includes('feeds')) return 0;
   let rows: FeedRow[];
   try {
     rows = (await env.DB.prepare('SELECT * FROM feeds WHERE enabled = 1 AND next_check_at <= ?1 ORDER BY next_check_at LIMIT ?2').bind(now, DUE_BATCH).all<FeedRow>()).results;

@@ -19,9 +19,10 @@ writeFileSync(join(dir, 'entry.ts'), [
   `export * as one from '${root}/functions/api/feeds/[id].ts';`,
   `export * as session from '${root}/functions/api/lib/session.ts';`,
   `export * as settings from '${root}/functions/api/lib/settings.ts';`,
+  `export * as modules from '${root}/functions/api/lib/modules.ts';`,
 ].join('\n'));
 await build({ entryPoints: [join(dir, 'entry.ts')], bundle: true, format: 'esm', platform: 'node', outfile: join(dir, 'all.mjs'), logLevel: 'silent' });
-const { feeds, list, one, session, settings } = await import(pathToFileURL(join(dir, 'all.mjs')).href);
+const { feeds, list, one, session, settings, modules } = await import(pathToFileURL(join(dir, 'all.mjs')).href);
 rmSync(dir, { recursive: true, force: true });
 
 let passed = 0;
@@ -457,6 +458,21 @@ console.log('\nPoller: errors, back-off, switching off');
   db.prepare(`INSERT INTO feed_items (feed_id, guid) VALUES ('f1', 'g1')`).run();
   db.prepare(`DELETE FROM users WHERE id = 'u1'`).run();
   check('deleting the account deletes its feeds and their memory', !feed(db) && seen(db).length === 0);
+}
+
+console.log('\nModule switch');
+{
+  const { db, env } = make({ plan: 'pro' });
+  feedRow(db);
+  db.prepare(`INSERT INTO feed_items (feed_id, guid) VALUES ('f1', 'g0')`).run();
+  world.set(URL1, { body: rss([item(1), item(0)]) });
+  settings.invalidateSettings();
+  await modules.setModule(env, 'feeds', false);
+  calls.length = 0;
+  check('Feeds switched off in the admin: the cron calls nothing and posts nothing', (await poll(env)) === 0 && calls.length === 0 && posts(db).length === 0);
+  await modules.setModule(env, 'feeds', true);
+  await poll(env);
+  check('switched on again: the waiting item is posted', posts(db).length === 1);
 }
 
 console.log(`\n${passed} passed, ${failed.length} failed`);
