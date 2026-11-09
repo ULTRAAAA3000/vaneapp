@@ -27,6 +27,8 @@ import { loadBlueskyCreds, openBlueskySession, sendBlueskyPost, type BlueskySess
 import { loadMastodonCreds, sendMastodonPost } from '../../functions/api/channels/mastodon';
 import { loadDiscordCreds, sendDiscordPost } from '../../functions/api/channels/discord';
 import { loadDevtoCreds, sendDevtoPost } from '../../functions/api/channels/devto';
+import { loadSlackCreds, sendSlackPost } from '../../functions/api/channels/slack';
+import { loadHashnodeCreds, sendHashnodePost } from '../../functions/api/channels/hashnode';
 import { loadWebhookCreds, sendWebhookPost } from '../../functions/api/channels/webhook';
 import { LINKEDIN_RENEW_BEFORE_SECONDS, linkedinBlob, loadLinkedinCreds, renewLinkedin, sendLinkedinPost, type LinkedinCreds } from '../../functions/api/channels/linkedin';
 import { loadRedditCreds, redditBlob, refreshRedditToken, sendRedditPost } from '../../functions/api/channels/reddit';
@@ -233,6 +235,8 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
     if (ch.type === 'mastodon') return deliverMastodon(post, ch);
     if (ch.type === 'discord') return deliverDiscord(post, ch);
     if (ch.type === 'devto') return deliverDevto(post, ch);
+    if (ch.type === 'slack') return deliverSlack(post, ch);
+    if (ch.type === 'hashnode') return deliverHashnode(post, ch);
     if (ch.type === 'webhook') return deliverWebhook(post, ch);
     if (ch.type === 'linkedin') return deliverLinkedin(post, ch);
     if (ch.type === 'threads') return deliverThreads(post, ch);
@@ -377,6 +381,34 @@ export async function runDuePosts(env: CronEnv, nowSec: number = Math.floor(Date
     if ('error' in media) return finish(post, 'failed', media.error);
     const res = await sendDevtoPost(creds, post.content, media.url);
     if (res.ok) return finish(post, 'sent', null, { externalId: res.url, network: 'Dev.to' });
+    if (res.retryable && post.attempts < MAX_ATTEMPTS) return finish(post, 'retry', res.error, { retryAfter: res.retryAfter });
+    return finish(post, 'failed', res.retryable ? `${res.error} (gave up after ${post.attempts} attempts)` : res.error);
+  }
+
+  async function deliverSlack(post: Claimed, ch: ChannelInfo): Promise<void> {
+    const creds = await loadSlackCreds(ch.credentials, env.ENCRYPTION_KEY);
+    if (!creds) {
+      console.error(`vane-cron: could not read credentials of channel ${ch.id} (wrong ENCRYPTION_KEY or corrupt data)`);
+      return finish(post, post.attempts < MAX_ATTEMPTS ? 'retry' : 'failed', CREDS_ERROR.unreadable);
+    }
+    const media = mediaOf(post);
+    if ('error' in media) return finish(post, 'failed', media.error);
+    const res = await sendSlackPost(creds, post.content, media.url);
+    if (res.ok) return finish(post, 'sent', null, { network: 'Slack' });
+    if (res.retryable && post.attempts < MAX_ATTEMPTS) return finish(post, 'retry', res.error, { retryAfter: res.retryAfter });
+    return finish(post, 'failed', res.retryable ? `${res.error} (gave up after ${post.attempts} attempts)` : res.error);
+  }
+
+  async function deliverHashnode(post: Claimed, ch: ChannelInfo): Promise<void> {
+    const creds = await loadHashnodeCreds(ch.credentials, env.ENCRYPTION_KEY);
+    if (!creds) {
+      console.error(`vane-cron: could not read credentials of channel ${ch.id} (wrong ENCRYPTION_KEY or corrupt data)`);
+      return finish(post, post.attempts < MAX_ATTEMPTS ? 'retry' : 'failed', CREDS_ERROR.unreadable);
+    }
+    const media = mediaOf(post);
+    if ('error' in media) return finish(post, 'failed', media.error);
+    const res = await sendHashnodePost(creds, post.content, media.url);
+    if (res.ok) return finish(post, 'sent', null, { externalId: res.url, network: 'Hashnode' });
     if (res.retryable && post.attempts < MAX_ATTEMPTS) return finish(post, 'retry', res.error, { retryAfter: res.retryAfter });
     return finish(post, 'failed', res.retryable ? `${res.error} (gave up after ${post.attempts} attempts)` : res.error);
   }

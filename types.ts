@@ -97,7 +97,7 @@ export interface Env {
 
 // ───────────────────────── Enums ─────────────────────────
 export type Plan = 'free' | 'pro';
-export type ChannelType = 'telegram' | 'x' | 'linkedin' | 'webhook' | 'bluesky' | 'mastodon' | 'threads' | 'discord' | 'devto' | 'reddit' | 'facebook' | 'pinterest';
+export type ChannelType = 'telegram' | 'x' | 'linkedin' | 'webhook' | 'bluesky' | 'mastodon' | 'threads' | 'discord' | 'devto' | 'reddit' | 'facebook' | 'pinterest' | 'slack' | 'hashnode';
 export type PostStatus =
   | 'draft'
   | 'scheduled'
@@ -180,6 +180,8 @@ export type ChannelCredentials =
   | { type: 'bluesky'; service: string; identifier: string; did: string; appPassword: string }
   | { type: 'discord'; webhookUrl: string; webhookId: string; guildId: string | null; channelId: string | null }
   | { type: 'devto'; apiKey: string; userId: number; username: string }
+  | { type: 'slack'; webhookUrl: string; webhookId: string }
+  | { type: 'hashnode'; apiKey: string; publicationId: string; host: string; username: string }
   | { type: 'reddit'; username: string; subreddit: string; accessToken: string; refreshToken: string; expiresAt: number }
   | { type: 'facebook'; pageId: string; pageName: string; accessToken: string }
   | { type: 'pinterest'; username: string; boardId: string; boardName: string; accessToken: string; refreshToken: string; expiresAt: number }

@@ -14,7 +14,7 @@ const MEDIA_KEY_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 
 const NAMES: Record<string, string> = {
   telegram: 'Telegram', x: 'X', linkedin: 'LinkedIn', bluesky: 'Bluesky', mastodon: 'Mastodon', threads: 'Threads', discord: 'Discord',
-  devto: 'Dev.to', reddit: 'Reddit', facebook: 'Facebook', pinterest: 'Pinterest', webhook: 'Webhook',
+  devto: 'Dev.to', slack: 'Slack', hashnode: 'Hashnode', reddit: 'Reddit', facebook: 'Facebook', pinterest: 'Pinterest', webhook: 'Webhook',
 };
 export const networkName = (t: string): string => NAMES[t] ?? t;
 

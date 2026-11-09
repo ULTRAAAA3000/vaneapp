@@ -5,7 +5,7 @@
   var fmt = function (n) { return n === null || n === undefined ? '–' : n >= 10000 ? (n / 1000).toFixed(n >= 100000 ? 0 : 1).replace(/\.0$/, '') + 'k' : String(n); };
   var NS = 'http://www.w3.org/2000/svg';
   var COLORS = ['#7dd3fc', '#86efac', '#fcd34d', '#f9a8d4', '#c4b5fd', '#fdba74'];
-  var LABEL = { bluesky: 'Bluesky', mastodon: 'Mastodon', telegram: 'Telegram', devto: 'Dev.to', x: 'X', linkedin: 'LinkedIn', threads: 'Threads', discord: 'Discord', reddit: 'Reddit', pinterest: 'Pinterest', facebook: 'Facebook', webhook: 'Webhook' };
+  var LABEL = { bluesky: 'Bluesky', mastodon: 'Mastodon', telegram: 'Telegram', devto: 'Dev.to', slack: 'Slack', hashnode: 'Hashnode', x: 'X', linkedin: 'LinkedIn', threads: 'Threads', discord: 'Discord', reddit: 'Reddit', pinterest: 'Pinterest', facebook: 'Facebook', webhook: 'Webhook' };
   var TABS = [['overview', 'Overview'], ['activity', 'Activity'], ['posts', 'Posts'], ['followers', 'Followers'], ['compare', 'Compare', true], ['times', 'Best times', true], ['formats', 'Formats', true], ['bot', 'Telegram bot'], ['plans', 'Free and Pro']];
   var STAGES = { 1: '1 hour', 2: '24 hours', 3: '7 days', 4: '30 days' };
   var MILESTONES = [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000];

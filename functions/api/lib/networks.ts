@@ -43,6 +43,8 @@ export const NETWORKS: readonly NetworkInfo[] = [
   { id: 'threads', name: 'Threads', product: 'post', implemented: true, code: 'Connect (OAuth) and publish, token renewal' },
   { id: 'discord', name: 'Discord', product: 'post', implemented: true, code: 'Connect (channel webhook) and publish' },
   { id: 'devto', name: 'Dev.to', product: 'post', implemented: true, code: 'Connect (API key) and publish' },
+  { id: 'slack', name: 'Slack', product: 'post', implemented: true, code: 'Connect (incoming webhook of one channel) and publish text and image messages' },
+  { id: 'hashnode', name: 'Hashnode', product: 'post', implemented: true, code: 'Connect (access token, one blog per channel) and publish articles' },
   { id: 'reddit', name: 'Reddit', product: 'post', implemented: true, code: 'Connect (OAuth, one subreddit per channel) and publish text posts, token renewal' },
   { id: 'facebook', name: 'Facebook Pages', product: 'post', implemented: true, code: 'Connect (Facebook Login, every Page you manage) and publish text, photo and video posts' },
   { id: 'pinterest', name: 'Pinterest', product: 'post', implemented: true, code: 'Connect (OAuth, one board per channel) and publish image pins, token renewal' },

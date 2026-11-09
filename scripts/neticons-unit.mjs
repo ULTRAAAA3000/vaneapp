@@ -13,12 +13,12 @@ const check = (name, ok, detail = '') => {
 
 // the dashboard's NET table: name -> { key, fill, d }
 const block = dash.slice(dash.indexOf('var NET = {'), dash.indexOf('var NET_ORDER'));
-const KEYS = { Telegram: 'telegram', LinkedIn: 'linkedin', Threads: 'threads', Bluesky: 'bluesky', Mastodon: 'mastodon', Discord: 'discord', 'Dev.to': 'devto', Reddit: 'reddit', 'Facebook Pages': 'facebook', Pinterest: 'pinterest', Webhook: 'webhook' };
+const KEYS = { Telegram: 'telegram', LinkedIn: 'linkedin', Threads: 'threads', Bluesky: 'bluesky', Mastodon: 'mastodon', Discord: 'discord', Slack: 'slack', Hashnode: 'hashnode', 'Dev.to': 'devto', Reddit: 'reddit', 'Facebook Pages': 'facebook', Pinterest: 'pinterest', Webhook: 'webhook' };
 const nets = {};
 for (const m of block.matchAll(/name: '([^']+)'.*?icon: \{ (fill: true, )?d: '([^']+)' \}/gs)) nets[KEYS[m[1]]] = { fill: Boolean(m[2]), d: m[3] };
 
 console.log('\nDashboard');
-check('all eleven networks are there', Object.keys(nets).length === 11 && Object.keys(KEYS).every((n) => nets[KEYS[n]]), JSON.stringify(Object.keys(nets)));
+check('all thirteen networks are there', Object.keys(nets).length === 13 && Object.keys(KEYS).every((n) => nets[KEYS[n]]), JSON.stringify(Object.keys(nets)));
 check('every brand is a filled glyph, only Webhook (no brand) is a drawn link', Object.entries(nets).every(([k, v]) => (k === 'webhook') !== v.fill), JSON.stringify(Object.entries(nets).filter(([k, v]) => (k === 'webhook') === v.fill).map(([k]) => k)));
 check('no icon is empty or tiny', Object.values(nets).every((v) => v.d.length > 60));
 

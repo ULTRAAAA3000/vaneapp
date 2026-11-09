@@ -41,10 +41,10 @@ console.log('\nan old database');
 }
 {
   // a channels table from before Pinterest was allowed (its CHECK list is the only place the types live)
-  const old = schema.replace(", 'facebook', 'pinterest')", ", 'facebook')");
+  const old = schema.replace(", 'pinterest', 'slack', 'hashnode')", ")");
   const db = new DatabaseSync(':memory:'); db.exec(old);
   const rows = run(db);
-  check('a channels table that does not allow a type yet names the migration', rows.length === 1 && rows[0].problem === 'channel type not allowed' && rows[0].what === 'pinterest' && rows[0].fix.includes('0004-channel-types-pinterest.sql'), JSON.stringify(rows));
+  check('a channels table that does not allow a type yet names the migration', rows.length === 3 && rows.every((r) => r.problem === 'channel type not allowed') && rows[0].what === 'pinterest' && rows[0].fix.includes('0004-channel-types-pinterest.sql') && rows[2].what === 'hashnode' && rows[2].fix.includes('0005-channel-types-slack-hashnode.sql'), JSON.stringify(rows));
 }
 
 console.log('\nin step with schema.sql');
@@ -54,7 +54,7 @@ console.log('\nin step with schema.sql');
   check(`every table of schema.sql is checked (${tables.length})`, tables.every((t) => listed.includes(t)), tables.filter((t) => !listed.includes(t)).join(', '));
   check('nothing is checked that schema.sql does not have', listed.every((t) => tables.includes(t)), listed.filter((t) => !tables.includes(t)).join(', '));
   const types = [...(schema.match(/CHECK \(type IN \(([^)]*)\)\)/)?.[1] ?? '').matchAll(/'(\w+)'/g)].map((m) => m[1]);
-  const covered = ['discord', 'devto', 'reddit', 'facebook', 'pinterest'];
+  const covered = ['discord', 'devto', 'reddit', 'facebook', 'pinterest', 'slack', 'hashnode'];
   check('every channel type added by a migration is checked', covered.every((t) => types.includes(t) && query.includes(`'${t}'`)));
   const alters = ['subscriptions.overage_cap_micro_usd', 'usage_logs.refunded_at', 'api_keys.integration'];
   const migrations = ['011-overage-cap-refund.sql', '002-api-key-integration.sql'].map((f) => readFileSync(`scripts/migrations/${f}`, 'utf8')).join('\n');

@@ -71,6 +71,32 @@ export const NETWORK_PAGES = [
     ],
   },
   {
+    id: 'slack', name: 'Slack', product: 'Vane Post', status: 'live',
+    h1: 'Post to a Slack channel at a set time',
+    lead: 'Schedule a message to a channel in your Slack workspace. You paste an incoming webhook link, so Vane never needs access to your workspace.',
+    publishes: ['Text messages', 'One image'],
+    limits: [['Text', '3,000 characters'], ['Pings', 'Turned off, so @channel and @here never notify people'], ['Video', 'Not supported yet']],
+    connect: ['Open api.slack.com/apps, create an app and switch on Incoming Webhooks.', 'Add a webhook to your workspace, pick the channel and copy its URL.', 'In Vane Post choose Slack and paste the link. Vane checks it and saves it encrypted.'],
+    faq: [
+      ['Why a webhook and not a login?', 'A webhook can only post to one channel. Vane gets no access to your account or other channels.'],
+      ['Can a scheduled post ping everyone?', 'No. Special mentions are escaped in posts sent through Vane.'],
+      ['How do I stop Vane posting?', 'Remove the app or its webhook in Slack, or disconnect the channel in Vane.'],
+    ],
+  },
+  {
+    id: 'hashnode', name: 'Hashnode', product: 'Vane Post', status: 'live',
+    h1: 'Publish to Hashnode as an article',
+    lead: 'Each Vane post becomes an article on your Hashnode blog: the first line is the title and the rest is the Markdown body.',
+    publishes: ['An article: the first line is the title, the rest is Markdown', 'A cover image'],
+    limits: [['Text', '10,000 characters'], ['Title', 'Up to 150 characters'], ['Video', 'Not supported yet']],
+    connect: ['In Hashnode open Account settings → Developer and generate a token.', 'In Vane Post choose Hashnode and paste the token. Add your blog address if you have several blogs.', 'Vane verifies it and finds your blog. The token is stored encrypted.'],
+    faq: [
+      ['Which blog does Vane publish to?', 'The one you name when connecting. With a single blog Vane picks it automatically.'],
+      ['Is the token safe?', 'It is stored encrypted and you can revoke it in Hashnode settings at any time.'],
+      ['Does Vane publish drafts or live articles?', 'Articles are published at the scheduled time.'],
+    ],
+  },
+  {
     id: 'linkedin', name: 'LinkedIn', product: 'Vane Post', status: 'next',
     h1: 'Schedule LinkedIn posts to your profile',
     lead: 'Plan LinkedIn posts ahead and let Vane publish them for you, with clickable hashtags and an image.',

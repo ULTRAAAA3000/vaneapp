@@ -1042,6 +1042,72 @@
         </form>
       </div>
 
+      <div data-step="slack" class="hidden">
+        <ol class="mt-6 space-y-3 text-sm text-white/65">
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>Open <b class="font-semibold text-white">api.slack.com/apps</b>, create an app for your workspace and switch on <b class="font-semibold text-white">Incoming Webhooks</b>.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Press <b class="font-semibold text-white">Add New Webhook to Workspace</b>, pick the channel, copy the URL and paste it below.</span></li>
+        </ol>
+        <p class="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-xs leading-relaxed text-white/50">Anyone who has this link can post to that channel, so keep it private. Remove the app in Slack at any time to disconnect Vane.</p>
+
+        <form id="skForm" class="mt-6 space-y-4" novalidate autocomplete="off">
+          <div>
+            <label for="skUrl" class="lbl">Webhook URL</label>
+            <input id="skUrl" type="text" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="https://hooks.slack.com/services/…" class="field font-mono !text-[13px]" />
+          </div>
+          <div>
+            <label for="skName" class="lbl">Display name</label>
+            <input id="skName" type="text" maxlength="80" placeholder="Shown only in Vane" class="field" />
+          </div>
+
+          <div id="skErr" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
+
+          <div class="flex items-center justify-end gap-3 pt-1">
+            <button type="button" id="skCancel" class="btn btn-ghost">Cancel</button>
+            <button type="submit" id="skSubmit" class="btn btn-white">
+              <span id="skSpin" class="spinner spinner-dark hidden"></span>
+              <span id="skLabel">Verify &amp; connect</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
+
+      <div data-step="hashnode" class="hidden">
+        <ol class="mt-6 space-y-3 text-sm text-white/65">
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>On Hashnode open <b class="font-semibold text-white">Account settings → Developer</b> and press <b class="font-semibold text-white">Generate New Token</b>.</span></li>
+          <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">2</span><span>Paste the token below. If you have several blogs, add the address of the one to use. Every post is published as an article.</span></li>
+        </ol>
+        <p class="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-xs leading-relaxed text-white/50">The token can publish articles for you. Remove it on Hashnode at any time to disconnect Vane.</p>
+
+        <form id="hnForm" class="mt-6 space-y-4" novalidate autocomplete="off">
+          <div>
+            <div class="flex items-center justify-between">
+              <label for="hnKey" class="lbl !mb-0">Access token</label>
+              <button type="button" id="hnKeyToggle" class="text-xs text-white/45 transition-colors hover:text-white">Show</button>
+            </div>
+            <input id="hnKey" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" class="field mt-2 font-mono !text-[13px]" />
+          </div>
+          <div>
+            <label for="hnBlog" class="lbl">Blog address <span class="text-white/35">(optional)</span></label>
+            <input id="hnBlog" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="yourname.hashnode.dev" class="field" />
+          </div>
+          <div>
+            <label for="hnName" class="lbl">Display name</label>
+            <input id="hnName" type="text" maxlength="80" placeholder="Shown only in Vane" class="field" />
+          </div>
+
+          <div id="hnErr" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
+
+          <div class="flex items-center justify-end gap-3 pt-1">
+            <button type="button" id="hnCancel" class="btn btn-ghost">Cancel</button>
+            <button type="submit" id="hnSubmit" class="btn btn-white">
+              <span id="hnSpin" class="spinner spinner-dark hidden"></span>
+              <span id="hnLabel">Verify &amp; connect</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
       <div data-step="devto" class="hidden">
         <ol class="mt-6 space-y-3 text-sm text-white/65">
           <li class="flex gap-3"><span class="pixel mt-0.5 text-white/90">1</span><span>On Dev.to open <b class="font-semibold text-white">Settings → Extensions</b> and, under <b class="font-semibold text-white">DEV Community API Keys</b>, generate a key (for example “Vane”).</span></li>
@@ -1196,14 +1262,14 @@
   <script src="/assets/usage-meter.js?v=1e38af0901"></script>
   <script src="/assets/media-picker.js?v=4c4df7c965"></script>
   <script src="/assets/insights.js?v=c81d5838ef"></script>
-  <script src="/assets/dashboard.js?v=26ffad08e1"></script>
+  <script src="/assets/dashboard.js?v=a11fbe3d46"></script>
   <script src="/assets/ai.js?v=9076d3d765"></script>
   <script src="/assets/library.js?v=6dd09c70ce"></script>
   <script src="/assets/library-picker.js?v=e0ff84c690"></script>
   <script src="/assets/snippets.js?v=2833a28950"></script>
   <script src="/assets/feeds.js?v=4562864d9f"></script>
   <script src="/assets/drafts.js?v=9ce82a983a"></script>
-  <script src="/assets/aistudio.js?v=e134a0e708"></script>
+  <script src="/assets/aistudio.js?v=39adbe9fb7"></script>
   <script src="/assets/aihistory.js?v=72fff6ab0e"></script>
   <script src="/assets/onboarding.js?v=76d0855c09"></script>
   <script src="/assets/feedback.js?v=dd3f717a61" defer></script>

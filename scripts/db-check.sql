@@ -100,6 +100,8 @@ UNION ALL SELECT 'channel type not allowed', 'devto', 'migrations/0002-channel-t
 UNION ALL SELECT 'channel type not allowed', 'reddit', 'migrations/0003-channel-types-reddit-facebook.sql' WHERE (SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'channels') NOT LIKE '%''reddit''%'
 UNION ALL SELECT 'channel type not allowed', 'facebook', 'migrations/0003-channel-types-reddit-facebook.sql' WHERE (SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'channels') NOT LIKE '%''facebook''%'
 UNION ALL SELECT 'channel type not allowed', 'pinterest', 'migrations/0004-channel-types-pinterest.sql' WHERE (SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'channels') NOT LIKE '%''pinterest''%'
+UNION ALL SELECT 'channel type not allowed', 'slack', 'migrations/0005-channel-types-slack-hashnode.sql' WHERE (SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'channels') NOT LIKE '%''slack''%'
+UNION ALL SELECT 'channel type not allowed', 'hashnode', 'migrations/0005-channel-types-slack-hashnode.sql' WHERE (SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'channels') NOT LIKE '%''hashnode''%'
 )
 SELECT problem, what, fix FROM problems
 UNION ALL SELECT 'ok', 'nothing is missing', '' WHERE NOT EXISTS (SELECT 1 FROM problems);

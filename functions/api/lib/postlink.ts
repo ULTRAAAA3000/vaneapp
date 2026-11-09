@@ -5,6 +5,8 @@
  *   mastodon  the sender stores the post's own https URL
  *   discord   the sender stores the message link https://discord.com/channels/<server>/<channel>/<message>
  *   devto     the sender stores the article's https://dev.to/… address
+ *   hashnode  the sender stores the article's https address (on the blog's own host)
+ *   slack     a webhook answers no message link: no link
  *   webhook   the sender stores the https link the person's server answered with (if it answered one)
  *   bluesky   the sender stores the at:// URI; the web address is bsky.app/profile/<did>/post/<rkey>
  *   linkedin  the sender stores the post's urn (urn:li:share:… / urn:li:ugcPost:…); the web address is linkedin.com/feed/update/<urn>/
@@ -25,6 +27,8 @@ export function postUrl(platform: string, externalId: string | null, telegramCha
       return m ? externalId : null;
     }
     case 'webhook':
+      return httpsUrl(externalId);
+    case 'hashnode':
       return httpsUrl(externalId);
     case 'devto': {
       const url = httpsUrl(externalId);
