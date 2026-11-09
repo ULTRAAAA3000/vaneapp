@@ -242,6 +242,7 @@
     var ids = new Set(S.channels.map(function (c) { return c.id; }));
     S.selected.forEach(function (id) { if (!ids.has(id)) S.selected.delete(id); });
     if (!S.selectionTouched) S.channels.forEach(function (c) { S.selected.add(c.id); });
+    document.dispatchEvent(new Event('vane:posts-changed'));
   }
   async function loadPosts(view) {
     var r = await Vane.api('GET', '/api/posts?view=' + view);
@@ -359,6 +360,10 @@
     S.armed[key] = setTimeout(function () { delete S.armed[key]; renderChannels(); renderPosts(); renderApiKeys(); }, ms || 3200);
   }
   function disarm(key) { clearTimeout(S.armed[key]); delete S.armed[key]; }
+
+  window.Vane = window.Vane || {};
+  Vane.openConnect = openConnect;
+  Vane.reloadChannels = loadChannels;
 
   $('channels').addEventListener('click', async function (e) {
     var btn = e.target.closest('[data-act]');

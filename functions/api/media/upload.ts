@@ -13,7 +13,7 @@
  * file is refused with 503 media_unchecked (try again), it is never let through unchecked.
  * Checks, in order: signed-in user → R2 bound → per-user rate limit → body size (read with a hard
  * cap, never fully buffered beyond it) → real file type from the BYTES → whole-file structure (nothing hidden after the end, no script/archive/executable inside) → image dimensions → the plan's library storage.
- * The plan's library storage limit (storageMb) is checked before the content check: it is free, the content check is not.
+ * The plan's library storage limit (storageMb) is checked before the content check: it is free, the content check is not. It is checked once more after the file is recorded (settleStorageQuota), because two uploads at the same moment can both see the room.
  * Every stored file also gets a row in `media_assets`, which is what the Library tab lists.
  */
 import type { PagesFunction } from '@cloudflare/workers-types';
@@ -21,7 +21,7 @@ import type { Env } from '../../../types';
 import { requireUser } from '../lib/auth';
 import { fail, failCode, json, methodNotAllowed, readBodyLimited } from '../lib/http';
 import { imageSize, sniffImage, telegramPhotoProblem } from '../lib/image';
-import { checkStorageQuota, cleanFileName, recordUpload } from '../lib/library';
+import { checkStorageQuota, cleanFileName, recordUpload, settleStorageQuota } from '../lib/library';
 import { imageProblem, videoProblem } from '../lib/mediacheck';
 import { sniffVideo } from '../lib/video';
 import { mediaCode, mediaMessage, mediaStatus, moderateImages, modOff, type Picture } from '../lib/moderation';
@@ -125,6 +125,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   });
   const name = cleanFileName(fileName, `${image ? 'image' : 'video'}.${kind.ext}`);
   await recordUpload(env, { userId: auth.userId, key: objectKey, kind: image ? 'image' : 'video', contentType: kind.mime, size: bytes.length, width: size?.width, height: size?.height, name });
+  const crowded = await settleStorageQuota(env, auth.userId, objectKey);   // two uploads at the same moment can both have seen the room
+  if (crowded) return crowded;
 
   return json(
     {

@@ -65,6 +65,7 @@
         '<span class="text-xs leading-relaxed text-white/40" data-mp="dropHint">Images: JPEG, PNG, WebP up to 5 MB<br />Videos: MP4, MOV up to 20 MB</span>' +
       '</button>' +
       '<button type="button" class="mt-2.5 hidden w-full text-center text-xs text-white/50 underline-offset-4 hover:text-white hover:underline" data-mp="library">or choose from your library</button>' +
+      '<div class="mt-3 hidden" data-mp="usage"></div>' +
       '<div class="hidden items-center gap-3.5 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/5" data-mp="card">' +
         '<div class="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-white/[0.06]">' +
           '<div class="flex h-full w-full items-center justify-center text-white/35" data-mp="thumb"></div>' +
@@ -81,7 +82,7 @@
       '<p class="mt-2 hidden text-xs text-red-300" role="alert" data-mp="error"></p>';
 
     var q = function (name) { return root.querySelector('[data-mp="' + name + '"]'); };
-    var input = q('input'), drop = q('drop'), libBtn = q('library'), card = q('card'), thumb = q('thumb'), badge = q('badge'), busy = q('busy');
+    var input = q('input'), drop = q('drop'), libBtn = q('library'), usageEl = q('usage'), card = q('card'), thumb = q('thumb'), badge = q('badge'), busy = q('busy');
     var nameEl = q('name'), metaEl = q('meta'), progress = q('progress'), bar = q('bar'), action = q('action'), errEl = q('error');
 
     function setError(msg) { errEl.textContent = msg || ''; errEl.classList.toggle('hidden', !msg); }
@@ -90,8 +91,19 @@
     /** shown only while nothing is attached, uploads are on, and library-picker.js is loaded */
     function renderLibButton() { libBtn.classList.toggle('hidden', state !== 'idle' || !enabled || typeof Vane.openLibraryPicker !== 'function'); }
 
+    /** "12.4 MB of 100 MB used · 9 files": shown while nothing is attached, read again when that state comes back (an upload, a removal) */
+    var usageAt = 0;
+    function renderUsage() {
+      var on = state === 'idle' && enabled && !!(Vane.libraryUsage && Vane.libraryUsage.show);
+      if (!on) { usageEl.classList.add('hidden'); return; }
+      if (Date.now() - usageAt < 2000) return;       // render() runs often: one request every couple of seconds is plenty
+      usageAt = Date.now();
+      Vane.libraryUsage.show(usageEl);
+    }
+
     function renderEnabled() {
       renderLibButton();
+      renderUsage();
       drop.disabled = !enabled;
       q('dropTitle').innerHTML = enabled ? 'Drag &amp; drop or <span class="underline underline-offset-4">click to upload</span>' : 'Media uploads are not enabled yet';
       q('dropHint').innerHTML = enabled ? 'Images: JPEG, PNG, WebP up to 5 MB<br />Videos: MP4, MOV up to 20 MB' : 'Ask the site owner to finish the storage setup.';
@@ -119,6 +131,7 @@
       var showCard = state !== 'idle';
       drop.classList.toggle('hidden', showCard);
       renderLibButton();
+      renderUsage();
       card.classList.toggle('hidden', !showCard); card.classList.toggle('flex', showCard);
       if (state === 'ready' && media) {
         busy.classList.add('hidden'); busy.classList.remove('flex'); progress.classList.add('hidden');

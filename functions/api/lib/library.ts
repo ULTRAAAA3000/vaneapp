@@ -79,6 +79,15 @@ export async function storageLimit(env: Env, userId: string): Promise<{ bytes: n
     : { bytes: null, label: spec.label, mb: null, upgrade };
 }
 
+/**
+ * What the Library shows next to the maximum: { usedBytes, count, limitBytes, upgrade }. `limitBytes` is null when the plan has no storage
+ * limit or limits are not being enforced (then there is no maximum to show). One definition for GET /api/library/assets and /usage.
+ */
+export async function libraryUsage(env: Env, userId: string): Promise<{ usedBytes: number; count: number; limitBytes: number | null; upgrade: boolean }> {
+  const [usage, limit] = await Promise.all([storageUsage(env, userId), storageLimit(env, userId)]);
+  return { usedBytes: usage.usedBytes, count: usage.count, limitBytes: limit.bytes, upgrade: limit.upgrade };
+}
+
 /** 402 when the file does not fit in what the plan includes. Applies only while "enforce_limits" is on, like the channel limit. */
 export async function checkStorageQuota(env: Env, userId: string, addBytes: number): Promise<Response | null> {
   const limit = await storageLimit(env, userId);
@@ -90,9 +99,35 @@ export async function checkStorageQuota(env: Env, userId: string, addBytes: numb
     if (isMissingTable(err)) return null;
     throw err;
   }
-  return used + addBytes > limit.bytes
-    ? fail(402, `Your ${limit.label} plan includes ${limit.mb} MB of library storage and this file does not fit. Delete files you no longer need in the Library${limit.upgrade ? ', or choose a paid plan for more room' : ''}.`)
-    : null;
+  return used + addBytes > limit.bytes ? doesNotFit(limit) : null;
+}
+
+const doesNotFit = (limit: { label: string; mb: number | null; upgrade: boolean }): Response =>
+  fail(402, `Your ${limit.label} plan includes ${limit.mb} MB of library storage and this file does not fit. Delete files you no longer need in the Library${limit.upgrade ? ', or choose a paid plan for more room' : ''}.`);
+
+/**
+ * The check before an upload is not atomic: two uploads that start together both see the room and each fits alone. So once a file is
+ * recorded, the files up to and including it (in the order they were recorded) must still fit; if they do not, this one is taken back
+ * and the same 402 is answered. Of two parallel uploads only the later one can be over, so one of them always stays.
+ */
+export async function settleStorageQuota(env: Env, userId: string, key: string): Promise<Response | null> {
+  const limit = await storageLimit(env, userId);
+  if (limit.bytes === null) return null;
+  let upTo: number;
+  try {
+    const r = await env.DB
+      .prepare('SELECT COALESCE(SUM(size_bytes), 0) AS bytes FROM media_assets WHERE user_id = ?1 AND rowid <= (SELECT rowid FROM media_assets WHERE user_id = ?1 AND r2_key = ?2)')
+      .bind(userId, key)
+      .first<{ bytes: number }>();
+    upTo = r?.bytes ?? 0;
+  } catch (err) {
+    if (isMissingTable(err)) return null;
+    throw err;
+  }
+  if (upTo <= limit.bytes) return null;
+  await env.DB.prepare('DELETE FROM media_assets WHERE user_id = ?1 AND r2_key = ?2').bind(userId, key).run();
+  await env.MEDIA?.delete(key).catch((err: unknown) => console.error('library: could not remove an upload that did not fit', key, err instanceof Error ? err.message : 'unknown'));
+  return doesNotFit(limit);
 }
 
 const KEY_AT_END = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:jpg|png|webp|mp4|mov))(?:[?#].*)?$/;
