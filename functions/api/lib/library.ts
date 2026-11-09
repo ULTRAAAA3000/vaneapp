@@ -69,23 +69,24 @@ export async function storageUsage(env: Env, userId: string): Promise<{ usedByte
  * The plan's storage allowance in bytes, or null when it is unlimited or the plan limits are not being enforced yet.
  * `upgrade` is true on the Free Trial: that is where "choose a plan" is an answer to a full library.
  */
-export async function storageLimit(env: Env, userId: string): Promise<{ bytes: number | null; label: string; mb: number | null; upgrade: boolean }> {
+export async function storageLimit(env: Env, userId: string): Promise<{ bytes: number | null; planBytes: number | null; label: string; mb: number | null; upgrade: boolean }> {
   const sub = await loadSubscription(env, userId);
   const spec = specOf(sub.plan);
   const on = (await getSettings(env)).enforce_limits;
   const upgrade = sub.plan === 'free';
-  return typeof spec.storageMb === 'number' && on
-    ? { bytes: spec.storageMb * MB, label: spec.label, mb: spec.storageMb, upgrade }
-    : { bytes: null, label: spec.label, mb: null, upgrade };
+  const planBytes = typeof spec.storageMb === 'number' ? spec.storageMb * MB : null;
+  return planBytes !== null && on
+    ? { bytes: planBytes, planBytes, label: spec.label, mb: spec.storageMb, upgrade }
+    : { bytes: null, planBytes, label: spec.label, mb: null, upgrade };
 }
 
 /**
- * What the Library shows next to the maximum: { usedBytes, count, limitBytes, upgrade }. `limitBytes` is null when the plan has no storage
- * limit or limits are not being enforced (then there is no maximum to show). One definition for GET /api/library/assets and /usage.
+ * What the Library shows next to the maximum: { usedBytes, count, limitBytes, upgrade }. `limitBytes` is what the plan includes, shown even while limits are not enforced
+ * yet (`enforced` says whether uploads are actually refused); null only when the plan has no storage limit. One definition for GET /api/library/assets and /usage.
  */
-export async function libraryUsage(env: Env, userId: string): Promise<{ usedBytes: number; count: number; limitBytes: number | null; upgrade: boolean }> {
+export async function libraryUsage(env: Env, userId: string): Promise<{ usedBytes: number; count: number; limitBytes: number | null; enforced: boolean; upgrade: boolean }> {
   const [usage, limit] = await Promise.all([storageUsage(env, userId), storageLimit(env, userId)]);
-  return { usedBytes: usage.usedBytes, count: usage.count, limitBytes: limit.bytes, upgrade: limit.upgrade };
+  return { usedBytes: usage.usedBytes, count: usage.count, limitBytes: limit.planBytes, enforced: limit.bytes !== null, upgrade: limit.upgrade };
 }
 
 /** 402 when the file does not fit in what the plan includes. Applies only while "enforce_limits" is on, like the channel limit. */
