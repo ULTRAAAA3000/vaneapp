@@ -76,8 +76,8 @@
     var byDay = {}; daily.forEach(function (r) { byDay[r.day] = r; });
     var today = Math.floor(Date.now() / 86400000), out = [], step = days > 90 ? 7 : 1;
     for (var i = days - 1; i >= 0; i -= step) {
-      var agg = { label: '', likes: 0, replies: 0, reposts: 0, posts: 0 };
-      for (var k = 0; k < step && i - k >= 0; k++) { var day = new Date((today - (i - k)) * 86400000).toISOString().slice(0, 10); if (k === 0) agg.label = day; var r = byDay[day]; if (r) { agg.likes += r.likes; agg.replies += r.replies; agg.reposts += r.reposts; agg.posts += r.posts; } }
+      var agg = { label: '', likes: 0, replies: 0, reposts: 0, posts: 0, views: 0 };
+      for (var k = 0; k < step && i - k >= 0; k++) { var day = new Date((today - (i - k)) * 86400000).toISOString().slice(0, 10); if (k === 0) agg.label = day; var r = byDay[day]; if (r) { agg.likes += r.likes; agg.replies += r.replies; agg.reposts += r.reposts; agg.posts += r.posts; agg.views += r.views || 0; } }
       out.push(agg);
     }
     return out;
@@ -85,70 +85,157 @@
   // Round the top of the scale up to 1, 2, 5 × 10^n so the grid lines read as whole numbers.
   function niceMax(m) { if (m <= 10) return m <= 1 ? 1 : Math.ceil(m / 2) * 2; var p = Math.pow(10, Math.floor(Math.log10(m))), f = m / p, k = [1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].find(function (x) { return x >= f; }); return k * p; }
   function shortDay(iso) { return new Date(iso + 'T00:00:00Z').toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' }); }
-  // One drawer for every "per day" chart: a scale with grid lines, stacked bars, four dates, and the same tooltip text as before (tip(row)).
+  function longDay(iso) { return new Date(iso + 'T00:00:00Z').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }); }
+  var uid = 0;
+
+  // The little card that follows the pointer over a chart: a heading, one coloured row per series, and a total.
+  function tipBox(wrap) {
+    var t = el('div', 'an-tip'); t.setAttribute('aria-hidden', 'true'); wrap.appendChild(t);
+    return {
+      show: function (x, y, head, rows, total) {
+        t.textContent = ''; t.appendChild(el('p', 'an-tip-h', head));
+        rows.forEach(function (r) { var li = el('p', 'an-tip-r'), d = el('i'); d.style.background = r[1]; li.appendChild(d); li.appendChild(el('span', '', r[0])); li.appendChild(el('b', '', r[2])); t.appendChild(li); });
+        if (total !== undefined) { var tl = el('p', 'an-tip-r an-tip-t'); tl.appendChild(el('span', '', 'Total')); tl.appendChild(el('b', '', total)); t.appendChild(tl); }
+        t.classList.add('on');
+        var w = t.offsetWidth, W = wrap.clientWidth;
+        t.style.left = Math.max(4, Math.min(W - w - 4, x - w / 2)) + 'px'; t.style.top = Math.max(0, y - t.offsetHeight - 12) + 'px';
+      },
+      hide: function () { t.classList.remove('on'); }
+    };
+  }
+  // A smooth curve through the points (Catmull-Rom turned into cubic Béziers), so a line chart does not look like a saw.
+  function smooth(xy) {
+    if (xy.length < 3) return 'M' + xy.map(function (q) { return q[0].toFixed(1) + ' ' + q[1].toFixed(1); }).join(' L');
+    var d = 'M' + xy[0][0].toFixed(1) + ' ' + xy[0][1].toFixed(1);
+    for (var i = 0; i < xy.length - 1; i++) {
+      var p0 = xy[i - 1] || xy[i], p1 = xy[i], p2 = xy[i + 1], p3 = xy[i + 2] || p2, t = 0.18;
+      d += ' C' + (p1[0] + (p2[0] - p0[0]) * t).toFixed(1) + ' ' + (p1[1] + (p2[1] - p0[1]) * t).toFixed(1) + ',' + (p2[0] - (p3[0] - p1[0]) * t).toFixed(1) + ' ' + (p2[1] - (p3[1] - p1[1]) * t).toFixed(1) + ',' + p2[0].toFixed(1) + ' ' + p2[1].toFixed(1);
+    }
+    return d;
+  }
+  function gradient(id, color, a0, a1) {
+    var g = svg('linearGradient', { id: id, x1: 0, y1: 0, x2: 0, y2: 1 });
+    g.appendChild(svg('stop', { offset: '0%', 'stop-color': color, 'stop-opacity': a0 })); g.appendChild(svg('stop', { offset: '100%', 'stop-color': color, 'stop-opacity': a1 })); return g;
+  }
+  // One drawer for every "per day" chart: a scale with grid lines, stacked bars that grow in, four dates and a tooltip (series = [key, colour, name]).
   // On a phone the drawing is 340 wide instead of 640, so its text stays readable instead of shrinking with the screen.
-  function stackedBars(rows, series, aria, tip) {
-    var narrow = window.innerWidth < 640, W = narrow ? 340 : 640, H = narrow ? 170 : 170, FS = narrow ? 11 : 10, max = 1;
+  function stackedBars(rows, series, aria, weekly) {
+    var narrow = window.innerWidth < 640, W = narrow ? 340 : 720, H = narrow ? 170 : 210, FS = narrow ? 11 : 11, max = 1, id = 'bars' + (++uid);
     rows.forEach(function (r) { var t = 0; series.forEach(function (c) { t += r[c[0]]; }); max = Math.max(max, t); });
-    var top = niceMax(max), padL = 10 + String(top).length * FS * 0.6, padR = 4, padT = 8, plotH = H - padT;
-    var s = svg('svg', { viewBox: '0 0 ' + W + ' ' + (H + 22), class: 'an-chart w-full', role: 'img', 'aria-label': aria });
+    var top = niceMax(max), padL = 10 + String(top).length * FS * 0.6, padR = 4, padT = 10, plotH = H - padT;
+    var wrap = el('div', 'an-plot'), tip = tipBox(wrap), s = svg('svg', { viewBox: '0 0 ' + W + ' ' + (H + 24), class: 'an-chart w-full', role: 'img', 'aria-label': aria });
+    var defs = svg('defs'); series.forEach(function (c, k) { defs.appendChild(gradient(id + k, c[1], 1, 0.82)); }); s.appendChild(defs);
     [0, 0.5, 1].forEach(function (f) {
       var y = H - f * plotH;
-      s.appendChild(svg('line', { x1: padL, x2: W - padR, y1: y, y2: y, stroke: f ? 'rgba(255,255,255,.08)' : 'rgba(255,255,255,.16)', 'stroke-dasharray': f ? '3 4' : '0' }));
+      s.appendChild(svg('line', { x1: padL, x2: W - padR, y1: y, y2: y, stroke: f ? 'rgba(255,255,255,.07)' : 'rgba(255,255,255,.16)', 'stroke-dasharray': f ? '3 5' : '0' }));
       var v = top * f; if (v % 1) return;
-      var t = svg('text', { x: padL - 6, y: y + 3.5, fill: 'rgba(255,255,255,.4)', 'font-size': FS, 'text-anchor': 'end' }); t.textContent = fmt(v); s.appendChild(t);
+      var t = svg('text', { x: padL - 8, y: y + 3.5, fill: 'rgba(255,255,255,.42)', 'font-size': FS, 'text-anchor': 'end' }); t.textContent = fmt(v); s.appendChild(t);
     });
     var bw = (W - padL - padR) / rows.length;
     rows.forEach(function (r, i) {
-      var g = svg('g', { class: 'an-col' }), x = padL + i * bw, y = H;
-      g.appendChild(svg('rect', { x: x, y: padT, width: bw, height: plotH, fill: 'rgba(255,255,255,0.001)' }));
-      series.forEach(function (c) {
-        var h = (r[c[0]] / top) * plotH; if (h <= 0) return; y -= h;
-        g.appendChild(svg('rect', { x: x + bw * 0.16, y: y, width: Math.max(bw * 0.68, 1), height: Math.max(h - 0.5, 0.5), fill: c[1], rx: Math.min(bw * 0.2, 2.5) }));
+      var g = svg('g', { class: 'an-col', style: '--i:' + i }), x = padL + i * bw, y = H, total = 0;
+      g.appendChild(svg('rect', { x: x, y: padT, width: bw, height: plotH, class: 'an-hit' }));
+      series.forEach(function (c, k) {
+        var h = (r[c[0]] / top) * plotH; total += r[c[0]]; if (h <= 0) return; y -= h;
+        g.appendChild(svg('rect', { x: x + bw * 0.16, y: y, width: Math.max(bw * 0.68, 1), height: Math.max(h - 0.5, 0.5), fill: 'url(#' + id + k + ')', rx: Math.min(bw * 0.22, 3), class: 'an-seg' }));
       });
-      g.appendChild(svg('title')).textContent = tip(r);
+      var sy = y;
+      function show() {
+        var k = s.clientWidth / W;
+        tip.show((x + bw / 2) * k, sy * k, (weekly ? 'Week of ' : '') + longDay(r.label), series.map(function (c) { return [c[2], c[1], fmt(r[c[0]])]; }), series.length > 2 ? fmt(total) : undefined);
+      }
+      g.addEventListener('pointerenter', show); g.addEventListener('pointerdown', show); g.addEventListener('pointerleave', tip.hide);
       s.appendChild(g);
     });
     var seen = {};
     [0, 1 / 3, 2 / 3, 1].forEach(function (f) {
       var i = Math.round(f * (rows.length - 1)); if (seen[i] || !rows[i].label) return; seen[i] = 1;
       var first = i === 0, last = i === rows.length - 1;
-      var t = svg('text', { x: first ? padL : last ? W - padR : padL + (i + 0.5) * bw, y: H + 16, fill: 'rgba(255,255,255,.4)', 'font-size': FS, 'text-anchor': first ? 'start' : last ? 'end' : 'middle' }); t.textContent = shortDay(rows[i].label); s.appendChild(t);
+      var t = svg('text', { x: first ? padL : last ? W - padR : padL + (i + 0.5) * bw, y: H + 18, fill: 'rgba(255,255,255,.42)', 'font-size': FS, 'text-anchor': first ? 'start' : last ? 'end' : 'middle' }); t.textContent = shortDay(rows[i].label); s.appendChild(t);
     });
-    return s;
+    wrap.insertBefore(s, wrap.firstChild); return wrap;
   }
   function barChart(daily, days) {
-    return stackedBars(bucket(daily, days), [['likes', COLORS[0]], ['replies', COLORS[1]], ['reposts', COLORS[2]]], 'Reactions per day', function (r) { return r.label + ': ' + r.likes + ' likes, ' + r.replies + ' replies, ' + r.reposts + ' reposts, ' + r.posts + ' posts'; });
+    return stackedBars(bucket(daily, days), [['likes', COLORS[0], 'Likes'], ['replies', COLORS[1], 'Replies'], ['reposts', COLORS[2], 'Reposts']], 'Reactions per day', days > 90);
+  }
+  // A tiny smooth area under a KPI number (values = one number per day or week).
+  function spark(values, color) {
+    var W = 120, H = 34, P = 3, lo = Math.min.apply(null, values), hi = Math.max.apply(null, values), span = Math.max(hi - lo, 1), id = 'spk' + (++uid);
+    var s = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, preserveAspectRatio: 'none', class: 'an-spark', 'aria-hidden': 'true' });
+    var xy = values.map(function (v, i) { return [P + (values.length > 1 ? i / (values.length - 1) : 0.5) * (W - 2 * P), hi === lo ? H / 2 : H - P - ((v - lo) / span) * (H - 2 * P)]; });
+    var defs = svg('defs'); defs.appendChild(gradient(id, color, 0.35, 0)); s.appendChild(defs);
+    var d = smooth(xy);
+    s.appendChild(svg('path', { d: d + ' L' + xy[xy.length - 1][0].toFixed(1) + ' ' + H + ' L' + xy[0][0].toFixed(1) + ' ' + H + ' Z', fill: 'url(#' + id + ')' }));
+    s.appendChild(svg('path', { d: d, fill: 'none', stroke: color, 'stroke-width': 1.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'vector-effect': 'non-scaling-stroke' }));
+    return s;
+  }
+  // A ring split into shares. Hover a slice and the middle shows its name and number.
+  function donut(items, unit) {
+    var R = 46, C = 2 * Math.PI * R, total = items.reduce(function (t, x) { return t + x.value; }, 0), wrap = el('div', 'an-donut');
+    var s = svg('svg', { viewBox: '0 0 120 120', role: 'img', 'aria-label': unit }), mid = el('div', 'an-donut-mid'), big = el('b', '', fmt(total)), cap = el('span', '', unit);
+    mid.appendChild(big); mid.appendChild(cap);
+    s.appendChild(svg('circle', { cx: 60, cy: 60, r: R, fill: 'none', stroke: 'rgba(255,255,255,.06)', 'stroke-width': 13 }));
+    var off = 0, gap = items.length > 1 ? 2.4 : 0;
+    items.forEach(function (x) {
+      if (!x.value) return;
+      var len = x.value / total * C, c = svg('circle', { cx: 60, cy: 60, r: R, fill: 'none', stroke: x.color, 'stroke-width': 13, 'stroke-linecap': 'butt', 'stroke-dasharray': Math.max(len - gap, 0.5).toFixed(2) + ' ' + C.toFixed(2), 'stroke-dashoffset': (-off).toFixed(2), transform: 'rotate(-90 60 60)', class: 'an-slice' });
+      off += len;
+      c.addEventListener('pointerenter', function () { big.textContent = fmt(x.value); cap.textContent = x.label + ' · ' + Math.round(x.value / total * 100) + '%'; });
+      c.addEventListener('pointerleave', function () { big.textContent = fmt(total); cap.textContent = unit; });
+      s.appendChild(c);
+    });
+    wrap.appendChild(s); wrap.appendChild(mid); return wrap;
+  }
+  // An interactive area for one number over time (followers): grid, smooth line, and a marker with a tooltip under the pointer.
+  function line(points, color) {
+    var W = 560, H = 150, PL = 38, PR = 8, PT = 10, PB = 8, narrow = window.innerWidth < 640; if (narrow) { W = 340; H = 130; PL = 30; }
+    var vals = points.map(function (p) { return p.followers; }), lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), pad = Math.max((hi - lo) * 0.12, 1); lo -= pad; hi += pad; var span = hi - lo, id = 'ln' + (++uid);
+    var wrap = el('div', 'an-plot'), tip = tipBox(wrap), s = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'an-chart w-full', role: 'img', 'aria-label': 'Followers by day' });
+    var defs = svg('defs'); defs.appendChild(gradient(id, color, 0.34, 0)); s.appendChild(defs);
+    [0, 0.5, 1].forEach(function (f) {
+      var y = H - PB - f * (H - PT - PB), v = Math.round(lo + span * f);
+      s.appendChild(svg('line', { x1: PL, x2: W - PR, y1: y, y2: y, stroke: 'rgba(255,255,255,' + (f ? '.07' : '.14') + ')', 'stroke-dasharray': f ? '3 5' : '0' }));
+      var t = svg('text', { x: PL - 7, y: y + 3.5, fill: 'rgba(255,255,255,.42)', 'font-size': 10.5, 'text-anchor': 'end' }); t.textContent = fmt(v); s.appendChild(t);
+    });
+    var t0 = Date.parse(points[0].day), t1 = Date.parse(points[points.length - 1].day);
+    var xy = points.map(function (p) { return [PL + ((Date.parse(p.day) - t0) / Math.max(t1 - t0, 1)) * (W - PL - PR), H - PB - ((p.followers - lo) / span) * (H - PT - PB)]; });
+    var d = smooth(xy);
+    s.appendChild(svg('path', { d: d + ' L' + xy[xy.length - 1][0].toFixed(1) + ' ' + (H - PB) + ' L' + xy[0][0].toFixed(1) + ' ' + (H - PB) + ' Z', fill: 'url(#' + id + ')' }));
+    s.appendChild(svg('path', { d: d, fill: 'none', stroke: color, 'stroke-width': 2.2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', class: 'an-draw', pathLength: 1 }));
+    var end = xy[xy.length - 1], endDot = svg('circle', { cx: end[0].toFixed(1), cy: end[1].toFixed(1), r: 3.6, fill: color, stroke: '#0b0b0d', 'stroke-width': 2 }); s.appendChild(endDot);
+    var cross = svg('line', { y1: PT, y2: H - PB, stroke: 'rgba(255,255,255,.22)', 'stroke-dasharray': '3 3', class: 'an-cross' }), mark = svg('circle', { r: 4.6, fill: color, stroke: '#0b0b0d', 'stroke-width': 2, class: 'an-cross' }); s.appendChild(cross); s.appendChild(mark);
+    function at(ev) {
+      var r = s.getBoundingClientRect(), x = (ev.clientX - r.left) / r.width * W, k = 0, best = 1e9;
+      xy.forEach(function (q, i) { var dx = Math.abs(q[0] - x); if (dx < best) { best = dx; k = i; } });
+      var q = xy[k], f = r.width / W; cross.setAttribute('x1', q[0]); cross.setAttribute('x2', q[0]); mark.setAttribute('cx', q[0]); mark.setAttribute('cy', q[1]); s.classList.add('is-hover');
+      tip.show(q[0] * f, q[1] * f, longDay(points[k].day), [['Followers', color, fmt(points[k].followers)]]);
+    }
+    s.addEventListener('pointermove', at); s.addEventListener('pointerdown', at); s.addEventListener('pointerleave', function () { s.classList.remove('is-hover'); tip.hide(); });
+    wrap.insertBefore(s, wrap.firstChild); return wrap;
   }
   function legend() {
     var l = el('div', 'flex flex-wrap gap-4 text-xs text-white/55');
     [['Likes', COLORS[0]], ['Replies', COLORS[1]], ['Reposts', COLORS[2]]].forEach(function (c) { var i = el('span', 'inline-flex items-center gap-1.5'); var d = el('span', 'h-2.5 w-2.5 rounded-sm'); d.style.background = c[1]; i.appendChild(d); i.appendChild(document.createTextNode(c[0])); l.appendChild(i); });
     return l;
   }
-  var sparkId = 0;
-  function line(points, color) {
-    var W = 320, H = 90, P = 6, vals = points.map(function (p) { return p.followers; }), lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), span = Math.max(hi - lo, 1);
-    var t0 = Date.parse(points[0].day), t1 = Date.parse(points[points.length - 1].day), s = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'w-full', role: 'img', 'aria-label': 'Followers by day' });
-    var xy = points.map(function (p) { return [P + ((Date.parse(p.day) - t0) / Math.max(t1 - t0, 1)) * (W - 2 * P), hi === lo ? H / 2 : H - P - ((p.followers - lo) / span) * (H - 2 * P)]; });
-    var pts = xy.map(function (q) { return q[0].toFixed(1) + ',' + q[1].toFixed(1); }), id = 'spark' + (++sparkId);
-    var defs = svg('defs'), grad = svg('linearGradient', { id: id, x1: 0, y1: 0, x2: 0, y2: 1 });
-    grad.appendChild(svg('stop', { offset: '0%', 'stop-color': color, 'stop-opacity': 0.32 })); grad.appendChild(svg('stop', { offset: '100%', 'stop-color': color, 'stop-opacity': 0 }));
-    defs.appendChild(grad); s.appendChild(defs);
-    s.appendChild(svg('polygon', { points: P + ',' + (H - P) + ' ' + pts.join(' ') + ' ' + (W - P) + ',' + (H - P), fill: 'url(#' + id + ')' }));
-    s.appendChild(svg('polyline', { points: pts.join(' '), fill: 'none', stroke: color, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
-    var end = xy[xy.length - 1]; s.appendChild(svg('circle', { cx: end[0].toFixed(1), cy: end[1].toFixed(1), r: 3.5, fill: color, stroke: '#0b0b0d', 'stroke-width': 2 }));
-    return s;
+  var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function countUp(node, to) {
+    if (still || typeof to !== 'number' || to % 1 || to < 2 || to > 1e7) return;
+    var t0 = performance.now(), dur = 650; node.textContent = '0';
+    (function tick(now) { var k = Math.min((now - t0) / dur, 1), e = 1 - Math.pow(1 - k, 3); node.textContent = fmt(Math.round(to * e)); if (k < 1) requestAnimationFrame(tick); })(t0);
   }
-
-  // ── parts
-  function stat(label, value, sub, dl) {
-    var c = el('div', 'an-kpi glass-d rounded-2xl p-4'); c.appendChild(el('p', 'an-kpi-l', label)); c.appendChild(el('p', 'an-kpi-v', fmt(value)));
+  function stat(label, value, sub, dl, sp) {
+    var c = el('div', 'an-kpi glass-d rounded-2xl p-4'), lab = el('p', 'an-kpi-l');
+    if (sp) { var dot = el('i', 'an-kpi-dot'); dot.style.background = sp.color; lab.appendChild(dot); }
+    lab.appendChild(document.createTextNode(label)); c.appendChild(lab);
+    var v = el('p', 'an-kpi-v', fmt(value)); c.appendChild(v); countUp(v, value);
     if (sub) c.appendChild(el('p', 'an-kpi-s', sub));
     if (dl) {
       var kind = /emerald/.test(dl.cls) ? 'up' : /rose/.test(dl.cls) ? 'down' : 'flat', row = el('p', 'an-kpi-d'); row.title = 'Compared with the previous period of the same length';
       var pill = el('span', 'an-delta ' + kind, (dl.text.charAt(0) === '+' ? '▲ ' : dl.text.charAt(0) === '-' ? '▼ ' : '') + dl.text.replace(/^[+-]/, '')); row.appendChild(pill); row.appendChild(el('span', 'an-kpi-vs', 'vs prev.'));
       c.appendChild(row);
     }
+    if (sp && sp.values.length > 1) c.appendChild(spark(sp.values, sp.color));
     return c;
   }
   // Change against the period just before: a percentage, "new" when there was nothing before, nothing at all when both are empty. `invert`: down is good (failed posts).
@@ -209,12 +296,14 @@
       root.appendChild(none); return;
     }
     var t = d.totals, pv = d.prev, avg = t.posts ? avgOf(t) : null;
-    var g = el('div', 'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6'); [['Posts', t.posts, pv && pv.posts], ['Views', t.views, pv && pv.views], ['Likes', t.likes, pv && pv.likes], ['Replies', t.replies, pv && pv.replies], ['Reposts', t.reposts, pv && pv.reposts], ['Per post', avg, pv && pv.posts ? avgOf(pv) : 0]].forEach(function (x) { g.appendChild(stat(x[0], x[1], x[0] === 'Per post' ? 'average reactions' : null, pv ? delta(x[1] || 0, x[2]) : null)); });
+    var rows = bucket(d.daily, d.days), sr = function (f) { return rows.map(f); };
+    var SP = { Posts: { color: '#c4b5fd', values: sr(function (r) { return r.posts; }) }, Views: { color: '#f9a8d4', values: sr(function (r) { return r.views; }) }, Likes: { color: COLORS[0], values: sr(function (r) { return r.likes; }) }, Replies: { color: COLORS[1], values: sr(function (r) { return r.replies; }) }, Reposts: { color: COLORS[2], values: sr(function (r) { return r.reposts; }) }, 'Per post': { color: '#fdba74', values: sr(function (r) { return r.posts ? Math.round((r.likes + r.replies + r.reposts) / r.posts * 10) / 10 : 0; }) } };
+    var g = el('div', 'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6'); [['Posts', t.posts, pv && pv.posts], ['Views', t.views, pv && pv.views], ['Likes', t.likes, pv && pv.likes], ['Replies', t.replies, pv && pv.replies], ['Reposts', t.reposts, pv && pv.reposts], ['Per post', avg, pv && pv.posts ? avgOf(pv) : 0]].forEach(function (x, i) { var k = stat(x[0], x[1], x[0] === 'Per post' ? 'average reactions' : null, pv ? delta(x[1] || 0, x[2]) : null, SP[x[0]]); k.style.setProperty('--d', i * 50 + 'ms'); g.appendChild(k); });
     root.appendChild(g);
     var c = el('div', 'glass-d rounded-2xl p-4 sm:p-5'); var h = el('div', 'mb-3 flex flex-wrap items-center justify-between gap-2'); h.appendChild(el('p', 'text-sm font-medium', 'Reactions' + (d.days > 90 ? ' per week' : ' per day'))); h.appendChild(legend()); c.appendChild(h);
     if (t.posts) c.appendChild(barChart(d.daily, d.days)); else c.appendChild(el('p', 'py-8 text-center text-sm text-white/50', 'No published posts here in the last ' + d.days + ' days yet. Results show up an hour after a post goes out.'));
     root.appendChild(c);
-    if (d.top.length) { var top = el('div', 'space-y-2'); top.appendChild(section('Best posts', 'by reactions')); d.top.forEach(function (p) { top.appendChild(postRow(p)); }); root.appendChild(top); }
+    if (d.top.length) { var top = el('div', 'space-y-2'); top.appendChild(section('Best posts', 'by reactions')); d.top.forEach(function (p, i) { var row = postRow(p), rk = el('span', 'an-rank an-rank-' + (i + 1), String(i + 1)); row.insertBefore(rk, row.firstChild); top.appendChild(row); }); root.appendChild(top); }
     var more = el('div', 'text-center'); var all = el('a', 'text-sm text-white/55 underline underline-offset-4', 'All posts →'); all.href = '#posts'; more.appendChild(all); root.appendChild(more);
   }
 
@@ -328,7 +417,7 @@
     return l;
   }
   var RED = '#fca5a5';
-  function activityBars(daily, days) {
+  function actRows(daily, days) {
     var byDay = {}; daily.forEach(function (r) { byDay[r.day] = r; });
     var today = Math.floor(Date.now() / 86400000), step = days > 90 ? 7 : 1, rows = [];
     for (var i = days - 1; i >= 0; i -= step) {
@@ -336,16 +425,22 @@
       for (var k = 0; k < step && i - k >= 0; k++) { var day = new Date((today - (i - k)) * 86400000).toISOString().slice(0, 10); if (k === 0) agg.label = day; var r = byDay[day]; if (r) { agg.sent += r.sent; agg.failed += r.failed; } }
       rows.push(agg);
     }
-    return stackedBars(rows, [['sent', COLORS[1]], ['failed', RED]], 'Posts per day', function (r) { return r.label + ': ' + r.sent + ' published, ' + r.failed + ' failed'; });
+    return rows;
   }
-  function barRows(title, items) {
-    var box = el('div', 'glass-d space-y-4 rounded-2xl p-4 sm:p-5'); box.appendChild(el('p', 'text-sm font-medium', title));
-    var best = 0; items.forEach(function (x) { best = Math.max(best, x.value); });
+  function activityBars(daily, days) {
+    return stackedBars(actRows(daily, days), [['sent', COLORS[1], 'Published'], ['failed', RED, 'Failed']], 'Posts per day', days > 90);
+  }
+  function barRows(title, items, ring) {
+    var box = el('div', 'glass-d rounded-2xl p-4 sm:p-5'); box.appendChild(el('p', 'text-sm font-medium', title));
+    var best = 0, sum = 0; items.forEach(function (x) { best = Math.max(best, x.value); sum += x.value; });
+    var body = el('div', ring && sum && items.length > 1 ? 'an-split mt-4' : 'mt-4'), list = el('div', 'space-y-4');
+    if (ring && sum && items.length > 1) body.appendChild(donut(items, ring));
     items.forEach(function (x) {
       var r = el('div'), top = el('div', 'flex items-baseline justify-between gap-3 text-sm'); top.appendChild(el('span', 'min-w-0 flex-1 truncate', x.label)); top.appendChild(el('span', 'shrink-0 whitespace-nowrap tabular-nums text-white/75', x.text)); r.appendChild(top);
-      var bar = el('div', 'mt-1.5 h-2.5 overflow-hidden rounded-full bg-white/10'), fill = el('div', 'h-full rounded-full'); fill.style.width = (best ? Math.max(x.value / best * 100, x.value ? 2 : 0) : 0) + '%'; fill.style.background = x.color; bar.appendChild(fill); r.appendChild(bar);
-      if (x.sub) r.appendChild(el('p', 'mt-1 text-xs text-white/40', x.sub)); box.appendChild(r);
+      var bar = el('div', 'mt-1.5 h-2.5 overflow-hidden rounded-full bg-white/10'), fill = el('div', 'an-fill h-full rounded-full'); fill.style.width = (best ? Math.max(x.value / best * 100, x.value ? 2 : 0) : 0) + '%'; fill.style.background = x.color; bar.appendChild(fill); r.appendChild(bar);
+      if (x.sub) r.appendChild(el('p', 'mt-1 text-xs text-white/40', x.sub)); list.appendChild(r);
     });
+    body.appendChild(list); box.appendChild(body);
     return box;
   }
   function habitHeat(grid, tz) {
@@ -392,19 +487,20 @@
       var t = a.totals, pv = a.prev, total = t.sent + t.failed, rate = total ? Math.round(t.sent / total * 100) : null;
       root.appendChild(el('p', 'text-sm text-white/45', 'What Vane published for you on every network, including the ones that give no numbers back.'));
       var g = el('div', 'grid grid-cols-2 gap-3 lg:grid-cols-4');
-      g.appendChild(stat('Published', t.sent, null, delta(t.sent, pv.sent)));
-      g.appendChild(stat('Failed', t.failed, rate === null ? null : rate + '% went through', delta(t.failed, pv.failed, true)));
+      var ar = actRows(a.daily, a.days);
+      g.appendChild(stat('Published', t.sent, null, delta(t.sent, pv.sent), { color: COLORS[1], values: ar.map(function (r) { return r.sent; }) }));
+      g.appendChild(stat('Failed', t.failed, rate === null ? null : rate + '% went through', delta(t.failed, pv.failed, true), { color: RED, values: ar.map(function (r) { return r.failed; }) }));
       g.appendChild(stat('In the queue', a.upcoming, 'waiting to go out'));
       g.appendChild(stat('Streak', a.streak.current, 'days in a row · best ' + a.streak.longest + ' · ' + a.streak.activeDays + ' active days'));
       root.appendChild(g);
       var c = el('div', 'glass-d rounded-2xl p-4 sm:p-5'), h = el('div', 'mb-3 flex flex-wrap items-center justify-between gap-2'); h.appendChild(el('p', 'text-sm font-medium', 'Posts' + (a.days > 90 ? ' per week' : ' per day'))); h.appendChild(legendOf([['Published', COLORS[1]], ['Failed', RED]])); c.appendChild(h);
       if (total) c.appendChild(activityBars(a.daily, a.days)); else c.appendChild(el('p', 'py-8 text-center text-sm text-white/50', 'Nothing was published on these networks in the last ' + a.days + ' days.'));
       root.appendChild(c);
-      if (a.byNetwork.length) root.appendChild(barRows('By network', a.byNetwork.map(function (n) { return { label: LABEL[n.type] || n.type, value: n.sent, text: n.sent + ' published' + (n.failed ? ' · ' + n.failed + ' failed' : ''), color: colorOfType(n.type) }; })));
+      if (a.byNetwork.length) root.appendChild(barRows('By network', a.byNetwork.map(function (n) { return { label: LABEL[n.type] || n.type, value: n.sent, text: n.sent + ' published' + (n.failed ? ' · ' + n.failed + ' failed' : ''), color: colorOfType(n.type) }; }), 'published'));
       if (!a.pro) { root.appendChild(lock('When you publish, why posts fail, how punctual Vane is', 'See your posting habits by weekday and hour, the most common reasons posts fail, how close to the scheduled minute they go out, and every channel side by side. Up to 12 months of history.')); return; }
       root.appendChild(habitHeat(a.habits, a.timeZone));
       root.appendChild(reliability(a));
-      if (a.byChannel.length) root.appendChild(barRows('By channel', a.byChannel.map(function (n) { return { label: (LABEL[n.type] || n.type) + ' · ' + n.name, value: n.sent, text: n.sent + ' published' + (n.failed ? ' · ' + n.failed + ' failed' : ''), sub: n.sent ? Math.round(n.media / n.sent * 100) + '% with media' : '', color: colorOf(n.channel_id) }; })));
+      if (a.byChannel.length) root.appendChild(barRows('By channel', a.byChannel.map(function (n) { return { label: (LABEL[n.type] || n.type) + ' · ' + n.name, value: n.sent, text: n.sent + ' published' + (n.failed ? ' · ' + n.failed + ' failed' : ''), sub: n.sent ? Math.round(n.media / n.sent * 100) + '% with media' : '', color: colorOf(n.channel_id) }; }), 'published'));
       var ex = el('a', 'btn btn-ghost btn-sm inline-flex', 'Export CSV'); ex.href = '/api/analytics/export?kind=activity&days=' + a.days + '&channels=' + encodeURIComponent(a.selected.join(',')); ex.setAttribute('download', 'vane-activity.csv'); root.appendChild(ex);
     });
   }
