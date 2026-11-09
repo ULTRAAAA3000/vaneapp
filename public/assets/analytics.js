@@ -301,7 +301,7 @@
     var d = S.d, box = $('chips'); box.textContent = '';
     var usable = d.channels.filter(function (c) { return c.results || c.followers; });
     function chip(text, on, handler, disabled, title) {
-      var b = el('button', 'rounded-full border px-3 py-1.5 text-sm transition ' + (on ? 'border-white/40 bg-white/15 text-white' : 'border-white/10 text-white/55 hover:border-white/25 hover:text-white') + (disabled ? ' cursor-not-allowed opacity-40' : ''), text);
+      var b = el('button', 'max-w-full truncate rounded-full border px-3 py-1.5 text-[13px] transition sm:text-sm ' + (on ? 'border-white/40 bg-white/15 text-white' : 'border-white/10 text-white/55 hover:border-white/25 hover:text-white') + (disabled ? ' cursor-not-allowed opacity-40' : ''), text);
       b.type = 'button'; b.setAttribute('aria-pressed', on ? 'true' : 'false'); if (title) b.title = title; if (disabled) b.disabled = true; else b.addEventListener('click', handler); return b;
     }
     if (usable.length > 1) box.appendChild(chip('All', d.selected.length === usable.length, function () { S.sel = usable.map(function (c) { return c.id; }); store('sel', S.sel); S.page = 1; load(); }));
