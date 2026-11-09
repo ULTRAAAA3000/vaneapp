@@ -30,6 +30,11 @@
       '<div class="meter mt-2"><i style="width:' + pct + '%;background:' + (pct >= 90 ? '#f87171' : '#fff') + '"></i></div>' + hint;
   }
 
+  function short(u) {
+    var used = Number(u.usedBytes) || 0;
+    return u.limitBytes ? size(used).replace(' MB', '') + ' / ' + size(u.limitBytes) : size(used);
+  }
+
   function show(box) {
     return Vane.api('GET', '/api/library/usage').then(function (r) {
       if (!r.ok || !r.data || !r.data.usage) { box.classList.add('hidden'); return; }   // not set up, signed out, offline: show nothing rather than a wrong number
@@ -38,5 +43,5 @@
     });
   }
 
-  Vane.libraryUsage = { html: html, show: show };
+  Vane.libraryUsage = { html: html, short: short, show: show };
 })();
