@@ -68,7 +68,7 @@
 
     <!-- hand-off to the other product -->
     <section class="fade-up mt-6 grid gap-3 sm:grid-cols-2 sm:gap-4" style="animation-delay:.03s">
-      <a href="/studio" data-product-link="studio" data-handoff class="handoff glass-d rounded-2xl p-5 sm:p-6" style="--ho-glow:rgba(168,85,247,.22)">
+      <a href="/studio" data-product-link="studio" data-module="studio" data-module-name="Vane Studio" data-module-nobadge data-handoff class="handoff glass-d rounded-2xl p-5 sm:p-6" style="--ho-glow:rgba(168,85,247,.22)">
         <span class="handoff-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M10 9l5 3-5 3z"/></svg></span>
         <span class="handoff-body">
           <span class="text-xs font-medium uppercase tracking-widest text-white/40">Vane Studio</span>
@@ -77,10 +77,10 @@
         </span>
         <span class="handoff-cta">Open Vane Studio <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></span>
       </a>
-      <a href="/analytics" data-product-link="analytics" class="handoff glass-d rounded-2xl p-5 sm:p-6" style="--ho-glow:rgba(52,211,153,.18)">
+      <a href="/analytics" data-product-link="analytics" data-module="analytics" data-module-name="Vane Analytics" data-module-nobadge class="handoff glass-d rounded-2xl p-5 sm:p-6" style="--ho-glow:rgba(52,211,153,.18)">
         <span class="handoff-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg></span>
         <span class="handoff-body">
-          <span class="text-xs font-medium uppercase tracking-widest text-white/40">Vane Analytics · Soon</span>
+          <span class="text-xs font-medium uppercase tracking-widest text-white/40">Vane Analytics<span data-module-badge="analytics" hidden class="ml-1.5 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/55">Soon</span></span>
           <span class="handoff-title">See what worked</span>
           <span class="handoff-text">Results of every post and video across your networks, in one place.</span>
         </span>
@@ -141,16 +141,16 @@
     <!-- tabs: Create (the editor) and Library (uploaded files); switched by library.js, the address keeps #create / #library -->
     <nav id="dashTabs" class="fade-up mt-6 flex gap-1.5 overflow-x-auto pb-1 [&>a]:shrink-0 [&>a]:whitespace-nowrap" style="animation-delay:.08s" aria-label="Dashboard sections">
       <a href="#create" data-tab="create" class="dtab" aria-current="page">Create</a>
-      <a href="#library" data-tab="library" class="dtab">Library</a>
-      <a href="#snippets" data-tab="snippets" class="dtab">Snippets</a>
-      <a href="#drafts" data-tab="drafts" class="dtab">Drafts</a>
-      <a href="#ai" data-tab="ai" class="dtab">AI</a>
-      <a href="#claude" data-tab="claude" class="dtab">Claude</a>
-      <a href="#wordpress" data-tab="wordpress" class="dtab">WordPress</a>
-      <a href="#automation" data-tab="automation" class="dtab">Make &amp; Zapier</a>
-      <a href="#notion" data-tab="notion" class="dtab">Notion</a>
-      <a href="#obsidian" data-tab="obsidian" class="dtab">Obsidian</a>
-      <a href="#agents" data-tab="agents" class="dtab">Agents</a>
+      <a href="#library" data-tab="library" data-module="library" class="dtab">Library</a>
+      <a href="#snippets" data-tab="snippets" data-module="snippets" class="dtab">Snippets</a>
+      <a href="#drafts" data-tab="drafts" data-module="drafts" class="dtab">Drafts</a>
+      <a href="#ai" data-tab="ai" data-module="ai" class="dtab">AI</a>
+      <a href="#claude" data-tab="claude" data-module="claude" class="dtab">Claude</a>
+      <a href="#wordpress" data-tab="wordpress" data-module="wordpress" class="dtab">WordPress</a>
+      <a href="#automation" data-tab="automation" data-module="automation" class="dtab">Make &amp; Zapier</a>
+      <a href="#notion" data-tab="notion" data-module="notion" class="dtab">Notion</a>
+      <a href="#obsidian" data-tab="obsidian" data-module="obsidian" class="dtab">Obsidian</a>
+      <a href="#agents" data-tab="agents" data-module="agents" class="dtab">Agents</a>
     </nav>
 
     <div data-view="create" class="mt-5">
@@ -249,7 +249,7 @@
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 id="apiTitle" class="text-lg font-semibold tracking-tight">API access</h2>
-          <p class="mt-1 text-xs text-white/45">Post from Make, Zapier, your own scripts or a Custom GPT (soon).</p>
+          <p class="mt-1 text-xs text-white/45">Post from Make, Zapier, your own scripts or a Custom GPT.</p>
         </div>
         <button id="keyNewBtn" type="button" class="btn btn-white btn-sm">
           <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Create key
@@ -1090,7 +1090,7 @@
           <select id="keyIntegration" class="field">
             <option value="">Not sure, or something else</option>
             <option value="claude">Claude</option>
-            <option value="chatgpt" disabled>ChatGPT (soon)</option>
+            <option value="chatgpt">ChatGPT</option>
             <option value="make">Make</option>
             <option value="zapier">Zapier</option>
             <option value="wordpress">WordPress plugin</option>
@@ -1138,7 +1138,7 @@
   <script src="/assets/vane.js?v=a2c867edc4"></script>
   <script src="/assets/media-picker.js?v=86dfab3b84"></script>
   <script src="/assets/insights.js?v=c81d5838ef"></script>
-  <script src="/assets/dashboard.js?v=a8bb25cb24"></script>
+  <script src="/assets/dashboard.js?v=d8ecf6cccd"></script>
   <script src="/assets/ai.js?v=9076d3d765"></script>
   <script src="/assets/library.js?v=92e90abfac"></script>
   <script src="/assets/library-picker.js?v=75266cc3f5"></script>
@@ -1148,6 +1148,7 @@
   <script src="/assets/aihistory.js?v=72fff6ab0e"></script>
   <script src="/assets/onboarding.js?v=76d0855c09"></script>
   <script src="/assets/feedback.js?v=dd3f717a61" defer></script>
+  <script src="/assets/modules.js?v=1f1ada1053"></script>
   <script src="/assets/agentlog.js?v=34106d693e"></script>
   <script src="/assets/composer-tools.js?v=0c636c4c2b"></script>
   <script src="/assets/track.js?v=a3d04e70d1" data-path="/app" defer></script>

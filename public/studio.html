@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="/assets/app.css?v=afb7ed8188" />
 </head>
 
-<body class="min-h-screen overflow-x-hidden bg-[#070708]">
+<body class="min-h-screen overflow-x-hidden bg-[#070708]" data-module-page="studio" data-module-name="Vane Studio">
   <!-- ambient glows: Studio leans violet, Vane Post leans indigo/sky -->
   <div class="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
     <div class="absolute -left-40 -top-20 h-[34rem] w-[34rem] rounded-full bg-violet-600/20 blur-[120px]"></div>
@@ -65,10 +65,10 @@
         </span>
         <span class="handoff-cta">Open Vane Post <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></span>
       </a>
-      <a href="/analytics" data-product-link="analytics" class="handoff glass-d rounded-2xl p-5 sm:p-6" style="--ho-glow:rgba(52,211,153,.18)">
+      <a href="/analytics" data-product-link="analytics" data-module="analytics" data-module-name="Vane Analytics" data-module-nobadge class="handoff glass-d rounded-2xl p-5 sm:p-6" style="--ho-glow:rgba(52,211,153,.18)">
         <span class="handoff-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg></span>
         <span class="handoff-body">
-          <span class="text-xs font-medium uppercase tracking-widest text-white/40">Vane Analytics · Soon</span>
+          <span class="text-xs font-medium uppercase tracking-widest text-white/40">Vane Analytics<span data-module-badge="analytics" hidden class="ml-1.5 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/55">Soon</span></span>
           <span class="handoff-title">See what worked</span>
           <span class="handoff-text">Results of every post and video across your networks, in one place.</span>
         </span>
@@ -268,7 +268,7 @@
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 id="apiTitle" class="text-lg font-semibold tracking-tight">API access</h2>
-          <p class="mt-1 text-xs text-white/45">Upload and manage videos from Make, Zapier, your own scripts or a Custom GPT (soon).</p>
+          <p class="mt-1 text-xs text-white/45">Upload and manage videos from Make, Zapier, your own scripts or a Custom GPT.</p>
         </div>
         <button id="keyNewBtn" type="button" class="btn btn-white btn-sm">
           <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Create key
@@ -348,7 +348,7 @@
           <select id="keyIntegration" class="field">
             <option value="">Not sure, or something else</option>
             <option value="claude">Claude</option>
-            <option value="chatgpt" disabled>ChatGPT (soon)</option>
+            <option value="chatgpt">ChatGPT</option>
             <option value="make">Make</option>
             <option value="zapier">Zapier</option>
             <option value="wordpress">WordPress plugin</option>
@@ -395,6 +395,7 @@
   <script src="/assets/vane.js?v=a2c867edc4"></script>
   <script src="/assets/balance-pill.js?v=ff916c4a38" defer></script>
   <script src="/assets/apikeys.js?v=e32e339a57"></script>
+  <script src="/assets/modules.js?v=1f1ada1053"></script>
   <script src="/assets/studio.js?v=69e3b478e4"></script>
   <script src="/assets/studio-ai.js?v=29988fbf9b"></script>
 </body>
