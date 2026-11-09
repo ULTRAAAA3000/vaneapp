@@ -12,6 +12,7 @@ import { sweepOrders } from '../../functions/api/lib/billingcheck';
 import { runBotAlerts } from '../../functions/api/lib/analyticsbot';
 import { sendWeeklyReports } from '../../functions/api/lib/analyticsreport';
 import { collectFollowers, collectPostMetrics, purgeOldMetrics } from '../../functions/api/lib/metrics';
+import { isPreflightMinute, runPreflight } from './preflight';
 import { runFeeds } from '../../functions/api/lib/feeds';
 import { runDueLanes } from './dispatch';
 import { runPriorityLane } from './priority';
@@ -48,6 +49,9 @@ export default {
         // RSS feeds: turn new items of followed feeds into scheduled posts (each feed is claimed first, so overlapping runs never double-post).
         .then(() => runFeeds(env as never, Math.floor(Date.now() / 1000)))
         .catch((err) => console.error('vane-cron: feeds failed:', err instanceof Error ? err.message : 'unknown'))
+        // Every 10 minutes: warn by email, ahead of time, about scheduled posts that will not go out (expired sign-in, switched-off channel, ...).
+        .then(() => (isPreflightMinute(Math.floor(Date.now() / 1000)) ? runPreflight(env, Math.floor(Date.now() / 1000)) : undefined))
+        .catch((err) => console.error('vane-cron: preflight failed:', err instanceof Error ? err.message : 'unknown'))
         // Analytics: every 5th minute read the results of recently published posts and today's follower counts; once a day tidy up.
         .then(async () => {
           const t = Math.floor(Date.now() / 1000);
