@@ -170,6 +170,12 @@ CREATE TABLE IF NOT EXISTS user_storage_limits (
   updated_at  INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
+-- Over the library allowance since: the account has 3 days to delete files, then its newest uploads are removed (worker/src/storage.ts)
+CREATE TABLE IF NOT EXISTS storage_overages (
+  user_id  TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  since    INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS subscriptions (
   user_id             TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   plan                TEXT    NOT NULL DEFAULT 'free',                                  -- a plans.id (free / api / pro / any plan made in /admin)

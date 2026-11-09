@@ -14,7 +14,7 @@ export interface PlanLimits {
   postsPerMonth?: number | null;
   postsLifetime?: number | null;
   aiCredits?: number | null;
-  storageMb?: number | null;          // Library storage in MB (empty = unlimited); applied while "enforce_limits" is on
+  storageMb?: number | null;          // Library storage in MB (empty = the built-in default: 10 Free Trial, 100 paid; a custom plan with none = unlimited); applied while "enforce_limits" is on
   apiPostsPerMonth?: number | null;
   seats?: number | null;
   apiAccess?: number | null;          // 1 = may use live API keys, 0 = no

@@ -21,9 +21,10 @@ writeFileSync(join(dir, 'entry.ts'), [
   `export * as usageApi from '${root}/functions/api/library/usage.ts';`,
   `export * as session from '${root}/functions/api/lib/session.ts';`,
   `export * as settings from '${root}/functions/api/lib/settings.ts';`,
+  `export * as storage from '${root}/worker/src/storage.ts';`,
 ].join('\n'));
 await build({ entryPoints: [join(dir, 'entry.ts')], bundle: true, format: 'esm', platform: 'node', outfile: join(dir, 'all.mjs'), logLevel: 'silent' });
-const { upload, list, one, usageApi, session, settings } = await import(pathToFileURL(join(dir, 'all.mjs')).href);
+const { upload, list, one, usageApi, session, settings, storage } = await import(pathToFileURL(join(dir, 'all.mjs')).href);
 rmSync(dir, { recursive: true, force: true });
 
 let passed = 0;
@@ -198,6 +199,68 @@ console.log('\nA limit set for one account');
   check('without a row the plan limit applies again', (await onlyUsage(env)).data.usage.limitBytes === 10 * MB);
   db.exec('DROP TABLE user_storage_limits');
   check('before the migration the plan limit is used, nothing breaks', (await onlyUsage(env)).data.usage.limitBytes === 10 * MB);
+}
+
+console.log('\nOver the allowance: 3 days to clean up, then the newest uploads go');
+{
+  const { env, db } = await fresh({ plan: 'free' });
+  await put(env, png(4 * MB)); await put(env, png(3 * MB)); await put(env, png(3 * MB));
+  const t0 = Math.floor(Date.now() / 1000);
+  check('exactly at the limit: no warning', (await onlyUsage(env)).data.usage.over === null);
+  db.prepare(`INSERT INTO user_storage_limits (user_id, storage_mb) VALUES ('u1', 6)`).run();
+  const o = (await onlyUsage(env)).data.usage;
+  check('over the new limit: the warning carries a deadline 3 days away', o.over && Math.abs(o.over.deadline - (t0 + 3 * 86400)) < 5 && o.limitBytes === 6 * MB, JSON.stringify(o));
+  const since = db.prepare('SELECT since FROM storage_overages').get().since;
+  await (async () => { await onlyUsage(env); })();
+  check('asking again keeps the same start day', db.prepare('SELECT since FROM storage_overages').get().since === since);
+  const r1 = await storage.runStoragePurge(env, since + 86400);
+  check('after 1 day nothing is removed', r1.removed === 0 && stored(db).n === 3, JSON.stringify(r1));
+  const r2 = await storage.runStoragePurge(env, since + 3 * 86400 + 60);
+  const left = stored(db);
+  check('after 3 days the newest file goes, until the rest fits (4 + 3 = 7 > 6, so two go: 4 stay)', r2.removed === 2 && left.n === 1 && left.b === 4 * MB, JSON.stringify([r2, left]));
+  check('the oldest upload is the one that stays', db.prepare('SELECT size_bytes FROM media_assets').get().size_bytes === 4 * MB);
+  check('the files are gone from storage too', env.MEDIA.map.size === 1);
+  check('the warning is gone', db.prepare('SELECT COUNT(*) n FROM storage_overages').get().n === 0 && (await onlyUsage(env)).data.usage.over === null);
+}
+{
+  const { env, db } = await fresh({ plan: 'free' });
+  await put(env, png(5 * MB));
+  db.prepare(`INSERT INTO user_storage_limits (user_id, storage_mb) VALUES ('u1', 2)`).run();
+  await onlyUsage(env);
+  const id = db.prepare('SELECT id FROM media_assets').get().id;
+  await remove(env, id);
+  check('deleting the file yourself clears the warning', (await onlyUsage(env)).data.usage.over === null && db.prepare('SELECT COUNT(*) n FROM storage_overages').get().n === 0);
+}
+{
+  const { env, db } = await fresh({ plan: 'free', enforce: false });
+  await put(env, png(5 * MB));
+  db.prepare(`INSERT INTO user_storage_limits (user_id, storage_mb) VALUES ('u1', 2)`).run();
+  check('limits not enforced: no warning', (await onlyUsage(env)).data.usage.over === null && db.prepare('SELECT COUNT(*) n FROM storage_overages').get().n === 0);
+  db.prepare(`INSERT INTO storage_overages (user_id, since) VALUES ('u1', 1)`).run();
+  const r = await storage.runStoragePurge(env, 10 * 86400);
+  check('limits not enforced: nothing is removed and old marks are dropped', r.removed === 0 && stored(db).n === 1 && db.prepare('SELECT COUNT(*) n FROM storage_overages').get().n === 0);
+}
+{
+  const { env, db } = await fresh({ plan: 'free' });
+  await put(env, png(5 * MB));
+  db.prepare(`INSERT INTO user_storage_limits (user_id, storage_mb) VALUES ('u1', 2)`).run();
+  const r = await storage.runStoragePurge(env, Math.floor(Date.now() / 1000));
+  check('the hourly scan finds an account that is over, without it opening the dashboard', r.marked === 1 && db.prepare('SELECT COUNT(*) n FROM storage_overages').get().n === 1);
+}
+{
+  const { env, db } = await fresh({ plan: 'free' });
+  db.exec('DROP TABLE storage_overages');
+  await put(env, png(5 * MB));
+  db.prepare(`INSERT INTO user_storage_limits (user_id, storage_mb) VALUES ('u1', 2)`).run();
+  check('before the migration: no warning and nothing breaks', (await onlyUsage(env)).data.usage.over === null && (await storage.runStoragePurge(env, 10 * 86400)).removed === 0 && stored(db).n === 1);
+}
+
+console.log('\nA plan with no storage value of its own (the admin left the field empty)');
+{
+  const { env, db } = await fresh({ plan: 'pro' });
+  db.exec(`INSERT INTO plans (id, kind, name, limits, price_cents, is_active, interval) VALUES ('pro', 'plan', 'Pro', '{"postsPerMonth":1000}', 1199, 1, 'month') ON CONFLICT(id) DO UPDATE SET limits = excluded.limits`);
+  const u = (await onlyUsage(env)).data.usage;
+  check('falls back to the built-in 100 MB, not unlimited', u.limitBytes === 100 * MB, JSON.stringify(u));
 }
 
 console.log(`\n${passed} passed, ${failed.length} failed`);

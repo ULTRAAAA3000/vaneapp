@@ -204,7 +204,7 @@ export function specFromCatalog(id: string, label: string, limits: Record<string
     overage: op !== null || oa !== null ? { post: Math.round((op ?? oa ?? 0) * USD), aiPost: Math.round((oa ?? op ?? 0) * USD) } : null,
     channels: count(limits.channels),
     aiCredits: count(limits.aiCredits),
-    storageMb: count(limits.storageMb),
+    storageMb: count(limits.storageMb) ?? BUILTIN[id]?.storageMb ?? null,
   };
 }
 

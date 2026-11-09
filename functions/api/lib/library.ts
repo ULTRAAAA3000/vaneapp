@@ -10,6 +10,7 @@ import { isMissingTable } from './socials';
 import { loadSubscription } from './usage';
 
 export const MB = 1024 * 1024;
+export const GRACE_SECONDS = 3 * 24 * 3600;
 export const PAGE_SIZE = 60;
 
 export interface LibraryAsset {
@@ -94,12 +95,60 @@ export async function userStorageMb(env: Env, userId: string): Promise<number | 
 }
 
 /**
- * What the Library shows next to the maximum: { usedBytes, count, limitBytes, upgrade }. `limitBytes` is what the plan includes, shown even while limits are not enforced
- * yet (`enforced` says whether uploads are actually refused); null only when the plan has no storage limit. One definition for GET /api/library/assets and /usage.
+ * What the Library shows next to the maximum: { usedBytes, count, limitBytes, enforced, upgrade, over }. `limitBytes` is what the plan (or an
+ * admin, for this account) allows, shown even while limits are not enforced yet; null only when there is no limit. `over` is set while limits
+ * are enforced and the account holds more than it may: { since, deadline } (unix seconds), the day the newest uploads will be removed.
+ * One definition for GET /api/library/assets and /usage.
  */
-export async function libraryUsage(env: Env, userId: string): Promise<{ usedBytes: number; count: number; limitBytes: number | null; enforced: boolean; upgrade: boolean }> {
+export async function libraryUsage(env: Env, userId: string, now = Math.floor(Date.now() / 1000)): Promise<{ usedBytes: number; count: number; limitBytes: number | null; enforced: boolean; upgrade: boolean; over: { since: number; deadline: number } | null }> {
   const [usage, limit] = await Promise.all([storageUsage(env, userId), storageLimit(env, userId)]);
-  return { usedBytes: usage.usedBytes, count: usage.count, limitBytes: limit.planBytes, enforced: limit.bytes !== null, upgrade: limit.upgrade };
+  const over = limit.bytes !== null && usage.usedBytes > limit.bytes ? await markOver(env, userId, now) : await clearOver(env, userId);
+  return { usedBytes: usage.usedBytes, count: usage.count, limitBytes: limit.planBytes, enforced: limit.bytes !== null, upgrade: limit.upgrade, over: over === null ? null : { since: over, deadline: over + GRACE_SECONDS } };
+}
+
+/** The day the account went over (started now if it was not marked yet). Null when the table is not there yet: no warning, nothing is removed. */
+export async function markOver(env: Env, userId: string, now: number): Promise<number | null> {
+  try {
+    await env.DB.prepare('INSERT OR IGNORE INTO storage_overages (user_id, since) VALUES (?1, ?2)').bind(userId, now).run();
+    const r = await env.DB.prepare('SELECT since FROM storage_overages WHERE user_id = ?1').bind(userId).first<{ since: number }>();
+    return r?.since ?? null;
+  } catch (err) {
+    if (isMissingTable(err)) return null;
+    throw err;
+  }
+}
+
+export async function clearOver(env: Env, userId: string): Promise<null> {
+  try {
+    await env.DB.prepare('DELETE FROM storage_overages WHERE user_id = ?1').bind(userId).run();
+  } catch (err) {
+    if (!isMissingTable(err)) throw err;
+  }
+  return null;
+}
+
+/**
+ * After the 3 days: the newest uploads go first, until what is left fits. A file that a post waiting to be sent still points at stays
+ * (the worker needs it), so the account may remain slightly over until that post is sent. Returns how many files were removed.
+ */
+export async function removeNewestUntilFits(env: Env, userId: string, limitBytes: number): Promise<number> {
+  if (!env.MEDIA) return 0;
+  const keep = await referencedKeys(env, userId);
+  const { results } = await env.DB
+    .prepare('SELECT id, r2_key, thumb_key, size_bytes FROM media_assets WHERE user_id = ?1 ORDER BY created_at DESC, rowid DESC')
+    .bind(userId)
+    .all<{ id: string; r2_key: string; thumb_key: string | null; size_bytes: number }>();
+  let used = results.reduce((n, r) => n + r.size_bytes, 0);
+  let removed = 0;
+  for (const r of results) {
+    if (used <= limitBytes) break;
+    if (keep.has(r.r2_key)) continue;
+    await env.MEDIA.delete(r.thumb_key ? [r.r2_key, r.thumb_key] : r.r2_key);
+    await env.DB.prepare('DELETE FROM media_assets WHERE id = ?1 AND user_id = ?2').bind(r.id, userId).run();
+    used -= r.size_bytes;
+    removed++;
+  }
+  return removed;
 }
 
 /** 402 when the file does not fit in what the plan includes. Applies only while "enforce_limits" is on, like the channel limit. */

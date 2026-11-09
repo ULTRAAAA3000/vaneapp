@@ -17,6 +17,7 @@ import { runFeeds } from '../../functions/api/lib/feeds';
 import { runDueLanes } from './dispatch';
 import { runPriorityLane } from './priority';
 import { isRenewalMinute, renewExpiringTokens } from './tokens';
+import { isStorageMinute, runStoragePurge } from './storage';
 
 export default {
   async scheduled(_controller: ScheduledController, env: CronEnv, ctx: ExecutionContext): Promise<void> {
@@ -64,6 +65,9 @@ export default {
           if (isRenewalMinute(t)) await purgeOldMetrics(env, t);
         })
         .catch((err) => console.error('vane-cron: analytics failed:', err instanceof Error ? err.message : 'unknown'))
+        // Every hour: accounts over their library allowance get 3 days to clean up, then their newest uploads are removed (see storage.ts).
+        .then(() => (isStorageMinute(Math.floor(Date.now() / 1000)) ? runStoragePurge(env, Math.floor(Date.now() / 1000)) : undefined))
+        .catch((err) => console.error('vane-cron: storage clean-up failed:', err instanceof Error ? err.message : 'unknown'))
         // Once a day: renew LinkedIn / Threads sign-ins that are running out (see tokens.ts).
         .then(() => (isRenewalMinute(Math.floor(Date.now() / 1000)) ? renewExpiringTokens(env, Math.floor(Date.now() / 1000)) : undefined))
         .catch((err) => console.error('vane-cron: sign-in renewal failed:', err instanceof Error ? err.message : 'unknown')),

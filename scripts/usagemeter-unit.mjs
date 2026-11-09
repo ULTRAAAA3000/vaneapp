@@ -66,5 +66,23 @@ console.log('\nFilling a box from GET /api/library/usage');
   check('an answer without numbers hides it too', b3.hidden === true);
 }
 
+console.log('\nThe red warning at the top of the dashboard');
+{
+  const lib = load();
+  const box = () => ({ innerHTML: '', cls: new Set(['hidden']), classList: { add(c) { this.o.cls.add(c); }, remove(c) { this.o.cls.delete(c); } }, get hidden() { return this.cls.has('hidden'); } });
+  const mk = () => { const b = box(); b.classList.o = b; return b; };
+  const b1 = mk();
+  lib.warn(b1, { ...u(112, 100, 5), over: { since: 1000, deadline: Date.UTC(2026, 10, 12) / 1000 } });
+  check('over the plan: shown, with the sizes and the day', !b1.hidden && b1.innerHTML.includes('112 MB of 100 MB') && b1.innerHTML.includes('12 Nov 2026'), b1.innerHTML);
+  check('it links to the Library', b1.innerHTML.includes('href="#library"') && b1.innerHTML.includes('Open the Library'));
+  check('it says the latest uploads will be removed', b1.innerHTML.includes('latest uploads will be removed'));
+  const b2 = mk(); b2.cls.delete('hidden');
+  lib.warn(b2, { ...u(50, 100, 5), over: null });
+  check('under the plan: hidden and empty', b2.hidden && b2.innerHTML === '');
+  const b3 = mk();
+  lib.warn(b3, null);
+  check('no numbers: nothing shown', b3.hidden);
+}
+
 console.log(`\n${passed} passed, ${failed.length} failed`);
 if (failed.length) process.exit(1);
