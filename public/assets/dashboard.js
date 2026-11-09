@@ -80,6 +80,16 @@
       icon: { fill: true, d: 'M7.42 10.05c-.18-.16-.46-.23-.84-.23H6l.02 2.44.04 2.45.56-.02c.41 0 .63-.07.83-.26.24-.24.26-.36.26-2.2 0-1.91-.02-1.96-.29-2.18zM0 4.94v14.12h24V4.94H0zM8.56 15.3c-.44.58-1.06.77-2.53.77H4.71V8.53h1.4c1.67 0 2.16.18 2.6.9.27.43.29.6.32 2.57.05 2.23-.02 2.73-.47 3.3zm5.09-5.47h-2.47v1.77h1.52v1.28l-.72.04-.75.03v1.77l1.22.03 1.2.04v1.28h-1.6c-1.53 0-1.6-.01-1.87-.3l-.3-.28v-3.16c0-3.02.01-3.18.25-3.48.23-.31.25-.31 1.88-.31h1.64v1.3zm4.68 5.45c-.17.43-.64.79-1 .79-.18 0-.45-.15-.67-.39-.32-.32-.45-.63-.82-2.08l-.9-3.39-.45-1.67h.76c.4 0 .75.02.75.05 0 .06 1.16 4.54 1.26 4.83.04.15.32-.7.73-2.3l.66-2.52.74-.04c.4-.02.73 0 .73.04 0 .14-1.67 6.38-1.8 6.68z' }
     }
   };
+  NET.slack = {
+    name: 'Slack', ready: true, blurb: 'A channel in your workspace', setup: 'Paste an incoming webhook link from your Slack workspace.',
+    tile: 'bg-fuchsia-500/15 text-fuchsia-300', limit: 3000, bg: '#1a1d21', hint: 'Slack allows 3000 characters. Posts go out through a webhook, so @channel and @here pings are turned off.',
+    icon: { fill: true, d: 'M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z' }
+  };
+  NET.hashnode = {
+    name: 'Hashnode', ready: true, blurb: 'Publish as an article', setup: 'Paste a personal access token from your Hashnode account.',
+    tile: 'bg-blue-600/15 text-blue-300', limit: 10000, bg: '#0f172a', hint: 'Each post becomes a Hashnode article: the first line is the title, the rest is the text (Markdown works).',
+    icon: { fill: true, d: 'M22.351 8.019l-6.37-6.37a5.63 5.63 0 0 0-7.962 0l-6.37 6.37a5.63 5.63 0 0 0 0 7.962l6.37 6.37a5.63 5.63 0 0 0 7.962 0l6.37-6.37a5.63 5.63 0 0 0 0-7.962zM12 15.953a3.953 3.953 0 1 1 0-7.906 3.953 3.953 0 0 1 0 7.906z' }
+  };
   NET.reddit = {
     name: 'Reddit', ready: false, blurb: 'Text posts to a subreddit', setup: 'Name the subreddit, then sign in with Reddit and allow Vane to post.',
     tile: 'bg-orange-500/15 text-orange-300', limit: 10000, bg: '#0b1416', hint: 'The first line is the post title (up to 300 characters), the rest is the text. Each channel posts to one subreddit; read its rules first.',
@@ -100,7 +110,7 @@
     tile: 'bg-emerald-500/15 text-emerald-300', limit: 10000, bg: '#0d1210', hint: 'Each post is sent to your address as signed JSON. Your server answers 2xx when it has it.',
     icon: { d: 'M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7' }
   };
-  var NET_ORDER = ['telegram', 'linkedin', 'threads', 'facebook', 'reddit', 'pinterest', 'bluesky', 'mastodon', 'discord', 'devto', 'webhook'];
+  var NET_ORDER = ['telegram', 'linkedin', 'threads', 'facebook', 'reddit', 'pinterest', 'bluesky', 'mastodon', 'discord', 'slack', 'devto', 'hashnode', 'webhook'];
   // channels of a network this dashboard has no entry for (for example "x") get the generic link icon
   var NET_OTHER = { tile: 'bg-white/[0.08] text-white/70', icon: { d: 'M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7' } };
 
@@ -594,10 +604,11 @@
     $(p + 'Form').addEventListener('submit', async function (e) {
       e.preventDefault();
       hideErr($(p + 'Err'));
-      var value = $(p + (platform === 'discord' ? 'Url' : 'Key')).value.trim();
+      var value = $(p + (platform === 'discord' || platform === 'slack' ? 'Url' : 'Key')).value.trim();
       var name = $(p + 'Name').value.trim() || what;
       if (!value) return showErr($(p + 'Err'), $(p + 'Form'), fieldLabel);
       var creds = {}; creds[field] = value;
+      if (platform === 'hashnode' && $('hnBlog').value.trim()) creds.blog = $('hnBlog').value.trim();
       $(p + 'Submit').disabled = true; $(p + 'Spin').classList.remove('hidden'); $(p + 'Label').textContent = 'Checking with ' + what + '…';
       var r = await Vane.api('POST', '/api/channels/add', { platform: platform, name: name, credentials: creds });
       $(p + 'Submit').disabled = false; $(p + 'Spin').classList.add('hidden'); $(p + 'Label').textContent = 'Verify & connect';
@@ -610,6 +621,13 @@
     });
   }
   bindPasted('dc', 'discord', 'Discord', 'webhookUrl', 'Paste the webhook link you copied in Discord.', function () { return 'Connected to Discord.'; });
+  bindPasted('sk', 'slack', 'Slack', 'webhookUrl', 'Paste the webhook link you copied in Slack.', function () { return 'Connected to Slack.'; });
+  bindPasted('hn', 'hashnode', 'Hashnode', 'apiKey', 'Paste the token you created on Hashnode.', function (d) { return 'Connected to Hashnode' + (d.hashnode && d.hashnode.blog ? ' (' + d.hashnode.blog + ')' : '') + '.'; });
+  $('hnKeyToggle').addEventListener('click', function () {
+    var show = $('hnKey').type === 'password';
+    $('hnKey').type = show ? 'text' : 'password';
+    this.textContent = show ? 'Hide' : 'Show';
+  });
   bindPasted('dv', 'devto', 'Dev.to', 'apiKey', 'Paste the API key you created on Dev.to.', function (d) { return 'Connected to Dev.to' + (d.devto && d.devto.username ? ' as @' + d.devto.username : '') + '.'; });
 
   // ---- Webhook: the person's own https address; Vane sends a test call, then shows the signing secret once
@@ -705,7 +723,7 @@
   function openStep(step) {
     showStep(step);
     setTimeout(function () {
-      var first = step === 'telegram' ? ($('panelQuick').classList.contains('hidden') ? $('cName') : $('qChat')) : step === 'bluesky' ? $('bHandle') : step === 'mastodon' ? $('mInstance') : step === 'discord' ? $('dcUrl') : step === 'devto' ? $('dvKey') : step === 'webhook' ? $('whUrl') : step === 'linkedin' ? $('liName') : step === 'threads' ? $('thName') : step === 'reddit' ? $('rdSub') : step === 'pinterest' ? $('pnBoard') : step === 'facebook' ? $('fbName') : dlg.querySelector('.net-card:not(:disabled)');
+      var first = step === 'telegram' ? ($('panelQuick').classList.contains('hidden') ? $('cName') : $('qChat')) : step === 'bluesky' ? $('bHandle') : step === 'mastodon' ? $('mInstance') : step === 'discord' ? $('dcUrl') : step === 'slack' ? $('skUrl') : step === 'hashnode' ? $('hnKey') : step === 'devto' ? $('dvKey') : step === 'webhook' ? $('whUrl') : step === 'linkedin' ? $('liName') : step === 'threads' ? $('thName') : step === 'reddit' ? $('rdSub') : step === 'pinterest' ? $('pnBoard') : step === 'facebook' ? $('fbName') : dlg.querySelector('.net-card:not(:disabled)');
       if (first) first.focus();
     }, 60);
   }
@@ -721,6 +739,8 @@
     $('cToken').type = 'password'; $('cTokenToggle').textContent = 'Show';
     $('mForm').reset(); hideErr($('mErr')); $('mSubmit').disabled = false; $('mSpin').classList.add('hidden'); $('mLabel').textContent = 'Continue';
     $('dcForm').reset(); hideErr($('dcErr')); $('dcSubmit').disabled = false; $('dcSpin').classList.add('hidden'); $('dcLabel').textContent = 'Verify & connect';
+    $('skForm').reset(); hideErr($('skErr')); $('skSubmit').disabled = false; $('skSpin').classList.add('hidden'); $('skLabel').textContent = 'Verify & connect';
+    $('hnForm').reset(); hideErr($('hnErr')); $('hnKey').type = 'password'; $('hnKeyToggle').textContent = 'Show'; $('hnSubmit').disabled = false; $('hnSpin').classList.add('hidden'); $('hnLabel').textContent = 'Verify & connect';
     $('dvForm').reset(); hideErr($('dvErr')); $('dvKey').type = 'password'; $('dvKeyToggle').textContent = 'Show'; $('dvSubmit').disabled = false; $('dvSpin').classList.add('hidden'); $('dvLabel').textContent = 'Verify & connect';
     $('whForm').reset(); hideErr($('whErr')); $('whSubmit').disabled = false; $('whSpin').classList.add('hidden'); $('whLabel').textContent = 'Verify & connect'; $('whSecret').value = ''; $('whSetup').classList.remove('hidden'); $('whDone').classList.add('hidden');
     $('bForm').reset(); hideErr($('bErr')); $('bPass').type = 'password'; $('bPassToggle').textContent = 'Show';
@@ -751,6 +771,8 @@
   $('mCancel').addEventListener('click', closeConnect);
   $('dcCancel').addEventListener('click', closeConnect);
   $('dvCancel').addEventListener('click', closeConnect);
+  $('skCancel').addEventListener('click', closeConnect);
+  $('hnCancel').addEventListener('click', closeConnect);
   $('whCancel').addEventListener('click', closeConnect);
   dlg.addEventListener('click', function (e) { if (e.target === dlg) closeConnect(); });
   dlg.addEventListener('close', function () { $('cToken').value = ''; $('bPass').value = ''; qStopTimers(); });
@@ -1128,6 +1150,17 @@
         pvMedia(c.m, 'mt-2 max-h-56 w-full rounded-lg') +
       '</div></div></div>';
   }
+  function viewSlack(c) {
+    return '<div class="p-3.5"><div class="flex gap-2.5">' + pvAvatar(36, c.title) +
+      '<div class="min-w-0 flex-1">' +
+        '<div class="flex flex-wrap items-baseline gap-x-2 text-[13px]"><span class="font-bold text-white">' + esc(c.title) + '</span><span class="rounded bg-white/10 px-1 text-[10px] font-semibold text-white/70">APP</span>' + (c.when ? '<span class="text-[11px] text-white/40">' + esc(c.when) + '</span>' : '') + '</div>' +
+        '<div class="mt-0.5 break-words text-[13.5px] leading-snug text-white/90">' + (c.text ? Vane.rich(c.text) : EMPTY) + '</div>' +
+        pvMedia(c.m, 'mt-2 max-h-56 w-full rounded-lg') +
+      '</div></div></div>';
+  }
+  function viewHashnode(c) {
+    return viewDevto(c);
+  }
   function viewDevto(c) {
     var lines = c.text.split('\n'), title = (lines[0] || '').replace(/^#+\s*/, '').trim();
     var body = lines.slice(1).join('\n').trim();
@@ -1171,7 +1204,7 @@
       '<div class="border-b border-white/10 px-3 py-2 text-[11px] text-white/50">POST · ' + esc(c.title) + '</div>' +
       '<pre class="whitespace-pre-wrap break-words p-3 text-[11.5px] leading-snug text-emerald-200/80">' + esc(body) + '</pre></div></div>';
   }
-  var PV_VIEW = { reddit: viewReddit, pinterest: viewPinterest, facebook: viewFacebook, telegram: viewTelegram, linkedin: viewLinkedin, threads: viewThreads, bluesky: viewBluesky, mastodon: viewMastodon, discord: viewDiscord, devto: viewDevto, webhook: viewWebhook };
+  var PV_VIEW = { reddit: viewReddit, pinterest: viewPinterest, facebook: viewFacebook, telegram: viewTelegram, linkedin: viewLinkedin, threads: viewThreads, bluesky: viewBluesky, mastodon: viewMastodon, discord: viewDiscord, slack: viewSlack, hashnode: viewHashnode, devto: viewDevto, webhook: viewWebhook };
 
   // tabs are built once, then only their pressed state changes (keeps keyboard focus)
   function syncPvTabs() {

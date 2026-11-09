@@ -17,15 +17,15 @@ import { bump, retryAfter } from '../lib/throttle';
 import { checkChannelQuota } from '../lib/catalog';
 import { networkOff } from '../lib/networks';
 import { handleAddBluesky } from './bluesky-add';
-import { handleAddDevto, handleAddDiscord, handleAddWebhook } from './simple-add';
+import { handleAddDevto, handleAddDiscord, handleAddHashnode, handleAddSlack, handleAddWebhook } from './simple-add';
 import { CREDS_ERROR, findDuplicateTelegramChannel, loadTelegramCreds } from './credentials';
 import { quickConnectAvailable, VERIFIED_VALID_SECONDS } from './quick';
 import { loadLinkedinCreds } from './linkedin';
 import { normalizeChatId, sendTelegramPost, validateTelegramBot } from './telegram';
 import { loadThreadsCreds } from './threads';
 
-const CHANNEL_TYPES: readonly ChannelType[] = ['telegram', 'x', 'linkedin', 'webhook', 'bluesky', 'mastodon', 'threads', 'discord', 'devto', 'reddit', 'facebook', 'pinterest'];
-const CONNECTABLE: readonly ChannelType[] = ['telegram', 'bluesky', 'discord', 'devto', 'webhook'];
+const CHANNEL_TYPES: readonly ChannelType[] = ['telegram', 'x', 'linkedin', 'webhook', 'bluesky', 'mastodon', 'threads', 'discord', 'devto', 'reddit', 'facebook', 'pinterest', 'slack', 'hashnode'];
+const CONNECTABLE: readonly ChannelType[] = ['telegram', 'bluesky', 'discord', 'devto', 'slack', 'hashnode', 'webhook'];
 const MAX_NAME_LEN = 80;
 
 const toPublic = (r: Pick<ChannelRow, 'id' | 'type' | 'name' | 'is_active' | 'created_at'>): ChannelPublic => ({
@@ -104,6 +104,8 @@ export const handleAddChannel: PagesFunction<Env> = async ({ request, env }) => 
   if (platform === 'bluesky') return handleAddBluesky(env, auth.userId, name, body.credentials);
   if (platform === 'discord') return handleAddDiscord(env, auth.userId, name, body.credentials);
   if (platform === 'devto') return handleAddDevto(env, auth.userId, name, body.credentials);
+  if (platform === 'slack') return handleAddSlack(env, auth.userId, name, body.credentials);
+  if (platform === 'hashnode') return handleAddHashnode(env, auth.userId, name, body.credentials);
   if (platform === 'webhook') return handleAddWebhook(env, auth.userId, name, body.credentials);
 
   // method

@@ -14,6 +14,8 @@ import { bump, retryAfter } from '../lib/throttle';
 import { checkChannelQuota } from '../lib/catalog';
 import { loadDiscordCreds, validateDiscordWebhook } from './discord';
 import { loadDevtoCreds, validateDevtoKey } from './devto';
+import { loadSlackCreds, validateSlackWebhook } from './slack';
+import { loadHashnodeCreds, validateHashnodeKey } from './hashnode';
 import { loadWebhookCreds, validateWebhookEndpoint } from './webhook';
 
 const ADD_ATTEMPTS_PER_HOUR = 10;
@@ -31,7 +33,7 @@ async function save(env: Env, userId: string, type: ChannelType, label: string, 
     const msg = err instanceof Error ? err.message : 'unknown';
     console.error(`${type} channel insert failed`, msg);
     // An older database still has the CHECK that only allows the first networks (see migrations/0002-channel-types-discord-devto.sql).
-    if (/CHECK constraint/i.test(msg)) return fail(503, `${label} is not enabled on this server yet. The database needs one update: run migrations/0002-channel-types-discord-devto.sql in the D1 Console.`);
+    if (/CHECK constraint/i.test(msg)) return fail(503, `${label} is not enabled on this server yet. The database needs one update: run the newest migrations/000N-channel-types-*.sql (for Slack and Hashnode: 0005-channel-types-slack-hashnode.sql) in the D1 Console.`);
     return fail(500, 'Could not save the channel. Please try again.');
   }
   return { id, now };
@@ -83,6 +85,42 @@ export async function handleAddDevto(env: Env, userId: string, name: string, cre
   if (saved instanceof Response) return saved;
   const channel: ChannelPublic = { id: saved.id, platform: 'devto', name, isActive: true, createdAt: saved.now };
   return json({ ok: true, channel, devto: { username: check.username } }, 201);
+}
+
+export async function handleAddSlack(env: Env, userId: string, name: string, credentials: unknown): Promise<Response> {
+  const creds = await gate(env, userId, 'slack', credentials, '{ webhookUrl }');
+  if (creds instanceof Response) return creds;
+  const check = await validateSlackWebhook(creds.webhookUrl);
+  if (!check.ok) return fail(check.code === 'network' || check.code === 'rate_limited' ? 502 : 400, check.error);
+
+  const { results } = await env.DB.prepare(`SELECT name, credentials FROM channels WHERE user_id = ?1 AND type = 'slack' LIMIT 200`).bind(userId).all<{ name: string; credentials: string }>();
+  for (const row of results) {
+    const c = await loadSlackCreds(row.credentials, env.ENCRYPTION_KEY);
+    if (c && c.webhookUrl === check.url) return fail(409, `This Slack webhook is already connected as "${row.name}".`);
+  }
+
+  const saved = await save(env, userId, 'slack', 'Slack', name, { type: 'slack', webhookUrl: check.url, webhookId: check.webhookId });
+  if (saved instanceof Response) return saved;
+  const channel: ChannelPublic = { id: saved.id, platform: 'slack', name, isActive: true, createdAt: saved.now };
+  return json({ ok: true, channel }, 201);
+}
+
+export async function handleAddHashnode(env: Env, userId: string, name: string, credentials: unknown): Promise<Response> {
+  const creds = await gate(env, userId, 'hashnode', credentials, '{ apiKey, blog? }');
+  if (creds instanceof Response) return creds;
+  const check = await validateHashnodeKey(creds.apiKey, creds.blog);
+  if (!check.ok) return fail(check.code === 'network' || check.code === 'rate_limited' ? 502 : 400, check.error);
+
+  const { results } = await env.DB.prepare(`SELECT name, credentials FROM channels WHERE user_id = ?1 AND type = 'hashnode' LIMIT 200`).bind(userId).all<{ name: string; credentials: string }>();
+  for (const row of results) {
+    const c = await loadHashnodeCreds(row.credentials, env.ENCRYPTION_KEY);
+    if (c && c.publicationId === check.publication.id) return fail(409, `This Hashnode blog is already connected as "${row.name}".`);
+  }
+
+  const saved = await save(env, userId, 'hashnode', 'Hashnode', name, { type: 'hashnode', apiKey: check.apiKey, publicationId: check.publication.id, host: check.publication.host, username: check.username });
+  if (saved instanceof Response) return saved;
+  const channel: ChannelPublic = { id: saved.id, platform: 'hashnode', name, isActive: true, createdAt: saved.now };
+  return json({ ok: true, channel, hashnode: { username: check.username, blog: check.publication.host } }, 201);
 }
 
 export async function handleAddWebhook(env: Env, userId: string, name: string, credentials: unknown): Promise<Response> {

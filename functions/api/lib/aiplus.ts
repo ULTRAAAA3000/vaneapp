@@ -178,7 +178,7 @@ export async function toolTranslate(env: Env, text: string, lang: string, networ
 
 export interface Check { level: 'ok' | 'warn' | 'bad'; text: string }
 
-const NAMES: Record<string, string> = { telegram: 'Telegram', linkedin: 'LinkedIn', bluesky: 'Bluesky', mastodon: 'Mastodon', discord: 'Discord', devto: 'Dev.to', threads: 'Threads', reddit: 'Reddit', facebook: 'Facebook', x: 'X', webhook: 'Webhook' };
+const NAMES: Record<string, string> = { telegram: 'Telegram', linkedin: 'LinkedIn', bluesky: 'Bluesky', mastodon: 'Mastodon', discord: 'Discord', devto: 'Dev.to', slack: 'Slack', hashnode: 'Hashnode', threads: 'Threads', reddit: 'Reddit', facebook: 'Facebook', x: 'X', webhook: 'Webhook' };
 
 export function postChecks(text: string, networks: ChannelType[]): Check[] {
   const out: Check[] = [];

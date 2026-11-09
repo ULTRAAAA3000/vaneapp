@@ -50,6 +50,8 @@ export const CONTENT_LIMIT: Record<ChannelType, number> = {
   devto: 10_000,   // an article: its title is the first line
   reddit: 10_000,  // a text post: its title (up to 300 characters) is the first line
   facebook: 5000,
+  slack: 3000,     // a webhook message (the text of one section block)
+  hashnode: 10_000, // an article: its title is the first line
   pinterest: 900,  // a pin: its title (up to 100 characters) is the first line, the description follows
 };
 const ABSOLUTE_MAX_CONTENT = 10_000;
@@ -163,8 +165,8 @@ export async function validateCreatePost(env: Env, userId: string, body: unknown
     if (ch.type === 'linkedin' && mediaUrl && mediaKindFromUrl(mediaUrl) === 'video') {
       return bad(fail(400, 'LinkedIn posts with video are not supported yet. Attach an image or remove the media.'));
     }
-    if ((ch.type === 'discord' || ch.type === 'devto') && mediaUrl && mediaKindFromUrl(mediaUrl) === 'video') {
-      return bad(fail(400, `${ch.type === 'discord' ? 'Discord' : 'Dev.to'} posts with video are not supported yet. Attach an image or remove the media.`));
+    if ((ch.type === 'discord' || ch.type === 'devto' || ch.type === 'slack' || ch.type === 'hashnode') && mediaUrl && mediaKindFromUrl(mediaUrl) === 'video') {
+      return bad(fail(400, `${{ discord: 'Discord', devto: 'Dev.to', slack: 'Slack', hashnode: 'Hashnode' }[ch.type]} posts with video are not supported yet. Attach an image or remove the media.`));
     }
     if (ch.type === 'reddit' && (content.replace(/\r\n/g, '\n').trim().split('\n')[0] ?? '').replace(/^#+\s*/, '').trim().length > 300) {
       return bad(fail(400, 'For Reddit the first line is the post title and can be at most 300 characters.'));
