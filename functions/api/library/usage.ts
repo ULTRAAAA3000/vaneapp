@@ -1,8 +1,8 @@
 /**
- * GET /api/library/usage → { ok, usage: { usedBytes, count, limitBytes, upgrade } }
+ * GET /api/library/usage → { ok, usage: { usedBytes, count, limitBytes, enforced, upgrade } }
  *
  * The same numbers GET /api/library/assets carries, without the list: what the editor's upload box and the library dialog show as
- * "12.4 MB of 100 MB used · 9 files". `limitBytes` is null when the plan has no storage limit or limits are not being enforced (there is
+ * "12.4 MB of 100 MB used · 9 files". `limitBytes` is the plan allowance even while limits are not enforced (`enforced` tells); null only when the plan has no limit (there is
  * no maximum to show then); `upgrade` is true on the Free Trial. Until schema.sql has been applied the answer is 503.
  */
 import type { PagesFunction } from '@cloudflare/workers-types';

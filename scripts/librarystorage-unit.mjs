@@ -103,7 +103,7 @@ console.log('\nThe counter\'s own endpoint: GET /api/library/usage');
   check('after two uploads: 5 MB in 2 files, and exactly what the file list reports', u2.data.usage.usedBytes === 5 * MB && u2.data.usage.count === 2 && JSON.stringify(u2.data.usage) === JSON.stringify(await usage(env)), JSON.stringify(u2));
   check('signed out: 401, no numbers', (await onlyUsage(env, false)).status === 401);
   const off = await fresh({ plan: 'free', enforce: false });
-  check('limits not enforced: limitBytes is null, so no maximum is shown', (await onlyUsage(off.env)).data.usage.limitBytes === null);
+  { const o = (await onlyUsage(off.env)).data.usage; check('limits not enforced: the plan maximum is still shown, flagged as not enforced', o.limitBytes === 10 * MB && o.enforced === false); }
 }
 
 console.log('\nWhat each plan includes (the number the Library shows as the maximum)');
@@ -150,7 +150,7 @@ console.log('\nWhile "enforce_limits" is off (the default) there is no limit');
 {
   const { env } = await fresh({ plan: 'free', enforce: false });
   const u0 = await usage(env);
-  check('the Library gets no maximum (limitBytes null)', u0.limitBytes === null, JSON.stringify(u0));
+  check('the Library shows the plan maximum but says it is not enforced', u0.limitBytes === 10 * MB && u0.enforced === false, JSON.stringify(u0));
   let ok = 0;
   for (let i = 0; i < 3; i++) if ((await put(env, png(5 * MB))).status === 201) ok++;
   check('15 MB goes into a Free Trial library', ok === 3 && (await usage(env)).usedBytes === 15 * MB);
