@@ -30,6 +30,15 @@
       '<div class="meter mt-2"><i style="width:' + pct + '%;background:' + (pct >= 90 ? '#f87171' : '#fff') + '"></i></div>' + hint;
   }
 
+  function warn(box, u) {
+    if (!u || !u.over || !u.limitBytes) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+    var day = new Date(u.over.deadline * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    box.innerHTML = '<a href="#library" class="block rounded-2xl border border-red-400/30 bg-red-500/15 px-4 py-3 text-sm text-red-100 transition-colors hover:bg-red-500/20">' +
+      '<b class="font-semibold">Your library is over your plan: ' + size(u.usedBytes) + ' of ' + size(u.limitBytes) + '.</b> ' +
+      'Your latest uploads will be removed on ' + day + ' to make room. Delete files you no longer need before then. <span class="underline underline-offset-2">Open the Library</span></a>';
+    box.classList.remove('hidden');
+  }
+
   function short(u) {
     var used = Number(u.usedBytes) || 0;
     return u.limitBytes ? size(used).replace(' MB', '') + ' / ' + size(u.limitBytes) : size(used);
@@ -43,5 +52,9 @@
     });
   }
 
-  Vane.libraryUsage = { html: html, short: short, show: show };
+  function check(box) {
+    return Vane.api('GET', '/api/library/usage').then(function (r) { warn(box, r.ok && r.data ? r.data.usage : null); });
+  }
+
+  Vane.libraryUsage = { html: html, short: short, show: show, warn: warn, check: check };
 })();

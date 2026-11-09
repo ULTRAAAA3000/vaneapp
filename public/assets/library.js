@@ -134,6 +134,7 @@
     var u = S.usage, box = $('libUsage'), count = $('libCount');
     count.textContent = u ? Vane.libraryUsage.short(u) : '';
     count.classList.toggle('hidden', !u);
+    if (u) Vane.libraryUsage.warn($('storageWarn'), u);
     if (!u) { box.classList.add('hidden'); return; }
     box.innerHTML = Vane.libraryUsage.html(u);        // assets/usage-meter.js: the same line as in the editor's upload box and the library dialog
     box.classList.remove('hidden');
@@ -185,7 +186,7 @@
       Vane.api('DELETE', '/api/library/assets/' + encodeURIComponent(id)).then(function (r) {
         if (!r.ok) { btn.disabled = false; S.armed = id; disarm(); Vane.toast('err', r.error); return; }
         S.items = S.items.filter(function (a) { return a.id !== id; });
-        if (S.usage) { S.usage.usedBytes = Math.max(0, S.usage.usedBytes - item.size); S.usage.count = Math.max(0, S.usage.count - 1); }
+        if (S.usage) { S.usage.usedBytes = Math.max(0, S.usage.usedBytes - item.size); S.usage.count = Math.max(0, S.usage.count - 1); if (!S.usage.limitBytes || S.usage.usedBytes <= S.usage.limitBytes) S.usage.over = null; }
         Vane.toast('ok', 'File deleted.');
         if (!S.items.length && S.cursor) load(true); else render();
       });
@@ -258,6 +259,7 @@
     });
     window.addEventListener('hashchange', route);
     route();
+    Vane.libraryUsage.check($('storageWarn'));
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

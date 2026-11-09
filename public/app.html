@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/assets/vane.css?v=79e5d10f4c" />
-  <link rel="stylesheet" href="/assets/app.css?v=174add6c71" />
+  <link rel="stylesheet" href="/assets/app.css?v=17e009f663" />
 </head>
 
 <body class="min-h-screen overflow-x-hidden bg-[#070708]">
@@ -139,6 +139,8 @@
 
     <!-- ═══════════ WORKSPACE: Create / Library (more tabs later), full width ═══════════ -->
     <!-- tabs: Create (the editor) and Library (uploaded files); switched by library.js, the address keeps #create / #library -->
+    <div id="storageWarn" class="fade-up mt-6 hidden" role="alert"></div>
+
     <nav id="dashTabs" class="fade-up mt-6 flex gap-1.5 overflow-x-auto pb-1 [&>a]:shrink-0 [&>a]:whitespace-nowrap" style="animation-delay:.08s" aria-label="Dashboard sections">
       <a href="#create" data-tab="create" class="dtab" aria-current="page">Create</a>
       <a href="#library" data-tab="library" data-module="library" class="dtab">Library</a>
@@ -1260,12 +1262,12 @@
 
   <script src="/assets/status.js?v=5951604964" defer></script>
   <script src="/assets/vane.js?v=a2c867edc4"></script>
-  <script src="/assets/usage-meter.js?v=5ea04ce0f0"></script>
+  <script src="/assets/usage-meter.js?v=6e7b0ef6a9"></script>
   <script src="/assets/media-picker.js?v=4c4df7c965"></script>
   <script src="/assets/insights.js?v=c81d5838ef"></script>
   <script src="/assets/dashboard.js?v=a11fbe3d46"></script>
   <script src="/assets/ai.js?v=9076d3d765"></script>
-  <script src="/assets/library.js?v=3c517e9d15"></script>
+  <script src="/assets/library.js?v=192f4ed619"></script>
   <script src="/assets/library-picker.js?v=e0ff84c690"></script>
   <script src="/assets/snippets.js?v=2833a28950"></script>
   <script src="/assets/feeds.js?v=4562864d9f"></script>
