@@ -47,11 +47,13 @@ export function pickChannels(param: string | null, owned: { id: string; results:
   return first ? [first.id] : [];
 }
 
-export interface Filter { userId: string; since: number; channels: string[]; q: string }
+/** `until` (exclusive) is optional: set it to read an earlier window, e.g. the period just before the one on screen. */
+export interface Filter { userId: string; since: number; until?: number; channels: string[]; q: string }
 
 function where(f: Filter): { sql: string; args: unknown[] } {
   const args: unknown[] = [f.userId, f.since];
   let sql = `p.user_id = ?1 AND p.status = 'sent' AND p.sent_at >= ?2`;
+  if (f.until !== undefined) { sql += ` AND p.sent_at < ?${args.length + 1}`; args.push(f.until); }
   if (f.channels.length) { sql += ` AND p.channel_id IN (${f.channels.map((_, i) => `?${args.length + i + 1}`).join(',')})`; args.push(...f.channels); }
   else sql += ' AND 0';
   if (f.q) { sql += ` AND p.content LIKE ?${args.length + 1} ESCAPE '\\'`; args.push(`%${likeEscape(f.q)}%`); }
@@ -128,4 +130,51 @@ export async function queryBestTimes(env: Env, f: Filter, timeZone: string): Pro
   const grid = sum.map((row, d) => row.map((s, i) => ({ n: cnt[d][i], avg: cnt[d][i] ? Math.round((s / cnt[d][i]) * 10) / 10 : 0 })));
   const top = grid.flatMap((row, day) => row.map((c, slot) => ({ day, slot, avg: c.avg, n: c.n }))).filter((c) => c.n >= 2).sort((a, b) => b.avg - a.avg || b.n - a.n).slice(0, 3);
   return { grid, top };
+}
+
+export interface FormatRow { label: string; n: number; avg: number }
+export interface FormatGroup { key: string; title: string; rows: FormatRow[] }
+
+const HASHTAG = /(?:^|\s)#[\p{L}\p{N}_]+/gu;
+const LINK = /https?:\/\//i;
+
+/** The traits of one post that the "Formats" tab compares. Pure, so it is easy to test. */
+export function formatTraits(content: string, mediaKeys: string): Record<string, string> {
+  let media = false;
+  try { const a = JSON.parse(mediaKeys); media = Array.isArray(a) && a.length > 0; } catch { /* a broken value counts as no media */ }
+  const tags = (content.match(HASHTAG) ?? []).length;
+  const len = content.length;
+  return {
+    media: media ? 'With media' : 'Text only',
+    length: len < 80 ? 'Short (under 80 characters)' : len < 200 ? 'Medium (80–199)' : 'Long (200 or more)',
+    link: LINK.test(content) ? 'With a link' : 'No link',
+    hashtags: tags === 0 ? 'No hashtags' : tags <= 2 ? '1–2 hashtags' : '3 or more hashtags',
+    question: content.includes('?') ? 'Asks a question' : 'No question',
+  };
+}
+
+const FORMAT_TITLES: [string, string][] = [['media', 'Media'], ['length', 'Length'], ['link', 'Link'], ['hashtags', 'Hashtags'], ['question', 'Question']];
+
+/** Average reactions per post for each trait value, over posts that already have their numbers. */
+export async function queryFormats(env: Env, f: Filter): Promise<{ n: number; groups: FormatGroup[] }> {
+  const w = where(f);
+  const { results } = await env.DB
+    .prepare(`SELECT p.content, p.media_keys, ${SCORE} AS score ${FROM} WHERE ${w.sql} AND m.stage IS NOT NULL ORDER BY p.sent_at DESC LIMIT 5000`)
+    .bind(...w.args)
+    .all<{ content: string; media_keys: string; score: number }>();
+  const acc = new Map<string, Map<string, { n: number; sum: number }>>();
+  for (const r of results) {
+    const t = formatTraits(r.content, r.media_keys);
+    for (const [key] of FORMAT_TITLES) {
+      const m = acc.get(key) ?? new Map();
+      const c = m.get(t[key]) ?? { n: 0, sum: 0 };
+      c.n++; c.sum += r.score;
+      m.set(t[key], c); acc.set(key, m);
+    }
+  }
+  const groups = FORMAT_TITLES.map(([key, title]) => ({
+    key, title,
+    rows: [...(acc.get(key)?.entries() ?? [])].map(([label, c]) => ({ label, n: c.n, avg: Math.round((c.sum / c.n) * 10) / 10 })).sort((a, b) => b.avg - a.avg || b.n - a.n),
+  })).filter((g) => g.rows.length);
+  return { n: results.length, groups };
 }

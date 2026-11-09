@@ -28,11 +28,12 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     const channels = await listChannels(env, auth.userId, dayOf(since));
     const selected = pickChannels(url.searchParams.get('channels'), channels);
     const f: Filter = { userId: auth.userId, since, channels: selected, q };
-    const [totals, daily, posts, top] = await Promise.all([queryTotals(env, f), queryDaily(env, f), queryPosts(env, f, sort, pageSize, (page - 1) * pageSize), queryPosts(env, f, 'reactions', 3, 0)]);
+    // `prev` is the window of the same length right before this one, so the cards can show "+12% vs the previous period" (Free and Pro).
+    const [totals, prev, daily, posts, top] = await Promise.all([queryTotals(env, f), queryTotals(env, { ...f, since: since - days * 86400, until: since }), queryDaily(env, f), queryPosts(env, f, sort, pageSize, (page - 1) * pageSize), queryPosts(env, f, 'reactions', 3, 0)]);
     const series = pro && selected.length ? (await followerSeries(env, auth.userId, dayOf(since))).filter((p) => selected.includes(p.channel_id)) : [];
-    return json({ ok: true, ...base, page, channels, selected, totals, daily, posts: posts.items, postsTotal: posts.total, top: top.items.filter((x) => (x.likes ?? 0) + (x.replies ?? 0) + (x.reposts ?? 0) > 0), series });
+    return json({ ok: true, ...base, page, channels, selected, totals, prev, daily, posts: posts.items, postsTotal: posts.total, top: top.items.filter((x) => (x.likes ?? 0) + (x.replies ?? 0) + (x.reposts ?? 0) > 0), series });
   } catch {
-    return json({ ok: true, ...base, page: 1, channels: [], selected: [], totals: { posts: 0, views: 0, likes: 0, replies: 0, reposts: 0 }, daily: [], posts: [], postsTotal: 0, top: [], series: [] });
+    return json({ ok: true, ...base, page: 1, channels: [], selected: [], totals: { posts: 0, views: 0, likes: 0, replies: 0, reposts: 0 }, prev: { posts: 0, views: 0, likes: 0, replies: 0, reposts: 0 }, daily: [], posts: [], postsTotal: 0, top: [], series: [] });
   }
 };
 
