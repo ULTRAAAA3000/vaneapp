@@ -9,6 +9,7 @@
  *        ai_pass { userId, enabled, days?, note? }   switch the AI Pass (monthly AI credits, any plan) on or off for one account
  *        access  { userId, product: 'studio'|'analytics', enabled, days?, note? }   switch Vane Studio or Vane Analytics Pro on or off alone, next to any plan
  *        api_addon { userId, enabled }               the API add-on on top of an active Pro plan
+ *        storage { userId, mb, note? }               the library allowance of one account in MB (mb empty = follow the plan again)
  *        revoke  { userId }                         end their plan now (they fall back to the Free Trial)
  *        disable { userId, reason? }                switch the account off and sign it out everywhere
  *        enable  { userId }
@@ -21,8 +22,10 @@ import { getPlan, listPlans } from '../lib/catalog';
 import { specOf } from '../lib/plans';
 import { loadSubscription, usageSummary } from '../lib/usage';
 import { loadAiPass } from '../lib/aipass';
+import { libraryUsage, userStorageMb } from '../lib/library';
 import { adjustBalance, centsToMicro, getBalanceMicro } from '../lib/balance';
 import { likeEscape } from '../lib/range';
+import { isMissingTable } from '../lib/socials';
 
 const PAGE = 25;
 
@@ -86,6 +89,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       user,
       plan: { id: sub.plan, name: spec.label, apiAddon: sub.apiAddon, overageEnabled: sub.overageEnabled, status: sub.status, lapsed: sub.lapsed, endsAt: sub.currentPeriodEnd, provider: (d[0].results[0] as { provider?: string } | undefined)?.provider ?? null },
       aiPass: await loadAiPass(env, id, now),
+      storage: { ...(await libraryUsage(env, id)), ownMb: await userStorageMb(env, id), planMb: typeof spec.storageMb === 'number' ? spec.storageMb : null },
       access: await loadAccess(env, id, now),
       subscription: d[0].results[0] ?? null, usage: await usageSummary(env, id, sub), channels: d[1].results,
       posts: Object.fromEntries((d[2].results as { status: string; n: number }[]).map((x) => [x.status, x.n])),
@@ -177,6 +181,24 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     }
     await audit(env, request, 'user.grant_plan', user.email, { plan: plan.id, addon, overage, days, note });
     return json({ ok: true }, 201);
+  }
+
+  if (b.action === 'storage') {
+    if (typeof b.userId !== 'string' || !UUID_RE.test(b.userId)) return fail(400, 'userId is invalid.');
+    const mb = b.mb === undefined || b.mb === null || b.mb === '' ? null : Number(b.mb);
+    if (mb !== null && (!Number.isInteger(mb) || mb < 0 || mb > 1_000_000)) return fail(400, 'mb must be a whole number from 0 to 1,000,000, or empty to follow the plan.');
+    const note = typeof b.note === 'string' ? b.note.trim().slice(0, 200) : null;
+    const user = await env.DB.prepare('SELECT id, email FROM users WHERE id = ?1').bind(b.userId).first<{ id: string; email: string }>();
+    if (!user) return fail(404, 'User not found.');
+    try {
+      if (mb === null) await env.DB.prepare('DELETE FROM user_storage_limits WHERE user_id = ?1').bind(user.id).run();
+      else await env.DB.prepare('INSERT INTO user_storage_limits (user_id, storage_mb, updated_at) VALUES (?1, ?2, ?3) ON CONFLICT(user_id) DO UPDATE SET storage_mb = excluded.storage_mb, updated_at = excluded.updated_at').bind(user.id, mb, now).run();
+    } catch (err) {
+      if (isMissingTable(err)) return fail(503, 'Run scripts/migrations/016-user-storage-limit.sql in the D1 Console first.');
+      throw err;
+    }
+    await audit(env, request, 'user.storage', user.email, { mb, note });
+    return json({ ok: true, ownMb: mb, usage: await libraryUsage(env, user.id) });
   }
 
   if (b.action === 'ai_credits') {

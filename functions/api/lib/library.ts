@@ -74,10 +74,23 @@ export async function storageLimit(env: Env, userId: string): Promise<{ bytes: n
   const spec = specOf(sub.plan);
   const on = (await getSettings(env)).enforce_limits;
   const upgrade = sub.plan === 'free';
-  const planBytes = typeof spec.storageMb === 'number' ? spec.storageMb * MB : null;
+  const own = await userStorageMb(env, userId);
+  const mb = own ?? (typeof spec.storageMb === 'number' ? spec.storageMb : null);
+  const planBytes = mb === null ? null : mb * MB;
   return planBytes !== null && on
-    ? { bytes: planBytes, planBytes, label: spec.label, mb: spec.storageMb, upgrade }
+    ? { bytes: planBytes, planBytes, label: spec.label, mb, upgrade }
     : { bytes: null, planBytes, label: spec.label, mb: null, upgrade };
+}
+
+/** The allowance an admin set for this one account (MB), or null to follow the plan. */
+export async function userStorageMb(env: Env, userId: string): Promise<number | null> {
+  try {
+    const row = await env.DB.prepare('SELECT storage_mb FROM user_storage_limits WHERE user_id = ?1').bind(userId).first<{ storage_mb: number }>();
+    return row ? row.storage_mb : null;
+  } catch (err) {
+    if (isMissingTable(err)) return null;
+    throw err;
+  }
 }
 
 /**
