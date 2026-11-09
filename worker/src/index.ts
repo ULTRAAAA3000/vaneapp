@@ -12,6 +12,7 @@ import { sweepOrders } from '../../functions/api/lib/billingcheck';
 import { runBotAlerts } from '../../functions/api/lib/analyticsbot';
 import { sendWeeklyReports } from '../../functions/api/lib/analyticsreport';
 import { collectFollowers, collectPostMetrics, purgeOldMetrics } from '../../functions/api/lib/metrics';
+import { runFeeds } from '../../functions/api/lib/feeds';
 import { runDueLanes } from './dispatch';
 import { runPriorityLane } from './priority';
 import { isRenewalMinute, renewExpiringTokens } from './tokens';
@@ -44,6 +45,9 @@ export default {
         // Payments: expire unpaid orders and find crypto payments whose buyer left the checkout page.
         .then(() => sweepOrders(env as never, Math.floor(Date.now() / 1000)))
         .catch((err) => console.error('vane-cron: payments failed:', err instanceof Error ? err.message : 'unknown'))
+        // RSS feeds: turn new items of followed feeds into scheduled posts (each feed is claimed first, so overlapping runs never double-post).
+        .then(() => runFeeds(env as never, Math.floor(Date.now() / 1000)))
+        .catch((err) => console.error('vane-cron: feeds failed:', err instanceof Error ? err.message : 'unknown'))
         // Analytics: every 5th minute read the results of recently published posts and today's follower counts; once a day tidy up.
         .then(async () => {
           const t = Math.floor(Date.now() / 1000);

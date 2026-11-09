@@ -12,8 +12,8 @@
       chips = document.getElementById('agentChips'), demoBtn = document.getElementById('agentDemo'), demoNote = document.getElementById('agentDemoNote'), demoExit = document.getElementById('agentDemoExit');
 
   var POLL_MS = 3000, FIRST = 80, KEEP = 300, TYPE_MS = 11, TYPE_MAX_MS = 900, QUEUE_LIMIT = 8;
-  var NAMES = { claude: 'Claude', notion: 'Notion', obsidian: 'Obsidian', make: 'Make', zapier: 'Zapier', wordpress: 'WordPress', chatgpt: 'ChatGPT', api: 'API' };
-  var COLORS = { claude: '#c4b5fd', notion: '#e5e7eb', obsidian: '#a78bfa', make: '#f0abfc', zapier: '#fdba74', wordpress: '#7dd3fc', chatgpt: '#6ee7b7', api: '#67e8f9' };
+  var NAMES = { claude: 'Claude', notion: 'Notion', obsidian: 'Obsidian', make: 'Make', zapier: 'Zapier', wordpress: 'WordPress', chatgpt: 'ChatGPT', shortcuts: 'Shortcuts', api: 'API' };
+  var COLORS = { claude: '#c4b5fd', notion: '#e5e7eb', obsidian: '#a78bfa', make: '#f0abfc', zapier: '#fdba74', wordpress: '#7dd3fc', chatgpt: '#6ee7b7', shortcuts: '#7dd3fc', api: '#67e8f9' };
 
   var events = [], cursor = 0, filter = '', paused = false, loaded = false, stick = true, timer = 0, busy = false, lostShown = false;
   var typing = [], typingNow = false, demo = false, clearArmed = 0;

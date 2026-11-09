@@ -25,6 +25,7 @@
     "test:composer": "node scripts/composer-tools-test.mjs",
     "db:check": "wrangler d1 execute vane-db --remote --file=./scripts/db-check.sql",
     "db:check:local": "wrangler d1 execute vane-db --local --file=./scripts/db-check.sql",
+    "db:migrate:feeds": "wrangler d1 execute vane-db --remote --file=./scripts/migrations/015-feeds.sql",
     "db:migrate:library-storage": "wrangler d1 execute vane-db --remote --file=./scripts/migrations/013-library-storage.sql",
     "db:migrate:pinterest": "wrangler d1 execute vane-db --remote --file=./migrations/0004-channel-types-pinterest.sql",
     "db:migrate:pro-features": "wrangler d1 execute vane-db --remote --file=./scripts/migrations/009-pro-features.sql",

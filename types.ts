@@ -394,7 +394,7 @@ export interface ApiKeyPublic {
   createdAt: number;
   lastUsedAt: number | null;
   /** where the owner said the key is used ("Used with"), null when not said */
-  integration: 'claude' | 'notion' | 'chatgpt' | 'make' | 'zapier' | 'wordpress' | 'obsidian' | 'api' | null;
+  integration: 'claude' | 'notion' | 'chatgpt' | 'make' | 'zapier' | 'wordpress' | 'obsidian' | 'shortcuts' | 'api' | null;
 }
 
 export interface CreateApiKeyRequest {

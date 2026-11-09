@@ -21,12 +21,12 @@
  */
 import type { Env } from '../../../types';
 
-export const INTEGRATION_IDS = ['claude', 'notion', 'chatgpt', 'make', 'zapier', 'wordpress', 'obsidian', 'api'] as const;
+export const INTEGRATION_IDS = ['claude', 'notion', 'chatgpt', 'make', 'zapier', 'wordpress', 'obsidian', 'shortcuts', 'api'] as const;
 export type IntegrationId = (typeof INTEGRATION_IDS)[number];
 export const isIntegrationId = (v: unknown): v is IntegrationId => typeof v === 'string' && (INTEGRATION_IDS as readonly string[]).includes(v);
 
 export const INTEGRATION_NAMES: Record<IntegrationId, string> = {
-  claude: 'Claude', notion: 'Notion', chatgpt: 'ChatGPT', make: 'Make', zapier: 'Zapier', wordpress: 'WordPress plugin', obsidian: 'Obsidian plugin', api: 'Direct API',
+  claude: 'Claude', notion: 'Notion', chatgpt: 'ChatGPT', make: 'Make', zapier: 'Zapier', wordpress: 'WordPress plugin', obsidian: 'Obsidian plugin', shortcuts: 'Apple Shortcuts', api: 'Direct API',
 };
 
 /** Where the store / marketplace review stands. Free choice from a short list, set by the admin. */
@@ -152,6 +152,18 @@ export function catalog(origin: string): IntegrationDef[] {
       verification: 'Installed by hand from the zip. A listing in Obsidian\'s community plugin directory goes through a review by the Obsidian team: not submitted yet.',
     },
     {
+      id: 'shortcuts', name: 'Apple Shortcuts', kind: 'iPhone, iPad and Mac share sheet', build: 'live', color: '#38bdf8',
+      summary: 'Share a link, a selection or a note from any app straight to Vane: a shortcut sends it to one endpoint that turns it into a scheduled post, a few minutes ahead so it can still be cancelled.',
+      auth: 'The user\'s Vane API key in an "Authorization: Bearer" header, set once inside the shortcut.',
+      endpoints: [{ label: 'Share endpoint', value: `${api}/share` }],
+      steps: [
+        'The user creates a key (picking "Apple Shortcuts" under "Used with").',
+        'In the Shortcuts app: new shortcut → turn on "Show in Share Sheet" → add "Get Contents of URL".',
+        'URL: the share endpoint above · Method: POST · Headers: Authorization = Bearer <key> · Request Body: JSON with text (Shortcut Input) and, if you have several channels, channels.',
+      ],
+      verification: 'Nothing to submit: a shortcut is a file the user builds or imports.',
+    },
+    {
       id: 'api', name: 'Direct API', kind: 'Scripts and everything else', build: 'live', color: '#94a3b8',
       summary: 'Anything that calls the REST API without being one of the above: scripts, curl, n8n, other automation tools. Also where traffic lands when its source cannot be told.',
       auth: 'The user\'s Vane API key in an "Authorization: Bearer" header.',
@@ -174,6 +186,7 @@ export function inferIntegration(userAgent: string | null, keyName: string): Int
     if (ua.includes('anthropic') || ua.includes('claude')) return 'claude';
     if (ua.includes('wordpress')) return 'wordpress';
     if (ua.includes('obsidian')) return 'obsidian';
+    if (ua.includes('shortcuts')) return 'shortcuts';
     if (ua.includes('notion')) return 'notion';
   }
   const name = keyName.slice(0, 120).toLowerCase();
@@ -183,6 +196,7 @@ export function inferIntegration(userAgent: string | null, keyName: string): Int
   if (name.includes('zapier')) return 'zapier';
   if (name.includes('wordpress')) return 'wordpress';
   if (name.includes('obsidian')) return 'obsidian';
+  if (name.includes('shortcut')) return 'shortcuts';
   if (name.includes('notion')) return 'notion';
   return null;
 }
