@@ -13,6 +13,7 @@ export interface Settings {
   track_visits: boolean;        // record page views for the Traffic tab
   enforce_limits: boolean;      // apply the plan limits for connected channels and Library storage (the post quota is ALWAYS a hard stop, see lib/postgate.ts)
   checkout_preview: boolean;    // lets a browser signed into /admin open the checkout before any payment method is connected (nothing can be bought)
+  modules_off: string;          // comma-separated ids of the modules switched off in /admin → Modules (see lib/modules.ts)
   ai_budget_usd: number;        // monthly budget for AI model calls, shown against the real spend in /admin → AI (0 = none)
 }
 
@@ -28,6 +29,7 @@ export const DEFAULT_SETTINGS: Settings = {
   track_visits: true,
   enforce_limits: false,
   checkout_preview: false,
+  modules_off: '',
   ai_budget_usd: 0,
 };
 

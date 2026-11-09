@@ -202,7 +202,7 @@
   $('logout').addEventListener('click', function () { call('POST', '/api/admin/logout').then(function () { toGate('Signed out.'); }); });
 
   // ───────────────────────── navigation ─────────────────────────
-  var TABS = [['overview', 'Overview'], ['users', 'Users'], ['plans', 'Plans'], ['orders', 'Orders'], ['networks', 'Networks'], ['integrations', 'Integrations'], ['feedback', 'Feedback'], ['ai', 'AI'], ['social', 'Social'], ['traffic', 'Traffic'], ['search', 'Search'], ['security', 'Security'], ['settings', 'Settings'], ['activity', 'Activity']];
+  var TABS = [['overview', 'Overview'], ['users', 'Users'], ['plans', 'Plans'], ['orders', 'Orders'], ['networks', 'Networks'], ['modules', 'Modules'], ['integrations', 'Integrations'], ['feedback', 'Feedback'], ['ai', 'AI'], ['social', 'Social'], ['traffic', 'Traffic'], ['search', 'Search'], ['security', 'Security'], ['settings', 'Settings'], ['activity', 'Activity']];
   function route() {
     var tab = (location.hash || '#overview').slice(1);
     if (!TABS.some(function (t) { return t[0] === tab; })) tab = 'overview';
@@ -805,6 +805,24 @@
     });
   };
 
+  VIEWS.modules = function (seq) {
+    call('GET', '/api/admin/modules').then(function (r) {
+      if (!alive(seq)) return;
+      if (!r.ok) return show(seq, errorBox(r.error));
+      var groups = [];
+      r.data.modules.forEach(function (m) { if (groups.indexOf(m.group) < 0) groups.push(m.group); });
+      show(seq, title('Modules', 'Switch a module off and it gets a “Soon” label everywhere it is linked; clicking it opens a “not available right now” window. Nothing is deleted, and switching it on brings it back at once.') +
+        groups.map(function (g) {
+          return card(g, table([
+            { h: 'Module', r: function (m) { return '<div class="font-medium">' + esc(m.name) + '</div><div class="text-[11px] text-white/40">' + esc(m.about) + '</div>'; } },
+            { h: 'Status', r: function (m) { return m.enabled ? '<span class="text-emerald-300">On</span>' : '<span class="text-amber-300">Off: shows “Soon”</span>'; } },
+            { h: 'Stops the API', r: function (m) { return m.enforced ? 'Yes (503)' : '<span class="text-white/40">No, page only</span>'; } },
+            { h: 'On / off', cls: 'text-right', r: function (m) { return '<button type="button" class="switch" role="switch" data-act="mod-toggle" data-id="' + esc(m.id) + '" data-name="' + esc(m.name) + '" aria-checked="' + m.enabled + '" aria-label="' + esc(m.name) + '"></button>'; } }
+          ], r.data.modules.filter(function (m) { return m.group === g; })));
+        }).join('<div class="mt-4"></div>'));
+    });
+  };
+
   // ── Integrations (Claude, ChatGPT, Make, Zapier, …): how each is set up, whether it is on, and how much it is used
   function trend(cur, prev) {
     if (!prev) return cur ? '<span class="text-sky-300">new</span>' : '<span class="text-white/35">—</span>';
@@ -1196,6 +1214,16 @@
         call('PUT', '/api/admin/networks', { network: el.dataset.id, enabled: wantOn }).then(function (r) { if (r.ok) { Vane.toast('ok', el.dataset.name + (wantOn ? ' is on.' : ' is switched off.')); } else Vane.toast('err', r.error); route(); });
       };
       if (wantOn) go(); else confirmBox('Switch <b>' + esc(el.dataset.name) + '</b> off? Nobody can connect it or schedule to it, and posts already scheduled for it will wait until you switch it on again.', 'Switch off', go, true);
+    }
+    else if (a === 'mod-toggle') {
+      var modOn = el.getAttribute('aria-checked') !== 'true';
+      var modGo = function () {
+        call('PUT', '/api/admin/modules', { id: el.dataset.id, enabled: modOn }).then(function (r) {
+          if (r.ok) Vane.toast('ok', el.dataset.name + (modOn ? ' is on.' : ' is switched off.')); else Vane.toast('err', r.error);
+          route();
+        });
+      };
+      if (modOn) modGo(); else confirmBox('Switch <b>' + esc(el.dataset.name) + '</b> off? People see “Soon” and a “not available right now” window instead of it. Nothing is deleted.', 'Switch off', modGo, true);
     }
     else if (a === 'int-toggle') {
       var intOn = el.getAttribute('aria-checked') !== 'true';
