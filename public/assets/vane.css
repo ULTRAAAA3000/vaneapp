@@ -263,3 +263,49 @@ html.is-leaving #app { opacity: 0 !important; transform: translateY(-8px); trans
   .pcard-main { flex: 1 1 calc(100% - 4.5rem); min-width: 0; }
   .pcard-actions { margin-left: 4.5rem; }
 }
+
+/* ───── Analytics page (analytics.html, analytics.js) ───── */
+.an-tabs { display: flex; gap: .25rem; overflow-x: auto; padding: .25rem; border-radius: 9999px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.07); scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.an-tabs::-webkit-scrollbar { display: none; }
+.an-tab { flex: none; white-space: nowrap; border-radius: 9999px; padding: .5rem .95rem; font-size: .875rem; color: rgba(255,255,255,.55); transition: background .15s, color .15s; }
+.an-tab:hover { color: #fff; }
+.an-tab.is-on { background: #fff; color: #0a0a0b; font-weight: 500; }
+.an-tab.is-on span { background: rgba(0,0,0,.08); color: rgba(0,0,0,.55); }
+
+.an-kpi { background-image: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,0) 70%); }
+.an-kpi-l { font-size: .7rem; letter-spacing: .05em; text-transform: uppercase; color: rgba(255,255,255,.5); }
+.an-kpi-v { margin-top: .4rem; font-size: 1.75rem; line-height: 1.1; font-weight: 600; font-variant-numeric: tabular-nums; }
+.an-kpi-s { margin-top: .3rem; font-size: .75rem; color: rgba(255,255,255,.4); }
+.an-kpi-d { margin-top: .55rem; display: flex; flex-wrap: wrap; align-items: center; gap: .15rem .45rem; }
+.an-kpi-vs { font-size: .7rem; color: rgba(255,255,255,.35); }
+.an-delta { display: inline-flex; align-items: center; border-radius: 9999px; padding: .1rem .5rem; font-size: .72rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.an-delta.up { background: rgba(52,211,153,.14); color: #6ee7b7; }
+.an-delta.down { background: rgba(251,113,133,.14); color: #fda4af; }
+.an-delta.flat { background: rgba(255,255,255,.08); color: rgba(255,255,255,.62); }
+
+.an-chart .an-col { transition: opacity .12s; }
+.an-chart:hover .an-col { opacity: .45; }
+.an-chart .an-col:hover { opacity: 1; }
+
+.an-post { position: relative; padding-left: 1.15rem; }
+.an-post::before { content: ''; position: absolute; left: .55rem; top: .8rem; bottom: .8rem; width: 3px; border-radius: 3px; background: var(--c, rgba(255,255,255,.3)); }
+
+.an-lock { background-image: radial-gradient(120% 130% at 50% 0%, rgba(125,211,252,.11), rgba(255,255,255,0) 62%); border-color: rgba(125,211,252,.2); }
+.an-lock-ic { display: inline-block; color: #7dd3fc; }
+
+.an-heat-legend { margin-top: .85rem; display: flex; align-items: center; justify-content: flex-end; gap: .35rem; font-size: .7rem; color: rgba(255,255,255,.4); }
+.an-heat-sw { width: 1.1rem; height: .7rem; border-radius: .2rem; }
+.an-big { font-size: 2.25rem; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+.an-meter { height: .4rem; border-radius: 9999px; background: rgba(255,255,255,.08); overflow: hidden; }
+.an-meter > div { height: 100%; border-radius: inherit; }
+.an-post { padding-left: 1.15rem !important; }
+
+/* Phones: the network chips scroll sideways in one row (a long list no longer pushes the page down); the numbers are a little smaller */
+@media (max-width: 639px) {
+  #chips { flex-wrap: nowrap; overflow-x: auto; margin-right: -.75rem; padding-right: .75rem; scrollbar-width: none; }
+  #chips::-webkit-scrollbar { display: none; }
+  #chips > button { flex: none; }
+  .an-kpi-v { font-size: 1.55rem; }
+}
+.an-rank { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 1.45rem; height: 1.45rem; border-radius: 9999px; background: rgba(125,211,252,.16); color: #7dd3fc; font-size: .72rem; font-weight: 600; }
+

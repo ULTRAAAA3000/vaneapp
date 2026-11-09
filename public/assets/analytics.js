@@ -60,8 +60,11 @@
   }
 
   function lock(title, text) {
-    var c = el('div', 'glass-d rounded-2xl p-6 text-center');
-    c.appendChild(el('p', 'text-base font-semibold', title));
+    var c = el('div', 'an-lock glass-d rounded-2xl p-6 text-center');
+    var ic = svg('svg', { viewBox: '0 0 24 24', width: 22, height: 22, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.8, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', class: 'an-lock-ic', 'aria-hidden': 'true' });
+    ic.appendChild(svg('rect', { x: 5, y: 11, width: 14, height: 9, rx: 2.5 })); ic.appendChild(svg('path', { d: 'M8 11V8a4 4 0 018 0v3' }));
+    c.appendChild(ic);
+    c.appendChild(el('p', 'mt-3 text-base font-semibold', title));
     c.appendChild(el('p', 'mx-auto mt-2 max-w-md text-sm leading-relaxed text-white/55', text));
     var up = el('a', 'btn btn-white btn-sm mt-4 inline-flex', 'Get Analytics Pro · $4.99'); up.href = checkoutUrl(); c.appendChild(up);
     var more = el('a', 'ml-2 text-sm text-white/55 underline underline-offset-4', 'See Free vs Pro'); more.href = '#plans'; c.appendChild(more);
@@ -79,43 +82,73 @@
     }
     return out;
   }
-  function barChart(daily, days) {
-    var rows = bucket(daily, days), W = 640, H = 170, P = 6, max = 1;
-    rows.forEach(function (r) { max = Math.max(max, r.likes + r.replies + r.reposts); });
-    var s = svg('svg', { viewBox: '0 0 ' + W + ' ' + (H + 18), class: 'w-full', role: 'img', 'aria-label': 'Reactions per day' });
-    s.appendChild(svg('line', { x1: 0, x2: W, y1: H, y2: H, stroke: 'rgba(255,255,255,.12)' }));
-    var bw = (W - P * 2) / rows.length;
-    rows.forEach(function (r, i) {
-      var x = P + i * bw, y = H;
-      [['likes', COLORS[0]], ['replies', COLORS[1]], ['reposts', COLORS[2]]].forEach(function (c) {
-        var h = (r[c[0]] / max) * (H - 14); if (h <= 0) return; y -= h;
-        var rect = svg('rect', { x: x + bw * 0.15, y: y, width: Math.max(bw * 0.7, 1), height: h, fill: c[1], rx: 1.5 }); rect.appendChild(svg('title')).textContent = r.label + ': ' + r.likes + ' likes, ' + r.replies + ' replies, ' + r.reposts + ' reposts, ' + r.posts + ' posts'; s.appendChild(rect);
-      });
+  // Round the top of the scale up to 1, 2, 5 × 10^n so the grid lines read as whole numbers.
+  function niceMax(m) { if (m <= 10) return m <= 1 ? 1 : Math.ceil(m / 2) * 2; var p = Math.pow(10, Math.floor(Math.log10(m))), f = m / p, k = [1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].find(function (x) { return x >= f; }); return k * p; }
+  function shortDay(iso) { return new Date(iso + 'T00:00:00Z').toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' }); }
+  // One drawer for every "per day" chart: a scale with grid lines, stacked bars, four dates, and the same tooltip text as before (tip(row)).
+  // On a phone the drawing is 340 wide instead of 640, so its text stays readable instead of shrinking with the screen.
+  function stackedBars(rows, series, aria, tip) {
+    var narrow = window.innerWidth < 640, W = narrow ? 340 : 640, H = narrow ? 170 : 170, FS = narrow ? 11 : 10, max = 1;
+    rows.forEach(function (r) { var t = 0; series.forEach(function (c) { t += r[c[0]]; }); max = Math.max(max, t); });
+    var top = niceMax(max), padL = 10 + String(top).length * FS * 0.6, padR = 4, padT = 8, plotH = H - padT;
+    var s = svg('svg', { viewBox: '0 0 ' + W + ' ' + (H + 22), class: 'an-chart w-full', role: 'img', 'aria-label': aria });
+    [0, 0.5, 1].forEach(function (f) {
+      var y = H - f * plotH;
+      s.appendChild(svg('line', { x1: padL, x2: W - padR, y1: y, y2: y, stroke: f ? 'rgba(255,255,255,.08)' : 'rgba(255,255,255,.16)', 'stroke-dasharray': f ? '3 4' : '0' }));
+      var v = top * f; if (v % 1) return;
+      var t = svg('text', { x: padL - 6, y: y + 3.5, fill: 'rgba(255,255,255,.4)', 'font-size': FS, 'text-anchor': 'end' }); t.textContent = fmt(v); s.appendChild(t);
     });
-    var t1 = svg('text', { x: 0, y: H + 14, fill: 'rgba(255,255,255,.4)', 'font-size': 9 }); t1.textContent = rows[0].label; s.appendChild(t1);
-    var t2 = svg('text', { x: W, y: H + 14, fill: 'rgba(255,255,255,.4)', 'font-size': 9, 'text-anchor': 'end' }); t2.textContent = rows[rows.length - 1].label; s.appendChild(t2);
-    var t3 = svg('text', { x: 0, y: 11, fill: 'rgba(255,255,255,.4)', 'font-size': 9 }); t3.textContent = 'max ' + max; s.appendChild(t3);
+    var bw = (W - padL - padR) / rows.length;
+    rows.forEach(function (r, i) {
+      var g = svg('g', { class: 'an-col' }), x = padL + i * bw, y = H;
+      g.appendChild(svg('rect', { x: x, y: padT, width: bw, height: plotH, fill: 'rgba(255,255,255,0.001)' }));
+      series.forEach(function (c) {
+        var h = (r[c[0]] / top) * plotH; if (h <= 0) return; y -= h;
+        g.appendChild(svg('rect', { x: x + bw * 0.16, y: y, width: Math.max(bw * 0.68, 1), height: Math.max(h - 0.5, 0.5), fill: c[1], rx: Math.min(bw * 0.2, 2.5) }));
+      });
+      g.appendChild(svg('title')).textContent = tip(r);
+      s.appendChild(g);
+    });
+    var seen = {};
+    [0, 1 / 3, 2 / 3, 1].forEach(function (f) {
+      var i = Math.round(f * (rows.length - 1)); if (seen[i] || !rows[i].label) return; seen[i] = 1;
+      var first = i === 0, last = i === rows.length - 1;
+      var t = svg('text', { x: first ? padL : last ? W - padR : padL + (i + 0.5) * bw, y: H + 16, fill: 'rgba(255,255,255,.4)', 'font-size': FS, 'text-anchor': first ? 'start' : last ? 'end' : 'middle' }); t.textContent = shortDay(rows[i].label); s.appendChild(t);
+    });
     return s;
+  }
+  function barChart(daily, days) {
+    return stackedBars(bucket(daily, days), [['likes', COLORS[0]], ['replies', COLORS[1]], ['reposts', COLORS[2]]], 'Reactions per day', function (r) { return r.label + ': ' + r.likes + ' likes, ' + r.replies + ' replies, ' + r.reposts + ' reposts, ' + r.posts + ' posts'; });
   }
   function legend() {
     var l = el('div', 'flex flex-wrap gap-4 text-xs text-white/55');
     [['Likes', COLORS[0]], ['Replies', COLORS[1]], ['Reposts', COLORS[2]]].forEach(function (c) { var i = el('span', 'inline-flex items-center gap-1.5'); var d = el('span', 'h-2.5 w-2.5 rounded-sm'); d.style.background = c[1]; i.appendChild(d); i.appendChild(document.createTextNode(c[0])); l.appendChild(i); });
     return l;
   }
+  var sparkId = 0;
   function line(points, color) {
     var W = 320, H = 90, P = 6, vals = points.map(function (p) { return p.followers; }), lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), span = Math.max(hi - lo, 1);
     var t0 = Date.parse(points[0].day), t1 = Date.parse(points[points.length - 1].day), s = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'w-full', role: 'img', 'aria-label': 'Followers by day' });
-    var pts = points.map(function (p) { var x = P + ((Date.parse(p.day) - t0) / Math.max(t1 - t0, 1)) * (W - 2 * P), y = hi === lo ? H / 2 : H - P - ((p.followers - lo) / span) * (H - 2 * P); return x.toFixed(1) + ',' + y.toFixed(1); });
-    s.appendChild(svg('polygon', { points: P + ',' + (H - P) + ' ' + pts.join(' ') + ' ' + (W - P) + ',' + (H - P), fill: color, 'fill-opacity': 0.12 }));
-    s.appendChild(svg('polyline', { points: pts.join(' '), fill: 'none', stroke: color, 'stroke-width': 2, 'stroke-linejoin': 'round' }));
+    var xy = points.map(function (p) { return [P + ((Date.parse(p.day) - t0) / Math.max(t1 - t0, 1)) * (W - 2 * P), hi === lo ? H / 2 : H - P - ((p.followers - lo) / span) * (H - 2 * P)]; });
+    var pts = xy.map(function (q) { return q[0].toFixed(1) + ',' + q[1].toFixed(1); }), id = 'spark' + (++sparkId);
+    var defs = svg('defs'), grad = svg('linearGradient', { id: id, x1: 0, y1: 0, x2: 0, y2: 1 });
+    grad.appendChild(svg('stop', { offset: '0%', 'stop-color': color, 'stop-opacity': 0.32 })); grad.appendChild(svg('stop', { offset: '100%', 'stop-color': color, 'stop-opacity': 0 }));
+    defs.appendChild(grad); s.appendChild(defs);
+    s.appendChild(svg('polygon', { points: P + ',' + (H - P) + ' ' + pts.join(' ') + ' ' + (W - P) + ',' + (H - P), fill: 'url(#' + id + ')' }));
+    s.appendChild(svg('polyline', { points: pts.join(' '), fill: 'none', stroke: color, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+    var end = xy[xy.length - 1]; s.appendChild(svg('circle', { cx: end[0].toFixed(1), cy: end[1].toFixed(1), r: 3.5, fill: color, stroke: '#0b0b0d', 'stroke-width': 2 }));
     return s;
   }
 
   // ── parts
   function stat(label, value, sub, dl) {
-    var c = el('div', 'glass-d rounded-2xl p-4'); c.appendChild(el('p', 'text-xs text-white/50', label)); c.appendChild(el('p', 'mt-1 text-2xl font-semibold tabular-nums', fmt(value)));
-    if (sub) c.appendChild(el('p', 'mt-0.5 text-xs text-white/40', sub));
-    if (dl) { var p = el('p', 'mt-0.5 text-xs tabular-nums text-white/40'); p.appendChild(el('span', dl.cls, dl.text)); p.appendChild(document.createTextNode(' vs previous period')); c.appendChild(p); }
+    var c = el('div', 'an-kpi glass-d rounded-2xl p-4'); c.appendChild(el('p', 'an-kpi-l', label)); c.appendChild(el('p', 'an-kpi-v', fmt(value)));
+    if (sub) c.appendChild(el('p', 'an-kpi-s', sub));
+    if (dl) {
+      var kind = /emerald/.test(dl.cls) ? 'up' : /rose/.test(dl.cls) ? 'down' : 'flat', row = el('p', 'an-kpi-d'); row.title = 'Compared with the previous period of the same length';
+      var pill = el('span', 'an-delta ' + kind, (dl.text.charAt(0) === '+' ? '▲ ' : dl.text.charAt(0) === '-' ? '▼ ' : '') + dl.text.replace(/^[+-]/, '')); row.appendChild(pill); row.appendChild(el('span', 'an-kpi-vs', 'vs prev.'));
+      c.appendChild(row);
+    }
     return c;
   }
   // Change against the period just before: a percentage, "new" when there was nothing before, nothing at all when both are empty. `invert`: down is good (failed posts).
@@ -127,10 +160,11 @@
     return { text: (pct > 0 ? '+' : '') + pct + '%', cls: (invert ? pct < 0 : pct > 0) ? 'text-emerald-300' : 'text-rose-300' };
   }
   var avgOf = function (t) { return t && t.posts ? Math.round(((t.likes + t.replies + t.reposts) / t.posts) * 10) / 10 : 0; };
+  function colorOfType(type) { var c = S.d.channels.find(function (x) { return x.type === type; }); return c ? colorOf(c.id) : COLORS[Object.keys(LABEL).indexOf(type) % COLORS.length]; }
   function colorOf(id) { var i = S.d.channels.findIndex(function (c) { return c.id === id; }); return COLORS[(i < 0 ? 0 : i) % COLORS.length]; }
   function netTag(p) { var t = el('span', 'inline-flex items-center gap-1.5 text-xs text-white/55'); var d = el('span', 'h-2 w-2 rounded-full'); d.style.background = colorOf(p.channel_id); t.appendChild(d); t.appendChild(document.createTextNode((LABEL[p.type] || p.type) + ' · ' + p.channel)); return t; }
   function postRow(p) {
-    var r = el('div', 'glass-d flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl p-3 sm:p-4');
+    var r = el('div', 'an-post glass-d flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl p-3 sm:p-4'); r.style.setProperty('--c', colorOf(p.channel_id));
     var left = el('div', 'min-w-0 flex-1 basis-60');
     left.appendChild(el('p', 'line-clamp-2 break-words text-sm', p.content.replace(/\s+/g, ' ')));
     var meta = el('div', 'mt-1 flex flex-wrap items-center gap-x-3 text-xs text-white/45'); meta.appendChild(netTag(p)); meta.appendChild(el('span', '', new Date(p.sent_at * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })));
@@ -230,7 +264,7 @@
       var c = el('div', 'glass-d rounded-2xl p-4'), top = el('div', 'flex items-center gap-2'); var dot = el('span', 'h-2.5 w-2.5 rounded-full'); dot.style.background = colorOf(n.id); top.appendChild(dot); top.appendChild(el('p', 'min-w-0 flex-1 truncate text-sm font-medium', n.name)); top.appendChild(el('span', 'text-xs text-white/45', LABEL[n.type] || n.type)); c.appendChild(top);
       if (n.now === null) { c.appendChild(el('p', 'mt-3 text-sm text-white/50', 'The first number appears after the next daily check.')); grid.appendChild(c); return; }
       var delta = n.first === null ? 0 : n.now - n.first, row = el('div', 'mt-3 flex items-baseline gap-2'); row.appendChild(el('p', 'text-3xl font-semibold tabular-nums', fmt(n.now))); row.appendChild(el('p', 'text-sm tabular-nums ' + (delta > 0 ? 'text-emerald-300' : delta < 0 ? 'text-rose-300' : 'text-white/45'), (delta > 0 ? '+' : '') + delta + ' in ' + d.days + ' days')); c.appendChild(row);
-      if (d.pro) { var pts = d.series.filter(function (p) { return p.channel_id === n.id; }); if (pts.length > 1) { var w = el('div', 'mt-3'); w.appendChild(line(pts, colorOf(n.id))); var ax = el('div', 'flex justify-between text-[11px] text-white/35'); ax.appendChild(el('span', '', pts[0].day)); ax.appendChild(el('span', '', pts[pts.length - 1].day)); w.appendChild(ax); c.appendChild(w); c.appendChild(forecast(pts)); } else c.appendChild(el('p', 'mt-3 text-xs text-white/45', 'The chart appears after two daily checks.')); }
+      if (d.pro) { var pts = d.series.filter(function (p) { return p.channel_id === n.id; }); if (pts.length > 1) { var w = el('div', 'mt-3'); w.appendChild(line(pts, colorOf(n.id))); var ax = el('div', 'flex justify-between text-[11px] text-white/35'); ax.appendChild(el('span', '', shortDay(pts[0].day))); ax.appendChild(el('span', '', shortDay(pts[pts.length - 1].day))); w.appendChild(ax); c.appendChild(w); c.appendChild(forecast(pts)); } else c.appendChild(el('p', 'mt-3 text-xs text-white/45', 'The chart appears after two daily checks.')); }
       grid.appendChild(c);
     });
     root.appendChild(grid);
@@ -269,15 +303,15 @@
       root.textContent = '';
       if (!j || !j.best.grid.length || !j.best.grid.some(function (r) { return r.some(function (c) { return c.n; }); })) { root.appendChild(empty('Not enough posts with results yet. Best times need a few published posts.')); return; }
       var max = 0; j.best.grid.forEach(function (r) { r.forEach(function (c) { max = Math.max(max, c.avg); }); });
-      if (j.best.top.length) { var tp = el('div', 'glass-d rounded-2xl p-4 sm:p-5'); tp.appendChild(el('p', 'text-sm font-medium', 'Your best slots')); var ul = el('ul', 'mt-2 space-y-1 text-sm text-white/75'); j.best.top.forEach(function (x) { ul.appendChild(el('li', '', DAYS[x.day] + ' ' + pad(x.slot * 3) + '–' + pad(x.slot * 3 + 3) + ' · ' + x.avg + ' reactions per post (' + x.n + ' posts)')); }); tp.appendChild(ul); root.appendChild(tp); }
+      if (j.best.top.length) { var tp = el('div', 'glass-d rounded-2xl p-4 sm:p-5'); tp.appendChild(el('p', 'text-sm font-medium', 'Your best slots')); var ul = el('ul', 'mt-3 space-y-2 text-sm text-white/75'); j.best.top.forEach(function (x, ri) { var li = el('li', 'flex items-center gap-3'); li.appendChild(el('span', 'an-rank', String(ri + 1))); li.appendChild(el('span', 'min-w-0', DAYS[x.day] + ' ' + pad(x.slot * 3) + '–' + pad(x.slot * 3 + 3) + ' · ' + x.avg + ' reactions per post (' + x.n + ' posts)')); ul.appendChild(li); }); tp.appendChild(ul); root.appendChild(tp); }
       var c = el('div', 'glass-d rounded-2xl p-4 sm:p-5'); c.appendChild(el('p', 'text-sm font-medium', 'Average reactions per post')); c.appendChild(el('p', 'mb-3 text-xs text-white/40', 'Time zone: ' + j.timeZone + '. Brighter is better; empty cells have no posts.'));
-      var scroll = el('div', 'overflow-x-auto'), grid = el('div', 'grid min-w-[420px] gap-1'); grid.style.gridTemplateColumns = '2.5rem repeat(8, minmax(0, 1fr))';
+      var scroll = el('div', 'overflow-x-auto'), grid = el('div', 'grid min-w-[300px] gap-1'); grid.style.gridTemplateColumns = '2.5rem repeat(8, minmax(0, 1fr))';
       grid.appendChild(el('div')); for (var h = 0; h < 8; h++) grid.appendChild(el('div', 'text-center text-[10px] text-white/40', pad(h * 3)));
       DAYS.forEach(function (name, di) {
         grid.appendChild(el('div', 'flex items-center text-xs text-white/50', name));
         for (var si = 0; si < 8; si++) { var cell = j.best.grid[di][si], b = el('div', 'flex h-9 items-center justify-center rounded-md text-[11px] tabular-nums'); if (cell.n) { b.style.background = 'rgba(125,211,252,' + (0.12 + 0.75 * (max ? cell.avg / max : 0)).toFixed(2) + ')'; b.style.color = (max && cell.avg / max > 0.55) ? '#04121c' : 'rgba(255,255,255,.8)'; b.textContent = String(cell.avg); b.title = DAYS[di] + ' ' + pad(si * 3) + '–' + pad(si * 3 + 3) + ': ' + cell.avg + ' per post, ' + cell.n + ' posts'; } else b.style.background = 'rgba(255,255,255,.04)'; grid.appendChild(b); }
       });
-      scroll.appendChild(grid); c.appendChild(scroll); root.appendChild(c);
+      scroll.appendChild(grid); c.appendChild(scroll); c.appendChild(heatLegend('125,211,252')); root.appendChild(c);
     });
   }
   var pad = function (n) { return (n < 10 ? '0' : '') + n; };
@@ -296,31 +330,19 @@
   var RED = '#fca5a5';
   function activityBars(daily, days) {
     var byDay = {}; daily.forEach(function (r) { byDay[r.day] = r; });
-    var today = Math.floor(Date.now() / 86400000), step = days > 90 ? 7 : 1, rows = [], max = 1;
+    var today = Math.floor(Date.now() / 86400000), step = days > 90 ? 7 : 1, rows = [];
     for (var i = days - 1; i >= 0; i -= step) {
       var agg = { label: '', sent: 0, failed: 0 };
       for (var k = 0; k < step && i - k >= 0; k++) { var day = new Date((today - (i - k)) * 86400000).toISOString().slice(0, 10); if (k === 0) agg.label = day; var r = byDay[day]; if (r) { agg.sent += r.sent; agg.failed += r.failed; } }
-      rows.push(agg); max = Math.max(max, agg.sent + agg.failed);
+      rows.push(agg);
     }
-    var W = 640, H = 150, P = 6, s = svg('svg', { viewBox: '0 0 ' + W + ' ' + (H + 18), class: 'w-full', role: 'img', 'aria-label': 'Posts per day' });
-    s.appendChild(svg('line', { x1: 0, x2: W, y1: H, y2: H, stroke: 'rgba(255,255,255,.12)' }));
-    var bw = (W - P * 2) / rows.length;
-    rows.forEach(function (r, i) {
-      var x = P + i * bw, y = H;
-      [['sent', COLORS[1]], ['failed', RED]].forEach(function (c) {
-        var h = (r[c[0]] / max) * (H - 14); if (h <= 0) return; y -= h;
-        var rect = svg('rect', { x: x + bw * 0.15, y: y, width: Math.max(bw * 0.7, 1), height: h, fill: c[1], rx: 1.5 }); rect.appendChild(svg('title')).textContent = r.label + ': ' + r.sent + ' published, ' + r.failed + ' failed'; s.appendChild(rect);
-      });
-    });
-    [[0, 'start', rows[0].label], [W, 'end', rows[rows.length - 1].label]].forEach(function (t) { var n = svg('text', { x: t[0], y: H + 14, fill: 'rgba(255,255,255,.4)', 'font-size': 9, 'text-anchor': t[1] }); n.textContent = t[2]; s.appendChild(n); });
-    var m = svg('text', { x: 0, y: 11, fill: 'rgba(255,255,255,.4)', 'font-size': 9 }); m.textContent = 'max ' + max; s.appendChild(m);
-    return s;
+    return stackedBars(rows, [['sent', COLORS[1]], ['failed', RED]], 'Posts per day', function (r) { return r.label + ': ' + r.sent + ' published, ' + r.failed + ' failed'; });
   }
   function barRows(title, items) {
     var box = el('div', 'glass-d space-y-4 rounded-2xl p-4 sm:p-5'); box.appendChild(el('p', 'text-sm font-medium', title));
     var best = 0; items.forEach(function (x) { best = Math.max(best, x.value); });
     items.forEach(function (x) {
-      var r = el('div'), top = el('div', 'flex items-baseline justify-between gap-3 text-sm'); top.appendChild(el('span', 'min-w-0 truncate', x.label)); top.appendChild(el('span', 'tabular-nums text-white/75', x.text)); r.appendChild(top);
+      var r = el('div'), top = el('div', 'flex items-baseline justify-between gap-3 text-sm'); top.appendChild(el('span', 'min-w-0 flex-1 truncate', x.label)); top.appendChild(el('span', 'shrink-0 whitespace-nowrap tabular-nums text-white/75', x.text)); r.appendChild(top);
       var bar = el('div', 'mt-1.5 h-2.5 overflow-hidden rounded-full bg-white/10'), fill = el('div', 'h-full rounded-full'); fill.style.width = (best ? Math.max(x.value / best * 100, x.value ? 2 : 0) : 0) + '%'; fill.style.background = x.color; bar.appendChild(fill); r.appendChild(bar);
       if (x.sub) r.appendChild(el('p', 'mt-1 text-xs text-white/40', x.sub)); box.appendChild(r);
     });
@@ -330,18 +352,29 @@
     var max = 0, sum = 0; grid.forEach(function (r) { r.forEach(function (v) { max = Math.max(max, v); sum += v; }); });
     var c = el('div', 'glass-d rounded-2xl p-4 sm:p-5'); c.appendChild(el('p', 'text-sm font-medium', 'When you publish')); c.appendChild(el('p', 'mb-3 text-xs text-white/40', 'Number of posts by weekday and hour. Time zone: ' + tz + '. This is about your habits; Best times shows what works.'));
     if (!sum) { c.appendChild(el('p', 'py-6 text-center text-sm text-white/50', 'No published posts in this period.')); return c; }
-    var scroll = el('div', 'overflow-x-auto'), g = el('div', 'grid min-w-[420px] gap-1'); g.style.gridTemplateColumns = '2.5rem repeat(8, minmax(0, 1fr))';
+    var scroll = el('div', 'overflow-x-auto'), g = el('div', 'grid min-w-[300px] gap-1'); g.style.gridTemplateColumns = '2.5rem repeat(8, minmax(0, 1fr))';
     g.appendChild(el('div')); for (var h = 0; h < 8; h++) g.appendChild(el('div', 'text-center text-[10px] text-white/40', pad(h * 3)));
     DAYS.forEach(function (name, di) {
       g.appendChild(el('div', 'flex items-center text-xs text-white/50', name));
       for (var si = 0; si < 8; si++) { var n = grid[di][si], b = el('div', 'flex h-9 items-center justify-center rounded-md text-[11px] tabular-nums'); if (n) { b.style.background = 'rgba(134,239,172,' + (0.12 + 0.75 * n / max).toFixed(2) + ')'; b.style.color = n / max > 0.55 ? '#04170c' : 'rgba(255,255,255,.8)'; b.textContent = String(n); b.title = DAYS[di] + ' ' + pad(si * 3) + '–' + pad(si * 3 + 3) + ': ' + n + ' posts'; } else b.style.background = 'rgba(255,255,255,.04)'; g.appendChild(b); }
     });
-    scroll.appendChild(g); c.appendChild(scroll); return c;
+    scroll.appendChild(g); c.appendChild(scroll); c.appendChild(heatLegend('134,239,172')); return c;
+  }
+  function heatLegend(rgb) {
+    var l = el('div', 'an-heat-legend'); l.appendChild(el('span', '', 'Fewer'));
+    [0.12, 0.3, 0.5, 0.7, 0.87].forEach(function (a) { var b = el('span', 'an-heat-sw'); b.style.background = 'rgba(' + rgb + ',' + a + ')'; l.appendChild(b); });
+    l.appendChild(el('span', '', 'More')); return l;
   }
   var human = function (sec) { return sec < 60 ? sec + ' s' : sec < 3600 ? Math.round(sec / 60) + ' min' : (Math.round(sec / 360) / 10) + ' h'; };
   function reliability(a) {
     var c = el('div', 'glass-d rounded-2xl p-4 sm:p-5'), pu = a.punctuality; c.appendChild(el('p', 'text-sm font-medium', 'Reliability'));
-    c.appendChild(el('p', 'mt-1 text-sm text-white/65', pu.n ? pu.onTimePct + '% of posts went out within 2 minutes of the scheduled time. The slowest 5% waited ' + human(pu.p95Sec) + '.' : 'No published posts in this period.'));
+    if (pu.n) {
+      var pct = pu.onTimePct, tone = pct >= 95 ? '#6ee7b7' : pct >= 80 ? '#fcd34d' : '#fda4af', row = el('div', 'mt-3 flex items-center gap-4');
+      var big = el('p', 'an-big', pct + '%'); big.style.color = tone; row.appendChild(big);
+      var tx = el('div', 'min-w-0'); tx.appendChild(el('p', 'text-sm text-white/75', 'of posts went out within 2 minutes of the scheduled time.')); tx.appendChild(el('p', 'mt-0.5 text-xs text-white/45', 'The slowest 5% waited ' + human(pu.p95Sec) + '.'));
+      row.appendChild(tx); c.appendChild(row);
+      var bar = el('div', 'an-meter mt-3'), fill = el('div'); fill.style.width = pct + '%'; fill.style.background = tone; bar.appendChild(fill); c.appendChild(bar);
+    } else c.appendChild(el('p', 'mt-1 text-sm text-white/65', 'No published posts in this period.'));
     if (!a.failures.length) { c.appendChild(el('p', 'mt-3 text-sm text-emerald-300', 'No failed posts in this period.')); return c; }
     c.appendChild(el('p', 'mb-1 mt-4 text-xs uppercase tracking-wide text-white/40', 'Why posts failed'));
     var ul = el('ul', 'space-y-1.5 text-sm text-white/70');
@@ -367,7 +400,7 @@
       var c = el('div', 'glass-d rounded-2xl p-4 sm:p-5'), h = el('div', 'mb-3 flex flex-wrap items-center justify-between gap-2'); h.appendChild(el('p', 'text-sm font-medium', 'Posts' + (a.days > 90 ? ' per week' : ' per day'))); h.appendChild(legendOf([['Published', COLORS[1]], ['Failed', RED]])); c.appendChild(h);
       if (total) c.appendChild(activityBars(a.daily, a.days)); else c.appendChild(el('p', 'py-8 text-center text-sm text-white/50', 'Nothing was published on these networks in the last ' + a.days + ' days.'));
       root.appendChild(c);
-      if (a.byNetwork.length) root.appendChild(barRows('By network', a.byNetwork.map(function (n) { return { label: LABEL[n.type] || n.type, value: n.sent, text: n.sent + ' published' + (n.failed ? ' · ' + n.failed + ' failed' : ''), color: COLORS[(Object.keys(LABEL).indexOf(n.type) + COLORS.length) % COLORS.length] }; })));
+      if (a.byNetwork.length) root.appendChild(barRows('By network', a.byNetwork.map(function (n) { return { label: LABEL[n.type] || n.type, value: n.sent, text: n.sent + ' published' + (n.failed ? ' · ' + n.failed + ' failed' : ''), color: colorOfType(n.type) }; })));
       if (!a.pro) { root.appendChild(lock('When you publish, why posts fail, how punctual Vane is', 'See your posting habits by weekday and hour, the most common reasons posts fail, how close to the scheduled minute they go out, and every channel side by side. Up to 12 months of history.')); return; }
       root.appendChild(habitHeat(a.habits, a.timeZone));
       root.appendChild(reliability(a));
@@ -521,7 +554,7 @@
   function renderTabs() {
     var box = $('tabs'); box.textContent = '';
     TABS.forEach(function (t) {
-      var a = el('a', 'shrink-0 rounded-full px-3.5 py-2 text-sm transition ' + (S.tab === t[0] ? 'bg-white font-medium' : 'text-white/55 hover:text-white'), t[1]);
+      var a = el('a', 'an-tab' + (S.tab === t[0] ? ' is-on' : ''), t[1]);
       a.href = '#' + t[0]; a.setAttribute('role', 'tab'); a.setAttribute('aria-selected', S.tab === t[0] ? 'true' : 'false');
       if (t[2] && !S.d.pro) a.appendChild(el('span', 'ml-1.5 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white/55', 'Pro'));
       box.appendChild(a);
