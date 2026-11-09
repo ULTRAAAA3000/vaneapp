@@ -1,5 +1,5 @@
 /**
- * The prepaid balance ("Extra usage"). A user pays in advance with a normal checkout (plan id `balance`, from $5), and the money is
+ * The prepaid balance ("Extra usage"). A user pays in advance with a normal checkout (plan id `balance`, from $10), and the money is
  * spent on anything beyond the plan's quota: extra posts, extra AI credits, extra Vane Studio AI. There is no debt anywhere:
  * if the balance is too small the request is refused, so nothing is ever owed.
  *
@@ -19,7 +19,7 @@ import type { Plan } from './catalog';
 export const MICRO_PER_CENT = 10_000;
 export const MICRO_PER_USD = 1_000_000;
 /** The smallest and largest single top-up, in cents. The minimum keeps card fees from eating a small payment. */
-export const MIN_TOPUP_CENTS = 500;
+export const MIN_TOPUP_CENTS = 1000;
 export const MAX_TOPUP_CENTS = 50_000;
 
 export const centsToMicro = (cents: number): number => Math.round(cents) * MICRO_PER_CENT;
@@ -149,7 +149,7 @@ export async function recentLedger(env: Env, userId: string, limit = 20): Promis
 /** The id an order carries when it buys balance instead of a plan. */
 export const BALANCE_PLAN_ID = 'balance';
 
-/** A whole-dollar amount from the user ("25", 25) in cents, or null when it is not an amount we sell ($5 to $500, no cents). */
+/** A whole-dollar amount from the user ("25", 25) in cents, or null when it is not an amount we sell ($10 to $500, no cents). */
 export function parseTopUpCents(v: unknown): number | null {
   const n = typeof v === 'string' && /^\d{1,4}(\.0{1,2})?$/.test(v.trim()) ? Number(v) : typeof v === 'number' ? v : NaN;
   if (!Number.isFinite(n) || !Number.isInteger(n)) return null;

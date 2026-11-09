@@ -6,7 +6,7 @@
  *   exchangeCode(env, redirectUri, code)         code → short-lived token → long-lived token (60 days) + the Threads user id
  *   readProfile(token)                           "who is this?" → username
  *   refreshThreadsToken(creds, now)              long-lived token → a new one (another 60 days); Meta allows it once the token is a day old
- *   sendThreadsPost(creds, content, media)       POST /{user}/threads (container) → wait until ready → POST /{user}/threads_publish
+ *   sendThreadsPost(creds, content, media)       POST /me/threads (container) → wait until ready → POST /me/threads_publish   ("me" = the owner of the token: the id saved at connect time was refused by Threads: "Object with ID … does not exist")
  *   parseSignedRequest(signed, secret)           Meta's deauthorize / data-deletion calls (signed with the app secret)
  *
  * Security notes
@@ -28,7 +28,7 @@ export const THREADS_TEXT_LIMIT = 500;
 /** Renew a token that has less than this left */
 export const THREADS_RENEW_BEFORE_SECONDS = 20 * 24 * 3600;
 
-const AUTHORIZE = 'https://threads.net/oauth/authorize';
+const AUTHORIZE = 'https://threads.com/oauth/authorize';   // Meta's current host: the old threads.net address redirects here and the redirect drops client_id (error 4476002)
 const API = 'https://graph.threads.net';
 const CONTAINER_POLLS = 8;
 const CONTAINER_POLL_MS = 2000;
@@ -178,7 +178,7 @@ export async function sendThreadsPost(creds: ThreadsCreds, content: string, medi
   } else {
     form.media_type = 'TEXT';
   }
-  const made = await callJson<{ id?: unknown }>(`${API}/v1.0/${creds.userId}/threads`, { method: 'POST', headers: auth, form, timeoutMs: 20_000 });
+  const made = await callJson<{ id?: unknown }>(`${API}/v1.0/me/threads`, { method: 'POST', headers: auth, form, timeoutMs: 20_000 });
   if (!made.ok) return failure(made);
   const container = made.data?.id;
   if (typeof container !== 'string' || !/^\d{3,40}$/.test(container)) return fail('Threads did not accept the post.', true);
@@ -200,7 +200,7 @@ export async function sendThreadsPost(creds: ThreadsCreds, content: string, medi
   }
   if (!ready) return fail('Threads is still processing the post.', true);
 
-  const pub = await callJson<{ id?: unknown }>(`${API}/v1.0/${creds.userId}/threads_publish`, { method: 'POST', headers: auth, form: { creation_id: container }, timeoutMs: 20_000 });
+  const pub = await callJson<{ id?: unknown }>(`${API}/v1.0/me/threads_publish`, { method: 'POST', headers: auth, form: { creation_id: container }, timeoutMs: 20_000 });
   if (!pub.ok) return failure(pub);
   const id = pub.data?.id;
   if (typeof id !== 'string' || !id) return { ok: true, id: '', url: '' };

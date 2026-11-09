@@ -1,5 +1,5 @@
 /**
- * GET /api/admin/networks → every network: is its code written, is it on, what is connected and waiting
+ * GET /api/admin/networks → every network: is its code written, is it on, are its keys set (LinkedIn, Threads: per variable, see lib/networkkeys.ts), what is connected and waiting
  * PUT /api/admin/networks { network, enabled?, note? }
  *      enabled: true is refused unless the code for that network exists (the platform's own review does not matter:
  *      keep its status in `note`, e.g. "waiting for TikTok approval"). Switching a network off pauses it, see lib/networks.ts.
@@ -12,6 +12,7 @@ import { instagramConfigured } from '../lib/instagram';
 import { tiktokConfigured } from '../lib/tiktok';
 import { youtubeConfigured } from '../lib/youtube';
 import { invalidateNetworkFlags, isOn, networkFlags, networkInfo, NETWORKS } from '../lib/networks';
+import { keysMessage, networkKeys } from '../lib/networkkeys';
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const auth = await requireAdmin(request, env);
@@ -34,10 +35,12 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     networks: NETWORKS.map((n) => {
       const f = flags.get(n.id);
       const post = n.product === 'post';
+      const keys = networkKeys(env, n.id);
       return {
         id: n.id, name: n.name, product: n.product, implemented: n.implemented, code: n.code,
         enabled: isOn(n.id, flags), switchedOff: n.implemented && f?.enabled === false,
-        setup: !n.implemented ? null : n.id === 'youtube' && !youtubeConfigured(env) ? 'Code is ready. Add YOUTUBE_CLIENT_ID and YOUTUBE_CLIENT_SECRET (Pages and the cron worker) to open it for users.'
+        keys: keys ? keys.vars : null,
+        setup: !n.implemented ? null : keys ? keysMessage(keys) : n.id === 'youtube' && !youtubeConfigured(env) ? 'Code is ready. Add YOUTUBE_CLIENT_ID and YOUTUBE_CLIENT_SECRET (Pages and the cron worker) to open it for users.'
           : n.id === 'instagram' && !instagramConfigured(env) ? 'Code is ready. Add INSTAGRAM_APP_ID and INSTAGRAM_APP_SECRET (Pages) to open it for users.'
           : n.id === 'tiktok' && !tiktokConfigured(env) ? 'Code is ready. Add TIKTOK_CLIENT_KEY and TIKTOK_CLIENT_SECRET (Pages and the cron worker) to open it for users.'
           : n.id === 'reddit' && !(env.REDDIT_CLIENT_ID && env.REDDIT_CLIENT_SECRET) ? 'Code is ready. Add REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET (Pages and the cron worker).'

@@ -1327,12 +1327,12 @@
           : '<span class="' + base + '">' + inner + '</span>';
       }).join('');
 
-      return '<article class="flex gap-4 rounded-2xl bg-white/[0.04] p-4 ring-1 ring-white/5 transition-colors hover:bg-white/[0.06]">' +
+      return '<article class="pcard flex flex-wrap gap-x-4 gap-y-3 rounded-2xl bg-white/[0.04] p-4 ring-1 ring-white/5 transition-colors hover:bg-white/[0.06] sm:flex-nowrap">' +
         '<div class="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-xl bg-white/[0.06]">' +
           '<span class="text-[10px] uppercase tracking-widest text-white/40">' + esc(fmtMon.format(d)) + '</span>' +
           '<span class="pixel text-xl leading-none">' + pad(d.getDate()) + '</span>' +
         '</div>' +
-        '<div class="min-w-0 flex-1">' +
+        '<div class="pcard-main min-w-0 flex-1 basis-[12rem]">' +
           '<div class="flex flex-wrap items-center gap-x-2.5 gap-y-1">' +
             '<span class="badge badge-' + st + '">' + st + '</span>' +
             '<span class="text-xs text-white/45">' + esc(fmtWhen.format(d)) + ' · ' + esc(rel(p.scheduledAt)) + '</span>' +
@@ -1341,19 +1341,19 @@
           '<div class="mt-2.5 flex flex-wrap items-center gap-1.5">' + pills +
             (p.mediaUrl ? '<span class="inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-2.5 py-1 text-xs text-white/55">' + (p.mediaKind === 'video' ? ICON.video + 'Video' : ICON.image + 'Image') + '</span>' : '') +
           '</div>' +
-          errs.map(function (x) { return '<p class="mt-2 text-xs text-red-300/90">' + esc(x.channelName) + ': ' + esc(x.error) + '</p>'; }).join('') +
+          errs.map(function (x) { return '<p class="mt-2 break-words text-xs text-red-300/90">' + esc(x.channelName) + ': ' + esc(x.error) + '</p>'; }).join('') +
           g.filter(function (x) { return (x.status === 'scheduled' || x.status === 'processing') && x.attempts > 0 && x.error; }).map(function (x) {
-            return '<p class="mt-2 text-xs text-amber-300/90">Retrying (attempt ' + x.attempts + '): ' + esc(x.error) + '</p>';
+            return '<p class="mt-2 break-words text-xs text-amber-300/90">Retrying (attempt ' + x.attempts + '): ' + esc(x.error) + '</p>';
           }).join('') +
         '</div>' +
         (cancellable
-          ? '<div class="shrink-0 self-start">' +
+          ? '<div class="pcard-actions ml-[4.5rem] shrink-0 self-start sm:ml-0">' +
               (armed
                 ? '<button type="button" data-act="cancel" data-group="' + esc(p.groupId) + '" class="btn btn-danger btn-sm">Cancel post?</button>'
                 : '<button type="button" data-act="cancel" data-group="' + esc(p.groupId) + '" class="btn btn-ghost btn-sm">Cancel</button>') +
             '</div>'
           : S.tab === 'history'
-            ? '<div class="flex shrink-0 flex-wrap items-center gap-1.5 self-start">' +
+            ? '<div class="pcard-actions ml-[4.5rem] flex shrink-0 flex-wrap items-center gap-1.5 self-start sm:ml-0">' +
                 (g.some(function (x) { return x.status === 'sent'; })
                   ? (S.shares[p.groupId]
                       ? '<button type="button" data-act="sharecopy" data-group="' + esc(p.groupId) + '" class="btn btn-white btn-sm" title="Copy the public link">Copy link</button>' +
@@ -1456,7 +1456,7 @@
     $('balanceVal').textContent = balUsd(u.balanceUsd);
     pill.setAttribute('href', TOPUP); pill.hidden = false;
     var l = u.limit;
-    if (!l || !l.reached) { bar.hidden = true; return; }
+    if (!l || !l.reached) { bar.hidden = true; bar.style.display = ''; return; }
     var when = l.resetsAt ? 'It resets on ' + fmtResetDay.format(new Date(l.resetsAt * 1000)) + '.' : 'It does not reset.';
     var text, cta = 'Add funds', href = TOPUP;
     if (l.offersExtra && l.extraOn) {
@@ -1469,7 +1469,7 @@
     }
     $('quotaStopText').textContent = text;
     $('quotaStopCta').textContent = cta; $('quotaStopCta').setAttribute('href', href);
-    bar.hidden = false;
+    bar.hidden = false; bar.style.display = 'flex';
   }
   // Silent refresh (a post may have been sent through the API from another place, which changes the numbers).
   async function refreshApiQuietly() {

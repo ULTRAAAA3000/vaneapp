@@ -12,8 +12,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/vane.css?v=aa1317ecc8" />
-  <link rel="stylesheet" href="/assets/app.css?v=eed234c79b" />
+  <link rel="stylesheet" href="/assets/vane.css?v=79e5d10f4c" />
+  <link rel="stylesheet" href="/assets/app.css?v=afb7ed8188" />
 </head>
 
 <body class="min-h-screen overflow-x-hidden bg-[#070708]">
@@ -48,7 +48,7 @@
   <main id="app" class="relative mx-auto max-w-none px-5 pb-24 pt-8 opacity-0 transition-opacity duration-500 sm:px-8 sm:pt-10 lg:px-12">
 
     <!-- the hard stop: shown at the very top when the quota is used up (assets/dashboard.js renderLimit) -->
-    <section id="quotaStop" hidden class="fade-up sticky top-[4.5rem] z-30 mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-300/40 bg-[#2b2308]/95 px-5 py-4 shadow-xl shadow-black/40 backdrop-blur" role="status" aria-live="polite">
+    <section id="quotaStop" hidden class="fade-up sticky top-[4.5rem] z-30 mb-6 flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-300/40 bg-[#2b2308]/95 px-5 py-4 shadow-xl shadow-black/40 backdrop-blur" role="status" aria-live="polite">
       <p id="quotaStopText" class="min-w-0 flex-1 basis-80 text-sm leading-relaxed text-amber-100"></p>
       <a id="quotaStopCta" href="/topup" class="btn btn-white btn-sm shrink-0">Add funds</a>
     </section>
@@ -818,8 +818,9 @@
 
         <form id="liForm" class="mt-6 space-y-4" novalidate autocomplete="off">
           <div>
-            <label for="liName" class="lbl">Display name</label>
+            <label for="liName" class="lbl">Display name (optional)</label>
             <input id="liName" type="text" maxlength="80" placeholder="Same as your account" class="field" />
+            <p class="mt-1.5 text-xs text-white/40">Optional, shown only in Vane. You choose the account itself on the next page, on the network's own site.</p>
           </div>
 
           <div id="liErr" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
@@ -843,8 +844,9 @@
 
         <form id="thForm" class="mt-6 space-y-4" novalidate autocomplete="off">
           <div>
-            <label for="thName" class="lbl">Display name</label>
+            <label for="thName" class="lbl">Display name (optional)</label>
             <input id="thName" type="text" maxlength="80" placeholder="Same as your account" class="field" />
+            <p class="mt-1.5 text-xs text-white/40">Optional, shown only in Vane. You choose the account itself on the next page, on the network's own site.</p>
           </div>
 
           <div id="thErr" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
@@ -872,8 +874,9 @@
             <input id="rdSub" type="text" maxlength="24" autocapitalize="none" spellcheck="false" placeholder="r/webdev" class="field font-mono !text-[13px]" />
           </div>
           <div>
-            <label for="rdName" class="lbl">Display name</label>
+            <label for="rdName" class="lbl">Display name (optional)</label>
             <input id="rdName" type="text" maxlength="80" placeholder="Same as your account" class="field" />
+            <p class="mt-1.5 text-xs text-white/40">Optional, shown only in Vane. You choose the account itself on the next page, on the network's own site.</p>
           </div>
 
           <div id="rdErr" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
@@ -901,8 +904,9 @@
             <input id="pnBoard" type="text" maxlength="100" placeholder="My recipes" class="field" />
           </div>
           <div>
-            <label for="pnName" class="lbl">Display name</label>
+            <label for="pnName" class="lbl">Display name (optional)</label>
             <input id="pnName" type="text" maxlength="80" placeholder="Same as your board" class="field" />
+            <p class="mt-1.5 text-xs text-white/40">Optional, shown only in Vane. You choose the account itself on the next page, on the network's own site.</p>
           </div>
 
           <div id="pnErr" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
@@ -926,8 +930,9 @@
 
         <form id="fbForm" class="mt-6 space-y-4" novalidate autocomplete="off">
           <div>
-            <label for="fbName" class="lbl">Display name</label>
+            <label for="fbName" class="lbl">Display name (optional)</label>
             <input id="fbName" type="text" maxlength="80" placeholder="Same as your account" class="field" />
+            <p class="mt-1.5 text-xs text-white/40">Optional, shown only in Vane. You choose the account itself on the next page, on the network's own site.</p>
           </div>
 
           <div id="fbErr" role="alert" class="hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>
@@ -1189,7 +1194,7 @@
   <script src="/assets/vane.js?v=a2c867edc4"></script>
   <script src="/assets/media-picker.js?v=86dfab3b84"></script>
   <script src="/assets/insights.js?v=c81d5838ef"></script>
-  <script src="/assets/dashboard.js?v=448d200c03"></script>
+  <script src="/assets/dashboard.js?v=4983537b30"></script>
   <script src="/assets/ai.js?v=9076d3d765"></script>
   <script src="/assets/library.js?v=ebe5e2177b"></script>
   <script src="/assets/library-picker.js?v=75266cc3f5"></script>

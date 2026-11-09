@@ -1,4 +1,4 @@
-/* /topup: the prepaid balance. Add funds (a normal checkout, from $5), see the balance, and the one switch that lets extra use spend from it.
+/* /topup: the prepaid balance. Add funds (a normal checkout, from $10), see the balance, and the one switch that lets extra use spend from it.
    Backend: GET /api/balance, POST /api/usage/overage, checkout: /checkout?plan=balance&amount=N (functions/api/billing). */
 (function () {
   'use strict';

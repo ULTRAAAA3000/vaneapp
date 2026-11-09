@@ -13,8 +13,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/vane.css?v=aa1317ecc8" />
-  <link rel="stylesheet" href="/assets/app.css?v=eed234c79b" />
+  <link rel="stylesheet" href="/assets/vane.css?v=79e5d10f4c" />
+  <link rel="stylesheet" href="/assets/app.css?v=afb7ed8188" />
   <noscript><style>#gate{display:flex!important}</style></noscript>
 </head>
 
@@ -56,14 +56,14 @@
         <a id="upgradeTop" href="#plans" class="btn btn-white btn-sm hidden">Get Analytics Pro</a>
       </div>
       <div id="filters" class="glass-d mt-5 rounded-2xl p-3 sm:p-4">
-        <div class="flex flex-wrap items-start justify-between gap-3">
-          <div class="min-w-0 flex-1">
+        <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+          <div class="min-w-0 sm:flex-1">
             <p class="text-[11px] font-semibold uppercase tracking-wide text-white/45">Networks</p>
             <div id="chips" class="mt-2 flex flex-wrap gap-2"></div>
           </div>
-          <div>
+          <div class="flex items-center gap-3 sm:block">
             <label class="text-[11px] font-semibold uppercase tracking-wide text-white/45" for="range">Period</label>
-            <select id="range" class="field mt-2 !w-auto !py-2 text-sm"></select>
+            <select id="range" class="field !w-auto min-w-0 flex-1 !py-2 text-sm sm:mt-2 sm:flex-none"></select>
           </div>
         </div>
       </div>
@@ -81,6 +81,6 @@
     </main>
   </div>
   <script src="/assets/vane.js?v=a2c867edc4"></script>
-  <script src="/assets/analytics.js?v=3eeba287ea"></script>
+  <script src="/assets/analytics.js?v=1f5638e39a"></script>
 </body>
 </html>

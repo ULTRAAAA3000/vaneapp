@@ -256,3 +256,10 @@ html.is-leaving #app { opacity: 0 !important; transform: translateY(-8px); trans
 .chip-int:hover { color: #fff; border-color: rgba(255,255,255,.3); }
 .chip-int[aria-pressed="true"] { color: #fff; background: rgba(167,139,250,.22); border-color: rgba(167,139,250,.6); box-shadow: 0 0 14px rgba(167,139,250,.25); }
 @media (prefers-reduced-motion: reduce) { .term-cursor, .live-dot { animation: none; } }
+
+/* Post cards in the dashboard list: on a phone the buttons drop under the text (indented past the date tile) instead of squeezing it */
+@media (max-width: 639px) {
+  .pcard { flex-wrap: wrap; row-gap: .75rem; }
+  .pcard-main { flex: 1 1 calc(100% - 4.5rem); min-width: 0; }
+  .pcard-actions { margin-left: 4.5rem; }
+}
