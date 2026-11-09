@@ -10,7 +10,7 @@ import type { PagesFunction } from '@cloudflare/workers-types';
 import type { Env } from '../../../../types';
 import { requireUser } from '../../lib/auth';
 import { fail, json, methodNotAllowed } from '../../lib/http';
-import { listAssets, storageLimit, storageUsage } from '../../lib/library';
+import { libraryUsage, listAssets } from '../../lib/library';
 import { isMissingTable } from '../../lib/socials';
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
@@ -19,17 +19,16 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const url = new URL(request.url);
   const kindParam = url.searchParams.get('kind');
   try {
-    const [page, usage, limit] = await Promise.all([
+    const [page, usage] = await Promise.all([
       listAssets(env, auth.userId, {
         kind: kindParam === 'image' || kindParam === 'video' ? kindParam : undefined,
         q: url.searchParams.get('q') ?? '',
         cursor: url.searchParams.get('cursor'),
         origin: url.origin,
       }),
-      storageUsage(env, auth.userId),
-      storageLimit(env, auth.userId),
+      libraryUsage(env, auth.userId),
     ]);
-    return json({ ok: true, assets: page.assets, nextCursor: page.nextCursor, usage: { usedBytes: usage.usedBytes, count: usage.count, limitBytes: limit.bytes, upgrade: limit.upgrade } });
+    return json({ ok: true, assets: page.assets, nextCursor: page.nextCursor, usage });
   } catch (err) {
     if (isMissingTable(err)) return fail(503, 'The library is not set up yet.');
     throw err;

@@ -1,0 +1,70 @@
+#!/usr/bin/env node
+/**
+ * The "12.4 MB of 100 MB used · 9 files" line (public/assets/usage-meter.js) that the Library, the editor's upload box and the library
+ * dialog share. The real file runs in an isolated context with a fake Vane.api.   npm run test:unit
+ */
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
+
+const code = readFileSync('public/assets/usage-meter.js', 'utf8');
+function load({ host = 'vaneapp.dev', api = async () => ({ ok: false }) } = {}) {
+  const ctx = { Vane: { api }, location: { hostname: host } };
+  vm.runInNewContext(code, ctx);
+  return ctx.Vane.libraryUsage;
+}
+let passed = 0;
+const failed = [];
+const check = (name, cond, extra = '') => { if (cond) { passed++; console.log(`  ✓ ${name}`); } else { failed.push(name); console.log(`  ✗ ${name} ${extra}`); } };
+const MB = 1048576;
+const u = (usedMb, limitMb, count, upgrade = false) => ({ usedBytes: Math.round(usedMb * MB), count, limitBytes: limitMb === null ? null : limitMb * MB, upgrade });
+const { html } = load();
+
+console.log('\nWith a maximum');
+{
+  const h = html(u(12.4, 100, 9));
+  check('says "12.4 MB of 100 MB used" and "9 files"', h.includes('12.4 MB of 100 MB used') && h.includes('9 files'), h);
+  check('the meter is as wide as the share used (12%) and white', h.includes('width:12%') && h.includes('background:#fff'), h);
+  check('plenty of room: no warning', !/Running low|library is full/.test(h));
+  check('"1 file" in the singular', html(u(1, 100, 1)).includes('1 file<') && !html(u(1, 100, 1)).includes('1 files'));
+}
+{
+  const h = html(u(85, 100, 20));
+  check('85%: "Running low on room", the bar is still white', /Running low on room/.test(h) && h.includes('width:85%') && h.includes('#fff'), h);
+}
+{
+  const h = html(u(10, 10, 2, true));
+  check('Free Trial full: "10 MB of 10 MB", full bar in red, the library is full', h.includes('10 MB of 10 MB used') && h.includes('width:100%') && h.includes('#f87171') && h.includes('The library is full.'), h);
+  check('Free Trial full: points to the plans with more space', h.includes('see the plans with more space') && h.includes('href="/pricing"'), h);
+}
+{
+  const h = html(u(100, 100, 20, false));
+  check('a paid plan that is full: the same message, but no push to buy', h.includes('The library is full.') && !h.includes('plans with more space'), h);
+  check('over the maximum never draws more than 100%', html(u(12, 10, 3)).includes('width:100%'));
+  check('the plan link goes to the main site from the post and studio hosts', html(u(10, 10, 1, true)).includes('href="/pricing"') && load({ host: 'post.vaneapp.dev' }).html(u(10, 10, 1, true)).includes('href="https://vaneapp.dev/pricing"') && load({ host: 'studio.vaneapp.dev' }).html(u(10, 10, 1, true)).includes('href="https://vaneapp.dev/pricing"'));
+}
+
+console.log('\nWithout a maximum (limits not enforced)');
+{
+  const h = html(u(5, null, 3));
+  check('only what is used: "5 MB used · 3 files", no maximum, no meter', h.includes('5 MB used · 3 files') && !h.includes(' of ') && !h.includes('meter'), h);
+  check('an empty library says 0 KB', html(u(0, null, 0)).includes('0 KB used · 0 files'));
+  check('missing numbers never show as NaN or undefined', !/NaN|undefined/.test(html({})), html({}));
+}
+
+console.log('\nFilling a box from GET /api/library/usage');
+{
+  const box = () => ({ innerHTML: '', hidden: true, classList: { add(c) { if (c === 'hidden') this.owner.hidden = true; }, remove(c) { if (c === 'hidden') this.owner.hidden = false; } } });
+  const mk = () => { const b = box(); b.classList.owner = b; return b; };
+  let asked = null;
+  const ok = load({ api: async (m, path) => { asked = [m, path]; return { ok: true, data: { ok: true, usage: u(3, 10, 2, true) } }; } });
+  const b1 = mk(); await ok.show(b1);
+  check('asks GET /api/library/usage', asked && asked[0] === 'GET' && asked[1] === '/api/library/usage', JSON.stringify(asked));
+  check('fills the box and shows it', b1.innerHTML.includes('3 MB of 10 MB used') && b1.hidden === false, b1.innerHTML);
+  const b2 = mk(); b2.hidden = false; await load({ api: async () => ({ ok: false, status: 503 }) }).show(b2);
+  check('a failed answer (not set up, signed out) hides the box instead of showing a wrong number', b2.hidden === true && b2.innerHTML === '');
+  const b3 = mk(); b3.hidden = false; await load({ api: async () => ({ ok: true, data: { ok: true } }) }).show(b3);
+  check('an answer without numbers hides it too', b3.hidden === true);
+}
+
+console.log(`\n${passed} passed, ${failed.length} failed`);
+if (failed.length) process.exit(1);

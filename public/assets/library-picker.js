@@ -31,6 +31,7 @@
           '<p class="mt-0.5 text-xs text-white/45">Click a file to attach it to this post.</p></div>' +
           '<button type="button" class="icon-btn" data-lp="close" aria-label="Close">' + X + '</button>' +
         '</div>' +
+        '<div class="mt-4 hidden" data-lp="usage"></div>' +
         '<div class="mt-5 flex flex-wrap items-center gap-3">' +
           '<div class="flex gap-1.5" role="group" aria-label="Show" data-lp="kinds">' +
             '<button type="button" class="chip" data-kind="" aria-pressed="true">All</button>' +
@@ -94,6 +95,7 @@
       } else {
         S.items = append ? S.items.concat(r.data.assets) : r.data.assets;
         S.cursor = r.data.nextCursor;
+        if (r.data.usage && Vane.libraryUsage) { q('usage').innerHTML = Vane.libraryUsage.html(r.data.usage); q('usage').classList.remove('hidden'); }
       }
       render();
     });
