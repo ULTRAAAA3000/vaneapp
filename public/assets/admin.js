@@ -425,13 +425,16 @@
     ['postsLifetime', 'Posts in total (trial style)', 'int', 'empty = not a trial'],
     ['channels', 'Connected channels', 'int', 'empty = unlimited'],
     ['aiCredits', 'AI credits', 'int', 'empty = unlimited'],
-    ['storageMb', 'Library storage, MB', 'int', 'empty = default (Free 10, paid 100); custom plan: unlimited'],
+    ['storageMb', 'Library storage, MB', 'int', 'empty = default (Free 10, others 100)'],
     ['apiAccess', 'API access (1 yes, 0 no)', 'int', 'empty = yes if it has API posts'],
     ['overagePostUsd', 'Extra post price, USD', 'float', 'empty = the plan just stops'],
     ['overageAiPostUsd', 'Extra AI post price, USD', 'float', 'empty = same as an extra post'],
     ['seats', 'Team seats', 'int', 'stored, not enforced yet']
   ];
   var PROVIDERS = [['csob', 'ČSOB (card, Apple Pay, Google Pay)'], ['paypal', 'PayPal'], ['monobank', 'Monobank Acquiring'], ['crypto', 'Crypto (Solana / USDT)'], ['stripe', 'Stripe']];
+
+  var STORAGE_PLANS = ['free', 'pro', 'video', 'suite'];
+  function limitsFor(id) { return LIMITS.filter(function (x) { return x[0] !== 'storageMb' || STORAGE_PLANS.indexOf(id) !== -1; }); }
 
   function limitsSummary(l) {
     var out = [];
@@ -485,7 +488,7 @@
         '<div class="sm:col-span-2"><label class="lbl" for="pFeatures">Features (one per line)</label><textarea id="pFeatures" class="field" rows="6">' + esc(p.features.join('\n')) + '</textarea></div>' +
       '</div>' +
       '<h4 class="mt-6 text-sm font-semibold">Limits <span class="font-normal text-white/40">(enforced by the API engine, live within seconds)</span></h4><div class="mt-3 grid gap-4 sm:grid-cols-2">' +
-        LIMITS.map(function (l) { return field('pL_' + l[0], l[1], typeof p.limits[l[0]] === 'number' ? p.limits[l[0]] : '', { type: 'number', ph: l[3], attrs: 'min="0"' + (l[2] === 'float' ? ' step="0.001"' : ' step="1"') }); }).join('') + '</div>' +
+        limitsFor(p.id).map(function (l) { return field('pL_' + l[0], l[1], typeof p.limits[l[0]] === 'number' ? p.limits[l[0]] : '', { type: 'number', ph: l[3], attrs: 'min="0"' + (l[2] === 'float' ? ' step="0.001"' : ' step="1"') }); }).join('') + '</div>' +
       '<h4 class="mt-6 text-sm font-semibold">Payment provider references <span class="font-normal text-white/40">(optional notes for your own records; checkout does not need them)</span></h4><div class="mt-3 grid gap-4 sm:grid-cols-3">' +
         PROVIDERS.map(function (x) { return field('pR_' + x[0], x[1], p.providerRefs[x[0]] || '', { ph: 'product / price id' }); }).join('') + '</div>' +
       '<div id="planErr" role="alert" class="mt-5 hidden rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"></div>' +
@@ -506,12 +509,13 @@
     var compare = cents('pCompare'), yearly = cents('pYearly');
     if (isNaN(compare) || isNaN(yearly)) return err('Old price / yearly price must be numbers.');
     var limits = {};
-    for (var i = 0; i < LIMITS.length; i++) {
-      var raw = $('pL_' + LIMITS[i][0]).value.trim();
+    var own = limitsFor(creating ? '' : id);
+    for (var i = 0; i < own.length; i++) {
+      var raw = $('pL_' + own[i][0]).value.trim();
       if (raw === '') continue;
       var v = Number(raw);
-      if (isNaN(v) || v < 0) return err('Limit "' + LIMITS[i][1] + '" must be a positive number.');
-      limits[LIMITS[i][0]] = v;
+      if (isNaN(v) || v < 0) return err('Limit "' + own[i][1] + '" must be a positive number.');
+      limits[own[i][0]] = v;
     }
     var refs = {};
     PROVIDERS.forEach(function (x) { var v = $('pR_' + x[0]).value.trim(); if (v) refs[x[0]] = v; });

@@ -204,11 +204,24 @@ export function specFromCatalog(id: string, label: string, limits: Record<string
     overage: op !== null || oa !== null ? { post: Math.round((op ?? oa ?? 0) * USD), aiPost: Math.round((oa ?? op ?? 0) * USD) } : null,
     channels: count(limits.channels),
     aiCredits: count(limits.aiCredits),
-    storageMb: count(limits.storageMb) ?? BUILTIN[id]?.storageMb ?? null,
+    storageMb: count(limits.storageMb),
   };
 }
 
 const BUILTIN: Record<string, PlanSpec> = { ...PLANS };
+
+/** Only these plans carry a Library storage limit of their own (set in /admin → Plans); every other plan follows the Pro Dashboard's. */
+export const STORAGE_PLAN_IDS = ['free', 'pro', 'video', 'suite'];
+const FREE_STORAGE_MB = 10;
+const PRO_STORAGE_MB = 100;
+
+function settleStorage(specs: Record<string, PlanSpec>): void {
+  const pro = specs.pro?.storageMb ?? PRO_STORAGE_MB;
+  for (const [id, spec] of Object.entries(specs)) {
+    const own = STORAGE_PLAN_IDS.includes(id) ? spec.storageMb : null;
+    specs[id] = { ...spec, storageMb: id === 'free' ? own ?? FREE_STORAGE_MB : own ?? pro };
+  }
+}
 let loadedAt = 0;
 
 /** Reloads the specs from the plans table (cached 15 s per isolate). Call before reading PLANS in a request. */
@@ -233,6 +246,7 @@ export async function refreshPlanSpecs(env: { DB: D1Database }): Promise<void> {
       }
       next[r.id] = specFromCatalog(r.id, r.name, limits);
     }
+    settleStorage(next);
     for (const k of Object.keys(PLANS)) delete PLANS[k];
     Object.assign(PLANS, next);
     addonPosts = addon;

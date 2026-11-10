@@ -357,5 +357,23 @@ console.log('\nThe hourly clean-up: one account that fails does not stop the oth
   check('the failing account keeps its files and its clock, so it is tried again next hour', db.prepare(`SELECT COUNT(*) n FROM media_assets WHERE user_id = 'u1'`).get().n === 2 && db.prepare(`SELECT COUNT(*) n FROM storage_overages WHERE user_id = 'u1'`).get().n === 1);
 }
 
+console.log('\nOnly Free, Pro, Studio and Suite have their own storage; every other plan follows Pro');
+{
+  const { env, db } = await fresh({ plan: 'free' });
+  addAccount(db, 'u4', 'api'); addAccount(db, 'u5', 'suite'); addAccount(db, 'u6', 'pro');
+  check('the Developer API plan starts at Pro\'s 100 MB', (await lim(env, 'u4')).limitBytes === 100 * MB);
+  await setPlanMb(env, db, 'suite', undefined);
+  await setPlanMb(env, db, 'pro', 250);
+  check('Pro at 250 MB: Pro, the Developer API plan and a Suite without a value of its own all move to 250', (await lim(env, 'u6')).limitBytes === 250 * MB && (await lim(env, 'u4')).limitBytes === 250 * MB && (await lim(env, 'u5')).limitBytes === 250 * MB);
+  await setPlanMb(env, db, 'api', 7);
+  check('a value saved on the Developer API plan is ignored: it still follows Pro', (await lim(env, 'u4')).limitBytes === 250 * MB);
+  await setPlanMb(env, db, 'suite', 400);
+  check('the Suite with its own value uses it (400 MB), Pro stays at 250', (await lim(env, 'u5')).limitBytes === 400 * MB && (await lim(env, 'u6')).limitBytes === 250 * MB);
+  await setPlanMb(env, db, 'pro', undefined);
+  check('Pro with the field emptied is back to 100 MB, and the Developer API plan with it', (await lim(env, 'u6')).limitBytes === 100 * MB && (await lim(env, 'u4')).limitBytes === 100 * MB);
+  await setPlanMb(env, db, 'free', undefined);
+  check('Free with the field emptied is 10 MB', (await lim(env, 'u1')).limitBytes === 10 * MB);
+}
+
 console.log(`\n${passed} passed, ${failed.length} failed`);
 if (failed.length) process.exit(1);
