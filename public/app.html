@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/assets/vane.css?v=6501e89c86" />
-  <link rel="stylesheet" href="/assets/app.css?v=e3b35b5e6e" />
+  <link rel="stylesheet" href="/assets/app.css?v=d0467a2c5d" />
 </head>
 
 <body class="min-h-screen overflow-x-hidden bg-[#070708]">
@@ -219,6 +219,7 @@
           <span id="nowLabel">Post now</span>
         </button>
         <button id="draftBtn" type="button" class="btn btn-ghost !py-3">Save draft</button>
+        <button id="csvBtn" type="button" class="btn btn-ghost !py-3" title="Schedule many posts at once from a spreadsheet">Import CSV</button>
         <span id="hint" class="text-xs text-white/45"></span>
       </div>
     </section>
@@ -1197,6 +1198,51 @@
   </dialog>
 
   <!-- ═══════════ CREATE AN API KEY ═══════════ -->
+  <dialog id="csvDialog" class="vane-dialog" style="max-width:min(40rem,calc(100vw - 1.5rem))" aria-labelledby="csvTitle">
+    <div class="glass-d-strong max-h-[calc(100vh-2rem)] overflow-y-auto rounded-3xl p-6 shadow-2xl sm:p-8">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h2 id="csvTitle" class="text-xl font-semibold tracking-tight">Import posts from a spreadsheet</h2>
+          <p class="mt-1 text-sm text-white/55">One row per post. You see every row checked before anything is scheduled.</p>
+        </div>
+        <button id="csvClose" type="button" class="icon-btn" aria-label="Close"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+
+      <div id="csvPick" class="mt-6">
+        <label id="csvDrop" for="csvFile" class="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-white/20 bg-white/[0.03] px-6 py-10 text-center transition-colors hover:bg-white/[0.06]">
+          <svg class="h-7 w-7 text-white/60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0l-4 4m4-4l4 4M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/></svg>
+          <span class="text-sm font-medium">Choose a .csv file or drop it here</span>
+          <span class="text-xs text-white/45">Up to 200 posts, 1 MB. Excel and Google Sheets: File → Download → CSV.</span>
+          <input id="csvFile" type="file" accept=".csv,text/csv" class="sr-only" />
+        </label>
+        <p id="csvError" class="mt-3 hidden rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200" role="alert"></p>
+        <div class="mt-6 rounded-2xl bg-white/[0.04] p-4 text-sm text-white/65">
+          <p class="font-medium text-white/85">Columns</p>
+          <ul class="mt-2 space-y-1.5 text-[13px] leading-relaxed">
+            <li><b class="font-semibold text-white">text</b>: the post.</li>
+            <li><b class="font-semibold text-white">date</b>: <span class="font-mono text-xs">2026-11-20 09:30</span> or <span class="font-mono text-xs">20.11.2026 09:30</span>, in your time zone.</li>
+            <li><b class="font-semibold text-white">networks</b> (optional): <span class="font-mono text-xs">telegram; bluesky</span>. Empty means all your channels.</li>
+            <li><b class="font-semibold text-white">image</b> (optional): an https link to a picture.</li>
+          </ul>
+          <a id="csvTemplate" href="#" class="mt-3 inline-block text-[13px] font-medium text-white underline decoration-white/30 underline-offset-4 hover:decoration-white">Download a ready template</a>
+        </div>
+      </div>
+
+      <div id="csvReview" class="mt-6" hidden>
+        <div class="flex items-center justify-between gap-3">
+          <p id="csvSummary" class="text-sm font-medium text-white/85"></p>
+          <button id="csvAgain" type="button" class="text-xs font-medium text-white/55 underline underline-offset-4 hover:text-white">Choose another file</button>
+        </div>
+        <p id="csvCut" class="mt-1 text-xs text-white/45"></p>
+        <ul id="csvList" class="mt-3 max-h-[46vh] divide-y divide-white/[0.06] overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.03]"></ul>
+        <p class="mt-3 text-xs text-white/40">Rows with a problem are skipped. Each post counts toward your plan like one scheduled in the editor.</p>
+        <div class="mt-5 flex justify-end">
+          <button id="csvGo" type="button" class="btn btn-white !py-3"><span id="csvGoLabel">Schedule posts</span></button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="keyDialog" class="vane-dialog" aria-labelledby="keyTitle">
     <div class="glass-d-strong max-h-[calc(100vh-2rem)] overflow-y-auto rounded-3xl p-6 shadow-2xl sm:p-8">
       <div class="flex items-start justify-between gap-4">
@@ -1280,6 +1326,7 @@
   <script src="/assets/snippets.js?v=2833a28950"></script>
   <script src="/assets/feeds.js?v=4562864d9f"></script>
   <script src="/assets/drafts.js?v=9ce82a983a"></script>
+  <script src="/assets/csv-import.js?v=95941ee259"></script>
   <script src="/assets/aistudio.js?v=39adbe9fb7"></script>
   <script src="/assets/aihistory.js?v=72fff6ab0e"></script>
   <script src="/assets/onboarding.js?v=76d0855c09"></script>
