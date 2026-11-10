@@ -17,8 +17,19 @@
 </head>
 
 <body class="min-h-screen overflow-x-hidden bg-[#070708]">
-  <!-- Background: same video as the landing hero, darkened so the form is always readable -->
-  <video class="fixed inset-0 h-full w-full object-cover" src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260803_192301_9231ed6b-c55c-4a48-909c-4ebe11cf2e11.mp4" autoplay loop muted playsinline aria-hidden="true"></video>
+  <!-- Background: the same video as the landing hero (same files, poster and loading rules), darkened so the form is always readable.
+       The file is the pull-back followed by the same shot reversed, so the plain loop never cuts. If it fails to load, the browser falls back to the original clip. -->
+  <video id="heroVideo" class="fixed inset-0 h-full w-full object-cover" poster="/assets/hero-poster-v2.jpg" autoplay loop muted playsinline preload="auto" aria-hidden="true"></video>
+  <script>
+    (function () {
+      var v = document.getElementById('heroVideo');
+      var c = navigator.connection || {};
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches || c.saveData) return;
+      v.src = matchMedia('(max-width: 767px)').matches ? '/assets/hero-boomerang-v2-m.mp4' : '/assets/hero-boomerang-v2.mp4';
+      v.addEventListener('error', function () { v.src = 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260803_192301_9231ed6b-c55c-4a48-909c-4ebe11cf2e11.mp4'; }, { once: true });
+      v.play().catch(function () {});
+    })();
+  </script>
   <div class="fixed inset-0 bg-gradient-to-b from-black/55 via-black/45 to-black/80" aria-hidden="true"></div>
 
   <div class="relative z-10 flex min-h-screen flex-col">
