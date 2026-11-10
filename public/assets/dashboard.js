@@ -1259,6 +1259,9 @@
     if (e.target && e.target.tagName === 'IMG' && e.target.hasAttribute('data-hide-on-error')) e.target.style.display = 'none';
   }, true);
 
+  try { $('utmOn').checked = localStorage.getItem('vane.utm') === '1'; } catch (e) { /* private mode */ }
+  $('utmOn').addEventListener('change', function () { try { localStorage.setItem('vane.utm', this.checked ? '1' : '0'); } catch (e) { /* private mode */ } });
+
   // submit: Schedule uses the picked time; Post now queues it for the next sender run (it goes out within about a minute)
   async function submitPost(now) {
     var problem = validate();
@@ -1275,6 +1278,7 @@
       scheduledAt: now ? new Date(Date.now() + 5000).toISOString() : new Date(whenEl.value).toISOString()
     };
     if (currentMedia()) body.mediaUrl = currentMedia();
+    if ($('utmOn').checked) body.utm = true;
 
     var r = await Vane.api('POST', '/api/posts', body);
     S.submitting = false;

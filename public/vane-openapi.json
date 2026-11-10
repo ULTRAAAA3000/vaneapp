@@ -742,6 +742,10 @@
             "format": "uri",
             "nullable": true,
             "description": "Public https URL of an image (optional)"
+          },
+          "utm": {
+            "type": "boolean",
+            "description": "true adds utm_source=<network> and utm_medium=social to every link in the text, separately for each channel (links that already have utm_source are left alone). Default false"
           }
         }
       },
