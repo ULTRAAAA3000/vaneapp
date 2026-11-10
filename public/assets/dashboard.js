@@ -31,6 +31,7 @@
   var EXT = '<svg class="h-3 w-3 text-white/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M8 7h9v9"/></svg>';
   var ICON = {
     trash: '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6M10 11v6M14 11v6"/></svg>',
+    spark: '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 16v4M17 18h4"/></svg>',
     clock: '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
     video: '<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="14" height="14" rx="3"/><path d="M16 10l6-3v10l-6-3z"/></svg>',
     image: '<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>'
@@ -821,18 +822,22 @@
       { label: 'Tomorrow 18:00', value: toLocalInput(t18) }
     ];
     usualVal = undefined; // the "usual time" chip is rebuilt by the next stats render
+    best.list = null; best.val = ''; hideBest(); // a new post: the free slots may have changed
     whenEl.value = QUICK[1].value;
     renderQuick();
   }
   function renderQuick() {
     $('quick').innerHTML = QUICK.map(function (q, i) {
       return '<button type="button" class="chip" data-i="' + i + '" aria-pressed="false">' + ICON.clock + '<span>' + esc(q.label) + '</span></button>';
-    }).join('');
+    }).join('') + '<button type="button" class="chip" data-best="1" aria-pressed="false" title="The hour when your own posts got the most reactions">' + ICON.spark + '<span>Best time</span></button>';
     syncQuick();
   }
   function syncQuick() {
-    var btns = $('quick').querySelectorAll('button');
+    var btns = $('quick').querySelectorAll('button[data-i]');
     for (var i = 0; i < btns.length; i++) btns[i].setAttribute('aria-pressed', String(QUICK[i].value === whenEl.value));
+    var bb = $('quick').querySelector('button[data-best]');
+    if (bb) bb.setAttribute('aria-pressed', String(Boolean(best.val) && best.val === whenEl.value));
+    if (best.val && best.val !== whenEl.value) { best.val = ''; hideBest(); } // another time was picked: the note no longer applies
     renderWeek();
   }
 
@@ -851,6 +856,47 @@
     QUICK = QUICK.slice(0, 3);
     if (val) QUICK.push({ label: label, value: val });
     renderQuick();
+  }
+
+  // "Best time": the hours when your own posts got the most reactions (the calculation behind the MCP tool vane_best_times), on the free
+  // days ahead. The first press asks the server; every press after that moves to the next of the 3 suggestions. Paid plans only.
+  var best = { list: null, at: 0, i: -1, personal: false, busy: false, val: '' };
+  var fmtBest = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  function hideBest() { var h = $('bestHint'); if (h) { h.classList.add('hidden'); h.textContent = ''; } }
+  function showBest(text, link) {
+    var h = $('bestHint'); if (!h) return;
+    h.textContent = text + (link ? ' ' : '');
+    if (link) { var a = document.createElement('a'); a.href = link.href; a.textContent = link.label; a.className = 'underline underline-offset-2 hover:text-white'; h.appendChild(a); }
+    h.classList.remove('hidden');
+  }
+  async function pickBest() {
+    if (best.busy) return;
+    var fresh = best.list && best.list.length && Date.now() - best.at < 5 * 60000 && best.list.every(function (t) { return t * 1000 > Date.now() + 5 * 60000; });
+    if (!fresh) {
+      best.busy = true;
+      var btn = $('quick').querySelector('button[data-best]');
+      if (btn) { btn.disabled = true; btn.querySelector('span').textContent = 'Finding…'; }
+      var tz = ''; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { /* the server falls back to the saved zone */ }
+      var r = await Vane.api('GET', '/api/posts/best-times?count=3' + (tz ? '&tz=' + encodeURIComponent(tz) : ''));
+      best.busy = false;
+      renderQuick();
+      if (!r.ok) {
+        if (r.status === 402) showBest('Best time is part of the paid plans.', { href: '/pricing', label: 'See plans' });
+        else showBest(r.status === 429 ? 'Too many requests. Try again in a bit.' : 'Could not work out the best time. Pick a time yourself.');
+        return;
+      }
+      best.list = r.data.slots || []; best.personal = Boolean(r.data.personal); best.at = Date.now(); best.i = -1;
+    }
+    if (!best.list.length) { showBest('No free slot was found in the coming days. Pick a time yourself.'); return; }
+    best.i = (best.i + 1) % best.list.length;
+    var when = new Date(best.list[best.i] * 1000);
+    whenEl.value = toLocalInput(when);
+    best.val = whenEl.value;
+    var more = best.list.length > 1 ? ' Press again for the next one (' + (best.i + 1) + '/' + best.list.length + ').' : '';
+    showBest(best.personal
+      ? 'Best time: ' + fmtBest.format(when) + '. From when your own posts got the most reactions.' + more
+      : 'Suggested: ' + fmtBest.format(when) + '. Not enough results yet to know your best hours, so this is a sensible default (morning, midday or evening).' + more);
+    syncQuick(); renderPreview(); validate();
   }
 
   // The next 7 days as tiles: a dot for every post already scheduled that day; a tap sets the day and keeps the time of day.
@@ -881,6 +927,7 @@
   });
   $('quick').addEventListener('click', function (e) {
     var b = e.target.closest('button'); if (!b) return;
+    if (b.getAttribute('data-best')) return pickBest();
     whenEl.value = QUICK[Number(b.getAttribute('data-i'))].value;
     syncQuick(); renderPreview(); validate();
   });
