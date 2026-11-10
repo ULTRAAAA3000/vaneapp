@@ -1496,6 +1496,12 @@
     $('balanceVal').textContent = balUsd(u.balanceUsd);
     pill.setAttribute('href', TOPUP); pill.hidden = false;
     var l = u.limit;
+    // The yellow "go Pro" nudge: only on the Free Trial, and not while the stop banner below already says "Choose a plan".
+    var promo = $('proPromo'), showPromo = !!promo && u.plan.id === 'free' && !(l && l.reached);
+    if (promo) {
+      promo.hidden = !showPromo; promo.style.display = showPromo ? 'flex' : '';
+      if (showPromo) { $('proPromoPlan').textContent = u.plan.label; promo.setAttribute('href', Vane.siteHome() + 'pricing'); }
+    }
     if (!l || !l.reached) { bar.hidden = true; bar.style.display = ''; return; }
     var when = l.resetsAt ? 'It resets on ' + fmtResetDay.format(new Date(l.resetsAt * 1000)) + '.' : 'It does not reset.';
     var text, cta = 'Add funds', href = TOPUP;
