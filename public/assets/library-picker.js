@@ -10,6 +10,8 @@
   var esc = Vane.esc;
 
   var X = '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  var EXPAND = '<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
+  var CHECK = '<svg class="lb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>';
   var PLAY = '<svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
 
   var dlg = null;
@@ -53,6 +55,8 @@
     q('retry').addEventListener('click', function () { load(false); });
     q('more').addEventListener('click', function () { load(true); });
     q('grid').addEventListener('click', function (e) {
+      var v = e.target.closest ? e.target.closest('button[data-view]') : null;
+      if (v) { preview(v.getAttribute('data-view')); return; }
       var b = e.target.closest ? e.target.closest('button[data-id]') : null;
       if (!b) return;
       var asset = S.items.filter(function (a) { return a.id === b.getAttribute('data-id'); })[0];
@@ -107,10 +111,21 @@
       ? '<video src="' + esc(src) + '#t=0.1" muted playsinline preload="metadata" class="h-full w-full object-cover"></video>' +
         '<span class="absolute bottom-1.5 left-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/65 text-white">' + PLAY + '</span>'
       : '<img src="' + esc(src) + '" alt="" loading="lazy" decoding="async" class="h-full w-full object-cover" />';
-    return '<button type="button" class="group min-w-0 rounded-xl text-left focus-visible:outline-none" data-id="' + esc(a.id) + '" aria-label="Attach ' + esc(a.name) + '">' +
+    return '<div class="lp-cell relative min-w-0"><button type="button" class="group w-full min-w-0 rounded-xl text-left focus-visible:outline-none" data-id="' + esc(a.id) + '" aria-label="Attach ' + esc(a.name) + '">' +
       '<span class="relative block aspect-square overflow-hidden rounded-xl bg-white/[0.05] ring-1 ring-white/5 transition group-hover:ring-white/40 group-focus-visible:ring-2 group-focus-visible:ring-white">' + media + '</span>' +
       '<span class="mt-1.5 block truncate text-xs font-medium" title="' + esc(a.name) + '">' + esc(a.name) + '</span>' +
-      '<span class="block truncate text-[11px] text-white/40">' + fmtSize(a.size) + '</span></button>';
+      '<span class="block truncate text-[11px] text-white/40">' + fmtSize(a.size) + '</span></button>' +
+      '<button type="button" class="lp-view" data-view="' + esc(a.id) + '" aria-label="Preview ' + esc(a.name) + ' full size">' + EXPAND + '</button></div>';
+  }
+
+  // A full-size look before attaching: the viewer opens above this dialog and has its own "Use this file" button.
+  function preview(id) {
+    var list = S.items;
+    if (!window.Vane || !Vane.lightbox) return;
+    var at = 0; list.forEach(function (a, i) { if (a.id === id) at = i; });
+    Vane.lightbox.open(list.map(function (a) { return { src: '/api/media/' + a.key, kind: a.kind, name: a.name, sub: fmtSize(a.size) + (a.width ? ' · ' + a.width + '×' + a.height : ''), asset: a }; }), at, { actions: [
+      { label: 'Use this file', icon: CHECK, run: function (it) { var cb = S.onPick; Vane.lightbox.close(); dlg.close(); if (cb) cb(it.asset); } }
+    ] });
   }
 
   function render() {

@@ -23,7 +23,10 @@
   var ICON = {
     copy: SVG + '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>',
     trash: SVG + '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>',
-    play: '<svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>'
+    play: '<svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
+    expand: SVG + '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
+    download: SVG + '<path d="M12 4v11M7 11l5 5 5-5"/><path d="M5 20h14"/></svg>',
+    external: SVG + '<path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>'
   };
 
   var S = { view: '', items: [], cursor: null, kind: '', q: '', usage: null, loading: false, error: '', uploading: false, armed: null, armTimer: 0 };
@@ -122,6 +125,7 @@
       : '<button type="button" class="' + BTN + '" data-act="del" data-id="' + esc(a.id) + '" aria-label="Delete ' + esc(a.name) + '">' + ICON.trash + '</button>';
     return '<article class="min-w-0" data-id="' + esc(a.id) + '">' +
       '<div class="relative aspect-square overflow-hidden rounded-2xl bg-white/[0.05] ring-1 ring-white/5">' + media +
+        '<button type="button" class="lib-open" data-act="view" data-id="' + esc(a.id) + '" aria-label="Open ' + esc(a.name) + ' full size"><span class="lib-open-ic">' + ICON.expand + '</span></button>' +
         (a.inUse ? '<span class="absolute left-2 top-2 rounded-full bg-black/65 px-2 py-0.5 text-[10px] font-medium text-white/85">In a post</span>' : '') +
         '<div class="absolute right-2 top-2 flex gap-1.5"><button type="button" class="' + BTN + '" data-act="copy" data-id="' + esc(a.id) + '" aria-label="Copy link to ' + esc(a.name) + '">' + ICON.copy + '</button>' + del + '</div>' +
       '</div>' +
@@ -166,13 +170,26 @@
     if (b) { b.className = BTN; b.innerHTML = ICON.trash; }
     S.armed = null;
   }
+  // Full-size preview in Vane's own viewer (assets/lightbox.js): every file on the page, arrows to move, copy / download from there.
+  function openViewer(item) {
+    if (!window.Vane || !Vane.lightbox) { window.open('/api/media/' + item.key, '_blank', 'noopener'); return; }
+    var list = S.items.map(function (a) { return { src: '/api/media/' + a.key, kind: a.kind, name: a.name, sub: fmtSize(a.size) + (a.width ? ' · ' + a.width + '×' + a.height : '') + ' · ' + fmtDate(a.createdAt), asset: a }; });
+    var at = 0; list.forEach(function (x, i) { if (x.asset.id === item.id) at = i; });
+    Vane.lightbox.open(list, at, { actions: [
+      { label: 'Copy link', icon: ICON.copy, run: function (it) { copyText(it.asset.url).then(function () { Vane.toast('ok', 'Link copied.'); }, function () { Vane.toast('err', 'Could not copy the link.'); }); } },
+      { label: 'Download', icon: ICON.download, href: function (it) { return it.src; }, download: function (it) { return it.name; } },
+      { label: 'Open original', icon: ICON.external, cls: 'lb-hide-sm', href: function (it) { return it.src; }, newTab: true }
+    ] });
+  }
   function onGridClick(e) {
     var btn = e.target.closest ? e.target.closest('button[data-act]') : null;
     if (!btn) return;
     var id = btn.getAttribute('data-id'), act = btn.getAttribute('data-act');
     var item = S.items.filter(function (a) { return a.id === id; })[0];
     if (!item) return;
-    if (act === 'copy') {
+    if (act === 'view') {
+      openViewer(item);
+    } else if (act === 'copy') {
       copyText(item.url).then(function () { Vane.toast('ok', 'Link copied.'); }, function () { Vane.toast('err', 'Could not copy. Select the link in the post form instead.'); });
     } else if (act === 'del') {
       if (S.armed !== id) {                                 // first click: ask
