@@ -22,9 +22,15 @@ writeFileSync(join(dir, 'entry.ts'), [
   `export * as session from '${root}/functions/api/lib/session.ts';`,
   `export * as settings from '${root}/functions/api/lib/settings.ts';`,
   `export * as storage from '${root}/worker/src/storage.ts';`,
+  `export * as plansApi from '${root}/functions/api/admin/plans.ts';`,
+  `export * as plans from '${root}/functions/api/lib/plans.ts';`,
 ].join('\n'));
-await build({ entryPoints: [join(dir, 'entry.ts')], bundle: true, format: 'esm', platform: 'node', outfile: join(dir, 'all.mjs'), logLevel: 'silent' });
-const { upload, list, one, usageApi, session, settings, storage } = await import(pathToFileURL(join(dir, 'all.mjs')).href);
+const adminStub = { name: 'admin-stub', setup(b) {
+  b.onResolve({ filter: /lib\/admin$/ }, () => ({ path: 'admin-stub', namespace: 'stub' }));
+  b.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: 'export const requireAdmin = async () => ({ ok: true, adminId: "a" }); export const audit = async () => {};', loader: 'js' }));
+} };
+await build({ entryPoints: [join(dir, 'entry.ts')], bundle: true, format: 'esm', platform: 'node', outfile: join(dir, 'all.mjs'), logLevel: 'silent', plugins: [adminStub] });
+const { upload, list, one, usageApi, session, settings, storage, plansApi, plans } = await import(pathToFileURL(join(dir, 'all.mjs')).href);
 rmSync(dir, { recursive: true, force: true });
 
 let passed = 0;
@@ -69,14 +75,14 @@ function build_({ plan = 'free', status = 'active', periodEnd = null, latency = 
   db.prepare(`INSERT INTO subscriptions (user_id, plan, status, current_period_end) VALUES ('u1', ?, ?, ?)`).run(plan, status, periodEnd);
   return { db, env };
 }
-// getSettings() remembers its answer for 15 s; saveSettings() clears that memory
-async function fresh(opts = {}) { const f = build_(opts); await settings.saveSettings(f.env, { enforce_limits: opts.enforce ?? true }); return f; }
+// getSettings() and the plan table are remembered for 15 s per isolate; saveSettings() and invalidatePlanSpecs() clear that memory, so every scenario starts clean
+async function fresh(opts = {}) { plans.invalidatePlanSpecs(); const f = build_(opts); await settings.saveSettings(f.env, { enforce_limits: opts.enforce ?? true }); return f; }
 
-const cookie = async (env) => `${session.SESSION_COOKIE ?? 'vane_session'}=${await session.createSession(env, new Request('https://vaneapp.dev/'), 'u1')}`;
-const headers = async (env) => ({ cookie: await cookie(env), origin: 'https://vaneapp.dev', 'sec-fetch-site': 'same-origin', 'cf-connecting-ip': '203.0.113.9' });
-async function put(env, bytes, name = 'photo.png') {
+const cookie = async (env, uid = 'u1') => `${session.SESSION_COOKIE ?? 'vane_session'}=${await session.createSession(env, new Request('https://vaneapp.dev/'), uid)}`;
+const headers = async (env, uid = 'u1') => ({ cookie: await cookie(env, uid), origin: 'https://vaneapp.dev', 'sec-fetch-site': 'same-origin', 'cf-connecting-ip': '203.0.113.9' });
+async function put(env, bytes, name = 'photo.png', uid = 'u1') {
   const fd = new FormData(); fd.append('file', new File([bytes], name, { type: 'image/png' }));
-  const res = await upload.onRequestPost({ request: new Request('https://vaneapp.dev/api/media/upload', { method: 'POST', body: fd, headers: await headers(env) }), env, params: {}, waitUntil() {} });
+  const res = await upload.onRequestPost({ request: new Request('https://vaneapp.dev/api/media/upload', { method: 'POST', body: fd, headers: await headers(env, uid) }), env, params: {}, waitUntil() {} });
   let data = null; try { data = await res.json(); } catch { /* */ }
   return { status: res.status, data };
 }
@@ -84,8 +90,8 @@ async function usage(env) {
   const res = await list.onRequestGet({ request: new Request('https://vaneapp.dev/api/library/assets', { headers: await headers(env) }), env, params: {}, waitUntil() {} });
   return (await res.json()).usage;
 }
-async function onlyUsage(env, signedIn = true) {
-  const res = await usageApi.onRequestGet({ request: new Request('https://vaneapp.dev/api/library/usage', { headers: signedIn ? await headers(env) : {} }), env, params: {}, waitUntil() {} });
+async function onlyUsage(env, signedIn = true, uid = 'u1') {
+  const res = await usageApi.onRequestGet({ request: new Request('https://vaneapp.dev/api/library/usage', { headers: signedIn ? await headers(env, uid) : {} }), env, params: {}, waitUntil() {} });
   return { status: res.status, data: await res.json() };
 }
 async function remove(env, id) {
@@ -261,6 +267,94 @@ console.log('\nA plan with no storage value of its own (the admin left the field
   db.exec(`INSERT INTO plans (id, kind, name, limits, price_cents, is_active, interval) VALUES ('pro', 'plan', 'Pro', '{"postsPerMonth":1000}', 1199, 1, 'month') ON CONFLICT(id) DO UPDATE SET limits = excluded.limits`);
   const u = (await onlyUsage(env)).data.usage;
   check('falls back to the built-in 100 MB, not unlimited', u.limitBytes === 100 * MB, JSON.stringify(u));
+}
+
+// ── the admin sets how much a plan may hold (Admin -> Plans -> "Library storage, MB"), on the real PUT /api/admin/plans
+function addAccount(db, id, plan) {
+  db.prepare(`INSERT INTO users (id, email) VALUES (?, ?)`).run(id, `${id}@example.com`);
+  db.prepare(`INSERT INTO subscriptions (user_id, plan, status) VALUES (?, ?, 'active')`).run(id, plan);
+}
+async function setPlanMb(env, db, planId, mb) {       // like the editor: all the limits of the plan go back, with this one changed
+  const limits = JSON.parse(db.prepare('SELECT limits FROM plans WHERE id = ?').get(planId).limits);
+  if (mb === undefined) delete limits.storageMb; else limits.storageMb = mb;
+  const res = await plansApi.onRequestPut({ request: new Request(`https://vaneapp.dev/api/admin/plans?id=${planId}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ limits }) }), env, params: {}, waitUntil() {} });
+  let data = null; try { data = await res.json(); } catch { /* */ }
+  return { status: res.status, data };
+}
+const lim = async (env, uid) => (await onlyUsage(env, true, uid)).data.usage;
+
+console.log('\nThe admin changes a plan: the bar moves for every account on it, and only on it');
+{
+  const { env, db } = await fresh({ plan: 'free' });
+  addAccount(db, 'u2', 'free'); addAccount(db, 'u3', 'pro');
+  await put(env, png(4 * MB), 'a.png', 'u1'); await put(env, png(3 * MB), 'b.png', 'u1'); await put(env, png(1 * MB), 'c.png', 'u1');   // u1: 8 MB, newest = c
+  await put(env, png(2 * MB), 'd.png', 'u2');                                                                                            // u2: 2 MB
+  await put(env, png(5 * MB), 'e.png', 'u3');                                                                                            // u3 (Pro): 5 MB
+  const before = [(await lim(env, 'u1')).limitBytes, (await lim(env, 'u2')).limitBytes, (await lim(env, 'u3')).limitBytes];
+  check('to begin with: Free 10 MB, Pro 100 MB', JSON.stringify(before) === JSON.stringify([10 * MB, 10 * MB, 100 * MB]), JSON.stringify(before));
+  const r = await setPlanMb(env, db, 'free', 5);
+  check('the admin saves Free at 5 MB: 200', r.status === 200, JSON.stringify(r));
+  const a = await lim(env, 'u1'), b = await lim(env, 'u2'), c = await lim(env, 'u3');
+  check('the bar moves at once for the Free accounts (5 MB) and not for Pro (100 MB)', a.limitBytes === 5 * MB && b.limitBytes === 5 * MB && c.limitBytes === 100 * MB, JSON.stringify([a.limitBytes, b.limitBytes, c.limitBytes]));
+  check('the account that holds 8 MB gets the red warning with a deadline 3 days away; the others do not', a.over && Math.abs(a.over.deadline - (Math.floor(Date.now() / 1000) + 3 * 86400)) < 5 && b.over === null && c.over === null, JSON.stringify([a.over, b.over, c.over]));
+  check('and cannot add a file until it is under 5 MB', (await put(env, png(4000, 40), 'x.png', 'u1')).status === 402 && (await put(env, png(2 * MB), 'y.png', 'u2')).status === 201);
+  const t0 = db.prepare(`SELECT since FROM storage_overages WHERE user_id = 'u1'`).get().since;
+  await storage.runStoragePurge(env, t0 + 86400);
+  check('the hourly job after 1 day removes nothing', stored(db).n === 3);
+  const p = await storage.runStoragePurge(env, t0 + 3 * 86400 + 60);
+  check('after 3 days the newest uploads go until 5 MB fits: c (1 MB) and b (3 MB) leave, a (4 MB) stays', p.removed === 2 && stored(db).b === 4 * MB && db.prepare(`SELECT name FROM media_assets WHERE user_id = 'u1'`).get().name === 'a.png', JSON.stringify([p, stored(db)]));
+  check('Pro and the other Free account lose nothing', db.prepare(`SELECT COUNT(*) n FROM media_assets WHERE user_id IN ('u2', 'u3')`).get().n === 3);
+}
+{
+  const { env, db } = await fresh({ plan: 'free' });
+  addAccount(db, 'u3', 'pro');
+  await put(env, png(4 * MB), 'a.png', 'u1'); await put(env, png(4 * MB), 'b.png', 'u1');
+  await setPlanMb(env, db, 'free', 6);
+  check('8 MB on a 6 MB plan: warned', (await lim(env, 'u1')).over !== null);
+  await setPlanMb(env, db, 'free', 20);
+  const raised = await lim(env, 'u1');
+  check('the admin raises Free to 20 MB: the bar follows and the warning is gone', raised.limitBytes === 20 * MB && raised.over === null && db.prepare('SELECT COUNT(*) n FROM storage_overages').get().n === 0, JSON.stringify(raised));
+  await setPlanMb(env, db, 'free', undefined);
+  check('the admin empties the field: back to the built-in 10 MB, not unlimited', (await lim(env, 'u1')).limitBytes === 10 * MB);
+  await setPlanMb(env, db, 'pro', 50);
+  check('Pro Dashboard has its own number: 50 MB', (await lim(env, 'u3')).limitBytes === 50 * MB);
+  check('a limit that is not a whole number or below zero is refused (400)', (await setPlanMb(env, db, 'free', 1.5)).status === 400 && (await setPlanMb(env, db, 'free', -3)).status === 400 && (await setPlanMb(env, db, 'free', 'lots')).status === 400);
+  check('and the plan keeps its last good value', (await lim(env, 'u1')).limitBytes === 10 * MB);
+}
+{
+  const { env, db } = await fresh({ plan: 'free', enforce: false });
+  await put(env, png(5 * MB)); await put(env, png(5 * MB)); await put(env, png(3 * MB));
+  await setPlanMb(env, db, 'free', 2);
+  const u = await lim(env, 'u1');
+  check('limits not enforced yet (today\'s production): the plan maximum is shown, no red warning, nothing is removed', u.limitBytes === 2 * MB && u.enforced === false && u.over === null && (await storage.runStoragePurge(env, 10 * 86400)).removed === 0 && stored(db).n === 3, JSON.stringify(u));
+}
+{
+  const { env, db } = await fresh({ plan: 'free' });
+  await put(env, png(3 * MB));
+  await setPlanMb(env, db, 'free', 0);
+  const u = await lim(env, 'u1');
+  check('a plan of 0 MB is a limit, not "no limit": the account is over from the first byte and is warned', u.limitBytes === 0 && u.enforced === true && u.over !== null, JSON.stringify(u));
+  check('nothing can be uploaded on it', (await put(env, png(4000, 40))).status === 402);
+}
+
+console.log('\nThe hourly clean-up: one account that fails does not stop the others');
+{
+  const { env, db } = await fresh({ plan: 'free' });
+  addAccount(db, 'u2', 'free');
+  const row = (id, uid, key, mb, at) => { db.prepare(`INSERT INTO media_assets (id, user_id, r2_key, kind, content_type, size_bytes, name, created_at) VALUES (?, ?, ?, 'image', 'image/png', ?, ?, ?)`).run(id, uid, key, mb * MB, key, at); env.MEDIA.map.set(key, new Uint8Array(1)); };
+  row('1', 'u1', 'bad-1.png', 6, 100); row('2', 'u1', 'bad-2.png', 6, 200);        // u1 holds 12 MB; its storage refuses to delete
+  row('3', 'u2', 'ok-1.png', 6, 100); row('4', 'u2', 'ok-2.png', 6, 200);          // u2 holds 12 MB too
+  const realDelete = env.MEDIA.delete.bind(env.MEDIA);
+  env.MEDIA.delete = async (k) => { if (String([].concat(k)[0]).startsWith('bad-')) throw new Error('storage unavailable'); return realDelete(k); };
+  const t = Math.floor(Date.now() / 1000);
+  await storage.runStoragePurge(env, t);
+  const logged = console.error; console.error = () => {};
+  let threw = false, res = null;
+  try { res = await storage.runStoragePurge(env, t + 3 * 86400 + 60); } catch { threw = true; }
+  console.error = logged;
+  check('the job does not stop', threw === false);
+  check('the other account is cleaned up anyway (its newest file goes, 6 MB stay)', db.prepare(`SELECT COUNT(*) n FROM media_assets WHERE user_id = 'u2'`).get().n === 1 && db.prepare(`SELECT name FROM media_assets WHERE user_id = 'u2'`).get().name === 'ok-1.png', JSON.stringify(res));
+  check('the failing account keeps its files and its clock, so it is tried again next hour', db.prepare(`SELECT COUNT(*) n FROM media_assets WHERE user_id = 'u1'`).get().n === 2 && db.prepare(`SELECT COUNT(*) n FROM storage_overages WHERE user_id = 'u1'`).get().n === 1);
 }
 
 console.log(`\n${passed} passed, ${failed.length} failed`);

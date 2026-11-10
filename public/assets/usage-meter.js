@@ -18,11 +18,14 @@
     return (n > 0 ? Math.max(1, Math.round(n / 1024)) : 0) + ' KB';
   }
 
+  /** only null (or missing) means "no limit": 0 MB is a limit, a plan that allows no files */
+  function limited(u) { return u.limitBytes !== null && u.limitBytes !== undefined; }
+
   function html(u) {
     var used = Number(u.usedBytes) || 0, count = Number(u.count) || 0;
     var files = count + (count === 1 ? ' file' : ' files');
-    if (!u.limitBytes) return '<div class="text-xs text-white/55">' + size(used) + ' used · ' + files + '</div>';
-    var pct = Math.min(100, Math.round(used / u.limitBytes * 100));
+    if (!limited(u)) return '<div class="text-xs text-white/55">' + size(used) + ' used · ' + files + '</div>';
+    var pct = u.limitBytes > 0 ? Math.min(100, Math.round(used / u.limitBytes * 100)) : (used > 0 ? 100 : 0);       // a plan of 0 MB is full from the start
     var base = /^(post|studio)\.vaneapp\.dev$/i.test(location.hostname) ? 'https://vaneapp.dev' : '';
     var hint = pct < 80 ? '' : '<p class="mt-2 text-xs text-white/55">' + (pct >= 100 ? 'The library is full. ' : 'Running low on room. ') + 'Delete files you no longer need' +
       (u.upgrade ? ', or <a class="underline underline-offset-2 hover:text-white" href="' + base + '/pricing">see the plans with more space</a>' : '') + '.</p>';
@@ -31,7 +34,7 @@
   }
 
   function warn(box, u) {
-    if (!u || !u.over || !u.limitBytes) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+    if (!u || !u.over || !limited(u) || !(Number(u.usedBytes) > u.limitBytes)) { box.classList.add('hidden'); box.innerHTML = ''; return; }   // nothing over any more (cleaned up, limit raised): no banner
     var day = new Date(u.over.deadline * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
     box.innerHTML = '<a href="#library" class="block rounded-2xl border border-red-400/30 bg-red-500/15 px-4 py-3 text-sm text-red-100 transition-colors hover:bg-red-500/20">' +
       '<b class="font-semibold">Your library is over your plan: ' + size(u.usedBytes) + ' of ' + size(u.limitBytes) + '.</b> ' +
@@ -41,7 +44,7 @@
 
   function short(u) {
     var used = Number(u.usedBytes) || 0;
-    return u.limitBytes ? size(used).replace(' MB', '') + ' / ' + size(u.limitBytes) : size(used);
+    return limited(u) ? size(used).replace(' MB', '') + ' / ' + size(u.limitBytes) : size(used);
   }
 
   function show(box) {
