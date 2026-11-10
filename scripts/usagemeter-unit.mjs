@@ -84,5 +84,25 @@ console.log('\nThe red warning at the top of the dashboard');
   check('no numbers: nothing shown', b3.hidden);
 }
 
+console.log('\nA plan of 0 MB, and a warning that is out of date');
+{
+  const lib = load();
+  const box = () => ({ innerHTML: '', cls: new Set(['hidden']), classList: { add(c) { this.o.cls.add(c); }, remove(c) { this.o.cls.delete(c); } }, get hidden() { return this.cls.has('hidden'); } });
+  const mk = () => { const b = box(); b.classList.o = b; return b; };
+  const full = lib.html(u(3, 0, 1, true)), empty = lib.html(u(0, 0, 0, true));
+  check('0 MB is a limit, not "no limit": "3 MB of 0 KB used", the meter is full', full.includes('3 MB of 0 KB used') && full.includes('width:100%') && !full.includes(' used · '), full);
+  check('an empty library on a 0 MB plan: 0% and no NaN', empty.includes('0 KB of 0 KB used') && empty.includes('width:0%') && !/NaN|Infinity/.test(empty), empty);
+  check('the short counter next to the Upload button says 3 / 0 KB', lib.short(u(3, 0, 1)) === '3 / 0 KB', lib.short(u(3, 0, 1)));
+  const b1 = mk();
+  lib.warn(b1, { ...u(3, 0, 1), over: { since: 1000, deadline: Date.UTC(2026, 10, 12) / 1000 } });
+  check('over a 0 MB plan: the red warning is shown (the files would go after 3 days, so it must be)', !b1.hidden && b1.innerHTML.includes('3 MB of 0 KB'), b1.innerHTML);
+  const b2 = mk(); b2.cls.delete('hidden');
+  lib.warn(b2, { ...u(9, 10, 3), over: { since: 1000, deadline: 2000000000 } });
+  check('a warning that is out of date (cleaned up below the limit, not reloaded yet) hides itself', b2.hidden && b2.innerHTML === '');
+  const b3 = mk();
+  lib.warn(b3, { ...u(5, null, 3), over: { since: 1000, deadline: 2000000000 } });
+  check('no limit at all: never a warning', b3.hidden);
+}
+
 console.log(`\n${passed} passed, ${failed.length} failed`);
 if (failed.length) process.exit(1);

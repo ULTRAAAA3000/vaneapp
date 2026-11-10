@@ -425,7 +425,7 @@
     ['postsLifetime', 'Posts in total (trial style)', 'int', 'empty = not a trial'],
     ['channels', 'Connected channels', 'int', 'empty = unlimited'],
     ['aiCredits', 'AI credits', 'int', 'empty = unlimited'],
-    ['storageMb', 'Library storage, MB', 'int', 'empty = default (Free 10, paid 100)'],
+    ['storageMb', 'Library storage, MB', 'int', 'empty = default (Free 10, paid 100); custom plan: unlimited'],
     ['apiAccess', 'API access (1 yes, 0 no)', 'int', 'empty = yes if it has API posts'],
     ['overagePostUsd', 'Extra post price, USD', 'float', 'empty = the plan just stops'],
     ['overageAiPostUsd', 'Extra AI post price, USD', 'float', 'empty = same as an extra post'],

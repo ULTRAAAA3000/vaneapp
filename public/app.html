@@ -53,6 +53,9 @@
       <a id="quotaStopCta" href="/topup" class="btn btn-white btn-sm shrink-0">Add funds</a>
     </section>
 
+    <!-- over the plan's library storage: red, at the very top on every tab, a click opens the Library (assets/usage-meter.js warn) -->
+    <div id="storageWarn" class="fade-up mb-6 hidden" role="alert"></div>
+
     <!-- greeting -->
     <section class="fade-up">
       <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -139,8 +142,6 @@
 
     <!-- ═══════════ WORKSPACE: Create / Library (more tabs later), full width ═══════════ -->
     <!-- tabs: Create (the editor) and Library (uploaded files); switched by library.js, the address keeps #create / #library -->
-    <div id="storageWarn" class="fade-up mt-6 hidden" role="alert"></div>
-
     <nav id="dashTabs" class="fade-up mt-6 flex gap-1.5 overflow-x-auto pb-1 [&>a]:shrink-0 [&>a]:whitespace-nowrap" style="animation-delay:.08s" aria-label="Dashboard sections">
       <a href="#create" data-tab="create" class="dtab" aria-current="page">Create</a>
       <a href="#library" data-tab="library" data-module="library" class="dtab">Library</a>
@@ -1316,7 +1317,7 @@
 
   <script src="/assets/status.js?v=5951604964" defer></script>
   <script src="/assets/vane.js?v=a2c867edc4"></script>
-  <script src="/assets/usage-meter.js?v=6e7b0ef6a9"></script>
+  <script src="/assets/usage-meter.js?v=3f55d4917b"></script>
   <script src="/assets/media-picker.js?v=4c4df7c965"></script>
   <script src="/assets/insights.js?v=c81d5838ef"></script>
   <script src="/assets/dashboard.js?v=716a2d2798"></script>

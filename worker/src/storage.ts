@@ -20,15 +20,20 @@ export async function runStoragePurge(cron: CronEnv, nowSec: number): Promise<{ 
       .bind(BATCH)
       .all<{ user_id: string; bytes: number }>();
     for (const row of results) {
-      const limit = await storageLimit(env, row.user_id);
-      if (limit.bytes === null || row.bytes <= limit.bytes) { await clearOver(env, row.user_id); continue; }
-      const since = await markOver(env, row.user_id, nowSec);
-      if (since === null) continue;
-      out.marked++;
-      if (nowSec - since < GRACE_SECONDS) continue;
-      out.removed += await removeNewestUntilFits(env, row.user_id, limit.bytes);
-      const left = await env.DB.prepare('SELECT COALESCE(SUM(size_bytes), 0) AS bytes FROM media_assets WHERE user_id = ?1').bind(row.user_id).first<{ bytes: number }>();
-      if ((left?.bytes ?? 0) <= limit.bytes) await clearOver(env, row.user_id);
+      try {
+        const limit = await storageLimit(env, row.user_id);
+        if (limit.bytes === null || row.bytes <= limit.bytes) { await clearOver(env, row.user_id); continue; }
+        const since = await markOver(env, row.user_id, nowSec);
+        if (since === null) continue;
+        out.marked++;
+        if (nowSec - since < GRACE_SECONDS) continue;
+        out.removed += await removeNewestUntilFits(env, row.user_id, limit.bytes);
+        const left = await env.DB.prepare('SELECT COALESCE(SUM(size_bytes), 0) AS bytes FROM media_assets WHERE user_id = ?1').bind(row.user_id).first<{ bytes: number }>();
+        if ((left?.bytes ?? 0) <= limit.bytes) await clearOver(env, row.user_id);
+      } catch (err) {
+        // one account that fails (a storage error on one of its files) must not stop the others; it is tried again next hour
+        console.error('vane-cron: storage clean-up failed for one account:', err instanceof Error ? err.message : 'unknown');
+      }
     }
     await env.DB.prepare('DELETE FROM storage_overages WHERE user_id NOT IN (SELECT DISTINCT user_id FROM media_assets)').run();
   } catch (err) {
