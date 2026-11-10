@@ -38,7 +38,7 @@ export const onRequestPatch: PagesFunction<Env, 'id'> = async ({ request, env, p
   }
   if (b.delayMinutes !== undefined) {
     const d = readDelay(b.delayMinutes);
-    if (d === null) return failCode(400, 'bad_delay', 'The delay must be a whole number of minutes from 1 to 1440.');
+    if (d === null) return failCode(400, 'bad_delay', 'The delay must be a whole number of minutes from 1 to 1440, or 0 to save new items as drafts.');
     sets.push('delay_minutes'); vals.push(d);
   }
   if (b.enabled !== undefined) {

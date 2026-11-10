@@ -497,7 +497,8 @@
         <div><span class="lbl">Text of the post</span>
           <textarea id="feedTemplate" class="field mt-1 w-full" rows="3" maxlength="500" aria-label="Post template"></textarea>
           <p class="mt-1 text-xs text-white/40">Use <code>{title}</code>, <code>{summary}</code> and <code>{link}</code>. Too long for a network? The summary is shortened for you.</p></div>
-        <div><span class="lbl">Wait before posting (minutes)</span><input id="feedDelay" class="field mt-1 w-28" type="number" min="1" max="1440" value="30" /></div>
+        <label class="flex cursor-pointer items-start gap-2.5 text-[13px] leading-snug text-white/65"><input id="feedDraft" type="checkbox" class="mt-0.5" /><span>Save new items as drafts for me to review, instead of scheduling them. Nothing is posted until you do it from the Drafts tab.</span></label>
+        <div id="feedDelayBox"><span class="lbl">Wait before posting (minutes)</span><input id="feedDelay" class="field mt-1 w-28" type="number" min="1" max="1440" value="30" /></div>
         <div class="flex gap-2"><button type="submit" class="btn btn-white btn-sm">Follow</button><button id="feedCancel" type="button" class="btn btn-ghost btn-sm">Cancel</button></div>
       </form>
       <div id="feedList" class="mt-5 space-y-3" aria-live="polite"></div>
@@ -1335,7 +1336,7 @@
   <script src="/assets/library.js?v=308fa5b449"></script>
   <script src="/assets/library-picker.js?v=ea039ee487"></script>
   <script src="/assets/snippets.js?v=2833a28950"></script>
-  <script src="/assets/feeds.js?v=4562864d9f"></script>
+  <script src="/assets/feeds.js?v=bce71eb587"></script>
   <script src="/assets/drafts.js?v=9ce82a983a"></script>
   <script src="/assets/csv-import.js?v=95941ee259"></script>
   <script src="/assets/aistudio.js?v=39adbe9fb7"></script>
