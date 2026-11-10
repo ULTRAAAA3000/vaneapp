@@ -15,6 +15,9 @@ import { fileURLToPath } from 'node:url';
 import { NETWORK_PAGES } from './network-pages.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+/** The brand glyphs (scripts/net-icons.json: the one list the landing strip, the dashboard and these pages are checked against). */
+const NET_ICONS = JSON.parse(readFileSync(join(root, 'scripts', 'net-icons.json'), 'utf8'));
+const netIcon = (id, cls) => (NET_ICONS[id] ? `<svg viewBox="0 0 24 24" class="${cls}" fill="currentColor" aria-hidden="true"><path d="${NET_ICONS[id].d}"/></svg>` : '');
 const SITE = {
   origin: 'https://vaneapp.dev',
   /** The public contact address. While it is empty the pages show a yellow [CONTACT EMAIL] mark. */
@@ -208,7 +211,7 @@ for (const file of readdirSync(dir).filter((f) => f.endsWith('.html')).sort()) {
   const m = /^<!--page (\{.*?\})-->\s*/s.exec(src);
   if (!m) throw new Error(`${file}: the first line must be <!--page {"slug":"…","title":"…","desc":"…"}-->`);
   const meta = JSON.parse(m[1]);
-  const body = src.slice(m[0].length).replaceAll('{{EMAIL}}', emailHtml).replaceAll('{{MAILTO}}', mailto);
+  const body = src.slice(m[0].length).replaceAll('{{EMAIL}}', emailHtml).replaceAll('{{MAILTO}}', mailto).replace(/\{\{ICON:(\w+)\}\}/g, (_, id) => netIcon(id, 'h-4 w-4 shrink-0 text-white/70'));
   const out = join(root, 'public', meta.slug + '.html');
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, layout({ ...meta, body }));
@@ -222,7 +225,10 @@ for (const n of NETWORK_PAGES) {
   const others = NETWORK_PAGES.filter((o) => o.id !== n.id);
   const body = `      <section class="reveal">
         <nav class="text-xs text-white/40" aria-label="Breadcrumb"><a href="/networks" class="hover:text-white">Networks</a> / ${esc(n.name)}</nav>
-        <p class="eyebrow mt-4">${esc(n.product)} · <span class="badge ${cls}">${label}</span></p>
+        <div class="mt-5 flex items-center gap-4">
+          <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/[0.07] text-white">${netIcon(n.id, 'h-7 w-7')}</span>
+          <p class="eyebrow">${esc(n.product)} · <span class="badge ${cls}">${label}</span></p>
+        </div>
         <h1 class="mt-3 max-w-3xl">${esc(n.h1)}</h1>
         <p class="lead mt-5">${esc(n.lead)}</p>
         <div class="mt-7 flex flex-wrap gap-3">
@@ -250,7 +256,7 @@ for (const n of NETWORK_PAGES) {
 
       <section class="reveal mt-14">
         <h2>More networks</h2>
-        <p class="copy mt-4">${others.map((o) => `<a href="/networks/${o.id}" class="mr-4 inline-block">${esc(o.name)}</a>`).join('')}<a href="/networks" class="inline-block">All networks</a></p>
+        <p class="copy mt-4">${others.map((o) => `<a href="/networks/${o.id}" class="mb-2 mr-5 inline-flex items-center gap-2">${netIcon(o.id, 'h-4 w-4 shrink-0 text-white/60')}${esc(o.name)}</a>`).join('')}<a href="/networks" class="inline-block">All networks</a></p>
       </section>`;
   const meta = { slug: `networks/${n.id}`, title: n.product === 'Vane Studio' ? `${n.name} publishing` : `${n.name} scheduler`, desc: `${n.lead} Flat pricing, no per-channel fees.`.slice(0, 300), body, crumbs: [['Networks', '/networks']], faq: n.faq };
   const out = join(root, 'public', meta.slug + '.html');

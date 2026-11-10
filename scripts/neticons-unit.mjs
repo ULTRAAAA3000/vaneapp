@@ -35,5 +35,25 @@ for (const [k, sig] of [['telegram', nets.telegram.d], ['threads', nets.threads.
 }
 check('no stroke-drawn svg is left for a network (Telegram plane)', !/stroke="currentColor"[^>]*><path d="M21\.5/.test(home));
 
+console.log('\nWorks-with strip and network pages');
+import { readdirSync } from 'node:fs';
+const ICONS = JSON.parse(readFileSync('scripts/net-icons.json', 'utf8'));
+const strip = home.slice(home.indexOf('id="works-with"'), home.indexOf('</section>', home.indexOf('id="works-with"')));
+const stripLinks = [...strip.matchAll(/<a href="\/networks\/(\w+)"[^>]*aria-label="([^"]+)"[^>]*>.*?<path d="([^"]+)"/gs)];
+const pages = readdirSync('public/networks').filter((f) => f.endsWith('.html')).map((f) => f.replace('.html', ''));
+check('net-icons.json holds the thirteen networks that have a page', Object.keys(ICONS).sort().join() === pages.sort().join(), `${Object.keys(ICONS).sort().join()} vs ${pages.sort().join()}`);
+check('the strip has one logo per network page, each linking to /networks/<network>', stripLinks.length === 13 && stripLinks.every((m) => ICONS[m[1]]), `${stripLinks.length} found`);
+check('every logo in the strip is the glyph from net-icons.json', stripLinks.every((m) => ICONS[m[1]] && ICONS[m[1]].d === m[3]));
+check('every logo has the network name as its accessible name', stripLinks.every((m) => ICONS[m[1]] && ICONS[m[1]].name === m[2]));
+const section = home.slice(home.indexOf('<section id="networks"'), home.indexOf('</section>', home.indexOf('<section id="networks"')));
+check('the networks section on the landing uses the same glyphs', Object.entries(ICONS).every(([k, v]) => section.includes(`href="/networks/${k}"`) && section.includes(v.d)));
+for (const k of ['telegram', 'linkedin', 'threads', 'bluesky', 'mastodon', 'discord', 'slack', 'hashnode', 'devto', 'reddit', 'facebook']) {
+  const dk = k === 'facebook' ? 'facebook' : k;
+  if (nets[dk]) check(`${k}: net-icons.json and the dashboard use the same glyph`, ICONS[k].d === nets[dk].d);
+}
+check('every network page shows its own logo next to the title', pages.every((k) => readFileSync(`public/networks/${k}.html`, 'utf8').includes(ICONS[k].d)), pages.filter((k) => !readFileSync(`public/networks/${k}.html`, 'utf8').includes(ICONS[k].d)).join());
+const hub = readFileSync('public/networks.html', 'utf8');
+check('the /networks table shows a logo and a row for every network', Object.keys(ICONS).every((k) => hub.includes(`href="/networks/${k}"`) && hub.includes(ICONS[k].d)), Object.keys(ICONS).filter((k) => !hub.includes(ICONS[k].d)).join());
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);
