@@ -494,6 +494,16 @@ The text lives in `site/*.html` (the first line of each is a `<!--page {"slug","
 - `/networks` and `/developers` repeat limits and endpoints from the code and `public/vane-openapi.json`: update them when those change.
 - `public/robots.txt` keeps `/api/`, `/app`, `/studio` and `/admin` out of search.
 
+## Languages: English, Українська, Русский
+
+The marketing pages (the landing, Networks, Developers, Integrations, Pricing, Security, Changelog, About, Partners, WordPress and the page of every network) are written in English and translated in the browser; the dashboard and the legal pages are English only. The switch in the footer picks a language, the choice is remembered in `localStorage` (`vane_lang`), and `?lang=uk` or `?lang=ru` opens a page in one directly.
+
+- `public/assets/lang.js` is the one engine for every language. It swaps text, the `placeholder`, `aria-label`, `alt` and `title` attributes, text that scripts add later, and the page title, and puts everything back when English is picked again. A language is one entry in its `LANGS` (the global its dictionary defines, the attribute of the script tag that holds the dictionary's address, how "N weeks ago" is written, and the few phrases that carry numbers) plus one file `assets/lang-<code>.js`: `window.VANE_<CODE>` = an object of English phrase → translation, the phrase exactly as the page has it with white space collapsed. Only the dictionary of the language that is picked is downloaded.
+- `scripts/build-site-pages.mjs` writes the switch (`LANG_SWITCH`) and the script tag (`LANG_SCRIPT`: `data-dict` for Russian, `data-dict-uk` for Ukrainian) on every page, the home page included. A new language is a new button there, a new `data-dict-<code>` attribute, an entry in `LANGS` and a dictionary file.
+- To translate a new phrase, add it to **both** `lang-ru.js` and `lang-uk.js`. `scripts/lang-unit.mjs` fails if the two dictionaries get out of step, if the Ukrainian has Russian letters or words (ы, э, ъ, ё, «что», «или»…), a straight apostrophe inside a word or «пост» instead of «допис», or if a number, a price, an address or a name differs from the Russian version.
+- Names of products and of screens of the dashboard (Vane Studio, Pro Dashboard, Create post…) stay in English on purpose, in every language.
+- The Ukrainian says «допис» for a post (as Facebook, Telegram and Bluesky do in Ukrainian), «ви / ваш», and writes the apostrophe as ’.
+
 ## Admin → AI
 
 `/admin#ai` is the AI spend ledger: tokens and list-price cost per day, by feature, model and user, the month against `ai_budget_usd`, today's use of Cloudflare's free neurons, and every model's price (editable). Besides the numbers it tells you **why it is empty**: a red note when this server has no Workers AI binding (Pages → Settings → Bindings → Workers AI, variable `AI`), an amber one when the model in use has no price yet. The month card shows where the month is heading at today's pace, and **Export CSV** downloads every call of the period (`GET /api/admin/ai?days=30&format=csv`, up to 50,000 rows, logged in the audit trail; names that start with `=`, `+`, `-` or `@` are defused so a spreadsheet cannot run them).
