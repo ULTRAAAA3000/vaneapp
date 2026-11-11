@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/assets/vane.css?v=23c6efe829" />
-  <link rel="stylesheet" href="/assets/app.css?v=34ab53fa25" />
+  <link rel="stylesheet" href="/assets/app.css?v=c314567955" />
 </head>
 
 <body class="min-h-screen overflow-x-hidden bg-[#070708]">
@@ -189,6 +189,10 @@
         <!-- AI tools (assets/ai.js): hidden until the server says AI is on -->
         <div id="aiBar" class="ml-auto hidden flex-wrap items-center justify-end gap-1.5"></div>
       </div>
+      <label class="mt-3 flex cursor-pointer items-start gap-2.5 text-[13px] leading-snug text-white/65">
+        <input id="utmOn" type="checkbox" class="mt-0.5" />
+        <span>Tag links with <code class="rounded bg-white/10 px-1 py-px text-[12px] text-white/85">utm_source</code> for each network, so your analytics shows which one brings visitors. Links that already have it are left alone.</span>
+      </label>
       <div id="aiPanel" class="mt-3 hidden" aria-live="polite"></div>
 
       <!-- hashtag memory: suggestions from your past posts (assets/insights.js) -->
@@ -1329,7 +1333,7 @@
   <script src="/assets/usage-meter.js?v=3f55d4917b"></script>
   <script src="/assets/media-picker.js?v=4c4df7c965"></script>
   <script src="/assets/insights.js?v=c81d5838ef"></script>
-  <script src="/assets/dashboard.js?v=3cb6481836"></script>
+  <script src="/assets/dashboard.js?v=bbb1bf6542"></script>
   <script src="/assets/ai.js?v=9076d3d765"></script>
   <script src="/assets/lightbox.js?v=d992104045"></script>
   <script src="/assets/library.js?v=308fa5b449"></script>

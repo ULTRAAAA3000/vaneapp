@@ -65,13 +65,13 @@ const balanceOf = (db) => db.prepare(`SELECT micro_usd m FROM user_balance WHERE
 const counters = (db) => db.prepare(`SELECT api_posts a, ui_posts u, overage_posts op, overage_micro_usd om FROM usage_counters WHERE user_id = 'u1'`).get() ?? { a: 0, u: 0, op: 0, om: 0 };
 
 let token;
-async function post(env, n = 1) {
+async function post(env, n = 1, extra = {}, content = `post ${n}`) {
   token ??= await session.createSession(env, new Request('https://vaneapp.dev/'), 'u1');
   const t = await session.createSession(env, new Request('https://vaneapp.dev/'), 'u1');
   const req = new Request('https://vaneapp.dev/api/posts', {
     method: 'POST',
     headers: { 'content-type': 'application/json', cookie: `${session.SESSION_COOKIE ?? 'vane_session'}=${t}`, origin: 'https://vaneapp.dev', 'sec-fetch-site': 'same-origin', 'cf-connecting-ip': '203.0.113.9' },
-    body: JSON.stringify({ content: `post ${n}`, channelIds: [CH], scheduledAt: new Date(Date.now() + 3600_000).toISOString() }),
+    body: JSON.stringify({ content, channelIds: [CH], scheduledAt: new Date(Date.now() + 3600_000).toISOString(), ...extra }),
   });
   const res = await posts.onRequestPost({ request: req, env, params: {}, waitUntil() {} });
   let data = null; try { data = await res.json(); } catch { /* */ }
@@ -201,6 +201,19 @@ console.log('\nEvery JSON answer says nosniff');
   const req = new Request('https://vaneapp.dev/api/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
   const res = await posts.onRequestPost({ request: req, env, params: {}, waitUntil() {} });
   check('a 401 from the API has X-Content-Type-Options: nosniff', res.status === 401 && res.headers.get('x-content-type-options') === 'nosniff');
+}
+
+console.log('\nTag links with utm_source (the "utm" switch of the editor)');
+{
+  const { db, env } = await fresh({ plan: 'pro' });
+  const stored = () => db.prepare('SELECT content FROM posts ORDER BY created_at DESC, rowid DESC').get().content;
+  check('switched on: the saved text has the network name in the link', (await post(env, 1, { utm: true }, 'Read https://example.com/blog.')).status === 201 && stored() === 'Read https://example.com/blog?utm_source=telegram&utm_medium=social.', stored());
+  check('switched off (the default): the text is saved as typed', (await post(env, 2, {}, 'Read https://example.com/blog.')).status === 201 && stored() === 'Read https://example.com/blog.');
+  check('a value that is not true does not switch it on', (await post(env, 3, { utm: 'yes' }, 'https://example.com/')).status === 201 && stored() === 'https://example.com/');
+  const long = 'x'.repeat(4070) + ' https://example.com/a';
+  const r = await post(env, 4, { utm: true }, long);
+  check('the limit counts the text with the tags: 4,092 characters with a link that grows past 4,096 is refused for Telegram', r.status === 400 && /too long for telegram/.test(r.data.error), JSON.stringify(r));
+  check('the same text without the switch is within the limit', (await post(env, 5, {}, long)).status === 201);
 }
 
 console.log(`\n${passed} passed, ${failed.length} failed`);

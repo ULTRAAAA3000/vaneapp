@@ -16,6 +16,7 @@
  * `media_keys` holds either R2 object keys or external https URLs; the sender tells them
  * apart by the "https://" prefix.
  */
+import { tagLinks } from '../lib/utm';
 import { networkInfo, pausedNetworks } from '../lib/networks';
 import type { D1PreparedStatement, PagesFunction } from '@cloudflare/workers-types';
 import type { ChannelRow, ChannelType, Env } from '../../../types';
@@ -80,7 +81,11 @@ export interface ValidatedPost {
   /** unix seconds, in the future */
   scheduledAt: number;
   now: number;
+  /** add utm_source=<network> to every link, per channel */
+  utm: boolean;
 }
+
+export const contentFor = (v: Pick<ValidatedPost, 'content' | 'utm'>, type: string): string => (v.utm ? tagLinks(v.content, type) : v.content);
 
 export type ValidationResult = { ok: true; v: ValidatedPost } | { ok: false; response: Response };
 
@@ -93,7 +98,8 @@ export async function validateCreatePost(env: Env, userId: string, body: unknown
   if (!isRecord(body)) return bad(fail(400, 'Body must be a JSON object'));
 
   // ── content
-  const content = typeof body.content === 'string' ? body.content.trim() : '';
+  const contentRaw = typeof body.content === 'string' ? body.content.trim() : '';
+  const content = contentRaw;
   if (!content) return bad(fail(400, 'content is required'));
   if (content.length > ABSOLUTE_MAX_CONTENT) return bad(fail(400, `content is too long (max ${ABSOLUTE_MAX_CONTENT})`));
 
@@ -149,7 +155,9 @@ export async function validateCreatePost(env: Env, userId: string, body: unknown
   }
 
   // ── per-platform limits
+  const utm = body.utm === true;
   for (const ch of owned) {
+    const content = utm ? tagLinks(contentRaw, ch.type) : contentRaw;
     const limit = ch.type === 'telegram' && mediaUrl ? TELEGRAM_CAPTION_LIMIT : CONTENT_LIMIT[ch.type];
     // Bluesky counts what a person sees (an emoji is 1); Mastodon counts every link as 23 characters
     // Threads counts an emoji as the bytes it takes; LinkedIn counts UTF-16 units, which is what `.length` is
@@ -181,7 +189,7 @@ export async function validateCreatePost(env: Env, userId: string, body: unknown
     }
   }
 
-  return { ok: true, v: { content, mediaUrl, channels: owned, scheduledAt, now } };
+  return { ok: true, v: { content: contentRaw, mediaUrl, channels: owned, scheduledAt, now, utm } };
 }
 
 export type InsertResult =
@@ -209,7 +217,7 @@ export async function insertPostGroup(
 
   try {
     await env.DB.batch([
-      ...posts.map((p) => insert.bind(p.id, groupId, userId, p.channelId, v.content, mediaKeys, v.scheduledAt, v.now)),
+      ...posts.map((p) => insert.bind(p.id, groupId, userId, p.channelId, contentFor(v, v.channels.find((c) => c.id === p.channelId)?.type ?? ''), mediaKeys, v.scheduledAt, v.now)),
       ...extra(groupId, posts),
     ]);
   } catch (err) {
