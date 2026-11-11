@@ -223,7 +223,7 @@ const add = (env, body, user) => call(env, list.onRequestPost, { body, user });
     [{ url: URL1, channelIds: [] }, 400, 'bad_channels'],
     [{ url: URL1, channelIds: ['nope'] }, 400, 'bad_channels'],
     [{ url: URL1, channelIds: [CH], template: 'hello' }, 400, 'bad_template'],
-    [{ url: URL1, channelIds: [CH], delayMinutes: 0 }, 400, 'bad_delay'],
+    [{ url: URL1, channelIds: [CH], delayMinutes: -1 }, 400, 'bad_delay'],
     [{ url: URL1, channelIds: [CH], delayMinutes: 5000 }, 400, 'bad_delay'],
     [{ url: URL1, channelIds: [CH], delayMinutes: 1.5 }, 400, 'bad_delay'],
   ];
@@ -247,7 +247,7 @@ console.log('\nRoutes: change and remove');
   const id = (await add(env, { url: URL1, channelIds: [CH] })).data.id;
   const patch = (body, user = 'u1', fid = id) => call(env, one.onRequestPatch, { method: 'PATCH', path: `/api/feeds/${fid}`, body, user, params: { id: fid } });
   check('change the template, delay and channels', (await patch({ template: '{title} {link}', delayMinutes: 90, channelIds: [CH, CH2] })).status === 200 && feed(db, id).template === '{title} {link}' && feed(db, id).delay_minutes === 90 && JSON.parse(feed(db, id).channel_ids).length === 2);
-  check('a bad template or delay changes nothing', (await patch({ template: 'x' })).status === 400 && (await patch({ delayMinutes: 0 })).status === 400 && feed(db, id).delay_minutes === 90);
+  check('a bad template or delay changes nothing', (await patch({ template: 'x' })).status === 400 && (await patch({ delayMinutes: -5 })).status === 400 && feed(db, id).delay_minutes === 90);
   check("someone else's channel in a change: 404", (await patch({ channelIds: [FOREIGN] })).status === 404);
   check('an empty change: 400', (await patch({})).status === 400);
   check("another person cannot change or delete my feed", (await patch({ enabled: false }, 'u2')).status === 404 && (await call(env, one.onRequestDelete, { method: 'DELETE', user: 'u2', params: { id } })).status === 404 && !!feed(db, id));
@@ -266,6 +266,25 @@ console.log('\nPoller: the first look only remembers');
   await poll(env);
   check('nothing is posted on the first look', posts(db).length === 0 && seen(db).join() === 'g1,g2' && feed(db).baselined === 1);
   check('the next look is in 30 minutes', feed(db).next_check_at === NOW + feeds.POLL_SECONDS && feed(db).title === 'Acme Blog');
+}
+
+console.log('\nA feed that saves drafts (delay 0)');
+{
+  const { db, env } = make({ plan: 'pro' });
+  world.set(URL1, { body: rss([item(1)]) });
+  const r = await add(env, { url: URL1, channelIds: [CH], delayMinutes: 0 });
+  check('the API accepts 0 and keeps it', r.status === 201 && feed(db, r.data.id).delay_minutes === 0, JSON.stringify(r));
+  db.prepare('DELETE FROM feeds WHERE id = ?').run(r.data.id);
+  feedRow(db, 'f2', { delay_minutes: 0 });
+  db.prepare(`INSERT INTO feed_items (feed_id, guid) VALUES ('f2', 'g1')`).run();
+  world.set(URL1, { body: rss([item(2), item(1)]) });
+  await poll(env);
+  const d = db.prepare(`SELECT content, channel_ids FROM post_drafts`).all();
+  check('a new item becomes a draft with the text and the channels', d.length === 1 && d[0].content === 'Post 2\n\nhttps://blog.acme-news.org/p/2' && d[0].channel_ids === JSON.stringify([CH]), JSON.stringify(d));
+  check('nothing is scheduled and no quota is used', posts(db).length === 0 && !db.prepare(`SELECT ui_posts u FROM usage_counters WHERE user_id = 'u1'`).get());
+  check('the item is remembered, so the next look makes no second draft', seen(db, 'f2').join() === 'g1,g2');
+  await poll(env, NOW + 4000);
+  check('no second draft', db.prepare(`SELECT COUNT(*) n FROM post_drafts`).get().n === 1);
 }
 
 console.log('\nPoller: new items, exactly once');

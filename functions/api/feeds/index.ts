@@ -35,7 +35,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const tp = templateProblem(template);
   if (tp) return failCode(400, 'bad_template', tp);
   const delay = b.delayMinutes === undefined ? 30 : readDelay(b.delayMinutes);
-  if (delay === null) return failCode(400, 'bad_delay', `The delay must be a whole number of minutes from ${DELAY_MIN} to ${DELAY_MAX}.`);
+  if (delay === null) return failCode(400, 'bad_delay', `The delay must be a whole number of minutes from ${DELAY_MIN} to ${DELAY_MAX}, or 0 to save new items as drafts.`);
   if (!(await myActiveChannels(env, auth.userId, channelIds))) return fail(404, 'One or more channels were not found.');
 
   const dup = await env.DB.prepare('SELECT 1 AS x FROM feeds WHERE user_id = ?1 AND url = ?2').bind(auth.userId, url).first();

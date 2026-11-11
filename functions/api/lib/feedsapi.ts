@@ -1,5 +1,5 @@
 import type { Env } from '../../../types';
-import { DELAY_MAX, DELAY_MIN } from './feeds';
+import { DELAY_MAX, DELAY_MIN, DRAFT_DELAY } from './feeds';
 import { UUID_RE } from './http';
 
 export interface FeedViewRow {
@@ -26,5 +26,5 @@ export function readChannelIds(v: unknown): string[] | null {
 }
 
 export function readDelay(v: unknown): number | null {
-  return typeof v === 'number' && Number.isInteger(v) && v >= DELAY_MIN && v <= DELAY_MAX ? v : null;
+  return typeof v === 'number' && Number.isInteger(v) && (v === DRAFT_DELAY || (v >= DELAY_MIN && v <= DELAY_MAX)) ? v : null;
 }

@@ -18,7 +18,7 @@
       '<p class="truncate text-xs text-white/45">' + esc(f.url) + '</p></div>' +
       '<div class="flex gap-2"><button type="button" class="btn btn-ghost btn-sm" data-act="toggle" data-id="' + esc(f.id) + '">' + (f.enabled ? 'Pause' : 'Resume') + '</button>' +
       '<button type="button" class="btn btn-ghost btn-sm" data-act="del" data-id="' + esc(f.id) + '">Remove</button></div></div>' +
-      '<p class="mt-2 text-xs text-white/60">' + status + ' · ' + f.postedCount + ' posted · to ' + f.channelIds.map(function (i) { return esc(chanName(i)); }).join(', ') + ' · ' + f.delayMinutes + ' min after it appears</p></article>';
+      '<p class="mt-2 text-xs text-white/60">' + status + ' · ' + f.postedCount + (f.delayMinutes === 0 ? ' saved as drafts · to ' : ' posted · to ') + f.channelIds.map(function (i) { return esc(chanName(i)); }).join(', ') + (f.delayMinutes === 0 ? ' · new items go to your Drafts' : ' · ' + f.delayMinutes + ' min after it appears') + '</p></article>';
   }
 
   function render() {
@@ -48,17 +48,20 @@
   });
   $('feedCancel').addEventListener('click', function () { form.classList.add('hidden'); });
 
+  $('feedDraft').addEventListener('change', function () { $('feedDelayBox').classList.toggle('hidden', this.checked); });
+
   form.addEventListener('submit', async function (e) {
     e.preventDefault();
     var ids = [].map.call($('feedChannels').querySelectorAll('input:checked'), function (i) { return i.value; });
     var btn = form.querySelector('[type=submit]');
     btn.disabled = true;
-    var r = await Vane.api('POST', '/api/feeds', { url: $('feedUrl').value.trim(), channelIds: ids, template: $('feedTemplate').value, delayMinutes: Number($('feedDelay').value) });
+    var r = await Vane.api('POST', '/api/feeds', { url: $('feedUrl').value.trim(), channelIds: ids, template: $('feedTemplate').value, delayMinutes: $('feedDraft').checked ? 0 : Number($('feedDelay').value) });
     btn.disabled = false;
     if (!r.ok) { Vane.toast('err', r.error || 'Could not follow the feed.'); return; }
     form.classList.add('hidden');
     $('feedUrl').value = '';
-    Vane.toast('ok', 'Following. ' + r.data.existingItems + ' existing items will not be posted; only new ones.');
+    $('feedDraft').checked = false; $('feedDelayBox').classList.remove('hidden');
+    Vane.toast('ok', 'Following. ' + r.data.existingItems + ' existing items will not be used; only new ones.');
     load();
   });
 

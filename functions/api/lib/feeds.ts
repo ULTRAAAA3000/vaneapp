@@ -1,5 +1,6 @@
 import type { Env } from '../../../types';
 import { isValidMediaUrl } from '../channels/telegram';
+import { saveDraft } from './postdrafts';
 import { insertPostGroup, settleUiQuota, takeUiQuota, uiChargeLog, validateCreatePost, CONTENT_LIMIT } from '../posts/create';
 import { disabledModules } from './modules';
 import { postUnits } from './plans';
@@ -19,6 +20,9 @@ export const DEFAULT_TEMPLATE = '{title}\n\n{link}';
 export const TEMPLATE_MAX = 500;
 export const DELAY_MIN = 1;
 export const DELAY_MAX = 24 * 60;
+
+/** A feed with this delay does not schedule anything: each new item is saved as a draft for the person to look at. */
+export const DRAFT_DELAY = 0;
 const DUE_BATCH = 20;
 
 export interface FeedItem { guid: string; title: string; link: string; summary: string; image: string | null; at: number | null }
@@ -217,7 +221,7 @@ async function postItem(env: Env, feed: FeedRow, item: FeedItem, channelIds: str
   const content = fitPost(feed.template, item, channels.map((c) => c.type));
   if (!content) return { status: 'skipped', error: `"${item.title.slice(0, 60)}" does not fit the selected networks.` };
 
-  const scheduledAt = now + Math.max(DELAY_MIN, feed.delay_minutes) * 60;
+  const scheduledAt = now + Math.max(DELAY_MIN, feed.delay_minutes) * 60;   // a draft is checked as if it went out in a minute
   const attempt = async (mediaUrl: string | null) => validateCreatePost(env, feed.user_id, { content, mediaUrl, channelIds: channels.map((c) => c.id), scheduledAt });
   const withImage = item.image && isValidMediaUrl(item.image) ? item.image : null;
   let checked = await attempt(withImage);
@@ -225,6 +229,12 @@ async function postItem(env: Env, feed: FeedRow, item: FeedItem, channelIds: str
   if (!checked.ok) {
     const msg = ((await checked.response.json().catch(() => ({}))) as { error?: string }).error ?? 'The post was refused.';
     return { status: 'skipped', error: `"${item.title.slice(0, 60)}": ${msg}` };
+  }
+
+  if (feed.delay_minutes === DRAFT_DELAY) {
+    const media = checked.v.mediaUrl ? { url: checked.v.mediaUrl, kind: 'image' as const, name: '' } : null;
+    await saveDraft(env, feed.user_id, null, checked.v.content, checked.v.channels.map((c) => c.id), media);
+    return { status: 'posted' };
   }
 
   const units = postUnits(checked.v.channels.length);
