@@ -33,7 +33,7 @@
     "db:migrate:networks": "wrangler d1 execute vane-db --remote --file=./migrations/0001-channel-types.sql",
     "check:integrations": "node scripts/check-integrations.mjs",
     "test:unit": "node scripts/run-tests.mjs",
-    "build:pages": "node scripts/build-site-pages.mjs && node scripts/stamp-assets.mjs",
+    "build:pages": "node scripts/build-site-pages.mjs && node scripts/build-lang-pages.mjs && node scripts/stamp-assets.mjs",
     "db:migrate:agents": "wrangler d1 execute vane-db --remote --file=./scripts/migrations/008-agent-log.sql",
     "db:migrate:password-reset": "wrangler d1 execute vane-db --remote --file=./scripts/migrations/009-password-reset.sql",
     "db:migrate:onboarding": "wrangler d1 execute vane-db --remote --file=./scripts/migrations/007-onboarding.sql",

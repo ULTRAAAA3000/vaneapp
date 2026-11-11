@@ -43,6 +43,11 @@ var LANGS = {
 var dicts = {};
 
 var lang = 'en';
+// /ru/… and /uk/… are translated at build time (scripts/build-lang-pages.mjs), so a search engine and an AI assistant read them in that
+// language, and every page lists its twins as <link rel="alternate" hreflang>. There the address decides the language; this script
+// still loads the dictionary for the text a page adds later (prices, widgets). Picking another language goes to that language's page.
+var PAGE = 'en';
+var TWIN = {};
 var nodes = new Map();
 var attrs = new Map();
 var observer = null;
@@ -130,6 +135,21 @@ function watch(on) {
   observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ATTRS });
 }
 
+function twins() {
+  var map = {};
+  document.querySelectorAll('link[rel="alternate"][hreflang]').forEach(function (l) { map[l.getAttribute('hreflang')] = l.getAttribute('href'); });
+  return map;
+}
+
+// The page of another language, when there is one (same host, the #hash stays). Returns true when it navigated.
+function go(code, replace) {
+  var url = TWIN[code];
+  if (!url || code === PAGE) return false;
+  url = url.replace(/^https?:\/\/[^/]+/, '') + location.hash;
+  if (replace) location.replace(url); else location.assign(url);
+  return true;
+}
+
 function paint() {
   document.querySelectorAll('[data-lang]').forEach(function (b) {
     var on = b.getAttribute('data-lang') === lang;
@@ -167,10 +187,17 @@ function set(next, save) {
 function start() {
   var want = 'en';
   try { want = new URLSearchParams(location.search).get('lang') || localStorage.getItem(KEY) || 'en'; } catch (e) { /* private mode */ }
+  PAGE = known(document.documentElement.lang) ? document.documentElement.lang : 'en';
+  TWIN = twins();
   document.addEventListener('click', function (e) {
     var b = e.target.closest && e.target.closest('[data-lang]');
-    if (b) set(b.getAttribute('data-lang'), true);
+    if (!b) return;
+    var to = b.getAttribute('data-lang');
+    if (known(to) || to === 'en') { try { localStorage.setItem(KEY, to); } catch (err) { /* private mode */ } }
+    if (!go(to, false)) set(to, true);
   });
+  if (PAGE !== 'en') want = PAGE;                                  // a translated page is in its language, whatever was saved
+  else if (known(want) && go(want, true)) return;                  // the English page, another language wanted: its own page
   set(known(want) ? want : 'en', false);
 }
 

@@ -1,4 +1,189 @@
+# Vane — https://vaneapp.dev
+# Search engines and AI assistants are welcome on the public pages (English, Russian /ru/, Ukrainian /uk/).
+# A short description for language models: /llms.txt (English), /ru/llms.txt, /uk/llms.txt
+
 User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /app
+Disallow: /studio
+Disallow: /admin
+Disallow: /copy
+Disallow: /reset
+
+# Named AI crawlers and assistants. A group of its own replaces the * group for that agent, so the private paths are repeated.
+User-agent: GPTBot
+Allow: /
+Disallow: /api/
+Disallow: /app
+Disallow: /studio
+Disallow: /admin
+Disallow: /copy
+Disallow: /reset
+
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /api/
+Disallow: /app
+Disallow: /studio
+Disallow: /admin
+Disallow: /copy
+Disallow: /reset
+
+User-agent: ChatGPT-User
+Allow: /
+Disallow: /api/
+Disallow: /app
+Disallow: /studio
+Disallow: /admin
+Disallow: /copy
+Disallow: /reset
+
+User-agent: ClaudeBot
+Allow: /
+Disallow: /api/
+Disallow: /app
+Disallow: /studio
+Disallow: /admin
+Disallow: /copy
+Disallow: /reset
+
+User-agent: Claude-SearchBot
+Allow: /
+Disallow: /api/
+Disallow: /app
+Disallow: /studio
+Disallow: /admin
+Disallow: /copy
+Disallow: /reset
+
+User-agent: Claude-User
+Allow: /
+Disallow: /api/
+Disallow: /app
+Disallow: /studio
+Disallow: /admin
+Disallow: /copy
+Disallow: /reset
+
+User-agent: anthropic-ai
+Allow: /
+Disallow: /api/
+Disallow: /app
+Disallow: /studio
+Disallow: /admin
+Disallow: /copy
+Disallow: /reset
+
+User-agent: PerplexityBot
+Allow: /
+Disallow: /api/
+Disallow: /app
+Disallow: /studio
+Disallow: /admin
+Disallow: /copy
+Disallow: /reset
+
+User-agent: Perplexity-User
+Allow: /
+Disallow: /api/
+Disallow: /app
+Disallow: /studio
+Disallow: /admin
+Disallow: /copy
+Disallow: /reset
+
+User-agent: Google-Extended
+Allow: /
+Disallow: /api/
+Disallow: /app
+Disallow: /studio
+Disallow: /admin
+Disallow: /copy
+Disallow: /reset
+
+User-agent: Applebot-Extended
+Allow: /
+Disallow: /api/
+Disallow: /app
+Disallow: /studio
+Disallow: /admin
+Disallow: /copy
+Disallow: /reset
+
+User-agent: Googlebot
+Allow: /
+Disallow: /api/
+Disallow: /app
+Disallow: /studio
+Disallow: /admin
+Disallow: /copy
+Disallow: /reset
+
+User-agent: Bingbot
+Allow: /
+Disallow: /api/
+Disallow: /app
+Disallow: /studio
+Disallow: /admin
+Disallow: /copy
+Disallow: /reset
+
+User-agent: DuckAssistBot
+Allow: /
+Disallow: /api/
+Disallow: /app
+Disallow: /studio
+Disallow: /admin
+Disallow: /copy
+Disallow: /reset
+
+User-agent: Amazonbot
+Allow: /
+Disallow: /api/
+Disallow: /app
+Disallow: /studio
+Disallow: /admin
+Disallow: /copy
+Disallow: /reset
+
+User-agent: Meta-ExternalAgent
+Allow: /
+Disallow: /api/
+Disallow: /app
+Disallow: /studio
+Disallow: /admin
+Disallow: /copy
+Disallow: /reset
+
+User-agent: MistralAI-User
+Allow: /
+Disallow: /api/
+Disallow: /app
+Disallow: /studio
+Disallow: /admin
+Disallow: /copy
+Disallow: /reset
+
+User-agent: cohere-ai
+Allow: /
+Disallow: /api/
+Disallow: /app
+Disallow: /studio
+Disallow: /admin
+Disallow: /copy
+Disallow: /reset
+
+User-agent: YouBot
+Allow: /
+Disallow: /api/
+Disallow: /app
+Disallow: /studio
+Disallow: /admin
+Disallow: /copy
+Disallow: /reset
+
+User-agent: CCBot
 Allow: /
 Disallow: /api/
 Disallow: /app

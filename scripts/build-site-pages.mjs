@@ -308,8 +308,8 @@ function injectSeo(file, { path, title, desc, canonical, extra = [] }) {
 {
   const idx = readFileSync(join(root, 'public', 'index.html'), 'utf8');
   const faq = [...idx.matchAll(/<summary[^>]*>([\s\S]*?)<span class="faq-plus[\s\S]*?<\/summary>\s*<(?:p|div)[^>]*>([\s\S]*?)<\/(?:p|div)>\s*<\/details>/g)].map((m) => [strip(m[1]), strip(m[2])]).filter(([q, a]) => q && a);
-  const titleIdx = 'Vane — Publish everywhere. Schedule anything.';
-  const descIdx = 'Schedule once and post to Telegram, LinkedIn, Threads, Bluesky, Mastodon, Discord, Dev.to and more, plus video with Vane Studio. Flat pricing, unlimited channels, built-in AI and a REST API. Start free, no card required.';
+  const titleIdx = 'Vane — Affordable autoposter & social media scheduler';
+  const descIdx = 'Affordable autoposter: schedule once, publish to Telegram, LinkedIn, Threads, Bluesky, Mastodon, Discord and more. Flat price, unlimited channels, REST API. Start free.';
   injectSeo('index.html', { path: '/', title: titleIdx, desc: descIdx, canonical: true, extra: [
     { '@type': 'SoftwareApplication', '@id': `${SITE.origin}/#post`, name: 'Vane Post', url: SITE.origin, applicationCategory: 'BusinessApplication', operatingSystem: 'Web', description: 'Social media scheduler: write once, publish to many networks at the time you choose, with built-in AI and a REST API.', offers: { '@type': 'AggregateOffer', priceCurrency: 'USD', lowPrice: '0', highPrice: '11.99' }, publisher: { '@id': `${SITE.origin}/#org` } },
     { '@type': 'SoftwareApplication', '@id': `${SITE.origin}/#studio`, name: 'Vane Studio', url: SITE.origin, applicationCategory: 'MultimediaApplication', operatingSystem: 'Web', description: 'Video library and publisher: upload a video once and publish it to the video networks you connect.', publisher: { '@id': `${SITE.origin}/#org` } },
