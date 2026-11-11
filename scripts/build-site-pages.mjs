@@ -51,8 +51,8 @@ const ldTag = (o) => `<script type="application/ld+json">${JSON.stringify(o).rep
 const ORGANIZATION = { '@type': 'Organization', '@id': `${SITE.origin}/#org`, name: 'Vane', legalName: 'AKERR-SHY s.r.o.', identifier: '04346360', url: SITE.origin, logo: `${SITE.origin}/assets/logo.svg`, address: { '@type': 'PostalAddress', streetAddress: 'Solec 10', postalCode: '294 02', addressLocality: 'Kněžmost', addressCountry: 'CZ' } };
 
 /** The footer of every page: four columns of links, the legal line and the status badge. One definition, used by layout() and by the home page (see syncHomeFooter). */
-const LANG_SWITCH = `<div data-no-i18n role="group" aria-label="Language" class="mt-6 flex justify-center gap-2 text-xs"><button type="button" data-lang="en" aria-pressed="true" class="font-medium text-white/50 transition-colors hover:text-white">English</button><span class="text-white/25">·</span><button type="button" data-lang="ru" aria-pressed="false" class="font-medium text-white/50 transition-colors hover:text-white">Русский</button></div>`;
-const LANG_SCRIPT = `<script src="/assets/lang.js?v=0" data-dict="/assets/lang-ru.js?v=0" defer></script>`;
+const LANG_SWITCH = `<div data-no-i18n role="group" aria-label="Language" class="mt-6 flex justify-center gap-2 text-xs"><button type="button" data-lang="en" aria-pressed="true" class="font-medium text-white/50 transition-colors hover:text-white">English</button><span class="text-white/25">·</span><button type="button" data-lang="uk" aria-pressed="false" class="font-medium text-white/50 transition-colors hover:text-white">Українська</button><span class="text-white/25">·</span><button type="button" data-lang="ru" aria-pressed="false" class="font-medium text-white/50 transition-colors hover:text-white">Русский</button></div>`;
+const LANG_SCRIPT = `<script src="/assets/lang.js?v=0" data-dict="/assets/lang-ru.js?v=0" data-dict-uk="/assets/lang-uk.js?v=0" defer></script>`;
 
 const footerHtml = (cols) => `<footer class="border-t border-white/5 px-5 py-12 sm:px-8">
       <div class="mx-auto max-w-6xl">
