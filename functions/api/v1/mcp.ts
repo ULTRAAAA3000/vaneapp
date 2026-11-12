@@ -168,8 +168,8 @@ const PRO_PROMPTS = [
 
 const argText = (args: Record<string, unknown>, key: string, max: number): string => (typeof args[key] === 'string' ? (args[key] as string).replace(/\u0000/g, '').trim().slice(0, max) : '');
 
-/** What Claude receives when a command is used. The person's own words are quoted as content, never as instructions about tools. */
-function promptText(name: string, args: Record<string, unknown>): string | null {
+/** What Claude receives when a command is used. The person's own words are quoted as content, never as instructions about tools. Paid accounts get extra steps that read their analytics (lib/mcppro.ts) before writing or scheduling. */
+function promptText(name: string, args: Record<string, unknown>, paid: boolean): string | null {
   const channels = argText(args, 'channels', 300);
   if (name === 'post') {
     const text = argText(args, 'text', 10000);
@@ -177,7 +177,8 @@ function promptText(name: string, args: Record<string, unknown>): string | null 
     const when = argText(args, 'when', 100);
     return `Use Vane to schedule this post exactly as written, without changing a word:\n\n"""\n${text}\n"""\n\n`
       + (channels ? `Channels: ${channels}.` : 'Channels: not specified. Call vane_list_channels and ask which ones to use before posting.')
-      + (when ? `\nWhen: ${when} (if that means right now, call the tool with post_now true; otherwise convert it to an ISO-8601 time with a timezone and ask if the timezone is unclear).` : '\nWhen: not specified, so use the default (in a couple of minutes).')
+      + (when ? `\nWhen: ${when} (if that means right now, call the tool with post_now true; otherwise convert it to an ISO-8601 time with a timezone and ask if the timezone is unclear).`
+        : paid ? '\nWhen: not specified. Call vane_best_times and ask me if I want the top slot, or post in a couple of minutes instead.' : '\nWhen: not specified, so use the default (in a couple of minutes).')
       + '\nThen confirm in one line what was scheduled and where.';
   }
   if (name === 'draft') {
@@ -187,7 +188,9 @@ function promptText(name: string, args: Record<string, unknown>): string | null 
     return `Write a social post with Vane in mind.\n\nTopic: ${topic}\n`
       + (tone ? `Tone: ${tone}\n` : '')
       + (channels ? `Channels: ${channels}\n` : 'Channels: call vane_list_channels and suggest the best fit.\n')
-      + '\nWrite the post yourself (no other tool is needed for the writing), keep it inside the character limit of the smallest chosen network (Bluesky 300, Mastodon 500, Threads 500, X 280, Telegram 4096), and show it to me. Do NOT schedule it yet: wait until I approve or ask for changes, then use vane_create_post.';
+      + (paid
+        ? '\nSteps: (1) call vane_get_voice for my tone; (2) call vane_analyze_performance to see what has worked lately (topics, length, media) and vane_best_times for a good slot; (3) write the post yourself, applying what works, inside the character limit of the smallest chosen network (Bluesky 300, Mastodon 500, Threads 500, X 280, Telegram 4096); (4) show me the post and the slot you picked, with one line on why. Do NOT schedule it yet: wait until I approve or ask for changes, then use vane_create_post with that scheduled_at.'
+        : '\nWrite the post yourself (no other tool is needed for the writing), keep it inside the character limit of the smallest chosen network (Bluesky 300, Mastodon 500, Threads 500, X 280, Telegram 4096), and show it to me. Do NOT schedule it yet: wait until I approve or ask for changes, then use vane_create_post.');
   }
   if (name === 'analyze') {
     const days = Math.min(180, Math.max(7, Number(argText(args, 'days', 4)) || 30));
@@ -199,7 +202,7 @@ function promptText(name: string, args: Record<string, unknown>): string | null 
     const count = Math.min(14, Math.max(2, Number(argText(args, 'count', 3)) || 5));
     return `Plan a series of ${count} posts with Vane.\n\nTopic: ${topic}\n`
       + (channels ? `Channels: ${channels}\n` : 'Channels: call vane_list_channels and suggest the best fit.\n')
-      + '\nSteps: (1) call vane_get_voice and write in that voice; (2) write the posts yourself, each able to stand alone and each from a different angle, inside the character limit of the smallest chosen network; (3) call vane_create_series with dry_run true (it picks the best free times) and show me a table of time and text; (4) only after I say yes, call vane_create_series again without dry_run. Never schedule before I approve.';
+      + '\nSteps: (1) call vane_get_voice and vane_analyze_performance, and write in that voice applying what has worked; (2) write the posts yourself, each able to stand alone and each from a different angle, inside the character limit of the smallest chosen network; (3) call vane_create_series with dry_run true (it picks the best free times) and show me a table of time and text; (4) only after I say yes, call vane_create_series again without dry_run. Never schedule before I approve.';
   }
   if (name === 'channels') return 'Call vane_list_channels and show my Vane channels as a short list.';
   if (name === 'upcoming') return 'Call vane_list_posts with view "upcoming" and summarise what is scheduled: when, where, and the start of each text.';
@@ -473,9 +476,10 @@ async function handle(env: Env, request: Request, msg: Rpc): Promise<unknown | n
     case 'prompts/get': {
       const p = isRecord(msg.params) ? msg.params : {};
       const name = typeof p.name === 'string' ? p.name : '';
-      const known = [...PROMPTS, ...((await paidFor(env, request)) ? PRO_PROMPTS : [])].find((x) => x.name === name);
+      const paid = await paidFor(env, request);
+      const known = [...PROMPTS, ...(paid ? PRO_PROMPTS : [])].find((x) => x.name === name);
       if (!known) return rpcError(id, -32602, `Unknown prompt: ${name.slice(0, 40)}`);
-      const body = promptText(name, isRecord(p.arguments) ? p.arguments : {});
+      const body = promptText(name, isRecord(p.arguments) ? p.arguments : {}, paid);
       if (!body) return rpcError(id, -32602, `Missing a required argument for "${name}".`);
       return rpcResult(id, { description: known.description, messages: [{ role: 'user', content: { type: 'text', text: body } }] });
     }
