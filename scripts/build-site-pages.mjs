@@ -12,11 +12,15 @@
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import vm from 'node:vm';
 import { NETWORK_PAGES } from './network-pages.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 /** The brand glyphs (scripts/net-icons.json: the one list the landing strip, the dashboard and these pages are checked against). */
 const NET_ICONS = JSON.parse(readFileSync(join(root, 'scripts', 'net-icons.json'), 'utf8'));
+/** The plans as /api/plans returns them (scripts/plans-snapshot.json), drawn into /pricing with the very function the page script uses. */
+const PLANS = JSON.parse(readFileSync(join(root, 'scripts', 'plans-snapshot.json'), 'utf8'));
+const planCard = (() => { const ctx = { module: { exports: {} }, Intl }; vm.runInNewContext(readFileSync(join(root, 'public', 'assets', 'plan-card.js'), 'utf8'), ctx); return ctx.module.exports; })();
 const netIcon = (id, cls) => (NET_ICONS[id] ? `<svg viewBox="0 0 24 24" class="${cls}" fill="currentColor" aria-hidden="true"><path d="${NET_ICONS[id].d}"/></svg>` : '');
 const SITE = {
   origin: 'https://vaneapp.dev',
@@ -31,13 +35,13 @@ const SITE = {
     ['Partners', '/partners'],
   ],
   footer: [
-    ['Product', [['Features', '/#features'], ['Networks', '/networks'], ['Pricing', '/pricing'], ['FAQ', '/#faq'], ['Changelog', '/changelog']]],
+    ['Product', [['Features', '/#features'], ['Networks', '/networks'], ['Pricing', '/pricing'], ['Affordable autoposter', '/autoposter'], ['FAQ', '/#faq'], ['Changelog', '/changelog']]],
     ['Developers', [['API', '/developers'], ['Integrations', '/integrations'], ['OpenAPI spec', '/api/v1/openapi.json'], ['Security', '/security']]],
     ['Company', [['About', '/about'], ['Partners', '/partners'], ['WYSB', '/partners/wysb'], ['Contact', '/about#contact']]],
     ['Legal', [['Privacy', '/privacy'], ['Terms', '/terms'], ['Data deletion', '/data-deletion']]],
   ],
 };
-const PAGES_IN_SITEMAP = ['/', '/pricing', '/networks', ...NETWORK_PAGES.map((n) => `/networks/${n.id}`), '/developers', '/integrations', '/wordpress', '/security', '/changelog', '/about', '/partners', '/partners/wysb', '/privacy', '/terms', '/data-deletion'];
+const PAGES_IN_SITEMAP = ['/', '/pricing', '/autoposter', '/networks', ...NETWORK_PAGES.map((n) => `/networks/${n.id}`), '/developers', '/integrations', '/wordpress', '/security', '/changelog', '/about', '/partners', '/partners/wysb', '/privacy', '/terms', '/data-deletion'];
 
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
@@ -48,7 +52,7 @@ const mailto = '/about#contact';   // every "Tell us" / "Get in touch" button op
 
 const OG_IMAGE = `${SITE.origin}/assets/og.png`;
 const ldTag = (o) => `<script type="application/ld+json">${JSON.stringify(o).replace(/</g, '\\u003c')}</script>`;
-const ORGANIZATION = { '@type': 'Organization', '@id': `${SITE.origin}/#org`, name: 'Vane', legalName: 'AKERR-SHY s.r.o.', identifier: '04346360', url: SITE.origin, logo: `${SITE.origin}/assets/logo.svg`, address: { '@type': 'PostalAddress', streetAddress: 'Solec 10', postalCode: '294 02', addressLocality: 'Kněžmost', addressCountry: 'CZ' } };
+const ORGANIZATION = { '@type': 'Organization', '@id': `${SITE.origin}/#org`, name: 'Vane', alternateName: ['Vane Post', 'vaneapp.dev'], legalName: 'AKERR-SHY s.r.o.', identifier: '04346360', url: SITE.origin, logo: `${SITE.origin}/assets/logo.svg`, address: { '@type': 'PostalAddress', streetAddress: 'Solec 10', postalCode: '294 02', addressLocality: 'Kněžmost', addressCountry: 'CZ' } };
 
 /** The footer of every page: four columns of links, the legal line and the status badge. One definition, used by layout() and by the home page (see syncHomeFooter). */
 const LANG_SWITCH = `<div data-no-i18n role="group" aria-label="Language" class="mt-6 flex justify-center gap-2 text-xs"><button type="button" data-lang="en" aria-pressed="true" class="font-medium text-white/50 transition-colors hover:text-white">English</button><span class="text-white/25">·</span><button type="button" data-lang="uk" aria-pressed="false" class="font-medium text-white/50 transition-colors hover:text-white">Українська</button><span class="text-white/25">·</span><button type="button" data-lang="ru" aria-pressed="false" class="font-medium text-white/50 transition-colors hover:text-white">Русский</button></div>`;
@@ -66,7 +70,7 @@ const footerHtml = (cols) => `<footer class="border-t border-white/5 px-5 py-12 
       </div>
     </footer>`;
 
-function layout({ slug, title, desc, body, crumbs = [], faq = [], ogTitle }) {
+function layout({ slug, title, desc, body, crumbs = [], faq = [], ogTitle, extraLd = [] }) {
   const path = '/' + slug;
   const url = SITE.origin + path;
   const nav = SITE.nav.map(([label, href]) => {
@@ -100,10 +104,11 @@ function layout({ slug, title, desc, body, crumbs = [], faq = [], ogTitle }) {
   <meta name="twitter:image" content="${OG_IMAGE}" />
   ${ldTag({ '@context': 'https://schema.org', '@graph': [
     ORGANIZATION,
-    { '@type': 'WebSite', '@id': `${SITE.origin}/#site`, url: SITE.origin, name: 'Vane', publisher: { '@id': `${SITE.origin}/#org` } },
+    { '@type': 'WebSite', '@id': `${SITE.origin}/#site`, url: SITE.origin, name: 'Vane', alternateName: 'Vane autoposter (vaneapp.dev)', publisher: { '@id': `${SITE.origin}/#org` } },
     { '@type': 'WebPage', '@id': `${url}#page`, url, name: `${title} — Vane`, description: desc, isPartOf: { '@id': `${SITE.origin}/#site` }, publisher: { '@id': `${SITE.origin}/#org` } },
     { '@type': 'BreadcrumbList', itemListElement: [{ name: 'Vane', item: SITE.origin + '/' }, ...crumbs.map(([n, h]) => ({ name: n, item: SITE.origin + h })), { name: title, item: url }].map((c, i) => ({ '@type': 'ListItem', position: i + 1, name: c.name, item: c.item })) },
     ...(faq.length ? [{ '@type': 'FAQPage', mainEntity: faq.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) }] : []),
+    ...extraLd,
   ] })}
   <link rel="icon" href="/favicon.ico" sizes="32x32" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
@@ -214,7 +219,24 @@ for (const file of readdirSync(dir).filter((f) => f.endsWith('.html')).sort()) {
   const body = src.slice(m[0].length).replaceAll('{{EMAIL}}', emailHtml).replaceAll('{{MAILTO}}', mailto).replace(/\{\{ICON:(\w+)\}\}/g, (_, id) => netIcon(id, 'h-4 w-4 shrink-0 text-white/70'));
   const out = join(root, 'public', meta.slug + '.html');
   mkdirSync(dirname(out), { recursive: true });
-  writeFileSync(out, layout({ ...meta, body }));
+  let pageBody = body, extraLd = [];
+  if (pageBody.includes('{{PLANS_TABLE}}')) {
+    // the plan table of /autoposter comes from the same snapshot as the cards on /pricing
+    const rows = PLANS.filter((p) => p.kind === 'plan').map((p) => {
+      const price = esc(planCard.fmt(p.priceCents, p.currency)) + (p.priceCents ? '<span class="text-white/50"> / month</span>' : '');
+      return `<tr><td>${esc(p.name)}</td><td>${price}</td><td><ul class="check">${p.features.slice(0, 3).map((f) => `<li>${esc(f)}</li>`).join('')}</ul></td></tr>`;
+    }).join('');
+    pageBody = pageBody.replace('{{PLANS_TABLE}}', `<div class="table-wrap glass-d mt-5"><table class="tbl"><thead><tr><th>Plan</th><th>Price</th><th>Includes</th></tr></thead><tbody>${rows}</tbody></table></div>`);
+  }
+  if (meta.slug === 'pricing') {
+    // The plans and prices are in the HTML, not only drawn by JavaScript: a search engine or an AI assistant that does not run scripts reads them.
+    const grid = /(<div id="pricingGrid"[^>]*>)[\s\S]*?(<\/div><\/section>)/;
+    if (!grid.test(pageBody)) throw new Error('pricing: #pricingGrid not found');
+    pageBody = pageBody.replace(grid, (_m, a, z) => a + PLANS.filter((p) => p.kind === 'plan').map((p) => planCard.card(p, 'month')).join('') + z);
+    extraLd = [{ '@type': 'SoftwareApplication', name: 'Vane Post', alternateName: ['Vane', 'Vane autoposter'], url: SITE.origin, applicationCategory: 'BusinessApplication', operatingSystem: 'Web',
+      offers: PLANS.filter((p) => p.kind === 'plan' && !p.comingSoon).map((p) => ({ '@type': 'Offer', name: p.name, price: (p.priceCents / 100).toFixed(2), priceCurrency: p.currency, url: `${SITE.origin}/pricing`, availability: 'https://schema.org/InStock' })) }];
+  }
+  writeFileSync(out, layout({ ...meta, body: pageBody, extraLd }));
   built.push('/' + meta.slug);
 }
 
@@ -271,7 +293,7 @@ function injectSeo(file, { path, title, desc, canonical, extra = [] }) {
   const f = join(root, 'public', file);
   let html = readFileSync(f, 'utf8');
   const url = SITE.origin + path;
-  const graph = [ORGANIZATION, { '@type': 'WebSite', '@id': `${SITE.origin}/#site`, url: SITE.origin, name: 'Vane', publisher: { '@id': `${SITE.origin}/#org` } },
+  const graph = [ORGANIZATION, { '@type': 'WebSite', '@id': `${SITE.origin}/#site`, url: SITE.origin, name: 'Vane', alternateName: 'Vane autoposter (vaneapp.dev)', publisher: { '@id': `${SITE.origin}/#org` } },
     { '@type': 'WebPage', '@id': `${url}#page`, url, name: title, description: desc, isPartOf: { '@id': `${SITE.origin}/#site` } }, ...extra];
   if (path !== '/') graph.push({ '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Vane', item: SITE.origin + '/' }, { '@type': 'ListItem', position: 2, name: title, item: url }] });
   const block = `<!-- seo:start (generated by scripts/build-site-pages.mjs) -->
@@ -311,7 +333,7 @@ function injectSeo(file, { path, title, desc, canonical, extra = [] }) {
   const titleIdx = 'Vane — Affordable autoposter & social media scheduler';
   const descIdx = 'Affordable autoposter: schedule once, publish to Telegram, LinkedIn, Threads, Bluesky, Mastodon, Discord and more. Flat price, unlimited channels, REST API. Start free.';
   injectSeo('index.html', { path: '/', title: titleIdx, desc: descIdx, canonical: true, extra: [
-    { '@type': 'SoftwareApplication', '@id': `${SITE.origin}/#post`, name: 'Vane Post', url: SITE.origin, applicationCategory: 'BusinessApplication', operatingSystem: 'Web', description: 'Social media scheduler: write once, publish to many networks at the time you choose, with built-in AI and a REST API.', offers: { '@type': 'AggregateOffer', priceCurrency: 'USD', lowPrice: '0', highPrice: '11.99' }, publisher: { '@id': `${SITE.origin}/#org` } },
+    { '@type': 'SoftwareApplication', '@id': `${SITE.origin}/#post`, name: 'Vane Post', alternateName: ['Vane autoposter', 'Vane social media scheduler'], url: SITE.origin, applicationCategory: 'BusinessApplication', operatingSystem: 'Web', description: 'Social media scheduler: write once, publish to many networks at the time you choose, with built-in AI and a REST API.', offers: { '@type': 'AggregateOffer', priceCurrency: 'USD', lowPrice: '0', highPrice: '11.99' }, publisher: { '@id': `${SITE.origin}/#org` } },
     { '@type': 'SoftwareApplication', '@id': `${SITE.origin}/#studio`, name: 'Vane Studio', url: SITE.origin, applicationCategory: 'MultimediaApplication', operatingSystem: 'Web', description: 'Video library and publisher: upload a video once and publish it to the video networks you connect.', publisher: { '@id': `${SITE.origin}/#org` } },
     ...(faq.length ? [{ '@type': 'FAQPage', mainEntity: faq.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) }] : []),
   ] });

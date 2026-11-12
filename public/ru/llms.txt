@@ -26,6 +26,7 @@
 
 - [Главная](https://vaneapp.dev/ru/): что делает Vane, сети, калькулятор цены, FAQ
 - [Цены](https://vaneapp.dev/ru/pricing): тарифы и цены за превышение
+- [Недорогой автопостер](https://vaneapp.dev/ru/autoposter): что такое автопостер, что сравнивать, тарифы и цены, FAQ
 - [Сети](https://vaneapp.dev/ru/networks): каждая сеть, что она поддерживает, лимиты и как подключить
 - [Разработчикам](https://vaneapp.dev/ru/developers): API, вебхуки, тестовые ключи
 - [Спецификация OpenAPI](https://vaneapp.dev/api/v1/openapi.json)

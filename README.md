@@ -1,5 +1,7 @@
 # Vane — unfairly fast social scheduling
 
+**Vane** ([vaneapp.dev](https://vaneapp.dev)) is an affordable autoposter and social media scheduler: write a post once and publish it to Telegram, Bluesky, Mastodon, Discord, Slack, Dev.to and Hashnode (LinkedIn, Threads, Reddit, Facebook Pages, YouTube and Instagram Reels as each network approves it). One flat monthly price, unlimited channels, no per-channel fees, a free trial with no card, a REST API with an OpenAPI spec, and an MCP connector for Claude. English, Russian and Ukrainian: [pricing](https://vaneapp.dev/pricing) · [autoposter guide](https://vaneapp.dev/autoposter) · [networks](https://vaneapp.dev/networks) · [llms.txt](https://vaneapp.dev/llms.txt).
+
 Cloudflare Pages (site + `/api`) · D1 (database) · R2 (images) · a cron Worker (autoposting).
 
 ## Layout

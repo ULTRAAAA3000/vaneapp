@@ -1,0 +1,97 @@
+[
+ {
+  "id": "free",
+  "kind": "plan",
+  "name": "Free Trial",
+  "tagline": "No card required.",
+  "badge": "",
+  "priceCents": 0,
+  "comparePriceCents": null,
+  "yearlyPriceCents": null,
+  "currency": "USD",
+  "interval": "month",
+  "ctaLabel": "Get started",
+  "highlight": false,
+  "comingSoon": false,
+  "buyable": false,
+  "features": [
+   "30 posts in total",
+   "Up to 2 connected channels",
+   "10 free AI credits",
+   "Free AI utilities",
+   "10 MB media library",
+   "Try the dashboard and the API"
+  ]
+ },
+ {
+  "id": "api",
+  "kind": "plan",
+  "name": "Developer API",
+  "tagline": "A headless gateway for scripts and bots.",
+  "badge": "",
+  "priceCents": 799,
+  "comparePriceCents": null,
+  "yearlyPriceCents": null,
+  "currency": "USD",
+  "interval": "month",
+  "ctaLabel": "Get started",
+  "highlight": false,
+  "comingSoon": false,
+  "buyable": true,
+  "features": [
+   "REST API with Bearer auth, webhooks and an OpenAPI spec",
+   "180 API posts a month (about 6 a day)",
+   "Claude and Notion (MCP) access today, Custom GPT when it launches",
+   "Extra posts: $0.03 each, $0.09 for AI posts"
+  ]
+ },
+ {
+  "id": "pro",
+  "kind": "plan",
+  "name": "Pro Dashboard",
+  "tagline": "standard, or $120 a year.",
+  "badge": "Early Bird",
+  "priceCents": 1199,
+  "comparePriceCents": 1499,
+  "yearlyPriceCents": 12000,
+  "currency": "USD",
+  "interval": "month",
+  "ctaLabel": "Get started",
+  "highlight": true,
+  "comingSoon": false,
+  "buyable": true,
+  "features": [
+   "Full dashboard with calendar and Kanban",
+   "Unlimited workspaces and channels",
+   "1,000 posts a month",
+   "Telegram inline buttons, spoilers and polls",
+   "100 MB media library on Cloudflare R2",
+   "Vane AI Pass included",
+   "Priority dispatch: posts leave on the second you chose",
+   "Advanced MCP tools for Claude and Notion",
+   "Extra posts: $0.015 each, $0.045 for AI posts"
+  ]
+ },
+ {
+  "id": "video",
+  "kind": "plan",
+  "name": "Vane Studio",
+  "tagline": "Video publishing, end to end.",
+  "badge": "",
+  "priceCents": 1499,
+  "comparePriceCents": null,
+  "yearlyPriceCents": null,
+  "currency": "USD",
+  "interval": "month",
+  "ctaLabel": "Coming soon",
+  "highlight": false,
+  "comingSoon": true,
+  "buyable": false,
+  "features": [
+   "YouTube Shorts, TikTok and Instagram Reels",
+   "YouTube long-form with custom thumbnails, playlists and tags",
+   "Resumable uploads on Cloudflare R2",
+   "AI hooks, scripts, descriptions, tags and timestamps"
+  ]
+ }
+]

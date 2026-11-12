@@ -26,6 +26,7 @@
 
 - [Головна](https://vaneapp.dev/uk/): що робить Vane, мережі, калькулятор ціни, FAQ
 - [Ціни](https://vaneapp.dev/uk/pricing): тарифи та ціни за перевищення
+- [Недорогий автопостер](https://vaneapp.dev/uk/autoposter): що таке автопостер, що порівнювати, тарифи та ціни, FAQ
 - [Мережі](https://vaneapp.dev/uk/networks): кожна мережа, що вона підтримує, ліміти й як підключити
 - [Розробникам](https://vaneapp.dev/uk/developers): API, вебхуки, тестові ключі
 - [Специфікація OpenAPI](https://vaneapp.dev/api/v1/openapi.json)

@@ -26,6 +26,7 @@
 
 - [Home](https://vaneapp.dev/): what Vane does, networks, pricing calculator, FAQ
 - [Pricing](https://vaneapp.dev/pricing): plans and overage rates
+- [Autoposter guide](https://vaneapp.dev/autoposter): what an autoposter is, what to compare when you want an affordable one, plans and prices, FAQ
 - [Networks](https://vaneapp.dev/networks): every network, what it supports, its limits and how to connect it
 - [Developers](https://vaneapp.dev/developers): the API, webhooks, test keys
 - [OpenAPI spec](https://vaneapp.dev/api/v1/openapi.json)
