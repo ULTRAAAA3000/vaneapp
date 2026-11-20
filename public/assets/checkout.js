@@ -89,11 +89,11 @@
   // ── methods
   function renderMethods() {
     var m = S.cfg.methods;
-    S.card = m.csob ? 'csob' : 'monobank';
-    [['mCard', !!(m.csob || m.monobank)], ['mCrypto', !!m.crypto], ['mPaypal', !!m.paypal]].forEach(function (x) {
+    S.card = m.csas ? 'csas' : m.csob ? 'csob' : 'monobank';
+    [['mCard', !!(m.csas || m.csob || m.monobank)], ['mCrypto', !!m.crypto], ['mPaypal', !!m.paypal]].forEach(function (x) {
       $(x[0]).classList.toggle('hidden', !x[1]);
     });
-    if (!S.method || !(S.method === 'crypto' ? m.crypto : S.method === 'paypal' ? m.paypal : m[S.method])) S.method = m.csob ? 'csob' : m.monobank ? 'monobank' : m.crypto ? 'crypto' : m.paypal && !(S.plan && S.plan.id === 'balance') ? 'paypal' : null;
+    if (!S.method || !(S.method === 'crypto' ? m.crypto : S.method === 'paypal' ? m.paypal : m[S.method])) S.method = m.csas ? 'csas' : m.csob ? 'csob' : m.monobank ? 'monobank' : m.crypto ? 'crypto' : m.paypal && !(S.plan && S.plan.id === 'balance') ? 'paypal' : null;
     paintMethod();
   }
   function paintMethod() {
@@ -102,7 +102,7 @@
     if (topUp && S.method === 'paypal') S.method = S.card || (S.cfg && S.cfg.methods && S.cfg.methods.crypto ? 'crypto' : null);
     if (S.cfg && S.cfg.methods) $('mPaypal').classList.toggle('hidden', !S.cfg.methods.paypal || topUp);
     $('mPaypal').setAttribute('aria-checked', String(S.method === 'paypal'));
-    $('mCard').setAttribute('aria-checked', String(S.method === 'monobank' || S.method === 'csob'));
+    $('mCard').setAttribute('aria-checked', String(S.method === 'monobank' || S.method === 'csob' || S.method === 'csas'));
     $('mCrypto').setAttribute('aria-checked', String(S.method === 'crypto'));
     $('assetBox').classList.toggle('hidden', S.method !== 'crypto');
     var renews = S.method === 'paypal';
@@ -135,7 +135,7 @@
     if (r.status === 401) return Vane.go('/login?next=' + encodeURIComponent('/checkout' + location.search));
     if (!r.ok) return err(r.error);
     S.order = r.data.order;
-    if ((S.order.method === 'csob' || S.order.method === 'monobank' || S.order.method === 'paypal') && S.order.payUrl) { Vane.go(S.order.payUrl); return; }
+    if ((S.order.method === 'csob' || S.order.method === 'csas' || S.order.method === 'monobank' || S.order.method === 'paypal') && S.order.payUrl) { Vane.go(S.order.payUrl); return; }
     showCrypto();
   });
 
@@ -179,7 +179,7 @@
     if (st === 'paid') return done();
     if (st === 'failed') { stop(); return closed('The payment did not go through', 'Nothing was charged. You can try again, or choose another way to pay.'); }
     if (st === 'canceled') { stop(); return closed('This order was canceled', 'You can start a new one.'); }
-    if (st === 'expired' && (S.order.method === 'monobank' || S.order.method === 'csob')) { stop(); return closed('The payment window closed', 'No money was taken. Start again to get a new payment page.'); }
+    if (st === 'expired' && (S.order.method === 'monobank' || S.order.method === 'csob' || S.order.method === 'csas')) { stop(); return closed('The payment window closed', 'No money was taken. Start again to get a new payment page.'); }
     if (st === 'expired' && S.order.method === 'paypal' && S.order.expiresAt + 3600 < Math.floor(Date.now() / 1000)) { stop(); return closed('This subscription was not completed', 'Nothing was charged. Start again to subscribe.'); }
     if (st === 'expired') $('cStatus').textContent = 'Time is up, still watching';
   }
@@ -216,7 +216,7 @@
     if (me.data && me.data.user && me.data.user.name) $('fName').value = me.data.user.name;
 
     var cfg = await Vane.api('GET', '/api/billing/config');
-    S.cfg = cfg.ok ? cfg.data : { methods: { csob: false, paypal: false, monobank: false, crypto: false } };
+    S.cfg = cfg.ok ? cfg.data : { methods: { csob: false, csas: false, paypal: false, monobank: false, crypto: false } };
     if (S.cfg.preview) {
       var bar = document.createElement('div');
       bar.className = 'mb-5 rounded-xl border border-amber-300/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-200';
@@ -235,7 +235,7 @@
       if (S.plan) { renderPlan(); renderMethods(); }
       if (S.order.status === 'paid') return done();
       if (S.order.method === 'crypto' && S.order.crypto) return showCrypto();
-      if (S.order.status === 'pending' || S.order.status === 'expired' && (S.order.method === 'paypal' || S.order.method === 'csob')) { $('waitTitle').textContent = S.order.method === 'paypal' ? 'Waiting for PayPal' : 'Waiting for the bank'; show('stepWait'); if (S.order.payUrl) { $('wRetry').setAttribute('href', S.order.payUrl); $('wRetry').classList.remove('hidden'); } startWatching(); return; }
+      if (S.order.status === 'pending' || S.order.status === 'expired' && (S.order.method === 'paypal' || S.order.method === 'csob' || S.order.method === 'csas')) { $('waitTitle').textContent = S.order.method === 'paypal' ? 'Waiting for PayPal' : 'Waiting for the bank'; show('stepWait'); if (S.order.payUrl) { $('wRetry').setAttribute('href', S.order.payUrl); $('wRetry').classList.remove('hidden'); } startWatching(); return; }
       return closed('This order is closed', 'Start a new one to buy the plan.');
     }
 
@@ -250,7 +250,7 @@
     var r = await Vane.api('GET', '/api/billing/plan?id=' + encodeURIComponent(id) + (id === 'balance' ? '&amount=' + encodeURIComponent(q.get('amount') || '') : ''));
     if (!r.ok) return fatal(r.error || 'This plan does not exist.');
     S.plan = r.data.plan;
-    var anyMethod = S.cfg.methods.csob || S.cfg.methods.paypal || S.cfg.methods.monobank || S.cfg.methods.crypto;
+    var anyMethod = S.cfg.methods.csob || S.cfg.methods.csas || S.cfg.methods.paypal || S.cfg.methods.monobank || S.cfg.methods.crypto;
     if (!anyMethod) return fatal('Online payment is not open yet. Please check back soon.');
     if (!S.plan.buyable) return fatal('This plan is not on sale yet.');
     if (q.get('interval') === 'year' && (S.plan.yearlyPriceCents || S.plan.interval === 'year')) S.interval = 'year';

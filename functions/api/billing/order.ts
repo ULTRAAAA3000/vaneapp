@@ -50,7 +50,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     order = (await env.DB.prepare(`SELECT ${ORDER_COLUMNS} FROM orders WHERE id = ?1`).bind(id).first<OrderRow>()) ?? order;
   }
   const open = order.status === 'pending' || (order.status === 'expired' && (order.provider === 'crypto' || order.provider === 'paypal' || order.provider === 'csob'));
-  const payUrl = !open ? null : order.provider === 'csob' ? (order.provider_ref ? await processUrl(env, order.provider_ref) : null) : order.provider === 'monobank' || order.provider === 'paypal' ? order.pay_url : null;
+  const payUrl = !open ? null : order.provider === 'csob' ? (order.provider_ref ? await processUrl(env, order.provider_ref) : null) : order.provider === 'monobank' || order.provider === 'paypal' || order.provider === 'csas' ? order.pay_url : null;
   return json({ ok: true, order: { ...orderView(order), payUrl, crypto: open ? cryptoDetails(env, order) : null } });
 };
 export const onRequest: PagesFunction<Env> = async () => methodNotAllowed('GET');
