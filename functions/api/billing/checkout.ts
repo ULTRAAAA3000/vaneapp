@@ -14,6 +14,7 @@ import { addonAllowed, billingEnabled, billingMethods, getPlan, previewActive, O
 import { BALANCE_PLAN_ID, parseTopUpCents, topUpPlan } from '../lib/balance';
 import { createInvoice, monobankCcy } from '../lib/monobank';
 import { CSOB_CURRENCIES, initPayment, processUrl, randomOrderNo } from '../lib/csob';
+import { buildPaymentUrl, csasCurrencies, randomOrderNumber } from '../lib/csas';
 import { billingPlanId, createSubscription, PAYPAL_CURRENCIES } from '../lib/paypal';
 import { SOLANA_ASSETS, type CryptoAsset } from '../lib/solana';
 import { bump, retryAfter } from '../lib/throttle';
@@ -31,7 +32,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!isRecord(b)) return fail(400, 'Send a JSON object.');
 
   const method = b.method as Method;
-  if (method !== 'csob' && method !== 'monobank' && method !== 'crypto' && method !== 'paypal') return fail(400, 'Choose how to pay.');
+  if (method !== 'csob' && method !== 'csas' && method !== 'monobank' && method !== 'crypto' && method !== 'paypal') return fail(400, 'Choose how to pay.');
   if (!billingEnabled(env) && (await previewActive(env, request))) return fail(503, 'Preview only: payment is not connected yet, so nothing can be bought. (PayPal is not configured, or the plan is not switched on.)');
   if (!billingMethods(env)[method]) return fail(503, 'This payment method is not available.');
   const asset = (b.asset === 'usdc' ? 'usdc' : 'usdt') as CryptoAsset;
@@ -66,6 +67,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const ccy = monobankCcy(plan.currency);
   if (method === 'monobank' && ccy === null) return fail(409, 'Card payment is not available for this price currency.');
   if (method === 'csob' && !CSOB_CURRENCIES.has(plan.currency)) return fail(409, 'Card payment is not available for this price currency.');
+  if (method === 'csas' && !csasCurrencies(env).has(plan.currency)) return fail(409, 'Card payment is not available for this price currency.');
   // PayPal here is a subscription that renews by itself; a top-up is a single payment, and a renewal would put the same money on the balance again.
   if (method === 'paypal' && plan.id === BALANCE_PLAN_ID) return fail(409, 'A balance top-up is a single payment. Pay by card or crypto.');
   if (method === 'paypal' && !PAYPAL_CURRENCIES.has(plan.currency)) return fail(409, 'PayPal is not available for this price currency.');
@@ -131,6 +133,20 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     }
     await env.DB.prepare('UPDATE orders SET provider_ref = ?2 WHERE id = ?1').bind(id, made.payId).run();
   }
+  if (method === 'csas') {
+    const origin = ((env.APP_URL ?? '').replace(/\/+$/, '') || new URL(request.url).origin);
+    const orderNumber = randomOrderNumber();
+    const payUrl = await buildPaymentUrl(env, {
+      orderNumber, amountCents: q.amountCents, currency: plan.currency,
+      description: plan.id === BALANCE_PLAN_ID ? `Vane balance top-up $${q.amountCents / 100}` : `Vane ${plan.name}, one ${q.interval === 'year' ? 'year' : 'month'}`,
+      merchantData: id, returnUrl: `${origin}/api/billing/csas`,
+    });
+    if (!payUrl) {
+      await env.DB.prepare(`UPDATE orders SET status = 'failed', note = 'payment not created' WHERE id = ?1`).bind(id).run();
+      return fail(502, 'The bank did not accept the request. Please try again in a moment.');
+    }
+    await env.DB.prepare('UPDATE orders SET provider_ref = ?2, pay_url = ?3 WHERE id = ?1').bind(id, orderNumber, payUrl).run();
+  }
   if (method === 'paypal') {
     const origin = ((env.APP_URL ?? '').replace(/\/+$/, '') || new URL(request.url).origin);
     const planId = await billingPlanId(env, `Vane ${plan.name} (${q.interval === 'year' ? 'yearly' : 'monthly'})`, q.amountCents, plan.currency, q.interval);
@@ -147,7 +163,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
 async function view(env: Env, o: OrderRow): Promise<Record<string, unknown>> {
   const open = o.status === 'pending';
-  const payUrl = o.provider === 'csob' ? (open && o.provider_ref ? await processUrl(env, o.provider_ref) : null) : o.provider === 'monobank' || o.provider === 'paypal' ? o.pay_url : null;
+  const payUrl = o.provider === 'csob' ? (open && o.provider_ref ? await processUrl(env, o.provider_ref) : null) : o.provider === 'monobank' || o.provider === 'paypal' || o.provider === 'csas' ? o.pay_url : null;
   return { ...orderView(o), payUrl, crypto: cryptoDetails(env, o) };
 }
 

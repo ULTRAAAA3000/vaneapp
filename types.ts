@@ -38,6 +38,11 @@ export interface Env {
   CSOB_PRIVATE_KEY?: string;        // secret: the PEM private key made in the bank's key tool (the public half is uploaded there)
   CSOB_BANK_PUBLIC_KEY?: string;    // the bank's PEM public key (the test and the live gateway have different ones)
   CSOB_ENV?: string;                // 'live' for real money; anything else is the bank's test gateway
+  CSAS_MERCHANT_NUMBER?: string;    // Česká spořitelna's GP webpay gateway: the 10-digit merchant number the bank gives. Card checkout is on once the three CSAS values are set
+  CSAS_PRIVATE_KEY?: string;        // secret: the PEM private key made in the GP webpay Portal (the public half stays with the bank)
+  CSAS_BANK_PUBLIC_KEY?: string;    // GP webpay's PEM public certificate, downloaded from the Portal (test and live have different ones)
+  CSAS_ENV?: string;                // 'live' for real money; anything else is the GP webpay test gateway
+  CSAS_CURRENCIES?: string;         // plain var: comma list of price currencies GP webpay accepts for this merchant number (default: CZK,EUR)
   PAYMENT_METHODS?: string;         // plain var: comma list of the checkout methods shown to buyers (monobank, crypto). Unset = none; their code stays in place
   CRYPTO_WALLET?: string;           // plain var: the Solana address that receives USDT / USDC (crypto checkout is off without it)
   SOLANA_RPC_URL?: string;          // optional: a Solana RPC address (Helius, QuickNode); the public one is used when empty

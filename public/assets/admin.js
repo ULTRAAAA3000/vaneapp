@@ -431,7 +431,7 @@
     ['overageAiPostUsd', 'Extra AI post price, USD', 'float', 'empty = same as an extra post'],
     ['seats', 'Team seats', 'int', 'stored, not enforced yet']
   ];
-  var PROVIDERS = [['csob', 'ČSOB (card, Apple Pay, Google Pay)'], ['paypal', 'PayPal'], ['monobank', 'Monobank Acquiring'], ['crypto', 'Crypto (Solana / USDT)'], ['stripe', 'Stripe']];
+  var PROVIDERS = [['csas', 'Česká spořitelna (GP webpay — card)'], ['csob', 'ČSOB (card, Apple Pay, Google Pay)'], ['paypal', 'PayPal'], ['monobank', 'Monobank Acquiring'], ['crypto', 'Crypto (Solana / USDT)'], ['stripe', 'Stripe']];
 
   var STORAGE_PLANS = ['free', 'pro', 'video', 'suite'];
   function limitsFor(id) { return LIMITS.filter(function (x) { return x[0] !== 'storageMb' || STORAGE_PLANS.indexOf(id) !== -1; }); }
